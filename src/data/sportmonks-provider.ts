@@ -81,7 +81,7 @@ interface SeasonInfo {
 interface TeamInfo {
   id: string;
   name: string;
-  type?: string;
+  type: "domestic";
 }
 
 function asRecord(value: unknown): RecordValue | undefined {
@@ -182,8 +182,14 @@ function parseTeams(payload: SportmonksPayload, seasonId: string, page: number):
     if (!team || !id || !name) {
       throw new SportmonksProviderError("invalid_response", `Sportmonks returned a team without its required identity in season ${seasonId}.`);
     }
-    if (type && type !== "domestic") return [];
-    return [{ id, name, ...(type ? { type } : {}) }];
+    if (!type) {
+      throw new SportmonksProviderError("invalid_response", `Sportmonks returned a team without its type in season ${seasonId}.`);
+    }
+    if (type === "national") return [];
+    if (type !== "domestic") {
+      throw new SportmonksProviderError("invalid_response", `Sportmonks returned an unknown team type for season ${seasonId}.`);
+    }
+    return [{ id, name, type }];
   });
 }
 
@@ -557,7 +563,7 @@ export async function runSportmonksSmoke(options: SportmonksSmokeOptions): Promi
 
   const teamPayload = await get(`/teams/seasons/${season.id}`, { per_page: String(TEAM_PAGE_SIZE), page: "1" });
   const teams = parseTeams(teamPayload, season.id, 1);
-  const team = teams.find((candidate) => candidate.type === "domestic");
+  const team = teams[0];
   if (!team) {
     throw new SportmonksProviderError(
       "invalid_response",
