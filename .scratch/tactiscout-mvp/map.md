@@ -39,6 +39,7 @@ Labels: wayfinder:map
 - [issue 25：Wyscout 历史比赛事件 adapter](issues/25-wyscout-historical-event-adapter.md)代码、来源映射、合成回归夹具及官方 Figshare 五大联赛真实文件 smoke test 均已完成。
 - [issue 26：阻止候选分页重复耗尽调查预算](issues/26-wyscout-agent-cursor-regression.md)已完成：按搜索范围维护候选游标、压缩结论上下文、为 Qwen 请求增加时限；本机 Wyscout/Qwen 最终复验 184.3 秒通过全部 18 项行为检查，结论调用 69.7 秒。
 - 用户已授权继续实现；方向收敛后继续推进，不把项目留在纯计划阶段。
+- [issue 49](issues/49-continuous-integration-build-checks.md)：为公开仓库增加基于锁文件、无需凭据的 API 与网页生产构建检查；本地构建通过不等于 GitHub Actions 已成功运行。
 - 已实现对话案件 HTTP seam、LangGraph 工具决策循环与可中断追问；浏览器已改为自由对话入口，并保存对话和最近完整报告。
 - 已加深结论证据策略与来源许可判定 module；Fastify 应用组合统一注入球员仓库和知识库，工具 trace 使用实际执行参数。详见 [Agent 架构加深](issues/12-agent-architecture-deepening.md)。
 - 使用 Fastify 注入测试覆盖调查、追问、恢复与证据报告；前后端类型检查、行为测试和网页生产构建均通过。
