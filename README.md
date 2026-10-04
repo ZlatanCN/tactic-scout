@@ -162,6 +162,8 @@ TACTISCOUT_SPORTMONKS_COVERED_STATISTIC_TYPE_IDS=
 TACTISCOUT_SPORTMONKS_AI_PROCESSING_ALLOWED=false
 ```
 
+在启用应用 provider 前，可设置本机 `SPORTMONKS_API_TOKEN` 与 `TACTISCOUT_SPORTMONKS_SMOKE_SEASON_ID`，运行 `pnpm source:smoke:sportmonks`。它最多检查一个当前赛季和一支球队，最多发出四次请求；赛季未明确标为当前时会在读取球队或球员前停止。命令只输出数量与字段覆盖，不打印球员姓名或单项统计、不保存数据，也不调用模型。该 smoke 不验证或授予公开展示、数据保留或模型处理权限，正式 provider 的模型处理开关仍保持关闭。
+
 `TACTISCOUT_SPORTMONKS_COVERED_STATISTIC_TYPE_IDS` 必须按你的 Sportmonks 账户、联赛和订阅确认后填写；空值或未确认的指标不会被当作套餐已覆盖。当前映射支持 52 进球、79 助攻、80 传球尝试、81/116 成功传球、78 抢断、100 拦截、119 出场分钟和 122 长球。缺少某项覆盖配置时，该项不会参与球员评估；分钟字段必须确认可用。API v3 在统计明细中没有返回某个已确认覆盖的计数时按零处理。
 
 `SPORTMONKS_API_TOKEN` 只由 Fastify 服务端读取。启动 Sportmonks 模式前，必须把 `TACTISCOUT_SPORTMONKS_AI_PROCESSING_ALLOWED` 明确设为 `true`；这表示部署者已核实其账户和条款允许将这些数据交给配置的模型处理。公开条款允许在自有产品中存储和展示数据，但本文核对的条款没有专门说明外部 LLM/embedding 处理；权限未确认时不要开启此选项。[Sportmonks 服务条款](https://www.sportmonks.com/terms-of-service/)。

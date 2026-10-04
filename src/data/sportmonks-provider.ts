@@ -42,6 +42,8 @@ interface SportmonksPayload {
   pagination?: unknown;
 }
 
+type SportmonksRequest = (path: string, query?: Record<string, string>) => Promise<SportmonksPayload>;
+
 export type SportmonksProviderErrorCode =
   | "invalid_configuration"
   | "authentication"
@@ -183,6 +185,39 @@ function parseTeams(payload: SportmonksPayload, seasonId: string, page: number):
     if (type && type !== "domestic") return [];
     return [{ id, name, ...(type ? { type } : {}) }];
   });
+}
+
+function createSportmonksRequest(token: string, fetchImpl: typeof fetch): SportmonksRequest {
+  return async (path, query = {}) => {
+    const url = new URL(`${FOOTBALL_API_PREFIX}${path}`, API_ORIGIN);
+    for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers: { Authorization: token, Accept: "application/json" },
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new SportmonksProviderError("network", "Sportmonks request failed before a response was received.");
+    }
+    if (response.status === 401) throw new SportmonksProviderError("authentication", "Sportmonks rejected the configured API token.");
+    if (response.status === 403) throw new SportmonksProviderError("plan_coverage", "Sportmonks denied this league or data feed under the configured plan.");
+    if (response.status === 429) throw new SportmonksProviderError("rate_limit", "Sportmonks rate limit was reached; try again after its reset window.");
+    if (!response.ok) throw new SportmonksProviderError("request_failed", `Sportmonks returned HTTP ${response.status}.`);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new SportmonksProviderError("invalid_response", "Sportmonks returned invalid JSON.");
+    }
+    const record = asRecord(payload);
+    if (!record || !Object.hasOwn(record, "data")) {
+      throw new SportmonksProviderError("invalid_response", "Sportmonks response did not contain a data field.");
+    }
+    return { data: record.data, ...(Object.hasOwn(record, "pagination") ? { pagination: record.pagination } : {}) };
+  };
 }
 
 function numericValue(value: unknown): number | undefined {
@@ -328,23 +363,22 @@ export class SportmonksPlayerRepository implements PlayerRepository {
   readonly mode = "sportmonks" as const;
   readonly sourceName = "Sportmonks Football API";
 
-  private readonly token: string;
   private readonly seasonIds: string[];
   private readonly coveredTypeIds: Set<number>;
-  private readonly fetchImpl: typeof fetch;
+  private readonly request: SportmonksRequest;
   private readonly cacheTtlMs: number;
   private readonly now: () => Date;
   private cached?: Promise<PlayerProfile[]>;
   private cacheCreatedAt = 0;
 
   constructor(options: SportmonksRepositoryOptions) {
-    this.token = options.token.trim();
+    const token = options.token.trim();
     this.seasonIds = [...new Set(options.seasonIds.map((id) => id.trim()).filter(Boolean))];
     this.coveredTypeIds = new Set(options.coveredStatisticTypeIds);
-    this.fetchImpl = options.fetchImpl ?? fetch;
     this.cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
     this.now = options.now ?? (() => new Date());
-    if (!this.token) throw new SportmonksProviderError("invalid_configuration", "Sportmonks provider requires a server-side API token.");
+    if (!token) throw new SportmonksProviderError("invalid_configuration", "Sportmonks provider requires a server-side API token.");
+    this.request = createSportmonksRequest(token, options.fetchImpl ?? fetch);
     if (this.seasonIds.length === 0 || this.seasonIds.some((id) => !/^\d+$/.test(id))) {
       throw new SportmonksProviderError("invalid_configuration", "Sportmonks provider requires one or more numeric season IDs.");
     }
@@ -374,37 +408,6 @@ export class SportmonksPlayerRepository implements PlayerRepository {
       if (this.cached === pending) this.cached = undefined;
     });
     return pending;
-  }
-
-  private async request(path: string, query: Record<string, string> = {}): Promise<SportmonksPayload> {
-    const url = new URL(`${FOOTBALL_API_PREFIX}${path}`, API_ORIGIN);
-    for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
-    let response: Response;
-    try {
-      response = await this.fetchImpl(url, {
-        method: "GET",
-        headers: { Authorization: this.token, Accept: "application/json" },
-        redirect: "error",
-        signal: AbortSignal.timeout(15_000),
-      });
-    } catch {
-      throw new SportmonksProviderError("network", "Sportmonks request failed before a response was received.");
-    }
-    if (response.status === 401) throw new SportmonksProviderError("authentication", "Sportmonks rejected the configured API token.");
-    if (response.status === 403) throw new SportmonksProviderError("plan_coverage", "Sportmonks denied this league or data feed under the configured plan.");
-    if (response.status === 429) throw new SportmonksProviderError("rate_limit", "Sportmonks rate limit was reached; try again after its reset window.");
-    if (!response.ok) throw new SportmonksProviderError("request_failed", `Sportmonks returned HTTP ${response.status}.`);
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new SportmonksProviderError("invalid_response", "Sportmonks returned invalid JSON.");
-    }
-    const record = asRecord(payload);
-    if (!record || !Object.hasOwn(record, "data")) {
-      throw new SportmonksProviderError("invalid_response", "Sportmonks response did not contain a data field.");
-    }
-    return { data: record.data, ...(Object.hasOwn(record, "pagination") ? { pagination: record.pagination } : {}) };
   }
 
   private async loadSeasonTeams(seasonId: string): Promise<TeamInfo[]> {
@@ -480,3 +483,141 @@ export class SportmonksPlayerRepository implements PlayerRepository {
 export const sportmonksDefaults = {
   cacheTtlMs: DEFAULT_CACHE_TTL_MS,
 };
+
+export interface SportmonksSmokeOptions {
+  token: string;
+  seasonId: string;
+  fetchImpl?: typeof fetch;
+  now?: () => Date;
+}
+
+export interface SportmonksSmokeMetricCoverage {
+  metric: string;
+  statisticTypeIds: number[];
+  playersWithValue: number;
+  playersInCurrentSquad: number;
+}
+
+export interface SportmonksSmokeResult {
+  checkedAt: string;
+  outcome: "season_not_current_or_unconfirmed" | "no_teams" | "team_sample_received" | "empty_current_squad";
+  requestsMade: number;
+  season: {
+    id: string;
+    competitionId: string;
+    isCurrent: boolean;
+  };
+  team: {
+    id: string;
+    domesticTeamsOnFirstPage: number;
+    moreTeamsAvailable: boolean;
+    currentSquadPlayers: number;
+    parserCompatiblePlayers: number;
+    playersWithStatistics: number;
+    fieldCoverage: SportmonksSmokeMetricCoverage[];
+  } | null;
+}
+
+const smokeMetricTypes = [
+  { metric: "goals", statisticTypeIds: [statisticTypeIds.goals] },
+  { metric: "assists", statisticTypeIds: [statisticTypeIds.assists] },
+  { metric: "passesAttempted", statisticTypeIds: [statisticTypeIds.passesAttempted] },
+  { metric: "passesCompleted", statisticTypeIds: [statisticTypeIds.passesCompleted, statisticTypeIds.accuratePasses] },
+  { metric: "longPasses", statisticTypeIds: [statisticTypeIds.longPasses] },
+  { metric: "tackles", statisticTypeIds: [statisticTypeIds.tackles] },
+  { metric: "interceptions", statisticTypeIds: [statisticTypeIds.interceptions] },
+  { metric: "minutesPlayed", statisticTypeIds: [statisticTypeIds.minutesPlayed] },
+] as const;
+
+export async function runSportmonksSmoke(options: SportmonksSmokeOptions): Promise<SportmonksSmokeResult> {
+  const token = options.token.trim();
+  const seasonId = options.seasonId.trim();
+  if (!token) throw new SportmonksProviderError("invalid_configuration", "Set SPORTMONKS_API_TOKEN locally before running this smoke.");
+  if (!/^\d+$/.test(seasonId)) {
+    throw new SportmonksProviderError("invalid_configuration", "TACTISCOUT_SPORTMONKS_SMOKE_SEASON_ID must be a numeric season ID.");
+  }
+
+  const request = createSportmonksRequest(token, options.fetchImpl ?? fetch);
+  let requestsMade = 0;
+  const get = (path: string, query: Record<string, string> = {}) => {
+    requestsMade += 1;
+    return request(path, query);
+  };
+  const checkedAt = (options.now ?? (() => new Date()))().toISOString();
+  const seasonPayload = await get(`/seasons/${seasonId}`, { include: "league" });
+  const season = parseSeason(seasonPayload, seasonId);
+  const baseSeason = {
+    id: season.id,
+    competitionId: season.competitionId,
+    isCurrent: season.isCurrent,
+  };
+  if (!season.isCurrent) {
+    return { checkedAt, outcome: "season_not_current_or_unconfirmed", requestsMade, season: baseSeason, team: null };
+  }
+
+  const teamPayload = await get(`/teams/seasons/${season.id}`, { per_page: String(TEAM_PAGE_SIZE), page: "1" });
+  const teams = parseTeams(teamPayload, season.id, 1);
+  if (teams.length === 0) return { checkedAt, outcome: "no_teams", requestsMade, season: baseSeason, team: null };
+  const team = teams[0]!;
+  const [squadPayload, statisticsPayload] = await Promise.all([
+    get(`/squads/teams/${team.id}`, { include: "player;position;detailedPosition" }),
+    get(`/squads/seasons/${season.id}/teams/${team.id}`, { include: "details" }),
+  ]);
+  const squadRows = asArray(squadPayload.data);
+  const statisticRows = asArray(statisticsPayload.data);
+  if (!squadRows || !statisticRows) {
+    throw new SportmonksProviderError("invalid_response", `Sportmonks returned a malformed squad sample for team ${team.id}.`);
+  }
+
+  const today = checkedAt.slice(0, 10);
+  const currentSquad = squadRows.filter((row) => squadRecordIsCurrent(row, today));
+  const currentPlayerIds = currentSquad.map((row) => {
+    const playerId = idString(asRecord(row)?.player_id);
+    if (!playerId) throw new SportmonksProviderError("invalid_response", `Sportmonks returned a squad record without a player ID for team ${team.id}.`);
+    return playerId;
+  });
+  const playerStatistics = new Map<string, Map<number, number>>();
+  const statisticsByPlayerId = new Map<string, RecordValue>();
+  for (const row of statisticRows) {
+    const record = asRecord(row);
+    const playerId = idString(record?.player_id);
+    if (!record || !playerId || statisticsByPlayerId.has(playerId)) {
+      throw new SportmonksProviderError("invalid_response", `Sportmonks returned invalid or duplicate statistics for team ${team.id}.`);
+    }
+    statisticsByPlayerId.set(playerId, record);
+    const details = statisticDetails(record);
+    if (details) playerStatistics.set(playerId, details);
+  }
+
+  const allStatisticTypeIds = new Set<number>(Object.values(statisticTypeIds));
+  const parserCompatiblePlayers = currentSquad.filter((row, index) => parseSquadPlayer(
+    row,
+    statisticsByPlayerId.get(currentPlayerIds[index]!),
+    season,
+    team,
+    checkedAt,
+    allStatisticTypeIds,
+  ) !== undefined).length;
+  const playersWithStatistics = currentPlayerIds.filter((playerId) => (playerStatistics.get(playerId)?.size ?? 0) > 0).length;
+  const fieldCoverage = smokeMetricTypes.map(({ metric, statisticTypeIds: typeIds }) => ({
+    metric,
+    statisticTypeIds: [...typeIds],
+    playersWithValue: currentPlayerIds.filter((playerId) => typeIds.some((typeId) => playerStatistics.get(playerId)?.has(typeId))).length,
+    playersInCurrentSquad: currentPlayerIds.length,
+  }));
+  return {
+    checkedAt,
+    outcome: currentPlayerIds.length > 0 ? "team_sample_received" : "empty_current_squad",
+    requestsMade,
+    season: baseSeason,
+    team: {
+      id: team.id,
+      domesticTeamsOnFirstPage: teams.length,
+      moreTeamsAvailable: asRecord(teamPayload.pagination)?.has_more === true,
+      currentSquadPlayers: currentPlayerIds.length,
+      parserCompatiblePlayers,
+      playersWithStatistics,
+      fieldCoverage,
+    },
+  };
+}

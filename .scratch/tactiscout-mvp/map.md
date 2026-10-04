@@ -21,6 +21,7 @@ Labels: wayfinder:map
 - [足球数据源扩展调查](research/football-data-source-expansion-2026-10.md)核对 Sportmonks、API-Football、football-data.org、OpenLigaDB 与开放历史数据；没有找到零预算且同时具备现役阵容、球员表现指标及可公开展示授权的主数据源，Sportmonks 最适合延续现有实时 provider。
 - [单一开放足球数据源可行性](research/single-source-open-football-data-2026-10.md)保留此前调查结论；用户现已重新允许扩大来源范围，最新路线和一手来源边界见 [扩展数据源复核](research/football-data-source-research-refresh-2026-10.md)。
 - [当前球员数据源与自建路径复核](research/current-player-data-source-options-2026-10.md)重新比较 PlayerElo、Sportmonks、football-data.org、TheSportsDB、Reep、Wikidata、OpenLigaDB、StatsBomb 与 Wyscout；下一步优先评估 PlayerElo 的一联赛、只读外部信号路径，但当前无 API key，也未验证展示/保留/模型处理权限。
+- [当前球员池数据源官方决策复核](research/current-player-pool-provider-decision-2026-10-04.md)：Sportmonks 是现有代码里最完整的当前池候选，但套餐 entitlement 和本地 Ollama 处理权限未验证；API-Football 免费赛季和发布权不确定，PlayerElo 只适合作独立信号，foot.io 的 beta/权利边界不清。暂不订阅，先用 [issue 48](issues/48-sportmonks-current-pool-smoke.md) 的本机无模型 smoke 验证一支球队。
 - [FBref 当前球员数据与接入评估](research/fbref-data-integration-2026-10.md)确认当前可查五大联赛标准统计与多类常规表现表，同时记录 2026 年高级足球数据缩减、球员列表覆盖不完整及自动化/AI 使用条款边界。
 - [issue 36：FBref 五大联赛当前表现数据源](issues/36-fbref-current-big5-provider.md)：按用户选择接入当前 Big 5 球员表现页；保留来源 ID 和可追溯链接，空列不补零，公开页低频抓取且遇到访问拒绝不重试。
 - [issue 37：FBref 访问拒绝时确定性结束调查](issues/37-terminal-source-access-failure.md)：403/429 应由 LangGraph 明确提示“数据源无法访问”，不能让模型将它解释为空候选或继续发起无关追问。
@@ -72,6 +73,7 @@ Labels: wayfinder:map
 - [可复现的本地 Ollama 启动说明](issues/45-reproducible-local-ollama-setup.md)：README 给出官方 OpenAI-compatible 地址、占位 key、模型名和历史快照启动步骤，不依赖某台机器的 `.env`。
 - [作品集架构总览](issues/46-portfolio-architecture-overview.md)：README Mermaid 图按实际代码展示 LangGraph 工具循环、同案中断恢复、Reviewer、权限感知检索、数据查询契约及两类本地持久化。
 - [API-Football 免费档近季 smoke](issues/47-api-football-free-current-season-smoke.md)：新增 `pnpm source:smoke:api-football` 本机脱敏预检，最多检查 3 个端点、不保存或交给模型；执行仍需用户 key。免费赛季覆盖按真实账号确认，公开展示许可未获授，持久化/送入 Ollama 权限也不明确，因此暂不新增未经验证的 provider adapter。
+- [Sportmonks 当前球员池 smoke](issues/48-sportmonks-current-pool-smoke.md)：`pnpm source:smoke:sportmonks` 在本地验证一个明确标记为当前的赛季和一支球队，最多读四个 API 响应；不打印球员姓名/数值、不持久化、不交给模型，也不改变正式 provider 的权限闸门。真实联调仍需用户本地 token。
 
 - [把球探调查进度做成可读的阶段时间线](issues/30-readable-investigation-progress.md)：每轮显示实际 LangGraph 阶段事件、重复阶段次数与耗时，不把流程阶段伪装成完成比例或推荐质量。
 

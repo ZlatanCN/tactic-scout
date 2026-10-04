@@ -33,4 +33,4 @@ See [provider landscape research](../research/football-data-provider-landscape-2
 
 ## Answer
 
-核心实现完成；待真实 Sportmonks 账户验证。
+核心实现完成；待真实 Sportmonks 账户验证。新增 [issue 48](48-sportmonks-current-pool-smoke.md) 与本机无模型 smoke：最多四个请求，只检查当前赛季和一支球队，不打印球员身份/原始统计、不持久化、不调用模型；真实 token 联调仍待用户在本机配置。
