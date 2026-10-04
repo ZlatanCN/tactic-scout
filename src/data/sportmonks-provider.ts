@@ -558,7 +558,12 @@ export async function runSportmonksSmoke(options: SportmonksSmokeOptions): Promi
   const teamPayload = await get(`/teams/seasons/${season.id}`, { per_page: String(TEAM_PAGE_SIZE), page: "1" });
   const teams = parseTeams(teamPayload, season.id, 1);
   const team = teams.find((candidate) => candidate.type === "domestic");
-  if (!team) return { checkedAt, requestsMade, season: baseSeason, team: null };
+  if (!team) {
+    throw new SportmonksProviderError(
+      "invalid_response",
+      "Sportmonks first team-list page contained no team explicitly marked domestic; squad and statistics were not requested.",
+    );
+  }
   const [squadPayload, statisticsPayload] = await Promise.all([
     get(`/squads/teams/${team.id}`, { include: "player;position;detailedPosition" }),
     get(`/squads/seasons/${season.id}/teams/${team.id}`, { include: "details" }),
