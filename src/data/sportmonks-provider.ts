@@ -245,6 +245,22 @@ function statisticDetails(row: RecordValue | undefined): Map<number, number> | u
   return stats;
 }
 
+function indexSeasonStatistics(rows: unknown[], teamId: string): Map<string, RecordValue> {
+  const statistics = new Map<string, RecordValue>();
+  for (const row of rows) {
+    const record = asRecord(row);
+    const playerId = idString(record?.player_id);
+    if (!record || !playerId) {
+      throw new SportmonksProviderError("invalid_response", `Sportmonks returned a season statistic without a player ID for team ${teamId}.`);
+    }
+    if (statistics.has(playerId)) {
+      throw new SportmonksProviderError("invalid_response", `Sportmonks returned duplicate season statistics for player ${playerId} on team ${teamId}.`);
+    }
+    statistics.set(playerId, record);
+  }
+  return statistics;
+}
+
 function valueForType(stats: Map<number, number>, coveredTypeIds: Set<number>, typeId: number, fallbackId?: number): number {
   if (coveredTypeIds.has(typeId) && stats.has(typeId)) return stats.get(typeId)!;
   if (fallbackId !== undefined && coveredTypeIds.has(fallbackId) && stats.has(fallbackId)) return stats.get(fallbackId)!;
@@ -444,18 +460,7 @@ export class SportmonksPlayerRepository implements PlayerRepository {
     if (!squadRows || !statisticRows) {
       throw new SportmonksProviderError("invalid_response", `Sportmonks returned a malformed squad for team ${team.id}, season ${season.id}.`);
     }
-    const statistics = new Map<string, RecordValue>();
-    for (const row of statisticRows) {
-      const record = asRecord(row);
-      const playerId = idString(record?.player_id);
-      if (!record || !playerId) {
-        throw new SportmonksProviderError("invalid_response", `Sportmonks returned a season statistic without a player ID for team ${team.id}.`);
-      }
-      if (statistics.has(playerId)) {
-        throw new SportmonksProviderError("invalid_response", `Sportmonks returned duplicate season statistics for player ${playerId} on team ${team.id}.`);
-      }
-      statistics.set(playerId, record);
-    }
+    const statistics = indexSeasonStatistics(statisticRows, team.id);
     const today = retrievedAt.slice(0, 10);
     const profiles = squadRows.filter((row) => squadRecordIsCurrent(row, today)).flatMap((row) => {
       const squad = asRecord(row);
@@ -495,12 +500,10 @@ export interface SportmonksSmokeMetricCoverage {
   metric: string;
   statisticTypeIds: number[];
   playersWithValue: number;
-  playersInCurrentSquad: number;
 }
 
 export interface SportmonksSmokeResult {
   checkedAt: string;
-  outcome: "season_not_current_or_unconfirmed" | "no_teams" | "team_sample_received" | "empty_current_squad";
   requestsMade: number;
   season: {
     id: string;
@@ -509,11 +512,8 @@ export interface SportmonksSmokeResult {
   };
   team: {
     id: string;
-    domesticTeamsOnFirstPage: number;
-    moreTeamsAvailable: boolean;
     currentSquadPlayers: number;
     parserCompatiblePlayers: number;
-    playersWithStatistics: number;
     fieldCoverage: SportmonksSmokeMetricCoverage[];
   } | null;
 }
@@ -552,13 +552,13 @@ export async function runSportmonksSmoke(options: SportmonksSmokeOptions): Promi
     isCurrent: season.isCurrent,
   };
   if (!season.isCurrent) {
-    return { checkedAt, outcome: "season_not_current_or_unconfirmed", requestsMade, season: baseSeason, team: null };
+    return { checkedAt, requestsMade, season: baseSeason, team: null };
   }
 
   const teamPayload = await get(`/teams/seasons/${season.id}`, { per_page: String(TEAM_PAGE_SIZE), page: "1" });
   const teams = parseTeams(teamPayload, season.id, 1);
-  if (teams.length === 0) return { checkedAt, outcome: "no_teams", requestsMade, season: baseSeason, team: null };
-  const team = teams[0]!;
+  const team = teams.find((candidate) => candidate.type === "domestic");
+  if (!team) return { checkedAt, requestsMade, season: baseSeason, team: null };
   const [squadPayload, statisticsPayload] = await Promise.all([
     get(`/squads/teams/${team.id}`, { include: "player;position;detailedPosition" }),
     get(`/squads/seasons/${season.id}/teams/${team.id}`, { include: "details" }),
@@ -576,18 +576,13 @@ export async function runSportmonksSmoke(options: SportmonksSmokeOptions): Promi
     if (!playerId) throw new SportmonksProviderError("invalid_response", `Sportmonks returned a squad record without a player ID for team ${team.id}.`);
     return playerId;
   });
-  const playerStatistics = new Map<string, Map<number, number>>();
-  const statisticsByPlayerId = new Map<string, RecordValue>();
-  for (const row of statisticRows) {
-    const record = asRecord(row);
-    const playerId = idString(record?.player_id);
-    if (!record || !playerId || statisticsByPlayerId.has(playerId)) {
-      throw new SportmonksProviderError("invalid_response", `Sportmonks returned invalid or duplicate statistics for team ${team.id}.`);
-    }
-    statisticsByPlayerId.set(playerId, record);
-    const details = statisticDetails(record);
-    if (details) playerStatistics.set(playerId, details);
-  }
+  const statisticsByPlayerId = indexSeasonStatistics(statisticRows, team.id);
+  const playerStatistics = new Map(
+    [...statisticsByPlayerId].flatMap(([playerId, record]) => {
+      const details = statisticDetails(record);
+      return details ? [[playerId, details] as const] : [];
+    }),
+  );
 
   const allStatisticTypeIds = new Set<number>(Object.values(statisticTypeIds));
   const parserCompatiblePlayers = currentSquad.filter((row, index) => parseSquadPlayer(
@@ -598,25 +593,19 @@ export async function runSportmonksSmoke(options: SportmonksSmokeOptions): Promi
     checkedAt,
     allStatisticTypeIds,
   ) !== undefined).length;
-  const playersWithStatistics = currentPlayerIds.filter((playerId) => (playerStatistics.get(playerId)?.size ?? 0) > 0).length;
   const fieldCoverage = smokeMetricTypes.map(({ metric, statisticTypeIds: typeIds }) => ({
     metric,
     statisticTypeIds: [...typeIds],
     playersWithValue: currentPlayerIds.filter((playerId) => typeIds.some((typeId) => playerStatistics.get(playerId)?.has(typeId))).length,
-    playersInCurrentSquad: currentPlayerIds.length,
   }));
   return {
     checkedAt,
-    outcome: currentPlayerIds.length > 0 ? "team_sample_received" : "empty_current_squad",
     requestsMade,
     season: baseSeason,
     team: {
       id: team.id,
-      domesticTeamsOnFirstPage: teams.length,
-      moreTeamsAvailable: asRecord(teamPayload.pagination)?.has_more === true,
       currentSquadPlayers: currentPlayerIds.length,
       parserCompatiblePlayers,
-      playersWithStatistics,
       fieldCoverage,
     },
   };
