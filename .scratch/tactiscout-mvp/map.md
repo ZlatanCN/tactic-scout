@@ -200,6 +200,8 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- [issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：`premier_league` Agent turn 在 checkpoint、球员与 Planner 访问前拒绝，且不能被模型地址或环境变量绕过；来源许可未核实前只保留隔离 fixture adapter。
+- [issue 185](issues/185-enforce-mens-soccer-roster-scope.md) 已解决：TheSportsDB 球队及球员必须分别具备明确 `Soccer` + `Male` 元数据才会被展示；未知/越界记录被过滤，未核实球队不会触发名单请求。
 - [issue 182](issues/182-ablate-current-turn-search-freshness.md) 已解决：对照只切换独立的当前轮搜索新鲜度门，两臂收到同一 stale `finish` 提案。开启时按位置、年龄、最低分钟、赛事和赛季完整意图补做 EPL 检索，并可使用新的搜索观察；旁路时不会检索第三次。旁路报告被共享下游审查门安全停止，因此实验验证的是图控制流，而非 freshness 单独造成拒绝，也不说明模型泛化、排名质量或 provider 数据新鲜度。
 - [issue 181](issues/181-enforce-complete-candidate-search-intent.md) 已解决：多轮候选范围改变会触发当前回合的新检索观察，候选资格与评估读取共用完整意图；显式取消清除相应条件，否定式取消不会误清除。对抗性整图复审覆盖“不愿取消年龄限制”和联赛正负提及。候选动作策略消融关闭时仍会暴露首个错误查询，但后续意图守卫强制正确查询并保住安全名单；因此两层机制分别控制动作质量和结论证据完整性。测试 430/430，API/Web build 与 diff check 通过。
 - [issue 178](issues/178-structured-candidate-search-ledger.md) 已解决：候选搜索分页、确认位置状态、报告范围和样本覆盖统一由 LangGraph 结构化搜索观察驱动；来源总数未知但仍有下一页时，报告会明确说明样本未读完。已批准的位置扩围可在同案恢复后沿用精确游标。全套测试 424/424、API/Web 构建及 diff check 通过。
