@@ -8,6 +8,7 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-13：[issue 194](issues/194-resume-approved-broader-search-cursor.md) 与 [issue 193](issues/193-refresh-dynamic-planning-ablation.md) 已解决：Harness 按获用户确认的 `evaluateLocalAgentScenario` seam 接受改意图后的新 `offset: 0` 搜索轮，同时仍要求同一轮分页使用来源返回的 exact `nextOffset`；LangGraph 搜索行为未改。Qwen 3.5 9B / 同一 Wyscout 快照的巴萨与拜仁动态/固定对照各三组全通过（巴萨 31/31、拜仁 29/29），全部 36 个 Planner 请求用量完整。推荐条数与 Harness 通过不作为名单质量结论；详见[评估记录](../../docs/evaluation.md#动态调查规划消融)。完整本地 trace 在 Git 忽略的 `.data/evaluations/`。
 - 2026-10-13：[issue 192](issues/192-record-langgraph-workflow-fit.md) 已解决：ADR 0010 记录 `StateGraph` 对可暂停/恢复招募案件、策略路由与 Reviewer 回环的项目级适配，并承认 `createAgent` 和 Vercel AI SDK 的能力；官方资料、代码证据与未验证范围见[研究报告](research/langgraph-framework-fit-2026-10-13.md)。未做跨框架性能/质量对照，也不声称名单质量已验证。
 - 2026-10-13：[issue 191](issues/191-show-cross-lingual-rag-evidence.md) 已解决：`/showcase` 方法 RAG 折叠卡先展示 v5 留出结果（可回答覆盖 1/3→3/3、候选论文 0/2→2/2、召回 1/3→3/3、precision 1.0 不变），并分开展示早期整图报告传递与 10 月 13 日两臂 27/29 的复跑。页面说明样本小、译文未独立双语审校、不启用线上翻译且不验证推荐质量；README 同步。Web build 与预览无障碍树核对通过；CSS 经 390px 几何复核，未声称实际窄屏预览，issue 144 仍等用户验收。
 - 2026-10-13：[issue 190](issues/190-evaluate-cross-lingual-methodology-retrieval.md) 已解决：全新 12 家族 v5 跨语言对照中，英文译问的留出可回答覆盖从 1/3 升至 3/3，PLOS 候选覆盖从 0/2 升至 2/2，模糊/范围外误接收未增加；生产 `0.812 / 0.5` 门槛与来源登记未变，56 个临时片段已从当前索引表版本删除。译文无独立双语审校，因此不据此启用线上翻译。见[评测结果](../../docs/evaluation.md#中文-query-与英文论文的-v5-跨语言诊断)和[研究](research/chinese-english-methodology-rag-retrieval-2026-10-13.md)。

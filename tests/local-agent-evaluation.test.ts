@@ -1071,6 +1071,65 @@ test("an empty confirmed position requires the agreed broader search after the s
   assert.equal(result.allPassed, true);
 });
 
+test("an approved clarification can start a fresh first page for the broader position", () => {
+  const caseId = "case-bayern-fresh-broader-search";
+  const firstTurnEvents: RecruitmentTraceEvent[] = [
+    decision("search_candidates", "Bayern Munich"),
+    tool("search_candidates", {
+      position: "ATT",
+      offset: 0,
+      limit: 20,
+      nextOffset: 20,
+      candidateIds: Array.from({ length: 20 }, (_, index) => `attacker-${index}`),
+    }, { resultCount: 20, matchingRecordCount: 601 }),
+    decision("ask_user", "Bayern Munich"),
+  ];
+  const continuedEvents: RecruitmentTraceEvent[] = [
+    decision("search_candidates", "Bayern Munich"),
+    tool("search_candidates", { position: "ST", offset: 0, candidateIds: [] }, { resultCount: 0, matchingRecordCount: 0 }),
+    decision("ask_user", "Bayern Munich"),
+    decision("search_candidates", "Bayern Munich"),
+    tool("search_candidates", {
+      position: "ATT",
+      offset: 0,
+      limit: 20,
+      nextOffset: 20,
+      candidateIds: ["player-1", ...Array.from({ length: 19 }, (_, index) => `fresh-attacker-${index}`)],
+    }, { resultCount: 20, matchingRecordCount: 601 }),
+    decision("evaluate_candidates", "Bayern Munich"),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+    decision("search_player_reports", "Bayern Munich"),
+    tool("search_player_reports", { corpus: "player_report" }),
+    decision("finish", "Bayern Munich"),
+  ];
+  const result = evaluateLocalAgentScenario({
+    scenario: clarificationScenario,
+    events: [...firstTurnEvents, ...continuedEvents],
+    firstTurnResponse: response({ threadId: caseId, status: "needs_input", targetTeam: "Bayern Munich" }),
+    response: response({
+      threadId: caseId,
+      targetTeam: "Bayern Munich",
+      position: "ATT",
+      recommendations: [recommendation("ATT")],
+      limitations: bayernCapabilityGapLimitations,
+      requestedCapabilityCoverage: bayernCapabilityCoverageFixture(),
+    }),
+    firstTurnEvents,
+    continuedEvents,
+    progressEvents: progressForTurns([
+      { turn: 1, toolStages: ["candidate_search"], waitingForUser: true },
+      { turn: 2, toolStages: ["candidate_search"], waitingForUser: true },
+      { turn: 3, toolStages: ["candidate_search", "player_evaluation", "report_search"], completed: true },
+    ]),
+    answersUsed: 2,
+    threadId: caseId,
+  });
+
+  assert.equal(result.checks.positionExpansionMatchesEvidenceAndConsent, true);
+  assert.equal(result.checks.recommendationsMatchExpectedPosition, true);
+  assert.equal(result.allPassed, true);
+});
+
 test("an explicitly approved forward expansion is accepted after a nonempty striker search", () => {
   const caseId = "case-bayern-expand-after-nonempty-strikers";
   const firstTurnEvents: RecruitmentTraceEvent[] = [

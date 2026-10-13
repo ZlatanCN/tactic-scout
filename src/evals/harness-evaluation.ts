@@ -857,6 +857,8 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     const allBroadenedSearches = scenario.expectedBroadenedPosition
       ? candidateSearches.filter((event) => event.ok && event.filters.position === scenario.expectedBroadenedPosition)
       : [];
+    const broadenedSearchPaginationIsValid = candidateSearchPagesFollowCursors(broadenedSearches)
+      || candidateSearchPagesFollowCursors(allBroadenedSearches);
     const broadenedPositionSearch = broadenedPositionSearchIndex >= 0
       ? postAnswerCandidateSearches[broadenedPositionSearchIndex]!
       : undefined;
@@ -879,7 +881,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       && broadenedPositionTurn > emptyPositionTurn
       && input.answersUsed >= 2
       && userWasAskedAfterEmptyPosition
-      && candidateSearchPagesFollowCursors(allBroadenedSearches)
+      && broadenedSearchPaginationIsValid
       && response.status === "completed";
     const expectedPositionSearchTurns = constrainedPositionSearches
       .map((event) => progressTurnForTool(input, event))
@@ -898,7 +900,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
         && event.stage === "asking_user"
         && event.status === "waiting_for_user"
       )))
-      && candidateSearchPagesFollowCursors(allBroadenedSearches)
+      && broadenedSearchPaginationIsValid
       && response.status === "completed";
     checks = {
       ...commonChecks,

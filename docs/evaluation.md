@@ -241,6 +241,8 @@ TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- \
   2> .data/evaluations/investigation-planning-ablation.log
 ```
 
+配对 CLI 将最终 JSON 写到标准输出，将进度与 trace 写到标准错误，按示例分别保存。比较实验不支持 `--summary-output`。
+
 固定臂对所有案件使用同一条通用方法检索，然后只主动请求一页候选；若用户后来确认了具体位置或同意改变范围，图可以强制按新约束重查一次。其后的批量评估、球员报告检索、必要追问与恢复、Reviewer 和报告生成都由同一张图处理。两个臂都用同一个模型综合报告，区别是调查阶段由模型动态选动作，还是执行冻结的单页规则。运行顺序按配对轮次交错。CLI 仅接受单个登记场景和 `curated` 快照，并拒绝自定义需求、答案和其他消融开关。
 
 摘要逐次报告 Harness 检查、Planner 调度次数、工具数、耗时、评估候选数、能力证据覆盖及报告结果。历史 `plannerRequestAttempts` 在调用模型 Planner 的 `decide()` 时递增：结论生成会计入，固定臂直接返回的规则动作不会计入；它发生在进入 `invoke()` 前，不能替代实际调用账本。下方 2026-10-11 新运行已在模型 `invoke()` 边界独立记录真实 provider usage；更早的 2026-10-10 运行没有这些数据，也不会回填。不同策略的上下文和生成内容不同，因此 token 总量不构成成本匹配；耗时也只作描述。这是针对冻结案例的探索性机制检查，不证明推荐排序准确、一般规划能力或 LangGraph 框架优越性。对照流程与无泄漏边界见 [issue 143](../.scratch/tactiscout-mvp/issues/143-dynamic-investigation-planner-ablation.md)，协议研究见[动态规划消融研究](../.scratch/tactiscout-mvp/research/dynamic-planning-vs-fixed-workflow-ablation-2026-10-10.md)。实测结果和边界见下文。
@@ -261,6 +263,17 @@ TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- \
 | 拜仁凯恩替代者 | 单页固定 | 3/3（29/29） | 9 | 18,450 | 1,578 | 20,028 | 36.776/45.481 秒 |
 
 36 次实际 Planner 调用均返回响应；输入、输出和总量字段分别在每次调用中全部有值，覆盖状态均为 `complete`。这与早期的 `plannerRequestAttempts` 调度计数不同：本表来自调用模型 `invoke()` 后的 provider usage。该历史 Harness 从 `conversation.turn()` 开始，只测量 LangGraph Planner；当时的独立需求解析 API 不在运行路径中，且现已在 issue 156 退役。模型明确上报 0 时保留为零，缺字段时不会推算。动态臂在这两个冻结案例中请求更多 Planner 次数并观察到更多总 tokens，但两臂请求上下文和生成内容不同，因此这不是 token 匹配实验，也不能说明哪个策略更准确或更具成本效益；token 数也不是金额估算。延迟是三次本机运行的描述性 p50/p95。完整脱敏汇总可由本地忽略文件 `.data/evaluations/investigation-planning-{barcelona,bayern}-usage-2026-10-11.json` 查看，原始 trace 仅保存在对应 `.log` 文件。
+
+2026-10-13，在候选意图与当前轮新鲜度守卫合入后，使用同一 Wyscout 2017/18 快照重新完成巴萨与拜仁各三组配对。巴萨两臂均 3/3 通过 31/31 项；拜仁两臂均 3/3 通过 29/29 项。每次拜仁运行都在同一案件内经过两次澄清；新日志确认了 turn 1 ATT 首页、turn 2 中锋零匹配，以及获准扩大后 turn 3 新 ATT 首页。旧 Harness 把跨轮同筛选查询合并成一条分页序列，导致位置/同意检查误报。现在它允许用户确认改变意图后从 `offset: 0` 建立新序列，同时保留续查必须使用上次 `nextOffset` 的检查；LangGraph 搜索策略未修改。完整图评估器回归、现有 exact-cursor 用例及 CLI 对照均通过。
+
+| 场景 | 策略 | Harness 通过 | Planner 请求 | Tokens（输入/输出/总量） | 评估/推荐人数 | 工具调用/次 | wall-time p50/p95 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 巴萨 U23 中场 | 动态 | 3/3（31/31） | 9 | 25,875 / 1,806 / 27,681 | 20 / 3 | 6 | 100.934/101.530 秒 |
+| 巴萨 U23 中场 | 单页固定 | 3/3（31/31） | 3 | 2,118 / 876 / 2,994 | 20 / 1 | 6 | 55.447/69.536 秒 |
+| 拜仁凯恩替代者 | 动态 | 3/3（29/29） | 15 | 39,033 / 1,545 / 40,578 | 19 / 3 | 8 | 75.824/76.360 秒 |
+| 拜仁凯恩替代者 | 单页固定 | 3/3（29/29） | 9 | 15,285 / 1,410 / 16,695 | 19 / 1 | 8 | 74.114/80.135 秒 |
+
+全部 36 个 Planner 请求均有完整的 provider token usage。巴萨推进指标在 20/20 个已评估候选中可见，压迫指标缺失；拜仁进球产出与创造机会各覆盖 19/19，射门终结与进攻接应缺少结构化观察。推荐条数、Harness 通过率和可用字段只描述运行行为与数据覆盖，不能作为排名质量标签；动态臂上下文和调用数较多，token 总量不表示费用或等成本比较。原始 trace 保存在 Git 忽略的 `.data/evaluations/investigation-planning-bayern-fixed-2026-10-13.log`；巴萨复跑保存在 `.data/evaluations/investigation-planning-barcelona-current-2026-10-13.{json,log}`，拜仁聚合 JSON 摘要从对应完整日志末尾提取。
 
 ## 球员短名单质量评测
 
