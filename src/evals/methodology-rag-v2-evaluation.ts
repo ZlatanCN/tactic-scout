@@ -71,13 +71,15 @@ function validateMethodologyDataset(
   }
 }
 
-export function createMethodologyRelevanceDatasetSchema<T extends "methodology-rag-v2" | "methodology-rag-v3">(datasetId: T) {
+export function createMethodologyRelevanceDatasetSchema<T extends "methodology-rag-v2" | "methodology-rag-v3" | "methodology-rag-v4">(datasetId: T) {
   return z.object({
     datasetId: z.literal(datasetId),
     corpus: z.literal("methodology"),
     judgmentLevel: z.literal("source"),
     judgmentAuthority: z.literal("author_labeled"),
     embeddingModel: z.string().min(1),
+    retrievalPolicyVersion: z.string().optional(),
+    candidateSourceId: z.string().min(1).optional(),
     sourceIds: z.array(z.string().min(1)).min(1),
     queries: z.array(MethodologyQuerySchema).min(1),
   }).superRefine(validateMethodologyDataset);
@@ -85,11 +87,34 @@ export function createMethodologyRelevanceDatasetSchema<T extends "methodology-r
 
 export const MethodologyRelevanceV2DatasetSchema = createMethodologyRelevanceDatasetSchema("methodology-rag-v2");
 export const MethodologyRelevanceV3DatasetSchema = createMethodologyRelevanceDatasetSchema("methodology-rag-v3");
+export const MethodologyRelevanceV4DatasetSchema = createMethodologyRelevanceDatasetSchema("methodology-rag-v4").superRefine((dataset, context) => {
+  if (dataset.retrievalPolicyVersion !== methodologyRetrievalPolicy.version) {
+    context.addIssue({ code: "custom", path: ["retrievalPolicyVersion"], message: "v4 必须固定使用当前生产方法检索策略版本。" });
+  }
+  if (!dataset.candidateSourceId || !dataset.sourceIds.includes(dataset.candidateSourceId)) {
+    context.addIssue({ code: "custom", path: ["candidateSourceId"], message: "v4 必须声明并评估新增候选来源。" });
+    return;
+  }
+  for (const split of ["calibration", "heldout"] as const) {
+    for (const sourceId of dataset.sourceIds) {
+      if (!dataset.queries.some((query) => query.split === split && query.answerability === "answerable" && query.relevantSourceIds.includes(sourceId))) {
+        context.addIssue({ code: "custom", path: ["queries"], message: `${split} split 缺少来源 ${sourceId} 的可回答问题。` });
+      }
+    }
+    const candidateFamilies = new Set(dataset.queries
+      .filter((query) => query.split === split && query.answerability === "answerable" && query.relevantSourceIds.includes(dataset.candidateSourceId!))
+      .map((query) => query.queryFamily));
+    if (candidateFamilies.size < 2) {
+      context.addIssue({ code: "custom", path: ["queries"], message: `${split} split 至少需要两个新增来源的独立可回答 query family。` });
+    }
+  }
+});
 
 export type MethodologyRelevanceV2Dataset = z.infer<typeof MethodologyRelevanceV2DatasetSchema>;
 export type MethodologyRelevanceV3Dataset = z.infer<typeof MethodologyRelevanceV3DatasetSchema>;
+export type MethodologyRelevanceV4Dataset = z.infer<typeof MethodologyRelevanceV4DatasetSchema>;
 
-type MethodologyRelevanceDataset = MethodologyRelevanceV2Dataset | MethodologyRelevanceV3Dataset;
+type MethodologyRelevanceDataset = MethodologyRelevanceV2Dataset | MethodologyRelevanceV3Dataset | MethodologyRelevanceV4Dataset;
 
 type EvaluationQueryResult = {
   queryId: string;
@@ -171,6 +196,94 @@ export async function evaluateMethodologyRetrievalV3(
 ) {
   const dataset = MethodologyRelevanceV3DatasetSchema.parse(unparsedDataset);
   return evaluateMethodologyRetrievalDataset(knowledgeBase, dataset, "这是针对三篇作者标注方法来源与固定中文 query 集的 v3 回归检查。held-out query families 与校准集分离，但不是线上随机抽样；指标不代表答案忠实度、球员排序或引援质量。");
+}
+
+export async function compareMethodologyRetrievalV4(input: {
+  baselineKnowledgeBase: LocalKnowledgeBase;
+  candidateKnowledgeBase: LocalKnowledgeBase;
+  dataset: MethodologyRelevanceV4Dataset;
+}) {
+  const dataset = MethodologyRelevanceV4DatasetSchema.parse(input.dataset);
+  const candidateSourceId = dataset.candidateSourceId;
+  if (!candidateSourceId) throw new Error("v4 评测集缺少新增来源 ID。");
+  const [baselineStatus, candidateStatus] = await Promise.all([
+    input.baselineKnowledgeBase.status(),
+    input.candidateKnowledgeBase.status(),
+  ]);
+  if (baselineStatus.indexPath !== candidateStatus.indexPath) {
+    throw new Error("source-off 与 source-on 必须读取同一物理知识索引。");
+  }
+  if (baselineStatus.embeddingModel !== candidateStatus.embeddingModel || baselineStatus.embeddingModel !== dataset.embeddingModel) {
+    throw new Error("source-off/source-on 必须使用评测集固定的同一 embedding 模型。");
+  }
+  if (!baselineStatus.methodologySourceIds.includes(candidateSourceId)
+    && candidateStatus.methodologySourceIds.includes(candidateSourceId)) {
+    const baselineSourceIds = new Set(baselineStatus.methodologySourceIds);
+    const candidateSourceIds = candidateStatus.methodologySourceIds.filter((sourceId) => sourceId !== candidateSourceId);
+    if (candidateSourceIds.length !== baselineSourceIds.size
+      || candidateSourceIds.some((sourceId) => !baselineSourceIds.has(sourceId))) {
+      throw new Error("source-off/source-on 的方法来源登记只能相差新增候选来源这一项。");
+    }
+  } else {
+    throw new Error("source-off 必须排除、source-on 必须登记评测集中的新增候选来源。");
+  }
+
+  const baseline = await evaluateMethodologyRetrievalDataset(
+    input.baselineKnowledgeBase,
+    dataset,
+    "同一固定 v4 数据集上的 source-off 基线；作者标注不代表线上分布或球员推荐质量。",
+  );
+  const candidate = await evaluateMethodologyRetrievalDataset(
+    input.candidateKnowledgeBase,
+    dataset,
+    "同一固定 v4 数据集上的 source-on 对照；作者标注不代表线上分布或球员推荐质量。",
+  );
+  const heldoutCandidateQueries = dataset.queries.filter((query) => query.split === "heldout"
+    && query.answerability === "answerable" && query.relevantSourceIds.includes(candidateSourceId));
+  const acceptedCandidateQueryCount = (result: typeof baseline) => heldoutCandidateQueries.filter((query) =>
+    result.queries.find((evaluation) => evaluation.queryId === query.id)?.retrievedAcceptedSourceIds.includes(candidateSourceId),
+  ).length;
+  const baselineCandidateCoverage = heldoutCandidateQueries.length ? rounded(acceptedCandidateQueryCount(baseline) / heldoutCandidateQueries.length) : null;
+  const candidateCandidateCoverage = heldoutCandidateQueries.length ? rounded(acceptedCandidateQueryCount(candidate) / heldoutCandidateQueries.length) : null;
+  const heldoutAmbiguousUnsupportedCount = (result: typeof baseline) => result.queries.filter((query) => query.split === "heldout"
+    && query.answerability === "ambiguous"
+    && query.retrievedAcceptedSourceIds.some((sourceId) => !query.relevantSourceIds.includes(sourceId))).length;
+  const heldoutOutOfScopeFalseAcceptCount = (result: typeof baseline) => result.queries.filter((query) => query.split === "heldout"
+    && query.answerability === "out_of_scope" && query.retrievedAcceptedSourceIds.length > 0).length;
+  const baselineAmbiguousUnsupported = heldoutAmbiguousUnsupportedCount(baseline);
+  const candidateAmbiguousUnsupported = heldoutAmbiguousUnsupportedCount(candidate);
+  const baselineOutOfScopeFalseAccepts = heldoutOutOfScopeFalseAcceptCount(baseline);
+  const candidateOutOfScopeFalseAccepts = heldoutOutOfScopeFalseAcceptCount(candidate);
+  const candidateEvidenceImproved = candidateCandidateCoverage !== null
+    && (baselineCandidateCoverage === null || candidateCandidateCoverage > baselineCandidateCoverage);
+  const noIncreaseInUnsupportedAmbiguousAccepts = candidateAmbiguousUnsupported <= baselineAmbiguousUnsupported;
+  const noIncreaseInOutOfScopeFalseAccepts = candidateOutOfScopeFalseAccepts <= baselineOutOfScopeFalseAccepts;
+  const productionPolicyConsistencyPreserved = baseline.productionPolicyConsistency && candidate.productionPolicyConsistency;
+
+  return {
+    evaluationType: "paired-methodology-rag-source-ablation",
+    datasetId: dataset.datasetId,
+    indexPath: baselineStatus.indexPath,
+    embeddingModel: baselineStatus.embeddingModel,
+    retrievalPolicyVersion: methodologyRetrievalPolicy.version,
+    candidateSourceId,
+    baseline,
+    candidate,
+    heldout: {
+      candidateSourceCoverage: { baseline: baselineCandidateCoverage, candidate: candidateCandidateCoverage },
+      ambiguousUnsupportedAcceptances: { baseline: baselineAmbiguousUnsupported, candidate: candidateAmbiguousUnsupported },
+      outOfScopeFalseAcceptances: { baseline: baselineOutOfScopeFalseAccepts, candidate: candidateOutOfScopeFalseAccepts },
+    },
+    adoptionGate: {
+      candidateEvidenceImproved,
+      noIncreaseInUnsupportedAmbiguousAccepts,
+      noIncreaseInOutOfScopeFalseAccepts,
+      productionPolicyConsistencyPreserved,
+      passed: candidateEvidenceImproved && noIncreaseInUnsupportedAmbiguousAccepts
+        && noIncreaseInOutOfScopeFalseAccepts && productionPolicyConsistencyPreserved,
+    },
+    interpretation: "source-off/source-on 共用语料索引、query、embedding 模型及当前生产检索策略；所有结论仅适用于这组作者标注样本，不表示真实用户覆盖或推荐质量。",
+  };
 }
 
 async function evaluateMethodologyRetrievalDataset(

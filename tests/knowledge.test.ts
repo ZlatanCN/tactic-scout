@@ -468,3 +468,54 @@ test("PLOS正文抓取只访问已登记DOI并保留文章署名和许可", asyn
   }), /尚无允许自动抓取/);
   assert.equal(requestCount, 1, "unregistered article should be rejected before requesting its body");
 });
+
+test("registered PLOS fetch keeps attributed article prose and excludes figures, tables, supplements, references, and linked third-party material", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "tactiscout-plos-profile-"));
+  try {
+    const doi = "10.1371/journal.pone.0353239";
+    const articleUrl = `https://journals.plos.org/plosone/article?id=${encodeURIComponent(doi)}`;
+    const profileSource: KnowledgeSource = {
+      ...source,
+      id: "plos-player-profile-2026",
+      name: "PLOS ONE: Multivariate player profiling",
+      publisher: "PLOS ONE",
+      rightsUrl: articleUrl,
+      license: "CC BY 4.0",
+      allowedCorpora: ["methodology"],
+      allowedUrlPrefixes: [articleUrl],
+      rights: { automatedFetch: true, persistentStorage: true, aiProcessing: true, display: true },
+      rightsNote: "Exact article fixture with article-level permission.",
+    };
+    const registryPath = path.join(tempRoot, "sources.json");
+    await writeFile(registryPath, JSON.stringify([profileSource]), "utf8");
+    let requestedUrl: URL | undefined;
+    const fetcher: typeof fetch = async (input) => {
+      requestedUrl = new URL(input.toString());
+      return new Response(JSON.stringify({ response: { docs: [{
+        id: doi,
+        title_display: "Optimizing football analytics: Dimensionality reduction meets machine learning for offensive and defensive player profiling",
+        author_display: ["A. Researcher", "B. Analyst"],
+        publication_date: "2026-05-20",
+        copyright: "Creative Commons Attribution License",
+        abstract: "The paper presents an attributed methodological overview of football player profiles.",
+        body: "<body><sec><p>Profile construction combines multiple offensive and defensive performance indicators to characterize player roles.</p><p>Observed activity volume must be interpreted separately from efficiency when comparing players.</p><fig><caption>FIGURE-ONLY diagram and label.</caption></fig><table-wrap><caption>TABLE-ONLY player values.</caption><table><tr><td>PRIVATE MATCH STATISTICS</td></tr></table></table-wrap><supplementary-material>SUPPLEMENT-ONLY file.</supplementary-material><ref-list><ref>REFERENCE-ONLY citation text.</ref></ref-list><p>Third-party extract: <ext-link xlink:href=\"https://example.org/licensed\">THIRD-PARTY LICENSED TEXT</ext-link></p></sec></body>",
+      }] } }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+
+    const article = await new PlosDiscoveryProvider(fetcher).fetchRegisteredArticle(doi, { registryPath });
+
+    assert.equal(requestedUrl?.hostname, "api.plos.org");
+    assert.equal(requestedUrl?.searchParams.get("q"), `id:"${doi}"`);
+    assert.equal(article.sourceId, profileSource.id);
+    assert.equal(article.url, articleUrl);
+    assert.match(article.content, /Profile construction combines multiple offensive and defensive performance indicators/);
+    assert.match(article.content, /activity volume must be interpreted separately from efficiency/);
+    assert.doesNotMatch(article.content, /FIGURE-ONLY|TABLE-ONLY|PRIVATE MATCH STATISTICS|SUPPLEMENT-ONLY|REFERENCE-ONLY|THIRD-PARTY LICENSED TEXT|example\.org/);
+    assert.match(article.attribution, /A\. Researcher, B\. Analyst/);
+    assert.match(article.attribution, /10\.1371\/journal\.pone\.0353239/);
+    assert.match(article.attribution, /CC BY 4\.0/);
+    assert.match(article.attribution, /excluded/);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

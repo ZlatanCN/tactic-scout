@@ -15,6 +15,8 @@
     "eval:local-agent": "node --import tsx src/evals/local-model-agent.ts",
     "eval:methodology-rag": "node --import tsx src/evals/methodology-rag-cli.ts",
     "eval:methodology-rag:v3": "node --import tsx src/evals/methodology-rag-v3-cli.ts",
+    "eval:methodology-rag:v4": "node --import tsx src/evals/methodology-rag-v4-cli.ts",
+    "eval:methodology-rag:v5": "node --import tsx src/evals/methodology-rag-v5-cli.ts",
     "eval:shortlist-quality": "node --import tsx src/evals/shortlist-quality-cli.ts",
     "export:shortlist-review": "node --import tsx src/evals/blinded-review-packet-cli.ts",
     "knowledge:discover": "tsx src/knowledge/cli.ts discover",

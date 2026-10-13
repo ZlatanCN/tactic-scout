@@ -81,6 +81,7 @@ export const KnowledgeStatusSchema = z.object({
   methodologyChunks: z.number().int().nonnegative(),
   playerReportChunks: z.number().int().nonnegative(),
   registeredSources: z.number().int().nonnegative(),
+  methodologySourceIds: z.array(z.string().min(1)).default([]),
   ingestiblePlayerReportSources: z.number().int().nonnegative(),
   embeddingModel: z.string(),
   indexPath: z.string(),

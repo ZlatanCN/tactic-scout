@@ -546,6 +546,10 @@ export class LocalKnowledgeBase implements KnowledgeBase {
       methodologyChunks: rows.filter((row) => row.corpus === "methodology").length,
       playerReportChunks: rows.filter((row) => row.corpus === "player_report").length,
       registeredSources: sources.length,
+      methodologySourceIds: sources
+        .filter((source) => source.allowedCorpora.includes("methodology") && source.rights.persistentStorage && source.rights.aiProcessing)
+        .map((source) => source.id)
+        .sort(),
       ingestiblePlayerReportSources: sources.filter((source) =>
         source.allowedCorpora.includes("player_report") && source.rights.persistentStorage && source.rights.aiProcessing,
       ).length,

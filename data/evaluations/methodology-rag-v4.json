@@ -1,0 +1,167 @@
+{
+  "datasetId": "methodology-rag-v4",
+  "corpus": "methodology",
+  "judgmentLevel": "source",
+  "judgmentAuthority": "author_labeled",
+  "embeddingModel": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+  "retrievalPolicyVersion": "methodology-rag-v2",
+  "candidateSourceId": "plos-player-profile-2026",
+  "sourceIds": [
+    "plos-soccer-analysis-2024",
+    "plos-position-specific-physical-performance-2021",
+    "frontiers-positional-role-2022",
+    "plos-player-profile-2026"
+  ],
+  "queries": [
+    {
+      "id": "cal-role-not-only-position",
+      "split": "calibration",
+      "queryFamily": "role-versus-position-technical-performance",
+      "answerability": "answerable",
+      "query": "比较职业足球球员的传球、盘带和持球表现时，为什么不能只看场上位置，还要看位置角色？",
+      "relevantSourceIds": ["frontiers-positional-role-2022"],
+      "rationale": "Forcher 等研究考察了包含阵型语境的位置角色与球员技术表现的关系。"
+    },
+    {
+      "id": "cal-practitioner-indicator-context",
+      "split": "calibration",
+      "queryFamily": "performance-indicator-context-for-practitioners",
+      "answerability": "answerable",
+      "query": "职业青训中如何使用技术和战术表现指标支持球员发展与反馈？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "PLOS 2024 来源讨论实践者如何使用分析技术和指标进行发展反馈。"
+    },
+    {
+      "id": "cal-position-physical-benchmark",
+      "split": "calibration",
+      "queryFamily": "physical-performance-position-baseline",
+      "answerability": "answerable",
+      "query": "比较不同位置球员的高强度跑、冲刺和加速时，应该如何考虑位置差异？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "PLOS 2021 来源研究职业球员比赛相关体能指标的位置和个体差异。"
+    },
+    {
+      "id": "cal-profile-construction",
+      "split": "calibration",
+      "queryFamily": "multivariate-profile-construction",
+      "answerability": "answerable",
+      "query": "这项研究如何用 PCA 降维与机器学习分析职业球员的进攻和防守画像？",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "论文直接研究了用降维和机器学习建立球员进攻与防守画像的方法。"
+    },
+    {
+      "id": "cal-profile-volume-efficiency",
+      "split": "calibration",
+      "queryFamily": "profile-activity-versus-efficiency",
+      "answerability": "answerable",
+      "query": "论文为什么把 PC1 Offensive 解读为进攻参与度，而不是射门效率？",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "论文指出 PC1 Offensive 主要反映进攻量与参与度，而 G/Sh 等射门效率指标的载荷较低。"
+    },
+    {
+      "id": "cal-pressing-sprint-cutoff",
+      "split": "calibration",
+      "queryFamily": "pressing-system-sprint-threshold",
+      "answerability": "ambiguous",
+      "query": "高位压迫体系里的边锋每场至少要完成多少次冲刺才算合格？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "来源能提供位置化体能表现背景，但没有高位压迫体系的合格阈值。",
+      "outOfScopeReason": "语料不支持战术体系专属的冲刺门槛。"
+    },
+    {
+      "id": "cal-profile-kane-replacement",
+      "split": "calibration",
+      "queryFamily": "profile-applied-to-named-recruitment-decision",
+      "answerability": "ambiguous",
+      "query": "能只凭球员多维进攻画像，为拜仁选出哈里·凯恩的替代者吗？",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "画像方法能提供表现分析依据，但研究没有验证它可独立作出具名引援决策。",
+      "outOfScopeReason": "方法论文没有拜仁现有阵容、当前候选池或引援适配验证。"
+    },
+    {
+      "id": "cal-transfer-replacement",
+      "split": "calibration",
+      "queryFamily": "named-transfer-replacement",
+      "answerability": "out_of_scope",
+      "query": "谁最适合成为拜仁下赛季的凯恩替代者？",
+      "relevantSourceIds": [],
+      "rationale": "论文方法资料不包含当前球员池、拜仁阵容或具名引援结论。",
+      "outOfScopeReason": "需要当前候选数据和球队情境，方法语料无法回答具名替代者问题。"
+    },
+    {
+      "id": "held-role-and-individual-style",
+      "split": "heldout",
+      "queryFamily": "role-plus-individual-technical-style",
+      "answerability": "answerable",
+      "query": "研究职业比赛的传球和带球技术表现时，位置角色与球员个人风格分别有什么作用？",
+      "relevantSourceIds": ["frontiers-positional-role-2022"],
+      "rationale": "Forcher 等（2022）讨论位置角色和球员个体差异对技术表现分析的关联。"
+    },
+    {
+      "id": "held-analyst-context-limit",
+      "split": "heldout",
+      "queryFamily": "analysis-indicator-limits",
+      "answerability": "answerable",
+      "query": "为什么比赛指标需要结合清楚的语境解释，也不能替代教练的判断？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "PLOS 2024 来源说明了指标解释与实践判断之间的边界。"
+    },
+    {
+      "id": "held-running-individuality",
+      "split": "heldout",
+      "queryFamily": "position-and-player-running-variation",
+      "answerability": "answerable",
+      "query": "场上位置之外，球员个人差异也会影响高强度跑动和冲刺表现吗？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "PLOS 2021 来源比较了比赛体能表现中的位置因素与球员个体差异。"
+    },
+    {
+      "id": "held-profile-method",
+      "split": "heldout",
+      "queryFamily": "profile-method-generalization",
+      "answerability": "answerable",
+      "query": "论文中哪些进攻行为对 PC1 Offensive 权重较大，这个主成分表达了什么？",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "SCA、渐进接球和射门等变量对进攻参与度主成分贡献较大；问题留出其具体问法。"
+    },
+    {
+      "id": "held-profile-volume-efficiency",
+      "split": "heldout",
+      "queryFamily": "profile-measurement-interpretation",
+      "answerability": "answerable",
+      "query": "论文里的 PC1 Defensive 综合哪些防守行动，它反映了什么？",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "研究指出抢断、封堵和拦截对防守主成分贡献较大，并结合防守行动发生区域解释。"
+    },
+    {
+      "id": "held-role-transfer-success",
+      "split": "heldout",
+      "queryFamily": "role-and-transfer-adaptation-prediction",
+      "answerability": "ambiguous",
+      "query": "球员的位置角色和比赛技术表现能否单独预测他转会后会不会适应新球队？",
+      "relevantSourceIds": ["frontiers-positional-role-2022"],
+      "rationale": "来源有助于说明角色语境，但没有研究转会后的适应结果或预测能力。",
+      "outOfScopeReason": "论文样本不是转会跟踪数据，不能回答新球队适应结果。"
+    },
+    {
+      "id": "held-profile-transfer-fit",
+      "split": "heldout",
+      "queryFamily": "multivariate-profile-transfer-fit-limit",
+      "answerability": "ambiguous",
+      "query": "进攻和防守统计画像能否预测一名球员转会后的球队适配？",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "论文能提供画像方法，却未研究转会后的球队适配结果。",
+      "outOfScopeReason": "研究没有转会跟踪、球队战术语境或适配结果标签。"
+    },
+    {
+      "id": "held-current-market-value",
+      "split": "heldout",
+      "queryFamily": "current-player-market-value",
+      "answerability": "out_of_scope",
+      "query": "哈里·凯恩在 2026 年的最新转会市场估值是多少？",
+      "relevantSourceIds": [],
+      "rationale": "方法来源不含球员当前估值或转会市场数据。",
+      "outOfScopeReason": "需要当前市场估值来源，方法语料没有该项信息。"
+    }
+  ]
+}

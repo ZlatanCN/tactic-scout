@@ -8,6 +8,9 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-13：[issue 190](issues/190-evaluate-cross-lingual-methodology-retrieval.md) 已解决：全新 12 家族 v5 跨语言对照中，英文译问的留出可回答覆盖从 1/3 升至 3/3，PLOS 候选覆盖从 0/2 升至 2/2，模糊/范围外误接收未增加；生产 `0.812 / 0.5` 门槛与来源登记未变，56 个临时片段已从当前索引表版本删除。译文无独立双语审校，因此不据此启用线上翻译。见[评测结果](../../docs/evaluation.md#中文-query-与英文论文的-v5-跨语言诊断)和[研究](research/chinese-english-methodology-rag-retrieval-2026-10-13.md)。
+- 2026-10-13：[issue 188](issues/188-diversify-authorized-methodology-rag-sources.md) 已解决：PLOS 2026 多维球员画像论文可作为带署名的方法文本候选，但要先用独立校准/留出问题验证新覆盖；PLOS 2024 事件检测论文仅适用于数据口径/测量误差主题；PlayeRank 因 CC BY-NC-SA 复用边界而不准入。保留 v3 与生产阈值不变；未下载文章、入库或获取足球数据。详见[来源审查](research/methodology-rag-additional-sources-2026-10-13.md)。
+- [issue 189](issues/189-evaluate-player-profile-methodology-source.md) 已解决：按许可隔离抓取 PLOS 画像方法论文，清理非正文内容，并用相同索引/策略进行 v4 source-off/source-on。新来源留出证据覆盖 0/2，未达到门槛；56 个片段已从当前本地索引清除，生产登记、v2/v3 与阈值不变。详见[评测协议与结果](../../docs/knowledge-base.md#plos-球员画像论文-source-offsource-on-对照)。
 - 2026-10-13：[issue 187](issues/187-run-deterministic-harness-in-ci.md) 已解决：CI 在 API/Web 构建前运行确定性 LangGraph/Harness 回归；本地 436/436 测试、两端构建、YAML 解析和 diff check 通过。没有触发远端 CI。
 - 2026-10-13：[issue 186](issues/186-centralize-team-inspection-fallback.md) 已解决：`withLocalQueries` 改为委托 `inspectTeamPlayers`，以同一实现处理专用球队查询和本地目录回退；公开接口特征测试覆盖归一化部分匹配、单次整库读取及加载期间取消。聚焦测试 2/2、API build、全套 436/436 测试和 diff check 通过。
 - 2026-10-13：[issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：依据英超官网未授权建库条款，`premier_league` Agent turn 现在在 checkpoint、球员和 Planner 读取前返回 503；移除了 `.env.example` 的启用参数和文档使用指引，adapter 仅留作 fixture 测试。无 live 请求；HTTP 回归与 API/Web build 通过。[官方来源复核](research/source-scope-recheck-2026-10-13.md)
@@ -201,6 +204,9 @@ Labels: wayfinder:map
 - 使用 `.scratch/<feature>/` 保存地图、规格和单独的问题文件；本地 triage 标签沿用项目默认值。
 
 ## Decisions-so-far
+
+- [issue 190](issues/190-evaluate-cross-lingual-methodology-retrieval.md) 已解决：冻结的 12 家族 v5 对照中，英文译问使留出相关证据覆盖从 1/3 升至 3/3，候选来源覆盖从 0/2 升至 2/2；模糊/范围外误接收未增，固定生产门槛不变。译文尚无独立双语审校，不把结果推广为线上翻译或一般跨语言检索能力。
+- 新增方法 RAG 来源必须有逐篇确认的文章级许可和官方自动读取路径，并经来源专属的独立校准/留出查询验证；论文许可不延伸至其底层比赛/球员数据、图表或第三方材料。新增内容不得改写既有 v3 基准。
 
 - [issue 187](issues/187-run-deterministic-harness-in-ci.md) 已解决：CI 先运行固定夹具的完整 `pnpm test`，再构建 API/Web；不需要云模型、API 凭据或在线球员数据。
 - [issue 186](issues/186-centralize-team-inspection-fallback.md) 已解决：球队检查的专用仓库调用与本地整库回退统一由 `inspectTeamPlayers` 处理；归一化匹配和取消行为保持不变。

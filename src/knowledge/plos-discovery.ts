@@ -61,7 +61,7 @@ function stringField(value: string | string[] | undefined): string {
 }
 
 function cleanArticleText(value: string): string {
-  return value
+  return removeExcludedArticleBlocks(value)
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;|&#160;/gi, " ")
@@ -74,6 +74,24 @@ function cleanArticleText(value: string): string {
     .replace(/&#x([\da-f]+);/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function removeExcludedArticleBlocks(value: string): string {
+  const excludedElements = [
+    "fig", "fig-group", "figure", "figure-group",
+    "table", "table-wrap", "table-wrap-group",
+    "supplementary-material", "supplementary-materials",
+    "ref", "ref-list", "ack", "acknowledgements", "fn-group", "boxed-text", "ext-link",
+  ];
+  let content = value;
+  let previous: string;
+  do {
+    previous = content;
+    for (const element of excludedElements) {
+      content = content.replace(new RegExp(`<${element}\\b[^>]*>[\\s\\S]*?<\\/${element}\\s*>`, "gi"), " ");
+    }
+  } while (content !== previous);
+  return content;
 }
 
 export class PlosDiscoveryProvider {
@@ -138,7 +156,7 @@ export class PlosDiscoveryProvider {
       publisher: source.publisher,
       publishedAt: document.publication_date ?? null,
       license: source.license,
-      attribution: `${authors.join(", ") || "PLOS 作者"}. ${title}. ${articleUrl}. ${source.license}. Data provided by PLOS API.`,
+      attribution: `${authors.join(", ") || "PLOS 作者"}. ${title}. DOI: ${doi}. ${articleUrl}. ${source.license}. Modified: figures, tables, supplementary material, references, acknowledgements, boxed text, and linked external materials excluded. Data provided by PLOS API.`,
       acquisition: "authorized_fetch",
       content,
     });

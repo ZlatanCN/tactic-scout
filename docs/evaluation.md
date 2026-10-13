@@ -211,6 +211,24 @@ TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- \
 
 这证明方法证据在该冻结场景中经过检索进入了报告，并保留来源约束；没有观察到它改变决策轨迹或候选排序。实验只有一个场景、一个本地模型和三组配对，不能证明 RAG 普遍提升推荐质量，也不测量球员排序质量。协议与逐项边界见 [issue 142](../.scratch/tactiscout-mvp/issues/142-methodology-rag-agent-ablation.md)；脱敏摘要展示在项目的 `/showcase` 页面，组件源码见 [ShowcaseMethodologyRagAblation.tsx](../web/src/ShowcaseMethodologyRagAblation.tsx)。
 
+2026-10-13 对同一快照重新运行三组配对时，六次整图都完成，但每次为 27/29；source-on 与 source-off 都在 `recommendationsMatchExpectedPosition` 和 `positionExpansionMatchesEvidenceAndConsent` 两项失败。source-on 每次仍将 2 个方法片段传给 Planner 与报告，source-off 为 0，且两臂来源引用检查通过。由于两臂均未满足场景验收，不能据此判断方法 RAG 对调查或推荐的影响；10 月 10 日的通过结果保留为当时运行记录，这次重跑说明 Harness 结果存在运行间变化。原始重跑文件仅保存在 `.data/evaluations/methodology-rag-agent-ablation-2026-10-13.{json,log}`。
+
+### 新增方法来源检索准入 v4
+
+```bash
+pnpm eval:methodology-rag:v4
+```
+
+此命令通过 PLOS 官方 API 按 DOI 获取获准论文，在临时来源登记中建立 source-off/source-on 对照；两臂共用同一个 LanceDB 索引、16 个固定中文 query、multilingual E5 和生产检索策略。来源登记只相差新增候选来源。结果包括分切分相关证据覆盖、来源对 precision/recall、模糊与范围外接受情况，以及不修改阈值的准入判断；完成后从当前本地索引清除候选来源。逐 query 结果只写入 Git 忽略的 `.data/evaluations/`，不提交文章正文。
+
+2026-10-13 对 PLOS ONE 论文 [10.1371/journal.pone.0353239](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0353239) 的评测未通过准入门槛：held-out 的新增来源证据覆盖为 0/2，source-off/source-on 的总可回答证据覆盖均为 3/5，precision 0.75、recall 0.60；模糊问题不支持接受数均为 0，范围外误接收均为 0/1。候选片段余弦分数超过 0.812，但中文 query 词项覆盖不足 0.5。没有调阈值、没有把来源加入生产登记，并从索引清除了 56 个候选来源片段。详见固定数据集 [methodology-rag-v4.json](../data/evaluations/methodology-rag-v4.json)；项目作者标注的这组查询不代表线上用户、通用 RAG 或推荐质量。
+
+### 中文 query 与英文论文的 v5 跨语言诊断
+
+执行命令：`pnpm eval:methodology-rag:v5`。比较同一知识索引上的中文原问和项目作者英文译问；共 12 个全新意图家族，校准与留出各 6 个，语言对共享来源标签和切分。方法候选论文只按 DOI 临时获取、署名并加入当前本地索引；两臂均使用 multilingual E5 和原有 `0.812` cosine + `0.5` 同片段词项覆盖门槛。完成后在当前索引删除了临时 56 个片段，生产来源登记与 v4 数据集未改变。
+
+2026-10-13 留出集：可回答证据覆盖从中文原问的 1/3 升到英文译问的 3/3；候选论文自身覆盖从 0/2 到 2/2；source-pair recall 从 1/3 升到 3/3，precision 保持 1.0。模糊问题未出现不支持来源接受，两条范围外问题的误接受均为 0/2。评测准入检查通过，但它只说明这些固定作者标注意图上的检索行为；12 个 query family 很少，译文未经独立双语评审，也没有评估实际对话中翻译是否保义。因此不启用生产翻译，也不宣称泛化收益。逐条信号留在 Git 忽略的 `.data/evaluations/methodology-rag-v5-2026-10-13.json`，协议与标签见 [v5 数据集](../data/evaluations/methodology-rag-v5-crosslingual.json) 和 [issue 190](../.scratch/tactiscout-mvp/issues/190-evaluate-cross-lingual-methodology-retrieval.md)。
+
 ### 动态调查规划消融
 
 该实验只在同一张 LangGraph 内对比动态调查与预先冻结的单页流程，不比较 LangGraph 与其他框架：

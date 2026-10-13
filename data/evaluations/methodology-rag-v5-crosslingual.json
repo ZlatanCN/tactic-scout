@@ -1,0 +1,145 @@
+{
+  "datasetId": "methodology-rag-v5-crosslingual",
+  "corpus": "methodology",
+  "judgmentLevel": "source",
+  "judgmentAuthority": "author_labeled",
+  "translationProvenance": "Project-authored English translations with a meaning-preservation pass; not independently bilingual-reviewed.",
+  "embeddingModel": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+  "retrievalPolicyVersion": "methodology-rag-v2",
+  "candidateSourceId": "plos-player-profile-2026",
+  "controlSourceIds": ["plos-soccer-analysis-2024"],
+  "sourceIds": [
+    "frontiers-positional-role-2022",
+    "plos-player-profile-2026",
+    "plos-position-specific-physical-performance-2021",
+    "plos-soccer-analysis-2024"
+  ],
+  "queries": [
+    {
+      "id": "cal-player-grouped-record-split",
+      "split": "calibration",
+      "queryFamily": "v5-player-grouped-record-split",
+      "answerability": "answerable",
+      "chineseQuery": "研究为什么把同一名转会球员在不同联赛产生的记录放在同一个训练或测试分区？",
+      "englishTranslation": "Why did the study keep records for the same transferring player in one train-test partition, even when that player appeared in more than one league?",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "The paper treats player-league records as observations and groups records by player to avoid placing the same player's records in both partitions."
+    },
+    {
+      "id": "cal-training-only-preprocessing",
+      "split": "calibration",
+      "queryFamily": "v5-training-only-preprocessing-fit",
+      "answerability": "answerable",
+      "chineseQuery": "为避免数据泄漏，论文把缺失值填补、标准化和 PCA 拟合限制在哪个数据分区？",
+      "englishTranslation": "To prevent data leakage, on which data partition did the paper fit imputation, standardization, and PCA?",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "The authors fit median imputation, scaling, and PCA on training data only, then applied those fitted steps unchanged to the test partition."
+    },
+    {
+      "id": "cal-single-academy-generalization",
+      "split": "calibration",
+      "queryFamily": "v5-single-academy-external-validity",
+      "answerability": "answerable",
+      "chineseQuery": "青训实践者对表现分析技术的看法研究，为什么不能直接推广为所有俱乐部的结论？",
+      "englishTranslation": "Why should findings from the study of academy practitioners' views on performance-analysis technology not be generalized directly to every club?",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "The registered practitioner study sampled one academy club and explicitly limits broad generalization."
+    },
+    {
+      "id": "cal-cross-league-season-scope",
+      "split": "calibration",
+      "queryFamily": "v5-cross-league-season-scope",
+      "answerability": "ambiguous",
+      "chineseQuery": "这篇单赛季画像研究能否证明球员画像在不同联赛和多个赛季之间保持稳定？",
+      "englishTranslation": "Can this single-season profiling study establish that player profiles remain stable across leagues and multiple seasons?",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "The paper includes five leagues in one season, so it offers partial cross-league context but does not establish longitudinal profile stability.",
+      "outOfScopeReason": "The source does not validate multi-season stability or broad cross-league transferability."
+    },
+    {
+      "id": "cal-current-market-value",
+      "split": "calibration",
+      "queryFamily": "v5-current-market-valuation",
+      "answerability": "out_of_scope",
+      "chineseQuery": "哈里·凯恩现在的最新转会市场估值是多少？",
+      "englishTranslation": "What is Harry Kane's current transfer-market valuation?",
+      "relevantSourceIds": [],
+      "rationale": "The methodology corpus contains no current player valuation feed.",
+      "outOfScopeReason": "A current, attributable market valuation requires a dedicated current-value source."
+    },
+    {
+      "id": "cal-named-striker-replacement",
+      "split": "calibration",
+      "queryFamily": "v5-named-striker-recruitment-decision",
+      "answerability": "out_of_scope",
+      "chineseQuery": "拜仁下个转会窗应该签下谁来替代凯恩？",
+      "englishTranslation": "Whom should Bayern sign in the next transfer window to replace Kane?",
+      "relevantSourceIds": [],
+      "rationale": "Method papers do not provide a current candidate pool, Bayern squad context, or named recruitment decision.",
+      "outOfScopeReason": "This request requires current player and team data plus a recruitment-fit assessment."
+    },
+    {
+      "id": "held-non-circular-predictors",
+      "split": "heldout",
+      "queryFamily": "v5-non-circular-predictor-design",
+      "answerability": "answerable",
+      "chineseQuery": "监督模型为什么排除了用于构造 PCA 指数的那些变量？",
+      "englishTranslation": "Why did the supervised models exclude the variables used to construct the PCA indices?",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "The article describes excluding index-defining variables from the corresponding predictor set to reduce circularity."
+    },
+    {
+      "id": "held-cross-validation-stability",
+      "split": "heldout",
+      "queryFamily": "v5-player-grouped-cross-validation-stability",
+      "answerability": "answerable",
+      "chineseQuery": "作者怎样用重复的按球员分组五折交叉验证，检查模型结果是否依赖单次训练测试切分？",
+      "englishTranslation": "How did repeated player-grouped five-fold cross-validation test whether the model results depended on a single train-test split?",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "The paper reports repeated player-grouped five-fold cross-validation as a stability check beyond its hold-out split."
+    },
+    {
+      "id": "held-single-academy-transfer",
+      "split": "heldout",
+      "queryFamily": "v5-practitioner-findings-context-transfer",
+      "answerability": "answerable",
+      "chineseQuery": "单一学院俱乐部中青训从业者的经验，对其他俱乐部的技术与战术分析实践意味着什么？",
+      "englishTranslation": "What do academy practitioners' experiences at one club imply about transferring performance-analysis practices to other clubs?",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "The source describes practitioner views from one academy and warns that the sample does not set a universal club standard."
+    },
+    {
+      "id": "held-independent-transfer-prediction",
+      "split": "heldout",
+      "queryFamily": "v5-profile-as-transfer-success-predictor",
+      "answerability": "ambiguous",
+      "chineseQuery": "这篇球员画像研究能否判断某位候选人转会后会在新球队取得成功？",
+      "englishTranslation": "Can this player-profiling study determine whether a particular candidate will succeed after moving to a new club?",
+      "relevantSourceIds": ["plos-player-profile-2026"],
+      "rationale": "The source can clarify the scope of its profiling model but contains no transfer-outcome labels or named candidate assessment.",
+      "outOfScopeReason": "The study does not evaluate post-transfer outcomes for identified players."
+    },
+    {
+      "id": "held-current-player-availability",
+      "split": "heldout",
+      "queryFamily": "v5-current-player-availability",
+      "answerability": "out_of_scope",
+      "chineseQuery": "某位 23 岁以下右边锋目前是否健康，并能否参加本周末比赛？",
+      "englishTranslation": "Is a specific under-23 right winger currently fit and available for this weekend's match?",
+      "relevantSourceIds": [],
+      "rationale": "The methodology corpus does not contain current injury or availability records.",
+      "outOfScopeReason": "Current availability requires a current player-status source."
+    },
+    {
+      "id": "held-budget-shortlist",
+      "split": "heldout",
+      "queryFamily": "v5-budgeted-squad-shortlist",
+      "answerability": "out_of_scope",
+      "chineseQuery": "在 4000 万欧预算内，给阿森纳推荐一名适合现有阵容的年轻边锋。",
+      "englishTranslation": "Recommend a young winger who fits Arsenal's current squad within a €40 million budget.",
+      "relevantSourceIds": [],
+      "rationale": "The methodology corpus contains neither a current Arsenal squad nor current player prices and budgeted candidate data.",
+      "outOfScopeReason": "This requires current squad, player, and transfer-budget evidence rather than methodology papers."
+    }
+  ]
+}
