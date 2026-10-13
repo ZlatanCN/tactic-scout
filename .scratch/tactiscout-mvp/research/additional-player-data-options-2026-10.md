@@ -85,6 +85,12 @@ Apache-2.0 是该 repo 对数据文件声明的许可证，发布作品需标注
 4. 以 Afriskaut 的 event map + synthetic/本地样本独立验证进阶指标工具和证据 trace；先处理未成年数据授权边界，不把此源合并成成年职业球员市场。
 5. Wikidata 可作为 opt-in 的实体 crosswalk（QID + P54/P413/reference snapshot），只有日期 qualifier 与外部确认都支持时才报告球队关系；缺失即 unknown。
 
+### 2026-10-09：球队列表边界与接入前复核
+
+- 官方 API 文档确认球队名称搜索与 `lookup_all_players.php?id=...` 列表端点，并将免费球队球员列表上限标为 10 条；本次对正式 API 的有界请求在收到响应前遇到连接重置，因此实际 JSON 字段形状仍待 live smoke。
+- TheSportsDB 官方论坛回复说明该端点只列球员的第一球队归属；因此名单行不能证明当前注册、可转会状态或完整阵容。参见[官方 API 文档](https://www.thesportsdb.com/documentation)与[提供方论坛说明](https://www.thesportsdb.com/forum_topic.php?s=0&t=6008)。
+- 现有 Terms 允许复制/修改正式 API 返回内容，但没有确定缓存期限；实现不做单独名单缓存，也不把名单放入图 checkpoint 或计划快照。公共应用仍需付费计划和来源署名，AI/模型处理不启用。
+
 ## 官方一手来源
 
 - [TheSportsDB API documentation](https://www.thesportsdb.com/documentation) · [API player data guide](https://www.thesportsdb.com/docs_api_data) · [Pricing](https://www.thesportsdb.com/docs_pricing) · [Terms of use](https://www.thesportsdb.com/docs_terms_of_use.php) · [about / crowd-sourced database statement](https://www.thesportsdb.com/docs_about) · [Harry Kane public profile example](https://www.thesportsdb.com/player/34146220-harry-kane) · [Justin Kluivert public profile example](https://www.thesportsdb.com/player/34163664-Justin-Kluivert)

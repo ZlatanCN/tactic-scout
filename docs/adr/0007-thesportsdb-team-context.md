@@ -1,0 +1,3 @@
+# Keep TheSportsDB roster context outside the evidence graph
+
+TheSportsDB may return a provider-maintained list of a team's primary-team players, but its free endpoint is capped at ten rows and neither current registration nor completeness is guaranteed. TactiScout therefore looks up one exact team only after the reviewed report, presents the result as separate, attributed team background, and keeps it out of Planner history, graph checkpoints, evaluation, rankings, and saved report snapshots; the integration stays opt-in because free access is for development and published apps require a suitable paid plan. Since the provider has not documented a cache lifetime, the idempotency cache drops this external roster context from settled replay results.

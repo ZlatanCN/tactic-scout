@@ -1,0 +1,60 @@
+.showcase-evaluator-ablation { margin: 0 0 38px; overflow: hidden; border: 1px solid #d9e2d8; border-radius: 9px; background: #fbfcf9; box-shadow: 0 10px 28px rgba(35,62,42,.045); }
+.evaluator-ablation-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 27px; align-items: center; padding: 25px 28px 22px; border-bottom: 1px solid #e7ece4; background: linear-gradient(112deg,#f3f7f1,#fbfcf9 70%); }
+.evaluator-ablation-heading .eyebrow { margin: 0 0 8px; color: #708873; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; }
+.evaluator-ablation-heading h2 { max-width: 760px; margin: 0; color: #233d2c; font-size: clamp(20px,2.35vw,28px); font-weight: 560; letter-spacing: -.045em; line-height: 1.4; }
+.evaluator-ablation-heading > div > p:last-child { max-width: 720px; margin: 9px 0 0; color: #6f7b70; font-size: 11px; line-height: 1.75; }
+.evaluator-ablation-pair-count { display: grid; justify-items: end; color: #637765; font-family: var(--mono); }
+.evaluator-ablation-pair-count strong { color: #28543a; font-size: 35px; font-weight: 500; letter-spacing: -.07em; line-height: 1; }
+.evaluator-ablation-pair-count span { margin-top: 4px; font-size: 9px; }
+.evaluator-ablation-pair-count small { margin-top: 6px; color: #858d81; font-family: inherit; font-size: 8px; text-align: right; }
+.evaluator-ablation-arms { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; padding: 17px 19px 14px; }
+.evaluator-ablation-arm { min-width: 0; padding: 15px; border: 1px solid #e4e9e0; border-top: 3px solid #607f68; border-radius: 6px; background: #fffefa; }
+.evaluator-ablation-arm.is-withheld { border-top-color: #a89a7f; }
+.evaluator-ablation-arm > header { display: flex; gap: 9px; align-items: center; }
+.evaluator-ablation-arm > header > span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: #416749; background: #eaf1e7; font-size: 12px; }
+.evaluator-ablation-arm.is-withheld > header > span { color: #77694d; background: #f1eee6; }
+.evaluator-ablation-arm h3 { margin: 0; color: #304536; font-size: 13px; font-weight: 650; }
+.evaluator-ablation-stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+.evaluator-ablation-stats > div { display: grid; min-width: 0; min-height: 78px; align-content: center; gap: 3px; padding: 9px; border: 1px solid #e9ece5; border-radius: 4px; background: #f7f9f5; }
+.is-withheld .evaluator-ablation-stats > div { background: #f8f6f1; }
+.evaluator-ablation-stats strong { color: #315c3d; font-family: var(--mono); font-size: clamp(18px,2vw,25px); font-weight: 500; letter-spacing: -.055em; line-height: 1.1; overflow-wrap: anywhere; }
+.is-withheld .evaluator-ablation-stats strong { color: #75694f; }
+.evaluator-ablation-stats span { color: #536255; font-size: 9px; font-weight: 600; line-height: 1.45; }
+.evaluator-ablation-stats small { color: #838d81; font-size: 8px; line-height: 1.45; }
+.evaluator-ablation-harness-note { margin: 10px 0 0; color: #77786f; font-size: 8px; line-height: 1.65; }
+.evaluator-ablation-harness-note b { color: #75694f; font-family: var(--mono); font-size: 9px; }
+.evaluator-ablation-pair-note { display: flex; gap: 9px; align-items: flex-start; margin: 0 19px 13px; padding: 10px 12px; border-left: 2px solid #8ca88c; background: #f5f8f2; }
+.evaluator-ablation-pair-note > span { color: #607f68; font-size: 13px; }
+.evaluator-ablation-pair-note p { margin: 0; color: #69766a; font-size: 9px; line-height: 1.65; }
+.evaluator-ablation-pair-note strong { color: #405a45; }
+.evaluator-ablation-method { margin: 0 19px 17px; padding-top: 11px; border-top: 1px solid #eeece5; }
+.evaluator-ablation-method > summary { width: fit-content; max-width: 100%; color: #667665; cursor: pointer; font-size: 9px; }
+.evaluator-ablation-method > summary:focus-visible { outline: 2px solid #54785b; outline-offset: 3px; }
+.evaluator-ablation-method > div { padding: 9px 0 0; }
+.evaluator-ablation-method p { margin: 0 0 7px; color: #81857d; font-size: 8px; line-height: 1.7; }
+.evaluator-ablation-method code { overflow-wrap: anywhere; color: #5f705f; font-family: var(--mono); font-size: 8px; }
+
+@media (max-width: 760px) {
+  .showcase-evaluator-ablation { margin-bottom: 28px; }
+  .evaluator-ablation-heading { gap: 15px; padding: 19px; }
+  .evaluator-ablation-arms { padding: 13px; }
+  .evaluator-ablation-arm { padding: 12px; }
+}
+
+@media (max-width: 560px) {
+  .evaluator-ablation-heading { grid-template-columns: 1fr; }
+  .evaluator-ablation-pair-count { grid-template-columns: auto auto 1fr; justify-items: start; align-items: baseline; gap: 0 8px; }
+  .evaluator-ablation-pair-count strong { font-size: 24px; }
+  .evaluator-ablation-pair-count span,
+  .evaluator-ablation-pair-count small { margin: 0; }
+  .evaluator-ablation-pair-count small { max-width: 110px; line-height: 1.4; }
+  .evaluator-ablation-arms { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 360px) {
+  .evaluator-ablation-heading { padding: 16px; }
+  .evaluator-ablation-arm { padding: 11px; }
+  .evaluator-ablation-stats { gap: 6px; }
+  .evaluator-ablation-stats > div { padding: 7px; }
+  .evaluator-ablation-stats strong { font-size: 17px; }
+}

@@ -35,6 +35,14 @@ const statisticTypeIds = {
   minutesPlayed: 119,
 } as const;
 
+type SportmonksRawStat = (typeof sportmonksRawStats)[number];
+
+function statisticTypeIdsFor(key: SportmonksRawStat): readonly number[] {
+  return key === "passesCompleted"
+    ? [statisticTypeIds.passesCompleted, statisticTypeIds.accuratePasses]
+    : [statisticTypeIds[key]];
+}
+
 type RecordValue = Record<string, unknown>;
 
 interface SportmonksPayload {
@@ -307,10 +315,7 @@ function parseSquadPlayer(
   const date = new Date(retrievedAt);
   const age = ageText ? ageAt(ageText, date) : null;
   const coveredRawStats = sportmonksRawStats.filter((key) => {
-    const typeIds = key === "passesCompleted"
-      ? [statisticTypeIds.passesCompleted, statisticTypeIds.accuratePasses]
-      : [statisticTypeIds[key as keyof typeof statisticTypeIds]];
-    return typeIds.some((typeId) => coveredTypeIds.has(typeId));
+    return statisticTypeIdsFor(key).some((typeId) => coveredTypeIds.has(typeId));
   });
   const mappedStats = {
     goals: stats && coveredTypeIds.has(statisticTypeIds.goals) ? valueForType(stats, coveredTypeIds, statisticTypeIds.goals) : 0,
@@ -329,7 +334,10 @@ function parseSquadPlayer(
   const minutes = stats && coveredTypeIds.has(statisticTypeIds.minutesPlayed)
     ? valueForType(stats, coveredTypeIds, statisticTypeIds.minutesPlayed)
     : 0;
-  const availableStats = stats ? coveredRawStats : [];
+  const availableStats = stats
+    ? coveredRawStats.filter((key) => statisticTypeIdsFor(key)
+      .some((typeId) => coveredTypeIds.has(typeId) && stats.has(typeId)))
+    : [];
   return PlayerProfileSchema.parse({
     playerId: `sportmonks:${playerId}:team:${team.id}:season:${season.id}`,
     externalPlayerId: `sportmonks:${playerId}`,

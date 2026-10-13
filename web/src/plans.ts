@@ -5,6 +5,7 @@ import {
   ScoutResponseSchema,
   CapabilityMetricDefinitions,
   createEmptyExternalSignalCoverage,
+  RecruitmentProgressEventSchema,
   type ConversationTurnResponse,
   type PlayerRecommendation,
   type RecruitmentReport,
@@ -19,8 +20,52 @@ export const ConversationMessageSchema = z.object({
   content: z.string(),
   teamContext: z.string().optional(),
   questionReason: z.string().optional(),
+  isReanalysisAction: z.boolean().optional(),
+  progressNotice: z.string().optional(),
+  progressEvents: z.array(RecruitmentProgressEventSchema).max(24).optional(),
 });
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
+
+export function createFreshReanalysisMessage(input: {
+  originalBrief: string;
+  messages: ConversationMessage[];
+}): string {
+  const originalBrief = input.originalBrief.trim()
+    || input.messages.find((message) => message.role === "user" && !message.isReanalysisAction)?.content.trim()
+    || "未记录原始需求";
+  const firstUserMessage = input.messages.find((message) => message.role === "user" && !message.isReanalysisAction);
+  const originalTeam = firstUserMessage?.teamContext?.trim();
+  const retainedContext = input.messages.flatMap((message) => {
+    if (message.role === "user") {
+      if (message.isReanalysisAction) return [];
+      const isOriginalBrief = message.content.trim() === originalBrief;
+      const content = isOriginalBrief ? "" : `用户补充：${message.content.trim()}`;
+      const team = message.teamContext?.trim() ? `目标球队：${message.teamContext.trim()}` : "";
+      return [content, team].filter(Boolean);
+    }
+    return message.questionReason?.trim() ? [`球探曾确认：${message.content.trim()}`] : [];
+  });
+
+  return [
+    "请为这项招募需求启动一轮全新调查。重新发现并评估候选人，按需求自行编排可用数据工具。不要复用此前报告中的候选人、数据、排序或结论，也不要把旧报告内容当成筛选条件。",
+    `原始需求：${originalBrief}`,
+    originalTeam ? `初始目标球队：${originalTeam}` : "",
+    retainedContext.length
+      ? `此前对话中可保留的需求上下文（只包含用户条件和球探提出的澄清问题，不含旧分析结论）：\n${retainedContext.join("\n")}`
+      : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+export function createFreshReanalysisTurn(input: {
+  caseId: string;
+  message: string;
+}): { caseId: string; message: string; expectsExistingState: false } {
+  return {
+    caseId: input.caseId,
+    message: input.message,
+    expectsExistingState: false,
+  };
+}
 
 const SavedRecruitmentPlanSchema = z.object({
   id: z.string().min(1),
@@ -66,6 +111,8 @@ export interface UpsertRecruitmentPlanInput {
 function reportFromLegacy(analysis: ScoutResponse, brief: string): RecruitmentReport {
   const recommendations: PlayerRecommendation[] = analysis.candidates.map((candidate) => ({
     player: candidate.player,
+    identityResolution: { status: "not_run", releaseStamp: null, sourceRecordCount: 1 },
+    sourceEvidenceRecords: [],
     rationale: candidate.reasons.join("；") || "历史分析未保存文字理由。",
     strengths: candidate.reasons,
     tradeoffs: candidate.risks,
@@ -97,14 +144,26 @@ function reportFromLegacy(analysis: ScoutResponse, brief: string): RecruitmentRe
     targetTeam: analysis.targetTeam,
     needSummary: brief || `${analysis.targetTeam} 的 ${analysis.requirements.position} 引援需求（旧版快照）`,
     capabilityProfile,
+    requestedCapabilityCoverage: [],
     evidenceCoverage: {
       evaluatedCandidateCount: analysis.candidates.length,
+      evaluatedSourceRecordCount: analysis.candidates.length,
       availableMetricValues: recommendations.reduce((total, recommendation) => total + recommendation.evidence.length, 0),
       expectedMetricValues: analysis.candidates.length * CapabilityMetricDefinitions.length,
       lowSampleCandidates: analysis.candidates.filter((candidate) => candidate.player.minutes < 900).length,
       limitedPeerGroupCandidates: analysis.candidates.length,
     },
+    candidateIdentityCoverage: {
+      registryAvailable: false,
+      releaseStamp: null,
+      sourceRecordCount: analysis.candidates.length,
+      resolvedIdentityCount: 0,
+      resolvedSourceRecordCount: 0,
+      unresolvedSourceRecordCount: analysis.candidates.length,
+      resolutionStatusCounts: analysis.candidates.length ? [{ status: "not_run", count: analysis.candidates.length }] : [],
+    },
     externalSignalCoverage: createEmptyExternalSignalCoverage(),
+    historicalArchiveCandidates: [],
     historicalArchiveCoverage: {
       status: "not_run",
       disabledReason: null,
@@ -113,7 +172,7 @@ function reportFromLegacy(analysis: ScoutResponse, brief: string): RecruitmentRe
       matchedCandidates: 0,
       failedCandidates: 0,
     },
-    knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologySearchFailed: false, playerReportSearchPerformed: false, playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
+    knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologySearchFailed: false, methodologySources: [], playerReportSearchPerformed: false, playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
     searchScopes: [{
       position: analysis.requirements.position,
       maxAge: analysis.requirements.maxAge ?? null,
@@ -218,11 +277,13 @@ export function saveRecruitmentPlans(plans: SavedRecruitmentPlan[], storage = br
   }
 }
 
-export function messageFromTurn(response: ConversationTurnResponse): ConversationMessage {
+export function messageFromTurn(response: ConversationTurnResponse, progressNotice?: string): ConversationMessage {
   return ConversationMessageSchema.parse({
     id: crypto.randomUUID(),
     role: "assistant",
     content: response.message,
     ...(response.question ? { questionReason: response.question.reason } : {}),
+    ...(progressNotice ? { progressNotice } : {}),
+    ...(response.progressEvents ? { progressEvents: response.progressEvents } : {}),
   });
 }

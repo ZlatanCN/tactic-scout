@@ -1,0 +1,77 @@
+{
+  "datasetId": "methodology-rag-v1",
+  "corpus": "methodology",
+  "judgmentLevel": "source",
+  "judgmentAuthority": "author_labeled",
+  "embeddingModel": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+  "sourceIds": [
+    "plos-soccer-analysis-2024",
+    "plos-position-specific-physical-performance-2021"
+  ],
+  "queries": [
+    {
+      "id": "practitioner-tech-value",
+      "query": "足球比赛分析技术能怎样帮助教练和球探？",
+      "expectedRelevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "项目作者摘要直接讨论职业青训实践者如何使用技术与战术表现指标。"
+    },
+    {
+      "id": "practitioner-tech-limits",
+      "query": "使用比赛数据评价球员时，为什么指标不能取代教练和球探的经验？",
+      "expectedRelevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "项目作者摘要明确指出指标需要清楚语境，不能取代教练与球探判断。"
+    },
+    {
+      "id": "practitioner-feedback",
+      "query": "表现分析技术怎样用于球员发展和反馈？",
+      "expectedRelevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "项目作者摘要直接涵盖技术战术指标对球员发展的用途。"
+    },
+    {
+      "id": "position-baseline",
+      "query": "比较职业足球运动员的跑动表现时，为什么要考虑场上位置？",
+      "expectedRelevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "论文研究比赛相关体能表现的位置差异与位置化基准。"
+    },
+    {
+      "id": "position-not-total-explanation",
+      "query": "球员的位置能解释其比赛体能表现的全部差异吗？",
+      "expectedRelevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "论文比较位置因素和球员个体差异对跑动指标的关联。"
+    },
+    {
+      "id": "running-demand-context",
+      "query": "高强度跑、冲刺和加速等数据应该如何结合球员位置解读？",
+      "expectedRelevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "这些体能表现维度是论文中的位置相关指标。"
+    },
+    {
+      "id": "transfer-fee-out-of-scope",
+      "query": "哈里·凯恩现在的转会身价是多少？",
+      "expectedRelevantSourceIds": [],
+      "rationale": "两篇方法论文的研究主题都不涉及市场估值或转会费。",
+      "outOfScopeReason": "获准语料讨论表现分析方法，不含球员身价或转会市场数据。"
+    },
+    {
+      "id": "named-replacement-out-of-scope",
+      "query": "谁最适合成为拜仁下赛季的凯恩替代者？",
+      "expectedRelevantSourceIds": [],
+      "rationale": "这需要当前阵容、候选球员和球队适配证据，方法论文不能回答具名推荐。",
+      "outOfScopeReason": "方法论文不提供具名候选球员、拜仁阵容或转会适配结论。"
+    },
+    {
+      "id": "contract-out-of-scope",
+      "query": "某名前锋的合同何时到期，俱乐部愿不愿意出售？",
+      "expectedRelevantSourceIds": [],
+      "rationale": "合同状态与俱乐部出售意愿不是表现分析方法论文的研究内容。",
+      "outOfScopeReason": "获准语料不含合同、俱乐部意向或球员可用性信息。"
+    },
+    {
+      "id": "recent-match-out-of-scope",
+      "query": "曼城最近一场比赛是谁进的球？",
+      "expectedRelevantSourceIds": [],
+      "rationale": "该问题要求即时比赛事实，静态方法资料没有比赛结果。",
+      "outOfScopeReason": "方法资料不含当前比赛结果或球员单场表现。"
+    }
+  ]
+}

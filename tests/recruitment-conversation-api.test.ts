@@ -28,6 +28,25 @@ test("conversation API sends a turn to the case endpoint and parses the shared r
   assert.deepEqual(JSON.parse(String(requestInit?.body)), { message: "回复年龄偏好", expectsExistingState: false });
 });
 
+test("conversation API preserves the existing checkpoint for a follow-up turn", async (t) => {
+  let requestInit: RequestInit | undefined;
+  t.mock.method(globalThis, "fetch", async (_input: string | URL | Request, init?: RequestInit) => {
+    requestInit = init;
+    return new Response(JSON.stringify(responseBody), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+
+  await turnRecruitmentCase("existing-case", "补充预算偏好", true, "request-2");
+
+  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+    requestId: "request-2",
+    message: "补充预算偏好",
+    expectsExistingState: true,
+  });
+});
+
 test("conversation API rejects a response that violates the case contract", async (t) => {
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ ...responseBody, status: "done" }), {
     status: 200,

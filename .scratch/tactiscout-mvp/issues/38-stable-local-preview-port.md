@@ -1,8 +1,8 @@
 # 本地网页预览固定端口
 
 Type: task
-Status: resolved
-Labels: ready-for-agent
+Status: open
+Labels: ready-for-human
 Blocked by: none
 
 ## Goal
@@ -24,3 +24,9 @@ Blocked by: none
 ## Comments
 
 - 2026-10-04：实际检查发现 5173 与 5174 同时运行同一项目的 Vite 服务；5173 提供旧 schema 并将 `fbref` 状态显示为未知，5174 提供当前 schema。重启 5173 后 UI 正确显示 FBref。已将开发服务器改为固定端口并启用 `strictPort`，避免之后静默切换预览地址。
+- 2026-10-11：复核作品集展示时，规范端口 5173 未监听，5174 和 issue 144 保留的 5185 仍有预览进程；5174 返回旧版 `/showcase`，而当前 Vite 配置仍正确设置 `strictPort: true`。启动当前 `pnpm dev:web` 后，5173 成功提供新版 `/showcase`，浏览器已核对 29/29 运行摘要、完整 LangGraph 转折、六项机制对照与数据归属说明。没有终止 5174/5185 上的进程，也没有改源码；此次是恢复本地预览，不是新增 Vite 配置。
+- 2026-10-13：新开的 5173 `/showcase?fresh=20261013` 页面仍显示旧版六项研究且没有 LangGraph 控制流图；同工作树的 5180 当前预览显示源码中的控制流图和七项研究，说明不是原标签页缓存。5173 当前仍有监听，而用户标签停在 `/review`，不安全地重启可能中断未保存的评审状态。当前源码已由 Web 构建验证；等待用户结束 5173 上的评审后重启唯一的 5173 Vite 服务，并确认新版图示与七项研究均出现。
+
+## Human action
+
+在 5173 的 `/review` 评审完成或其本机草稿已保存后，停止旧的 Vite Web 服务并从当前仓库重新运行 `pnpm dev:web`。然后打开 `http://127.0.0.1:5173/showcase`，确认页面包含 LangGraph 控制流图与七项机制研究（首项为能力证据评估器）。不要清理 5185 的 issue 144 人工检查预览。

@@ -2,7 +2,7 @@
 
 Type: research
 Status: resolved
-Labels: wayfinder:research
+Labels: ready-for-agent
 
 ## Question
 
@@ -20,7 +20,7 @@ Labels: wayfinder:research
 
 **已确认的选择：**双语料分开；来源采用许可门控与搜索发现/批准后入库；按“方法资料画像 → 结构化筛选和表现评估 → 球员报告观察 → 必要时回查结构化数据”编排；报告可影响定性建议但不转成分；LanceDB 服务端本地持久索引；本地 multilingual embedding 为默认并保留显式远程 provider 接口；小型标注集分项评测。
 
-**当前实现范围：**来源登记文件、PLOS 官方 Search API 元数据发现、已登记 DOI 的正文采集与 CC BY 声明核验、许可门控的本地 JSON 入库、LanceDB 混合检索、球员实体硬过滤、LangGraph 双语料动作和来源出处报告。默认语料有一条项目作者方法摘要，尚无可许可的具名球员报告。
+**当前实现范围：**来源登记文件、PLOS 官方 Search API 发现及登记 DOI 正文采集、CC BY 声明核验、许可门控的本地 JSON 入库、LanceDB 混合检索、球员实体硬过滤、LangGraph 双语料动作和来源元数据保留。启动时预置一条项目作者方法摘要；当前登记两篇可按需采集的 PLOS 方法论文；尚无可许可的具名球员报告。
 
 **仍需实现：**通用网页搜索 provider、来源专用正文采集器、刷新/删除与许可变更处理、可用的球员报告来源、最终 embedding 模型和基于真实材料的评测集规模/阈值。
 

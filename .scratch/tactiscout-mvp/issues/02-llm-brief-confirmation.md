@@ -2,7 +2,7 @@
 
 Type: grilling
 Status: resolved
-Labels: wayfinder:grilling
+Labels: ready-for-human
 
 ## Question
 

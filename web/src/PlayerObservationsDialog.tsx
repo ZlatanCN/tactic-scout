@@ -9,6 +9,8 @@ import {
   PlayerObservationInputSchema,
   PlayerObservationRatingSchema,
   PlayerObservationDimensionSchema,
+  PlayerObservationViewingScopeDefinitions,
+  PlayerObservationViewingScopeSchema,
   type PlayerObservation,
   type PlayerObservationInput,
 } from "../../src/observations/schemas.js";
@@ -30,6 +32,8 @@ interface Draft {
   competition: string;
   season: string;
   match: string;
+  viewingScope: string;
+  viewedMinuteRanges: string;
   observedAt: string;
   matchMinute: string;
   observer: string;
@@ -58,6 +62,8 @@ function emptyDraft(): Draft {
     competition: "",
     season: "",
     match: "",
+    viewingScope: "",
+    viewedMinuteRanges: "",
     observedAt: today(),
     matchMinute: "",
     observer: "",
@@ -83,6 +89,8 @@ function draftFromRecord(record: PlayerObservation): Draft {
     competition: record.competition ?? "",
     season: record.season ?? "",
     match: record.match ?? "",
+    viewingScope: record.viewingScope ?? "",
+    viewedMinuteRanges: record.viewedMinuteRanges ?? "",
     observedAt: record.observedAt,
     matchMinute: record.matchMinute === null ? "" : String(record.matchMinute),
     observer: record.observer,
@@ -117,6 +125,8 @@ function inputFromDraft(draft: Draft): PlayerObservationInput {
     competition: draft.competition.trim() || null,
     season: draft.season.trim() || null,
     match: draft.match.trim() || null,
+    viewingScope: draft.viewingScope ? PlayerObservationViewingScopeSchema.parse(draft.viewingScope) : null,
+    viewedMinuteRanges: draft.viewedMinuteRanges.trim() || null,
     observedAt: draft.observedAt,
     matchMinute: draft.matchMinute.trim() ? Number(draft.matchMinute) : null,
     observer: draft.observer,
@@ -151,6 +161,7 @@ export function PlayerObservationsDialog({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedRecord = records.find((record) => record.id === selectedId);
+  const ratingContextRequired = draft.ratings.length > 0;
   const datasetSummary = useMemo(() => summarizePlayerObservationDataset(records), [records]);
   closeRef.current = onClose;
   savingRef.current = saving;
@@ -331,6 +342,7 @@ export function PlayerObservationsDialog({ onClose }: Props) {
                 <button type="button" className={`observation-list-card ${selectedId === record.id ? "selected" : ""}`} key={record.id} onClick={() => { setNotice(null); setSelectedId(record.id); }}>
                   <strong>{record.playerName}</strong>
                   <span>{record.observedAt} · {record.competition ?? "赛事待补"}</span>
+                  <span>{record.viewingScope ? PlayerObservationViewingScopeDefinitions[record.viewingScope] : "观看范围未记录"}{record.viewedMinuteRanges ? ` · ${record.viewedMinuteRanges}` : ""}</span>
                   <small>{record.ratings.length ? `${record.ratings.length} 项能力观察 · ` : ""}{record.indexStatus === "indexed" ? "已加入 Agent 检索" : record.indexStatus === "index_failed" ? "索引待重试" : "仅保存在本机"}</small>
                 </button>
               ))}
@@ -349,16 +361,18 @@ export function PlayerObservationsDialog({ onClose }: Props) {
               <label className="observation-field"><span>观察时效力球队</span><input value={draft.teamAtObservation} onChange={(event) => updateDraft("teamAtObservation", event.target.value)} placeholder="由观察者记录" maxLength={120} /></label>
               <label className="observation-field"><span>观察时位置</span><select value={draft.observedPosition} onChange={(event) => updateDraft("observedPosition", event.target.value)}><option value="">未知 / 未记录</option>{PositionSchema.options.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>
               <label className="observation-field observation-field-wide"><span>观察时职责</span><input value={draft.observedRole} onChange={(event) => updateDraft("observedRole", event.target.value)} placeholder="例如右侧中卫、内收边后卫；只记这场比赛中的职责" maxLength={120} /></label>
-              <label className="observation-field"><span>赛事</span><input value={draft.competition} onChange={(event) => updateDraft("competition", event.target.value)} placeholder="例如 Bundesliga" maxLength={120} /></label>
-              <label className="observation-field"><span>赛季</span><input value={draft.season} onChange={(event) => updateDraft("season", event.target.value)} placeholder="例如 2025/26" maxLength={40} /></label>
-              <label className="observation-field observation-field-wide"><span>比赛</span><input value={draft.match} onChange={(event) => updateDraft("match", event.target.value)} placeholder="例如 Bayern vs Example FC" maxLength={180} /></label>
+              <label className="observation-field"><span>赛事 {ratingContextRequired && <b>*</b>}</span><input value={draft.competition} onChange={(event) => updateDraft("competition", event.target.value)} placeholder="例如 Bundesliga" maxLength={120} required={ratingContextRequired} /></label>
+              <label className="observation-field"><span>赛季 {ratingContextRequired && <b>*</b>}</span><input value={draft.season} onChange={(event) => updateDraft("season", event.target.value)} placeholder="例如 2025/26" maxLength={40} required={ratingContextRequired} /></label>
+              <label className="observation-field observation-field-wide"><span>比赛 {ratingContextRequired && <b>*</b>}</span><input value={draft.match} onChange={(event) => updateDraft("match", event.target.value)} placeholder="例如 Bayern vs Example FC" maxLength={180} required={ratingContextRequired} /></label>
+              <label className="observation-field"><span>观看范围 {ratingContextRequired && <b>*</b>}</span><select value={draft.viewingScope} onChange={(event) => updateDraft("viewingScope", event.target.value)} required={ratingContextRequired}><option value="">未知 / 未记录</option>{Object.entries(PlayerObservationViewingScopeDefinitions).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+              <label className="observation-field"><span>观看分钟范围</span><input value={draft.viewedMinuteRanges} onChange={(event) => updateDraft("viewedMinuteRanges", event.target.value)} placeholder="例如 1–30、60–90 分钟" maxLength={120} /></label>
               <label className="observation-field"><span>比赛分钟</span><input type="number" min={0} max={150} value={draft.matchMinute} onChange={(event) => updateDraft("matchMinute", event.target.value)} placeholder="可选" /></label>
               <label className="observation-field observation-field-wide"><span>表现优势 <b>*</b></span><textarea rows={3} value={draft.strengths} onChange={(event) => updateDraft("strengths", event.target.value)} placeholder="每行一条，只记录你亲眼观察到的内容" required /></label>
               <label className="observation-field observation-field-wide"><span>待核实风险</span><textarea rows={3} value={draft.risks} onChange={(event) => updateDraft("risks", event.target.value)} placeholder="每行一条；没有明确风险时可以留空" /></label>
               <label className="observation-field observation-field-wide"><span>具体比赛观察 <b>*</b></span><textarea rows={4} value={draft.evidenceNote} onChange={(event) => updateDraft("evidenceNote", event.target.value)} placeholder="记下比赛场景、动作和结果；至少 20 个字符。它仍是你的主观观察，不等于统计事实。" required /></label>
               <details className="observation-ratings observation-field-wide">
                 <summary>结构化能力观察 <span>可选 · 按本场样本记录</span></summary>
-                <p>评分由观察者填写，按该球员本场职责和比赛级别判断。1 表示明显短板，3 表示表现参差或一般，5 表示多次展现突出表现；无证据时留空。不同记录不会自动平均或计入适配分。</p>
+                <p>这是尚未校准的项目暂定量表，不代表观察者之间已经一致。填写评分时，请同时补全赛事、赛季、比赛和观看范围；无证据时留空。不同记录不会自动平均或计入适配分。</p>
                 <div className="observation-rating-list">
                   {draft.ratings.map((rating, index) => {
                     const dimension = PlayerObservationDimensionSchema.safeParse(rating.dimension);

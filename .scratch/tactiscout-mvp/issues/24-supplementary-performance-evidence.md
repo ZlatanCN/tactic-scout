@@ -1,8 +1,8 @@
 # 来源特定的可追溯表现指标
 
 Type: task
-Status: claimed
-Labels: ready-for-agent
+Status: open
+Labels: needs-info
 
 ## Goal
 
@@ -27,7 +27,7 @@ See [additional player evidence sources](../research/additional-player-evidence-
 
 ## Answer
 
-本地 SkillCorner aggregate adapter 与 Agent evidence/report 支持已实现：解析只接受配置目录中的三个 CSV；provider 身份包含球员、球队、赛事、赛季和位置组；新指标仅可作为带单位、来源字段和样本范围的证据引用，不进入现有职责评分；旧版单轮启发式端点拒绝 SkillCorner 模式。合成 CSV fixture 已覆盖解析、身份拼接、缺失、重复与冲突、位置映射、每 90 分钟归一化、三项 opt-in，以及推荐证据链。现在可用 `pnpm dataset:refresh:skillcorner` 从固定上游版本获取真实 CSV 并生成本机 provenance；三份文件已在 `.data/` 中通过大小与 SHA-256 校验，没有进入 Git。由于数据 CSV 的公开展示与 LLM 处理范围仍未明确，应用 gate 保持关闭，真实数据报告链尚未启用，issue 保持 claimed。
+本地 SkillCorner aggregate adapter 与 Agent evidence/report 支持已实现：解析只接受配置目录中的三个 CSV；provider 身份包含球员、球队、赛事、赛季和位置组；新指标仅可作为带单位、来源字段和样本范围的证据引用，不进入现有职责评分；旧版单轮启发式端点拒绝 SkillCorner 模式。合成 CSV fixture 已覆盖解析、身份拼接、缺失、重复与冲突、位置映射、每 90 分钟归一化、三项 opt-in，以及推荐证据链。现在可用 `pnpm dataset:refresh:skillcorner` 从固定上游版本获取真实 CSV 并生成本机 provenance；三份文件已在 `.data/` 中通过大小与 SHA-256 校验，没有进入 Git。由于数据 CSV 的公开展示与 LLM 处理范围仍未明确，应用 gate 保持关闭，真实数据报告链尚未启用。
 
 ## Comments
 
@@ -36,3 +36,4 @@ See [additional player evidence sources](../research/additional-player-evidence-
 - 2026-10-04：新增 `SkillCornerPlayerRepository`、7 个可追溯指标、位置组保守映射、报告样本列和三项默认关闭的使用开关。API / Web TypeScript 编译与 Web 生产构建通过；本轮未运行测试。真实来源文件、确认的保存/LLM/展示权利和确定性 adapter 测试仍未完成。
 - 2026-10-04：新增合成 CSV adapter 与完整推荐链路测试；覆盖 BOM、引号、按复合 provider identity 拼接、缺文件、重复/冲突、缺失指标、位置映射、年龄和 per90、三项独立授权，以及来源指标从文件进入最终报告且不虚构缺失事件指标。完整测试套件 111 项通过，API 与测试文件 TypeScript 检查通过，Web TypeScript/Vite 构建通过。没有读取真实 SkillCorner 文件；数据权利仍未确认。
 - 2026-10-04：官方仓库复核确认 2024/25 A-League 提供赛季聚合文件，但仓库 MIT 许可证文本描述的是 “Software”，未明确规定这些球员级 CSV 数据的许可范围。该来源依然最值得优先确认；没有明确答复前不导入真实文件，也不把它列为公开产品已具备的数据覆盖。细节见[近期开放球员表现数据复核](../research/recent-open-player-performance-data-2026-10.md)。
+- 2026-10-10：状态改为 `needs-info`：adapter、固定版本文件校验和合成链路已完成；最后一步必须先有数据权利确认，不能靠代码或非商业用途推定授权。

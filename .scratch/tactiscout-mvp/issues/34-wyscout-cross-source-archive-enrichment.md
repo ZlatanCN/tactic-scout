@@ -44,4 +44,6 @@ Blocked by: 33
 
 `pnpm build`、`pnpm build:web`、`git diff --check` 通过；按项目指示未运行测试。对应的一手来源记录见 [Reep → Wyscout 历史档案桥接范围](../research/reep-wyscout-bridge-coverage-2026-10.md)。
 
+2026-10-07 扩展说明：后续 [issue 39](39-layered-player-evidence.md) 将此 report-only enrichment 用于当前 FPL 候选，并把本轮已评估但未推荐的候选样本显示在独立附录；原推荐球员卡仍只展示该球员自己的匹配样本。FPL `opta_code` 的字段语义未获官方 schema 保证，最新 release、覆盖率与真实对话验收见 [桥接核查](../research/fpl-reep-current-player-identity-bridge-2026-10-07.md)。
+
 ## Comments

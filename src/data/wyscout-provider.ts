@@ -65,6 +65,9 @@ interface MutablePlayer {
   progressivePassDataComplete: boolean;
   progressivePasses: number;
   completedProgressivePasses: number;
+  attackingDuelDataComplete: boolean;
+  groundAttackingDuels: number;
+  explicitlyWonGroundAttackingDuels: number;
   defensiveDuelDataComplete: boolean;
   groundDefensiveDuels: number;
   clearlyWonGroundDefensiveDuels: number;
@@ -108,15 +111,23 @@ function fieldText(record: JsonRecord, key: string, fileName: string): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new WyscoutProviderError("invalid_source_data", `${fileName} contains a record without ${key}.`);
   }
-  return value.trim();
+  return decodeEscapedUnicode(value).trim();
+}
+
+function decodeEscapedUnicode(value: string): string {
+  return value.replace(/\\u([\da-f]{4})/gi, (_escape, codePoint: string) =>
+    String.fromCharCode(Number.parseInt(codePoint, 16)),
+  );
 }
 
 function nameOfPlayer(record: JsonRecord): string {
-  const first = typeof record.firstName === "string" ? record.firstName.trim() : "";
-  const last = typeof record.lastName === "string" ? record.lastName.trim() : "";
+  const first = typeof record.firstName === "string" ? decodeEscapedUnicode(record.firstName).trim() : "";
+  const last = typeof record.lastName === "string" ? decodeEscapedUnicode(record.lastName).trim() : "";
   const full = [first, last].filter(Boolean).join(" ");
   if (full) return full;
-  return typeof record.shortName2 === "string" && record.shortName2.trim() ? record.shortName2.trim() : "Unknown player";
+  return typeof record.shortName2 === "string" && record.shortName2.trim()
+    ? decodeEscapedUnicode(record.shortName2).trim()
+    : "Unknown player";
 }
 
 function mapPosition(record: JsonRecord): Position {
@@ -360,6 +371,9 @@ function addMutablePlayer(
     progressivePassDataComplete: true,
     progressivePasses: 0,
     completedProgressivePasses: 0,
+    attackingDuelDataComplete: true,
+    groundAttackingDuels: 0,
+    explicitlyWonGroundAttackingDuels: 0,
     defensiveDuelDataComplete: true,
     groundDefensiveDuels: 0,
     clearlyWonGroundDefensiveDuels: 0,
@@ -450,6 +464,7 @@ function supplementaryMetric(
   key: SupplementaryMetricKey,
   value: number | null,
   sourceField: string,
+  sample?: { attempts: number; label: string },
 ): SupplementaryPerformanceMetric {
   const definition = SupplementaryCapabilityMetricDefinitions.find((metric) => metric.key === key);
   if (!definition) throw new Error(`Missing supplementary metric definition for ${key}.`);
@@ -462,6 +477,7 @@ function supplementaryMetric(
     sourceField,
     sampleMinutes: profile.minutes,
     sampleMatches: profile.appearanceMatchIds.size,
+    ...(sample ? { sampleAttempts: sample.attempts, sampleAttemptsLabel: sample.label } : {}),
   };
 }
 
@@ -509,6 +525,15 @@ function applyEvent(
       if (completed) profile.completedProgressivePasses += 1;
     }
   }
+  if (eventName === "duel" && subEventName === "ground attacking duel") {
+    const outcomeCount = ["701", "702", "703"].filter((outcome) => tagIds.has(outcome)).length;
+    if (outcomeCount !== 1) {
+      profile.attackingDuelDataComplete = false;
+    } else {
+      profile.groundAttackingDuels += 1;
+      if (tagIds.has("703")) profile.explicitlyWonGroundAttackingDuels += 1;
+    }
+  }
   if (eventName === "duel" && subEventName === "ground defending duel") {
     const outcomeCount = ["701", "702", "703"].filter((outcome) => tagIds.has(outcome)).length;
     if (outcomeCount !== 1) {
@@ -528,6 +553,23 @@ function buildPlayer(profile: MutablePlayer, retrievedAt: string, matchEventIds:
   const eventDataComplete = [...profile.appearanceMatchIds].every((matchId) => matchEventIds.has(matchId));
   const age = ageAt(profile.player.birthDate, profile.seasonEnd);
   const supplementaryMetrics: SupplementaryPerformanceMetric[] = [
+    ...(eventDataComplete && profile.attackingDuelDataComplete ? [
+      supplementaryMetric(
+        profile,
+        "wyscoutGroundAttackingDuelsPer90",
+        profile.groundAttackingDuels / profile.minutes * 90,
+        "eventName=Duel + subEventName=Ground attacking duel；每条事件恰含一个 outcome tag 701/702/703",
+      ),
+      supplementaryMetric(
+        profile,
+        "wyscoutExplicitlyWonGroundAttackingDuelSharePct",
+        profile.groundAttackingDuels === 0
+          ? null
+          : profile.explicitlyWonGroundAttackingDuels / profile.groundAttackingDuels * 100,
+        "Ground attacking duel outcome tags；703 / (701 + 702 + 703)，含中性 702",
+        { attempts: profile.groundAttackingDuels, label: "次已分类进攻对抗" },
+      ),
+    ] : []),
     ...(eventDataComplete && profile.progressivePassDataComplete ? [
       supplementaryMetric(
         profile,

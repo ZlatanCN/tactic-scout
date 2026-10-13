@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessRoles, toPer90 } from "../src/agent/scoring.js";
+import { toPer90 } from "../src/agent/performance-metrics.js";
 import { SportmonksPlayerRepository, SportmonksProviderError } from "../src/data/sportmonks-provider.js";
 import { positionMatches } from "../src/domain/positions.js";
 import type { PlayerProfile } from "../src/domain/schemas.js";
@@ -110,7 +110,7 @@ test("Sportmonks adapter paginates teams, merges current roster with season stat
   assert.equal(forward.stats.goals, 9);
   assert.equal(forward.stats.passesAttempted, 120);
   assert.equal(forward.stats.passesCompleted, 90);
-  assert.deepEqual(forward.availableStats, ["goals", "assists", "passesAttempted", "passesCompleted", "longPasses", "tackles", "interceptions"]);
+  assert.deepEqual(forward.availableStats, ["goals", "assists", "passesAttempted", "passesCompleted", "longPasses", "tackles"]);
   assert.deepEqual(forward.sourceIdentity, {
     provider: "sportmonks",
     playerId: "77",
@@ -128,23 +128,34 @@ test("Sportmonks adapter paginates teams, merges current roster with season stat
   assert.equal(per90.carries, null);
   assert.equal(per90.pressures, null);
   assert.equal(per90.shotAssists, null);
-  assert.equal(per90.tacklesInterceptions, 0.3, "confirmed statistic coverage makes an omitted event count a measured zero");
-  const roles = assessRoles({
-    targetTeam: "Bayern Munich",
-    position: "ST",
-    inPossessionRoles: ["progression"],
-    outOfPossessionRoles: ["pressing"],
-    includeUnknownAge: false,
-    topK: 3,
-  }, forward);
-  assert.deepEqual(roles.map((role) => role.fit), [null, null]);
-  assert.match(roles[0]!.unsupportedAttributes.join(" "), /未提供带球数据/);
-  assert.match(roles[1]!.unsupportedAttributes.join(" "), /未提供施压数据/);
-
+  assert.equal(per90.tacklesInterceptions, null, "a covered but omitted statistic remains unavailable");
   assert.ok(requests.some(({ url }) => url.pathname.endsWith("/teams/seasons/10") && url.searchParams.get("page") === "1"));
   assert.ok(requests.some(({ url }) => url.pathname.endsWith("/teams/seasons/10") && url.searchParams.get("page") === "2"));
   assert.ok(requests.every(({ authorization }) => authorization === "test-token"));
   assert.ok(requests.every(({ url }) => !url.searchParams.has("api_token")), "credentials must not enter request URLs");
+});
+
+test("Sportmonks keeps an explicitly recorded zero available while omitting an unrecorded statistic", async () => {
+  const { fetchImpl: baseFetch } = fixtureFetch();
+  const explicitZeroFetch: typeof fetch = async (input, init) => {
+    const response = await baseFetch(input, init);
+    const url = input instanceof URL ? input : new URL(String(input));
+    if (url.pathname !== "/v3/football/squads/seasons/10/teams/101") return response;
+    const payload = await response.json() as { data: Array<{ details: Array<Record<string, unknown>> }> };
+    const [playerStats, ...otherRows] = payload.data;
+    assert.ok(playerStats);
+    return jsonResponse({ data: [{
+      ...playerStats,
+      details: [...playerStats.details, { type_id: 100, value: { total: 0 } }],
+    }, ...otherRows] });
+  };
+  const provider = repository(explicitZeroFetch);
+  const forward = (await provider.loadPlayers()).find((player) => player.sourceIdentity?.playerId === "77");
+
+  assert.ok(forward);
+  assert.ok(forward.availableStats?.includes("interceptions"));
+  assert.equal(forward.stats.interceptions, 0);
+  assert.equal(toPer90(forward).tacklesInterceptions, 0.3);
 });
 
 test("Sportmonks rejects model processing by default and refuses historical seasons in current-roster mode", async () => {

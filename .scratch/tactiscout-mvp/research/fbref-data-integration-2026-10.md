@@ -53,7 +53,7 @@
 | team link / competition link / season page | `sourceIdentity.teamId`、`competitionId`、`seasonId`；同时填 `team`、`competition`、`season`。 |
 | `Age` / `Born` / `Pos` | 年龄是页面快照字段；位置先只映射 GK/DF/MF/FW 到 GK/DEF/MID/ATT，不能把赛季泛位置推断成 CB/边卫/后腰。 |
 | `Min`, `Gls`, `Ast`, 实际有值的传球/防守指标 | 映射到现有 raw stats；只把页面实际提供的字段加入 `availableStats`。如果使用的字段不在当前 `RawStatsSchema`，先做有证据的扩展。 |
-| 页面空白或页面不含的指标 | 保持不可用（不放入 `availableStats`），不要写成 0；这样评分可以降置信度或将属性标成未覆盖。 |
+| 页面空白或页面不含的指标 | 保持不可用（不放入 `availableStats`），不要写成 0；职责评估将该维度标记为未覆盖，并在报告中明确数据缺口，不把缺失值换算为低分或推荐置信度。 |
 | 页面访问时刻、原页面链接 | `retrievedAt` 与报告里的数据来源快照，展示“抓取时间/赛季/联赛”。 |
 
 适配里最关键的非技术约束是使用开关：授权未确认时，不能把自动取得的 FBref 内容送入当前 `conversation.ts` 的 LLM prompt，也不能作为 scoring 的数据存储或 RAG 语料。若产品仍需在这一版跑 LangGraph，继续使用现有明确允许模型处理的来源/本地样本；FBref 先作为人工对照链接。若日后拿到覆盖“自动抓取 + 商业/非商业展示 + LLM 推理/打分”的书面许可，再按以上窄样机实施并保存许可范围和有效期。

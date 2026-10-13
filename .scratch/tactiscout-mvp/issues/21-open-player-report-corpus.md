@@ -2,7 +2,7 @@
 
 Type: research
 Status: resolved
-Labels: wayfinder:research
+Labels: ready-for-agent
 
 ## Question
 

@@ -1,0 +1,337 @@
+{
+  "datasetId": "methodology-rag-v2",
+  "corpus": "methodology",
+  "judgmentLevel": "source",
+  "judgmentAuthority": "author_labeled",
+  "embeddingModel": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+  "sourceIds": [
+    "plos-soccer-analysis-2024",
+    "plos-position-specific-physical-performance-2021"
+  ],
+  "queries": [
+    {
+      "id": "practitioner-tech-value",
+      "split": "calibration",
+      "queryFamily": "practitioner-technology-value",
+      "answerability": "answerable",
+      "query": "足球比赛分析技术能怎样帮助教练和球探？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "项目作者摘要直接讨论职业青训实践者如何使用技术与战术表现指标。"
+    },
+    {
+      "id": "practitioner-tech-limits",
+      "split": "calibration",
+      "queryFamily": "practitioner-technology-limits",
+      "answerability": "answerable",
+      "query": "使用比赛数据评价球员时，为什么指标不能取代教练和球探的经验？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "项目作者摘要明确指出指标需要清楚语境，不能取代教练与球探判断。"
+    },
+    {
+      "id": "practitioner-feedback",
+      "split": "calibration",
+      "queryFamily": "practitioner-player-feedback",
+      "answerability": "answerable",
+      "query": "表现分析技术怎样用于球员发展和反馈？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "项目作者摘要直接涵盖技术战术指标对球员发展的用途。"
+    },
+    {
+      "id": "position-baseline",
+      "split": "calibration",
+      "queryFamily": "position-running-baseline",
+      "answerability": "answerable",
+      "query": "比较职业足球运动员的跑动表现时，为什么要考虑场上位置？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "论文研究比赛相关体能表现的位置差异与位置化基准。"
+    },
+    {
+      "id": "position-not-total-explanation",
+      "split": "calibration",
+      "queryFamily": "position-versus-player-running-differences",
+      "answerability": "answerable",
+      "query": "球员的位置能解释其比赛体能表现的全部差异吗？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "论文比较位置因素和球员个体差异对跑动指标的关联。"
+    },
+    {
+      "id": "running-demand-context",
+      "split": "calibration",
+      "queryFamily": "position-high-intensity-running-metrics",
+      "answerability": "answerable",
+      "query": "高强度跑、冲刺和加速等数据应该如何结合球员位置解读？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "这些体能表现维度是论文中的位置相关指标。"
+    },
+    {
+      "id": "transfer-fee-out-of-scope",
+      "split": "calibration",
+      "queryFamily": "transfer-market-value",
+      "answerability": "out_of_scope",
+      "query": "哈里·凯恩现在的转会身价是多少？",
+      "relevantSourceIds": [],
+      "rationale": "两篇方法论文的研究主题都不涉及市场估值或转会费。",
+      "outOfScopeReason": "获准语料讨论表现分析方法，不含球员身价或转会市场数据。"
+    },
+    {
+      "id": "named-replacement-out-of-scope",
+      "split": "calibration",
+      "queryFamily": "named-replacement-recommendation",
+      "answerability": "out_of_scope",
+      "query": "谁最适合成为拜仁下赛季的凯恩替代者？",
+      "relevantSourceIds": [],
+      "rationale": "这需要当前阵容、候选球员和球队适配证据，方法论文不能回答具名推荐。",
+      "outOfScopeReason": "方法论文不提供具名候选球员、拜仁阵容或转会适配结论。"
+    },
+    {
+      "id": "contract-out-of-scope",
+      "split": "calibration",
+      "queryFamily": "contract-and-club-intent",
+      "answerability": "out_of_scope",
+      "query": "某名前锋的合同何时到期，俱乐部愿不愿意出售？",
+      "relevantSourceIds": [],
+      "rationale": "合同状态与俱乐部出售意愿不是表现分析方法论文的研究内容。",
+      "outOfScopeReason": "获准语料不含合同、俱乐部意向或球员可用性信息。"
+    },
+    {
+      "id": "recent-match-out-of-scope",
+      "split": "calibration",
+      "queryFamily": "live-match-result",
+      "answerability": "out_of_scope",
+      "query": "曼城最近一场比赛是谁进的球？",
+      "relevantSourceIds": [],
+      "rationale": "该问题要求即时比赛事实，静态方法资料没有比赛结果。",
+      "outOfScopeReason": "方法资料不含当前比赛结果或球员单场表现。"
+    },
+    {
+      "id": "cal-2024-youth-feedback",
+      "split": "calibration",
+      "queryFamily": "practitioner-youth-development-feedback",
+      "answerability": "answerable",
+      "query": "把比赛中的技术和战术指标反馈给青训球员，可能帮助他们什么？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "2024 来源直接讨论技术战术指标在球员发展和反馈中的作用。"
+    },
+    {
+      "id": "cal-2021-position-compare",
+      "split": "calibration",
+      "queryFamily": "physical-running-position-comparison",
+      "answerability": "answerable",
+      "query": "职业足球不同场上位置的高强度跑动和冲刺表现有什么差别？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "2021 来源研究职业足球运动员的位置相关比赛体能表现。"
+    },
+    {
+      "id": "cal-injury-status-ambiguous",
+      "split": "calibration",
+      "queryFamily": "individual-player-injury-status",
+      "answerability": "out_of_scope",
+      "query": "凯恩现在伤愈了吗，能参加下一场比赛吗？",
+      "relevantSourceIds": [],
+      "rationale": "语料不是当前球员伤病或出场可用性信息源。",
+      "outOfScopeReason": "两篇方法论文不含球员当前伤情或比赛名单。"
+    },
+    {
+      "id": "cal-winter-transfer-targets",
+      "split": "calibration",
+      "queryFamily": "winter-window-shortlist",
+      "answerability": "out_of_scope",
+      "query": "拜仁冬窗应该花多少钱买一名右边锋？",
+      "relevantSourceIds": [],
+      "rationale": "转会预算和位置引援推荐不在两篇方法论文的内容范围内。",
+      "outOfScopeReason": "获准语料不提供转会预算、市场价格或候选球员名单。"
+    },
+    {
+      "id": "cal-pressing-sprint-threshold",
+      "split": "calibration",
+      "queryFamily": "pressing-role-sprint-threshold",
+      "answerability": "ambiguous",
+      "query": "高位压迫体系里的边锋每场至少要完成多少次冲刺才算合格？",
+      "relevantSourceIds": [],
+      "rationale": "体能论文讨论位置差异，但没有高位压迫体系的合格冲刺阈值。",
+      "outOfScopeReason": "语料不能给出战术体系专属的合格阈值。"
+    },
+    {
+      "id": "cal-predictive-midfielder-metric",
+      "split": "calibration",
+      "queryFamily": "midfielder-success-prediction",
+      "answerability": "ambiguous",
+      "query": "哪项数据最能预测 8 号位球员在新球队会不会成功？",
+      "relevantSourceIds": [],
+      "rationale": "两篇来源都没有验证中场数据对转会后成功的预测效力。",
+      "outOfScopeReason": "语料不研究特定位置的转会成功预测模型。"
+    },
+    {
+      "id": "held-2024-complete-assessment",
+      "split": "heldout",
+      "queryFamily": "complete-player-assessment-limit",
+      "answerability": "answerable",
+      "query": "为什么不能只凭几个视频指标就判断一名年轻球员的完整能力？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "2024 来源强调指标要结合语境，不能据有限事件统计推断完整能力。"
+    },
+    {
+      "id": "held-2024-indicator-context",
+      "split": "heldout",
+      "queryFamily": "performance-indicator-interpretation",
+      "answerability": "answerable",
+      "query": "教练使用战术表现指标培养年轻球员时，为什么需要解释它的比赛语境？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "2024 来源明确强调指标需要清楚语境和易于理解。"
+    },
+    {
+      "id": "held-2024-generalization",
+      "split": "heldout",
+      "queryFamily": "single-academy-generalization",
+      "answerability": "answerable",
+      "query": "一个学院俱乐部里的分析经验可以直接当作所有球队的统一标准吗？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "2024 来源样本来自单一学院俱乐部，并明确指出不宜直接推广。"
+    },
+    {
+      "id": "held-2021-positional-distance",
+      "split": "heldout",
+      "queryFamily": "positional-running-distance",
+      "answerability": "answerable",
+      "query": "比较职业足球运动员的高强度跑动距离时，场上位置会造成差异吗？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "2021 来源分析比赛相关跑动表现与场上位置的关系。"
+    },
+    {
+      "id": "held-2021-individual-differences",
+      "split": "heldout",
+      "queryFamily": "individual-running-variation",
+      "answerability": "answerable",
+      "query": "场上位置之外，球员个人差异还会影响比赛跑动表现吗？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "2021 来源比较位置与个体差异对比赛体能指标的解释作用。"
+    },
+    {
+      "id": "held-2021-position-benchmark",
+      "split": "heldout",
+      "queryFamily": "position-specific-running-benchmark",
+      "answerability": "answerable",
+      "query": "不同位置的冲刺和加速数据是否应该放在各自的位置基准中比较？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "2021 来源研究冲刺、加速等比赛相关体能表现的位置差异。"
+    },
+    {
+      "id": "held-ambiguous-pressing-benchmark",
+      "split": "heldout",
+      "queryFamily": "team-style-pressing-benchmark",
+      "answerability": "ambiguous",
+      "query": "对一名英超高压迫边锋来说，每 90 分钟完成多少次冲刺才算精英水平？",
+      "relevantSourceIds": [],
+      "rationale": "体能研究不能支撑英超、战术风格和精英水平组合出的具体门槛。",
+      "outOfScopeReason": "语料没有英超高压迫边锋的精英冲刺阈值。"
+    },
+    {
+      "id": "held-ambiguous-single-match-demotion",
+      "split": "heldout",
+      "queryFamily": "single-match-selection-decision",
+      "answerability": "ambiguous",
+      "query": "球探能只凭一场比赛的跑动数据就判断前锋不适合球队吗？",
+      "relevantSourceIds": ["plos-soccer-analysis-2024"],
+      "rationale": "2024 来源支持不能让指标脱离语境或取代专业判断，但不能直接判断该前锋适配度。"
+    },
+    {
+      "id": "held-ambiguous-scoring-role",
+      "split": "heldout",
+      "queryFamily": "role-scoring-threshold",
+      "answerability": "ambiguous",
+      "query": "每 90 分钟进球至少达到多少，才能认定一名中锋能替代凯恩？",
+      "relevantSourceIds": [],
+      "rationale": "文章没有转会替代标准、进球阈值或候选人数据。",
+      "outOfScopeReason": "语料不支持凯恩替代者的具名角色评估或统计阈值。"
+    },
+    {
+      "id": "held-ambiguous-8-role-prediction",
+      "split": "heldout",
+      "queryFamily": "position-success-prediction",
+      "answerability": "ambiguous",
+      "query": "根据位置跑动数据，可以预测球员转会后能否适应新球队吗？",
+      "relevantSourceIds": [],
+      "rationale": "位置体能研究不评估转会适应或新球队表现预测。",
+      "outOfScopeReason": "语料没有转会后适应能力或预测准确度证据。"
+    },
+    {
+      "id": "held-ambiguous-physical-transfer-fit",
+      "split": "heldout",
+      "queryFamily": "league-specific-physical-fit",
+      "answerability": "ambiguous",
+      "query": "一名德甲边锋的冲刺数据偏低，能说明他不适合英超吗？",
+      "relevantSourceIds": ["plos-position-specific-physical-performance-2021"],
+      "rationale": "来源支持按位置理解体能表现，但未比较德甲到英超的适配或给出球员结论。"
+    },
+    {
+      "id": "held-ambiguous-signing-ranking",
+      "split": "heldout",
+      "queryFamily": "transfer-shortlist-ranking",
+      "answerability": "ambiguous",
+      "query": "这两篇研究能否告诉我应该先签哪一个目标球员？",
+      "relevantSourceIds": [],
+      "rationale": "方法资料不包含候选人样本或引援比较结果。",
+      "outOfScopeReason": "来源不能回答具体引援排序。"
+    },
+    {
+      "id": "held-oos-contract",
+      "split": "heldout",
+      "queryFamily": "current-contract-expiry",
+      "answerability": "out_of_scope",
+      "query": "某位英超边锋的合同什么时候到期？",
+      "relevantSourceIds": [],
+      "rationale": "两篇论文没有合同或当前球员资料。",
+      "outOfScopeReason": "缺少合同数据库或可靠的当前球员来源。"
+    },
+    {
+      "id": "held-oos-injury",
+      "split": "heldout",
+      "queryFamily": "current-injury-availability",
+      "answerability": "out_of_scope",
+      "query": "拜仁的前锋现在有哪些伤病，谁能上周末的比赛？",
+      "relevantSourceIds": [],
+      "rationale": "语料只讨论表现分析方法和体能研究，不含实时伤病名单。",
+      "outOfScopeReason": "缺少当前伤病和出场名单数据。"
+    },
+    {
+      "id": "held-oos-market-value",
+      "split": "heldout",
+      "queryFamily": "current-market-value",
+      "answerability": "out_of_scope",
+      "query": "哈里·凯恩在 2026 年的最新市场估值是多少？",
+      "relevantSourceIds": [],
+      "rationale": "两篇方法来源不发布球员市场估值。",
+      "outOfScopeReason": "需要当前估值或转会市场数据源。"
+    },
+    {
+      "id": "held-oos-match-result",
+      "split": "heldout",
+      "queryFamily": "recent-match-scorers",
+      "answerability": "out_of_scope",
+      "query": "曼城昨晚比赛的进球者和助攻者是谁？",
+      "relevantSourceIds": [],
+      "rationale": "两篇方法来源没有单场比赛事件记录。",
+      "outOfScopeReason": "需要比赛事件或赛果数据源。"
+    },
+    {
+      "id": "held-oos-transfer-shortlist",
+      "split": "heldout",
+      "queryFamily": "current-transfer-targets",
+      "answerability": "out_of_scope",
+      "query": "现在有哪些合同只剩一年的年轻中卫可以免签？",
+      "relevantSourceIds": [],
+      "rationale": "当前合同、年龄与转会候选信息均不在语料中。",
+      "outOfScopeReason": "需要当前球员、合同和转会状态数据库。"
+    },
+    {
+      "id": "held-oos-world-cup",
+      "split": "heldout",
+      "queryFamily": "tournament-result",
+      "answerability": "out_of_scope",
+      "query": "2026 年世界杯的冠军是谁？",
+      "relevantSourceIds": [],
+      "rationale": "研究论文不提供赛事比分或冠军结果。",
+      "outOfScopeReason": "需要赛事实时结果或历史赛果来源。"
+    }
+  ]
+}

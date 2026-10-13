@@ -1,7 +1,7 @@
 # Add a bounded local Sportmonks account smoke
 
 Type: task
-Status: claimed
+Status: open
 Labels: needs-info
 Blocked by: none
 
@@ -30,11 +30,13 @@ Allow a user-owned Sportmonks account to verify one configured current season an
 ## Research
 
 - [Official current-player-pool source decision](../research/current-player-pool-provider-decision-2026-10-04.md): Sportmonks is the strongest existing current-pool adapter, but target-league entitlement and external LLM processing permission remain unverified. This command validates an account's live response only; it does not authorize or enable the full app integration.
+- [Sportmonks API v3 changes](https://docs.sportmonks.com/v3/welcome/differences-between-api-2-and-api-3/api-changes): v3 returns only recorded statistical values; unrecorded values are omitted rather than filled with default zeroes.
 
 ## Comments
 
 - 2026-10-04：按官方来源复核结论，先用本机、限量、无模型流程验证真实账户当前赛季与一队数据形状；不订阅付费套餐、不开启正式 provider，也不假设已有 AI 处理许可。
 - 2026-10-04：复审发现仅返回空 team 会让命令以成功状态结束；现在要求球队明确标记为 `domestic`，否则以脱敏错误结束且不读取阵容或统计。
+- 2026-10-11：对抗性代码审查发现 provider 曾把账号覆盖配置直接当作逐球员字段可用性，因而把 API v3 省略的统计项当成零值证据。现在 `availableStats` 必须同时满足账号覆盖和该球员响应中实际存在该 `type_id`；缺失项不参与 `toPer90`/职责评估，也不会在最终报告中被表述成“零次传球”，显式返回的 0 仍是有效观测。适配器缺失/显式零对照测试 11/11、LangGraph 报告链路 41/41 通过，`pnpm build` 通过。真实账户 smoke 仍待配置 token 与 season ID。
 
 ## Answer
 

@@ -4,10 +4,11 @@ import { fileURLToPath } from "node:url";
 import type {
   HistoricalArchiveCoverage,
   HistoricalArchiveSample,
+  PlayerDataSourceIdentity,
   PlayerProfile,
 } from "../domain/schemas.js";
 import { SupplementaryCapabilityMetricDefinitions } from "../domain/schemas.js";
-import { ReepIdentityRegistry } from "../identity/reep-registry.js";
+import { ReepIdentityRegistry, type ReepIdentityResolution } from "../identity/reep-registry.js";
 import { WyscoutPlayerRepository } from "./wyscout-provider.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -36,7 +37,58 @@ export interface ConfiguredHistoricalArchive {
 
 export type HistoricalArchiveSetup =
   | { status: "disabled"; coverage: HistoricalArchiveCoverage }
-  | { status: "ready"; coverage: HistoricalArchiveCoverage; enrich: ConfiguredHistoricalArchive["enrich"] };
+  | {
+    status: "ready";
+    coverage: HistoricalArchiveCoverage;
+    validate(): Promise<{ releaseStamp: string; archivePlayerRecords: number }>;
+    enrich: ConfiguredHistoricalArchive["enrich"];
+  };
+
+export type HistoricalArchivePreflight =
+  | { status: "disabled"; coverage: HistoricalArchiveCoverage }
+  | { status: "unusable"; coverage: HistoricalArchiveCoverage }
+  | { status: "ready"; coverage: HistoricalArchiveCoverage; releaseStamp: string; archivePlayerRecords: number };
+
+type ReepResolver = Pick<ReepIdentityRegistry, "resolveExact" | "resolveSourceProvider">;
+
+interface CandidateIdentityBridge {
+  identity: ReepIdentityResolution;
+  sourceBridge: {
+    provider: string;
+    namespace: string;
+    externalId: string;
+    sourceField: string | null;
+  };
+}
+
+export function resolveHistoricalCandidateIdentity(sourceIdentity: PlayerDataSourceIdentity, registry: ReepResolver): CandidateIdentityBridge | null {
+  if (sourceIdentity.provider === "wyscout-open-data") return null;
+
+  const attempts = [
+    {
+      identity: registry.resolveSourceProvider(sourceIdentity.provider, sourceIdentity.playerId),
+      sourceBridge: null,
+    },
+    ...(sourceIdentity.providerIdentifiers ?? []).map((identifier) => ({
+      identity: registry.resolveExact(identifier.provider, identifier.namespace, identifier.externalId),
+      sourceBridge: identifier,
+    })),
+  ].filter((attempt) => attempt.identity.status === "resolved" && attempt.identity.reepId);
+  const canonicalIds = new Set(attempts.flatMap(({ identity }) => identity.reepId ? [identity.reepId] : []));
+  if (canonicalIds.size !== 1) return null;
+
+  const selected = attempts[0];
+  if (!selected) return null;
+  return {
+    identity: selected.identity,
+    sourceBridge: {
+      provider: selected.identity.source.provider,
+      namespace: selected.identity.source.namespace,
+      externalId: selected.identity.source.externalId,
+      sourceField: selected.sourceBridge?.sourceField ?? null,
+    },
+  };
+}
 
 function absolutePath(environmentValue: string | undefined, defaultPath: string): string {
   return path.resolve(projectRoot, environmentValue?.trim() || defaultPath);
@@ -132,6 +184,17 @@ export function createConfiguredHistoricalArchive(): HistoricalArchiveSetup {
   return {
     status: "ready",
     coverage,
+    async validate() {
+      const registry = new ReepIdentityRegistry(identityIndexPath);
+      try {
+        registry.resolveSourceProvider("understat", "__tactiscout_preflight__");
+        const archivePlayers = await archiveRepository.loadPlayers();
+        if (archivePlayers.length === 0) throw new Error("Wyscout archive contains no player-season records.");
+        return { releaseStamp: registry.releaseStamp, archivePlayerRecords: archivePlayers.length };
+      } finally {
+        registry.close();
+      }
+    },
     async enrich(players) {
       const samplesByPlayerId: Record<string, HistoricalArchiveSample[]> = {};
       const resultCoverage: HistoricalArchiveCoverage = {
@@ -146,6 +209,7 @@ export function createConfiguredHistoricalArchive(): HistoricalArchiveSetup {
         const resolved = new Map<string, {
           player: PlayerProfile;
           reepId: string;
+          sourceBridge: CandidateIdentityBridge["sourceBridge"];
           sourceRung: string | null;
           sourceUpstreamStatus: string | null;
           archiveBridges: Map<string, { rung: string | null; upstreamStatus: string | null }>;
@@ -154,8 +218,9 @@ export function createConfiguredHistoricalArchive(): HistoricalArchiveSetup {
         for (const player of players) {
           const sourceIdentity = player.sourceIdentity;
           if (!sourceIdentity || sourceIdentity.provider === "wyscout-open-data") continue;
-          const identity = registry.resolveSourceProvider(sourceIdentity.provider, sourceIdentity.playerId);
-          if (identity.status !== "resolved" || !identity.reepId) continue;
+          const resolvedIdentity = resolveHistoricalCandidateIdentity(sourceIdentity, registry);
+          const identity = resolvedIdentity?.identity;
+          if (!resolvedIdentity || identity?.status !== "resolved" || !identity.reepId) continue;
           const archiveBridges = new Map(identity.linkedBridges
             .filter((bridge) => bridge.provider === "wyscout" && bridge.namespace === "player")
             .map((bridge) => [bridge.externalId, { rung: bridge.rung, upstreamStatus: bridge.upstreamStatus }]));
@@ -165,6 +230,7 @@ export function createConfiguredHistoricalArchive(): HistoricalArchiveSetup {
           resolved.set(player.playerId, {
             player,
             reepId: identity.reepId,
+            sourceBridge: resolvedIdentity.sourceBridge,
             sourceRung: sourceBridge?.rung ?? null,
             sourceUpstreamStatus: sourceBridge?.upstreamStatus ?? null,
             archiveBridges,
@@ -195,6 +261,7 @@ export function createConfiguredHistoricalArchive(): HistoricalArchiveSetup {
               reepId: candidate.reepId,
               sourceProvider: candidate.player.sourceIdentity!.provider,
               sourcePlayerId: candidate.player.sourceIdentity!.playerId,
+              sourceBridge: candidate.sourceBridge,
               sourceRung: candidate.sourceRung,
               archiveRung: bridge.rung,
               sourceUpstreamStatus: candidate.sourceUpstreamStatus,
@@ -232,4 +299,14 @@ export function createConfiguredHistoricalArchive(): HistoricalArchiveSetup {
       }
     },
   };
+}
+
+export async function preflightConfiguredHistoricalArchive(): Promise<HistoricalArchivePreflight> {
+  const setup = createConfiguredHistoricalArchive();
+  if (setup.status === "disabled") return setup;
+  try {
+    return { status: "ready", coverage: setup.coverage, ...await setup.validate() };
+  } catch {
+    return { status: "unusable", coverage: setup.coverage };
+  }
 }

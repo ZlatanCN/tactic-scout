@@ -1,0 +1,63 @@
+.showcase-reviewer-ablation { margin: 0 0 38px; overflow: hidden; border: 1px solid #dfddd5; border-radius: 8px; background: #fbfaf7; box-shadow: 0 8px 24px rgba(38,44,37,.035); }
+.reviewer-ablation-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 30px; align-items: center; padding: 24px 28px 21px; border-bottom: 1px solid #e9e7e0; }
+.reviewer-ablation-heading .eyebrow { margin: 0 0 9px; color: #758d75; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; }
+.reviewer-ablation-heading h2 { margin: 0; color: #26372b; font-size: clamp(20px,2.5vw,29px); font-weight: 550; letter-spacing: -.045em; line-height: 1.35; }
+.reviewer-ablation-heading p:last-child { max-width: 720px; margin: 8px 0 0; color: #777e74; font-size: 11px; line-height: 1.7; }
+.reviewer-ablation-case-count { display: grid; justify-items: end; color: #637765; font-family: var(--mono); }
+.reviewer-ablation-case-count strong { color: #254d38; font-size: 36px; font-weight: 500; letter-spacing: -.08em; line-height: 1; }
+.reviewer-ablation-case-count span { margin-top: 3px; font-size: 9px; letter-spacing: .04em; }
+.reviewer-ablation-case-count small { margin-top: 7px; color: #999b92; font-family: inherit; font-size: 8px; text-align: right; }
+.reviewer-ablation-case-count small + small { margin-top: 3px; }
+.reviewer-ablation-scenarios { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; padding: 17px 19px 15px; }
+.reviewer-ablation-scenario { min-width: 0; padding: 16px 17px 13px; border: 1px solid #e7e7de; border-radius: 6px; background: #fffefa; }
+.reviewer-ablation-scenario:first-child { border-top: 3px solid #6f9876; }
+.reviewer-ablation-scenario:last-child { border-top: 3px solid #8b9e86; }
+.reviewer-ablation-scenario-heading { display: grid; grid-template-columns: 27px minmax(0,1fr) auto; gap: 9px; align-items: center; }
+.reviewer-ablation-scenario-number { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; color: #47714f; background: #eaf1e8; font-family: var(--mono); font-size: 9px; }
+.reviewer-ablation-scenario-heading p { margin: 0 0 3px; color: #9b9d93; font-family: var(--mono); font-size: 7px; letter-spacing: .07em; }
+.reviewer-ablation-scenario-heading h3 { margin: 0; color: #334538; font-size: 12px; font-weight: 650; }
+.reviewer-ablation-repeat { color: #788273; font-family: var(--mono); font-size: 10px; }
+.reviewer-ablation-comparison { display: grid; grid-template-columns: minmax(0,1fr) 22px minmax(0,1fr); gap: 6px; align-items: center; margin-top: 14px; }
+.reviewer-ablation-arm { display: grid; min-width: 0; gap: 4px; padding: 10px 11px; border-radius: 4px; background: #f2f5ef; }
+.reviewer-ablation-arm.is-bypassed { background: #f4f1e9; }
+.reviewer-ablation-arm > span { color: #858f82; font-family: var(--mono); font-size: 7px; letter-spacing: .035em; line-height: 1.4; }
+.reviewer-ablation-arm strong { color: #34543b; font-family: var(--mono); font-size: clamp(22px,2.2vw,29px); font-weight: 500; letter-spacing: -.07em; line-height: 1.1; }
+.reviewer-ablation-arm.is-bypassed strong { color: #8b6c43; }
+.reviewer-ablation-arm small { color: #8b9086; font-size: 8px; }
+.reviewer-ablation-versus { color: #a7aa9f; font-family: var(--mono); font-size: 8px; text-align: center; }
+.reviewer-ablation-observation { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; padding: 9px 10px; border-left: 2px solid #88a286; background: #f7f8f4; }
+.reviewer-ablation-observation > span { color: #64806a; font-family: var(--mono); font-size: 13px; line-height: 1.1; }
+.reviewer-ablation-observation strong { color: #435746; font-size: 9px; font-weight: 650; }
+.reviewer-ablation-observation p { margin: 3px 0 0; color: #777e74; font-size: 8px; line-height: 1.55; }
+.reviewer-ablation-scenario-facts { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 10px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #efeee8; }
+.reviewer-ablation-scenario-facts span { display: grid; align-content: start; gap: 3px; min-width: 0; }
+.reviewer-ablation-scenario-facts small { color: #92968c; font-size: 7px; }
+.reviewer-ablation-scenario-facts b { color: #596a59; font-family: var(--mono); font-size: 8px; font-weight: 550; line-height: 1.45; overflow-wrap: anywhere; }
+.reviewer-ablation-caveat { margin: 0 28px 17px; padding-top: 10px; border-top: 1px solid #eeece5; color: #888b82; font-size: 8px; line-height: 1.65; }
+
+@media (max-width: 760px) {
+  .showcase-reviewer-ablation { margin-bottom: 28px; }
+  .reviewer-ablation-heading { gap: 15px; padding: 19px; }
+  .reviewer-ablation-heading h2 { font-size: 20px; }
+  .reviewer-ablation-case-count strong { font-size: 30px; }
+  .reviewer-ablation-case-count small { max-width: 90px; line-height: 1.4; }
+  .reviewer-ablation-scenarios { grid-template-columns: 1fr; gap: 9px; padding: 12px 13px; }
+  .reviewer-ablation-scenario { padding: 13px 14px 11px; }
+  .reviewer-ablation-caveat { margin: 0 19px 14px; }
+}
+
+@media (max-width: 420px) {
+  .reviewer-ablation-heading { grid-template-columns: 1fr; }
+  .reviewer-ablation-case-count { grid-template-columns: auto auto 1fr; justify-items: start; align-items: baseline; gap: 0 7px; }
+  .reviewer-ablation-case-count strong { font-size: 24px; }
+  .reviewer-ablation-case-count span, .reviewer-ablation-case-count small { margin: 0; }
+  .reviewer-ablation-case-count small + small { grid-column: 1 / -1; }
+  .reviewer-ablation-case-count small { max-width: none; }
+  .reviewer-ablation-scenario { padding: 12px 11px 10px; }
+  .reviewer-ablation-scenario-heading { grid-template-columns: 24px minmax(0,1fr) auto; gap: 7px; }
+  .reviewer-ablation-scenario-heading p { font-size: 6px; }
+  .reviewer-ablation-comparison { grid-template-columns: minmax(0,1fr) 17px minmax(0,1fr); gap: 3px; }
+  .reviewer-ablation-arm { padding: 9px 8px; }
+  .reviewer-ablation-arm > span { font-size: 6px; }
+  .reviewer-ablation-scenario-facts { grid-template-columns: 1fr; gap: 7px; }
+}

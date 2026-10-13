@@ -1,6 +1,51 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { isIP } from "node:net";
 
 export const DEFAULT_OPENAI_TIMEOUT_MS = 180_000;
+export const DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 8_192;
+export const DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS = 60_000;
+export const DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = 1_024;
+
+export type StructuredOutputMethod = "functionCalling" | "jsonSchema" | "jsonMode";
+
+export function isLoopbackModelEndpoint(value: string | undefined): boolean {
+  if (!value?.trim()) return false;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return hostname === "localhost"
+      || hostname.endsWith(".localhost")
+      || (isIP(hostname) === 4 && hostname.startsWith("127."))
+      || (isIP(hostname) === 6 && hostname === "::1");
+  } catch {
+    return false;
+  }
+}
+
+export function structuredOutputMethod(
+  baseURL = process.env.OPENAI_BASE_URL,
+  configuredMethod = process.env.OPENAI_STRUCTURED_OUTPUT_METHOD,
+): StructuredOutputMethod {
+  const configured = configuredMethod?.trim();
+  if (configured && configured !== "auto") {
+    if (configured === "functionCalling" || configured === "jsonSchema" || configured === "jsonMode") return configured;
+    throw new Error("OPENAI_STRUCTURED_OUTPUT_METHOD must be auto, functionCalling, jsonSchema, or jsonMode.");
+  }
+
+  if (baseURL?.trim()) {
+    try {
+      const endpoint = new URL(baseURL);
+      const hostname = endpoint.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+      if (endpoint.port === "11434" && ["localhost", "127.0.0.1", "::1"].includes(hostname)) {
+        return "jsonSchema";
+      }
+    } catch {
+      // Let the API client report malformed URLs without guessing a provider-specific format.
+    }
+  }
+  return "functionCalling";
+}
 
 export function openAIRequestTimeoutMs(value = process.env.OPENAI_TIMEOUT_MS): number {
   if (!value?.trim()) return DEFAULT_OPENAI_TIMEOUT_MS;
@@ -9,6 +54,37 @@ export function openAIRequestTimeoutMs(value = process.env.OPENAI_TIMEOUT_MS): n
     throw new Error("OPENAI_TIMEOUT_MS must be an integer between 1000 and 600000 milliseconds.");
   }
   return timeoutMs;
+}
+
+export function openAIExpansionRequestTimeoutMs(
+  value = process.env.OPENAI_EXPANSION_TIMEOUT_MS,
+  generalTimeout = process.env.OPENAI_TIMEOUT_MS,
+): number {
+  const timeoutMs = value?.trim() ? Number(value) : DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > DEFAULT_OPENAI_TIMEOUT_MS) {
+    throw new Error(`OPENAI_EXPANSION_TIMEOUT_MS must be an integer between 1000 and ${DEFAULT_OPENAI_TIMEOUT_MS} milliseconds.`);
+  }
+  return Math.min(timeoutMs, openAIRequestTimeoutMs(generalTimeout));
+}
+
+export function openAIMaxOutputTokens(value = process.env.OPENAI_MAX_OUTPUT_TOKENS): number {
+  if (!value?.trim()) return DEFAULT_OPENAI_MAX_OUTPUT_TOKENS;
+  const maxOutputTokens = Number(value);
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 256 || maxOutputTokens > 32_768) {
+    throw new Error("OPENAI_MAX_OUTPUT_TOKENS must be an integer between 256 and 32768.");
+  }
+  return maxOutputTokens;
+}
+
+export function openAIExpansionMaxOutputTokens(
+  value = process.env.OPENAI_EXPANSION_MAX_OUTPUT_TOKENS,
+  generalBudget = process.env.OPENAI_MAX_OUTPUT_TOKENS,
+): number {
+  const maxOutputTokens = value?.trim() ? Number(value) : DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS;
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 256 || maxOutputTokens > DEFAULT_OPENAI_MAX_OUTPUT_TOKENS) {
+    throw new Error(`OPENAI_EXPANSION_MAX_OUTPUT_TOKENS must be an integer between 256 and ${DEFAULT_OPENAI_MAX_OUTPUT_TOKENS}.`);
+  }
+  return Math.min(maxOutputTokens, openAIMaxOutputTokens(generalBudget));
 }
 
 export function isChatModelTimeout(error: unknown): boolean {
@@ -24,7 +100,11 @@ export function isChatModelTimeout(error: unknown): boolean {
   return false;
 }
 
-export function createChatModel(apiKey: string, modelName: string): ChatOpenAI {
+export function createChatModel(
+  apiKey: string,
+  modelName: string,
+  options: { maxOutputTokens?: number; timeoutMs?: number } = {},
+): ChatOpenAI {
   const baseURL = process.env.OPENAI_BASE_URL?.trim();
   const reasoningEffort = process.env.OPENAI_REASONING_EFFORT?.trim();
 
@@ -32,9 +112,15 @@ export function createChatModel(apiKey: string, modelName: string): ChatOpenAI {
     apiKey,
     model: modelName,
     temperature: 0,
-    timeout: openAIRequestTimeoutMs(),
+    timeout: options.timeoutMs ?? openAIRequestTimeoutMs(),
+    maxTokens: options.maxOutputTokens ?? openAIMaxOutputTokens(),
     maxRetries: 0,
-    ...(baseURL ? { configuration: { baseURL } } : {}),
+    ...(baseURL ? {
+      configuration: {
+        baseURL,
+        ...(isLoopbackModelEndpoint(baseURL) ? { fetchOptions: { redirect: "manual" as const } } : {}),
+      },
+    } : {}),
     ...(reasoningEffort ? { modelKwargs: { reasoning_effort: reasoningEffort } } : {}),
   });
 }

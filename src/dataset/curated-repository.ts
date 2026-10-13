@@ -26,6 +26,7 @@ const CuratedMetricSchema = z.object({
   sampleMatches: z.number().int().nonnegative().nullable(),
   normalization: SupplementaryMetricNormalizationSchema.optional(),
   sampleAttempts: z.number().int().nonnegative().nullable().optional(),
+  sampleAttemptsLabel: z.string().min(1).optional(),
 });
 
 const CuratedRecordSchema = z.object({
@@ -161,6 +162,7 @@ export class CuratedDatasetRepository implements PlayerRepository {
         sampleMinutes: metric.sampleMinutes,
         sampleMatches: metric.sampleMatches,
         ...(metric.sampleAttempts === undefined ? {} : { sampleAttempts: metric.sampleAttempts }),
+        ...(metric.sampleAttemptsLabel === undefined ? {} : { sampleAttemptsLabel: metric.sampleAttemptsLabel }),
       });
     }
     const seasonEnd = /^(\d{4})\/(\d{2})$/.exec(record.season)?.[1];

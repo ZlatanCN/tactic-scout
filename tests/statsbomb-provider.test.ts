@@ -14,7 +14,7 @@ test("StatsBomb records mark missing or empty event files as incomplete instead 
     await mkdir(path.join(dataRoot, "lineups"), { recursive: true });
     await mkdir(path.join(dataRoot, "events"), { recursive: true });
     await writeFile(path.join(dataRoot, "competitions.json"), JSON.stringify([
-      { competition_id: 11, competition_name: "Open League" },
+      { competition_id: 11, season_id: 90, competition_name: "Open League", competition_gender: "male" },
     ]));
     await writeFile(path.join(dataRoot, "matches", "11", "90", "100.json"), JSON.stringify([
       { match_id: 100, competition: { competition_id: 11 }, season: { season_id: 90, season_name: "2025/26" } },
@@ -49,6 +49,58 @@ test("StatsBomb records mark missing or empty event files as incomplete instead 
   } finally {
     if (previousRoot === undefined) delete process.env.TACTISCOUT_STATSBOMB_DIR;
     else process.env.TACTISCOUT_STATSBOMB_DIR = previousRoot;
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("StatsBomb player loading excludes female and unclassified competitions even without an allowlist", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "tactiscout-statsbomb-gender-scope-"));
+  const dataRoot = path.join(tempRoot, "data");
+  const previousRoot = process.env.TACTISCOUT_STATSBOMB_DIR;
+  const previousCompetitions = process.env.TACTISCOUT_STATSBOMB_COMPETITION_IDS;
+  const previousSeasons = process.env.TACTISCOUT_STATSBOMB_SEASON_IDS;
+  const seasonId = 90;
+
+  try {
+    const competitions = [
+      { competition_id: 11, season_id: seasonId, competition_name: "Men's Open League", competition_gender: "male" },
+      { competition_id: 135, season_id: seasonId, competition_name: "Women's Open League", competition_gender: "female" },
+      { competition_id: 999, season_id: seasonId, competition_name: "Unclassified Open League" },
+    ];
+    await mkdir(dataRoot, { recursive: true });
+    await writeFile(path.join(dataRoot, "competitions.json"), JSON.stringify(competitions));
+    await mkdir(path.join(dataRoot, "lineups"), { recursive: true });
+    for (const [competitionId, matchId] of [[11, 100], [135, 200], [999, 300]]) {
+      const matchDirectory = path.join(dataRoot, "matches", String(competitionId), String(seasonId));
+      await mkdir(matchDirectory, { recursive: true });
+      await writeFile(path.join(matchDirectory, `${matchId}.json`), JSON.stringify([{
+        match_id: matchId,
+        competition: { competition_id: competitionId },
+        season: { season_id: seasonId, season_name: "2025/26" },
+      }]));
+      await writeFile(path.join(dataRoot, "lineups", `${matchId}.json`), JSON.stringify([{
+        team_name: "Harbor City",
+        lineup: [{
+          player_id: matchId,
+          player_name: `Player ${matchId}`,
+          positions: [{ position: { name: "Centre Forward" }, from: "00:00", to: "90:00" }],
+        }],
+      }]));
+    }
+    process.env.TACTISCOUT_STATSBOMB_DIR = tempRoot;
+    process.env.TACTISCOUT_STATSBOMB_COMPETITION_IDS = "";
+    process.env.TACTISCOUT_STATSBOMB_SEASON_IDS = "";
+
+    const players = await new StatsBombRepository().loadPlayers();
+
+    assert.deepEqual(players.map((player) => player.externalPlayerId), ["100"]);
+  } finally {
+    if (previousRoot === undefined) delete process.env.TACTISCOUT_STATSBOMB_DIR;
+    else process.env.TACTISCOUT_STATSBOMB_DIR = previousRoot;
+    if (previousCompetitions === undefined) delete process.env.TACTISCOUT_STATSBOMB_COMPETITION_IDS;
+    else process.env.TACTISCOUT_STATSBOMB_COMPETITION_IDS = previousCompetitions;
+    if (previousSeasons === undefined) delete process.env.TACTISCOUT_STATSBOMB_SEASON_IDS;
+    else process.env.TACTISCOUT_STATSBOMB_SEASON_IDS = previousSeasons;
     await rm(tempRoot, { recursive: true, force: true });
   }
 });

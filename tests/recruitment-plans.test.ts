@@ -1,20 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createFreshReanalysisMessage,
+  createFreshReanalysisTurn,
   loadRecruitmentPlans,
   removeRecruitmentPlan,
   saveRecruitmentPlans,
   upsertRecruitmentPlan,
   type SavedRecruitmentPlan,
 } from "../web/src/plans.js";
-import type { RecruitmentReport, ScoutResponse } from "../src/domain/schemas.js";
+import { createEmptyExternalSignalCoverage, type RecruitmentReport, type ScoutResponse } from "../src/domain/schemas.js";
 
 const originalReport: RecruitmentReport = {
   targetTeam: "Bayern Munich",
   needSummary: "寻找能承担中锋终结任务的凯恩接班人。",
   capabilityProfile: ["禁区终结", "前场压迫"],
-  evidenceCoverage: { evaluatedCandidateCount: 0, availableMetricValues: 0, expectedMetricValues: 0, lowSampleCandidates: 0, limitedPeerGroupCandidates: 0 },
-  knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologySearchFailed: false, playerReportSearchPerformed: false, playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
+  requestedCapabilityCoverage: [],
+  evidenceCoverage: { evaluatedCandidateCount: 0, evaluatedSourceRecordCount: 0, availableMetricValues: 0, expectedMetricValues: 0, lowSampleCandidates: 0, limitedPeerGroupCandidates: 0 },
+  candidateIdentityCoverage: {
+    registryAvailable: false,
+    releaseStamp: null,
+    sourceRecordCount: 0,
+    resolvedIdentityCount: 0,
+    resolvedSourceRecordCount: 0,
+    unresolvedSourceRecordCount: 0,
+    resolutionStatusCounts: [],
+  },
+  externalSignalCoverage: createEmptyExternalSignalCoverage(),
+  historicalArchiveCoverage: { status: "not_run", disabledReason: null, checkedCandidates: 0, mappedCandidates: 0, matchedCandidates: 0, failedCandidates: 0 },
+  historicalArchiveCandidates: [],
+  knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologySearchFailed: false, methodologySources: [], playerReportSearchPerformed: false, playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
   searchScopes: [],
   recommendations: [],
   limitations: ["历史数据不能核实当前阵容。"],
@@ -37,6 +52,35 @@ const savedPlan: SavedRecruitmentPlan = {
   createdAt: "2026-09-01T09:00:00.000Z",
   updatedAt: "2026-09-01T10:00:00.000Z",
 };
+
+test("fresh reanalysis replays user requests and clarifications without old report conclusions", () => {
+  const message = createFreshReanalysisMessage({
+    originalBrief: "为巴萨找一名能推进的中场。",
+    messages: [
+      { id: "u1", role: "user", content: "为巴萨找一名能推进的中场。", teamContext: "Barcelona" },
+      { id: "a1", role: "assistant", content: "你希望优先看推进还是压迫？", questionReason: "两项能力的数据覆盖不同。" },
+      { id: "u2", role: "user", content: "优先推进，不需要压迫。" },
+      { id: "a2", role: "assistant", content: "旧报告推荐 Player Z，基于进球和对抗。" },
+      { id: "u3", role: "user", content: "重新分析当前招募需求并刷新报告。", isReanalysisAction: true },
+    ],
+  });
+
+  assert.match(message, /为巴萨找一名能推进的中场/);
+  assert.match(message, /目标球队：Barcelona/);
+  assert.match(message, /你希望优先看推进还是压迫/);
+  assert.match(message, /优先推进，不需要压迫/);
+  assert.match(message, /全新调查/);
+  assert.doesNotMatch(message, /Player Z/);
+  assert.doesNotMatch(message, /重新分析当前招募需求/);
+});
+
+test("fresh reanalysis starts a new case without loading an existing LangGraph checkpoint", () => {
+  assert.deepEqual(createFreshReanalysisTurn({ caseId: "new-case-id", message: "全新调查请求" }), {
+    caseId: "new-case-id",
+    message: "全新调查请求",
+    expectsExistingState: false,
+  });
+});
 
 test("saving a follow-up turn keeps the previous report until the next report is complete", () => {
   const nextMessages = [...savedPlan.messages, { id: "message-3", role: "user" as const, content: "更看重培养空间。" }];
@@ -86,6 +130,20 @@ test("local plans can round-trip through a storage adapter", () => {
   saveRecruitmentPlans([savedPlan], storage);
 
   assert.deepEqual(loadRecruitmentPlans(storage), [savedPlan]);
+});
+
+test("version 2 local reports without capability coverage remain readable", () => {
+  const { requestedCapabilityCoverage: _coverage, historicalArchiveCandidates: _archiveCandidates, methodologySources: _methodologySources, ...olderReport } = originalReport;
+  const storedPlan = { ...savedPlan, lastReport: olderReport };
+  const storage = {
+    getItem: () => JSON.stringify({ version: 2, plans: [storedPlan] }),
+    setItem() {},
+  };
+
+  const [loaded] = loadRecruitmentPlans(storage);
+
+  assert.deepEqual(loaded.lastReport?.requestedCapabilityCoverage, []);
+  assert.deepEqual(loaded.lastReport?.historicalArchiveCandidates, []);
 });
 
 test("version 1 one-shot plans migrate while keeping the prior analysis as a history snapshot", () => {

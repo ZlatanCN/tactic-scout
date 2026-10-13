@@ -16,7 +16,45 @@
       "display": true
     },
     "rightsVerifiedAt": "2026-09-29",
-    "rightsNote": "文章按 CC BY 发布，PLOS 条款要求遵守署名；期刊说明支持通过 PLOS API、PMC 或 Europe PMC 以程序方式访问。自动获取应优先使用官方 API；官方限额为每分钟 10 次、每次不超过 100 条，并要求注明内容来自 PLOS。当前适配器每进程请求间隔至少 6 秒、最多返回 20 条。仅登记本文方法资料，不登记具名球员报告。"
+      "rightsNote": "文章按 CC BY 发布，PLOS 条款要求遵守署名；期刊说明支持通过 PLOS API、PMC 或 Europe PMC 以程序方式访问。自动获取应优先使用官方 API；官方限额为每分钟 10 次、每次不超过 100 条，并要求注明内容来自 PLOS。当前适配器每进程请求间隔至少 6 秒、最多返回 20 条。仅登记本文方法资料，不登记具名球员报告。"
+  },
+  {
+    "id": "plos-position-specific-physical-performance-2021",
+    "name": "PLOS ONE: Match-related physical performance in professional soccer: Position or player specific?",
+    "publisher": "PLOS ONE",
+    "rightsUrl": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0256695",
+    "license": "CC BY 4.0",
+    "allowedCorpora": ["methodology"],
+    "allowedUrlPrefixes": [
+      "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0256695"
+    ],
+    "rights": {
+      "automatedFetch": true,
+      "persistentStorage": true,
+      "aiProcessing": true,
+      "display": true
+    },
+    "rightsVerifiedAt": "2026-10-09",
+    "rightsNote": "该文正文声明 Creative Commons Attribution License，并允许在署名条件下以任何媒介使用和分发；PLOS 官方文本与数据挖掘说明允许其文章被挖掘、复用和分享，并支持按 DOI 通过 PLOS Search API 获取小范围全文。本项目仅请求这一个 DOI、遵守 PLOS API 限速、保留作者/DOI/许可/来源归属；检索展示须标明来源并说明改写。不要复用文章中第三方素材。论文使用的 DFL/Deltatre 比赛数据受许可限制且不免费，绝不随论文正文入库。"
+  },
+  {
+    "id": "frontiers-positional-role-2022",
+    "name": "Frontiers in Psychology: positional role and player individuality in soccer",
+    "publisher": "Frontiers in Psychology",
+    "rightsUrl": "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2022.813206/full",
+    "license": "CC BY 4.0",
+    "allowedCorpora": ["methodology"],
+    "allowedUrlPrefixes": [
+      "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2022.813206/full"
+    ],
+    "rights": {
+      "automatedFetch": true,
+      "persistentStorage": true,
+      "aiProcessing": true,
+      "display": true
+    },
+    "rightsVerifiedAt": "2026-10-09",
+    "rightsNote": "仅允许通过 PMC OAI-PMH 获取这一篇已核实 CC BY 4.0 文章；每次请求前检查 pmc_fm 的 DOI、PMCID 与许可，遵守每秒最多 3 次的官方限制。只索引文章正文与项目作者中文摘要，排除图、表、补充材料、参考文献及独立署名的第三方内容。保留作者、DOI、文章 URL、许可与项目改写说明。论文所用 DFL/Deltatre 比赛数据不属于文章许可，不入库。"
   },
   {
     "id": "tactiscout-first-party-observations",

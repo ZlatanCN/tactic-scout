@@ -18,6 +18,7 @@ export interface PlayerEloEnrichmentResult {
 export interface PlayerEloEnrichmentOptions {
   identityIndexPath?: string;
   now?: () => Date;
+  signal?: AbortSignal;
 }
 
 export async function enrichPlayerEloSignals(
@@ -42,6 +43,7 @@ export async function enrichPlayerEloSignals(
 
   try {
     for (const player of players) {
+      if (options.signal?.aborted) throw options.signal.reason;
       const sourceIdentity = player.sourceIdentity;
       if (!sourceIdentity?.provider || !sourceIdentity.playerId) {
         identityUnavailableCandidates += 1;
@@ -77,7 +79,7 @@ export async function enrichPlayerEloSignals(
       checkedCandidates += 1;
       let lookup = lookups.get(playerEloId);
       if (!lookup) {
-        lookup = client.getPlayer(playerEloId);
+        lookup = client.getPlayer(playerEloId, options.signal);
         lookups.set(playerEloId, lookup);
       }
 
@@ -85,6 +87,7 @@ export async function enrichPlayerEloSignals(
       try {
         record = await lookup;
       } catch {
+        if (options.signal?.aborted) throw options.signal.reason;
         failedCandidates += 1;
         continue;
       }

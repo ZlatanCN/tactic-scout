@@ -1,0 +1,75 @@
+.showcase-ask-policy { margin: 0 0 38px; overflow: hidden; border: 1px solid #d8e3d7; border-radius: 9px; background: #fbfcf9; box-shadow: 0 10px 28px rgba(35,62,42,.045); }
+.ask-policy-lead { display: grid; grid-template-columns: minmax(0,1fr) minmax(190px,.34fr); gap: 28px; align-items: center; padding: 25px 28px 22px; border-bottom: 1px solid #e7ece4; background: linear-gradient(112deg,#f3f7f1,#fbfcf9 70%); }
+.ask-policy-lead-copy .eyebrow { margin: 0 0 8px; color: #708873; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; }
+.ask-policy-lead-copy h2 { max-width: 760px; margin: 0; color: #233d2c; font-size: clamp(21px,2.45vw,29px); font-weight: 560; letter-spacing: -.045em; line-height: 1.35; }
+.ask-policy-lead-copy > p:last-child { max-width: 720px; margin: 9px 0 0; color: #6f7b70; font-size: 12px; line-height: 1.75; }
+.ask-policy-proof { display: grid; align-content: center; min-height: 126px; padding: 13px 17px; border: 1px solid #dce7da; border-radius: 6px; background: #fffefa; }
+.ask-policy-proof > span { color: #7a8e7c; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; }
+.ask-policy-proof > strong { margin-top: 4px; color: #28543a; font-family: var(--mono); font-size: 35px; font-weight: 500; letter-spacing: -.07em; line-height: 1.1; }
+.ask-policy-proof > strong span { color: #96ac98; font-size: 20px; }
+.ask-policy-proof > small { margin-top: 3px; color: #727e73; font-size: 10px; }
+.ask-policy-proof > div { margin-top: 10px; padding-top: 8px; border-top: 1px solid #edf0e9; color: #788376; font-size: 9px; }
+.ask-policy-proof > div b { color: #42634a; font-family: var(--mono); font-weight: 600; }
+.ask-policy-proof > div i { padding: 0 4px; color: #adb4a9; font-style: normal; }
+.ask-policy-scenario-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; padding: 18px 20px 15px; }
+.ask-policy-scenario { min-width: 0; padding: 16px 16px 14px; border: 1px solid #e4e9e0; border-radius: 6px; background: #fffefa; }
+.ask-policy-scenario:first-child { border-top: 3px solid #607f68; }
+.ask-policy-scenario:last-child { border-top: 3px solid #91a283; }
+.ask-policy-scenario-heading { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 10px; align-items: start; }
+.ask-policy-scenario-heading > span { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; color: #416749; background: #eaf1e7; font-family: var(--mono); font-size: 9px; }
+.ask-policy-scenario-heading p { margin: 0 0 4px; color: #819080; font-family: var(--mono); font-size: 8px; letter-spacing: .07em; }
+.ask-policy-scenario-heading h3 { margin: 0; color: #304536; font-size: 14px; font-weight: 650; line-height: 1.45; }
+.ask-policy-scenario-heading small { display: block; margin-top: 4px; color: #7f897e; font-size: 10px; line-height: 1.55; }
+.ask-policy-arms { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 15px; }
+.ask-policy-arm { display: grid; min-width: 0; align-content: start; gap: 6px; padding: 11px; border: 1px solid #e6ebe3; border-radius: 5px; background: #f4f7f2; }
+.ask-policy-arm.is-disabled { background: #f7f5ef; }
+.ask-policy-arm > span { color: #748174; font-size: 10px; line-height: 1.45; }
+.ask-policy-arm > strong { color: #315c3d; font-family: var(--mono); font-size: clamp(17px,1.65vw,21px); font-weight: 550; letter-spacing: -.035em; line-height: 1.35; }
+.ask-policy-arm.is-disabled > strong { color: #796543; }
+.ask-policy-arm > p { margin: 0; color: #778176; font-size: 9px; line-height: 1.65; overflow-wrap: anywhere; }
+.ask-policy-paths { display: grid; gap: 9px; margin-top: 14px; padding-top: 11px; border-top: 1px solid #efeee8; }
+.ask-policy-path { display: grid; grid-template-columns: 82px minmax(0,1fr); gap: 8px; align-items: start; }
+.ask-policy-path > span { padding-top: 5px; color: #7c887c; font-size: 9px; }
+.ask-policy-path ol { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.ask-policy-path li { display: inline-flex; max-width: 100%; align-items: center; gap: 4px; color: #647366; font-size: 9px; line-height: 1.55; }
+.ask-policy-path li:not(:last-child)::after { margin-left: 2px; color: #a4b0a2; content: "→"; }
+.ask-policy-path li i { display: inline-grid; width: 15px; height: 15px; flex: 0 0 15px; place-items: center; border-radius: 50%; color: #617d66; background: #edf2e9; font-family: var(--mono); font-size: 6px; font-style: normal; }
+.ask-policy-path li.is-end i { color: #f5f6ef; background: #54725a; }
+.ask-policy-path li b { font-weight: 500; }
+.ask-policy-architecture-note { display: flex; gap: 9px; align-items: flex-start; margin: 0 20px 14px; padding: 10px 12px; border-left: 2px solid #8ca88c; background: #f5f8f2; }
+.ask-policy-architecture-note > span { color: #587d60; font-family: var(--mono); font-size: 14px; line-height: 1.2; }
+.ask-policy-architecture-note p { margin: 0; color: #68776a; font-size: 10px; line-height: 1.7; }
+.ask-policy-architecture-note strong { color: #405a45; font-weight: 650; }
+.ask-policy-method { margin: 0 28px 18px; padding-top: 10px; border-top: 1px solid #e9ece5; color: #778176; font-size: 10px; }
+.ask-policy-method summary { width: fit-content; color: #56745b; cursor: pointer; font-size: 10px; font-weight: 600; list-style-position: inside; }
+.ask-policy-method > div { max-width: 1000px; padding: 5px 0 0 17px; line-height: 1.75; overflow-wrap: anywhere; }
+.ask-policy-method p { margin: 5px 0; }
+
+@media (max-width: 760px) {
+  .showcase-ask-policy { margin-bottom: 28px; }
+  .ask-policy-lead { grid-template-columns: 1fr; gap: 14px; padding: 19px 19px 17px; }
+  .ask-policy-proof { grid-template-columns: auto minmax(0,1fr); column-gap: 10px; align-items: center; min-height: 0; padding: 10px 12px; }
+  .ask-policy-proof > span { grid-column: 1; align-self: end; }
+  .ask-policy-proof > strong { grid-column: 2; grid-row: 1 / span 2; margin: 0; font-size: 30px; }
+  .ask-policy-proof > small { grid-column: 1; grid-row: 2; margin: 0; }
+  .ask-policy-proof > div { grid-column: 1 / -1; margin-top: 8px; padding-top: 6px; }
+  .ask-policy-scenario-grid { grid-template-columns: 1fr; gap: 10px; padding: 12px 13px 11px; }
+  .ask-policy-scenario { padding: 13px; }
+  .ask-policy-arm { padding: 10px 9px; }
+  .ask-policy-arm > strong { font-size: 17px; }
+  .ask-policy-architecture-note { margin: 0 13px 12px; }
+  .ask-policy-method { margin-right: 16px; margin-left: 16px; }
+}
+
+@media (max-width: 390px) {
+  .ask-policy-lead-copy h2 { font-size: 20px; }
+  .ask-policy-arms { gap: 6px; }
+  .ask-policy-arm { padding: 9px 8px; }
+  .ask-policy-arm > span { font-size: 10px; }
+  .ask-policy-arm > strong { font-size: 15px; }
+  .ask-policy-arm > p { font-size: 9px; }
+  .ask-policy-path { grid-template-columns: 70px minmax(0,1fr); gap: 5px; }
+  .ask-policy-path ol { gap: 4px; }
+  .ask-policy-path li { font-size: 9px; }
+  .ask-policy-path li i { width: 13px; height: 13px; flex-basis: 13px; }
+}

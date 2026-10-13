@@ -6,7 +6,7 @@ import type { PlayerProfile, RawStatKey, SupplementaryMetricNormalization } from
 import { WyscoutPlayerRepository } from "../data/wyscout-provider.js";
 
 const DATASET_SCHEMA_VERSION = 1;
-const DERIVATION_RULESET = "tactiscout-wyscout-events-v1";
+const DERIVATION_RULESET = "tactiscout-wyscout-events-v2";
 const SOURCE_LICENSE = "CC BY 4.0";
 const SOURCE_LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/";
 const SOURCE_PAPER_URL = "https://doi.org/10.1038/s41597-019-0247-7";
@@ -52,6 +52,7 @@ interface DatasetMetric {
   sampleMatches: number | null;
   normalization?: SupplementaryMetricNormalization;
   sampleAttempts?: number | null;
+  sampleAttemptsLabel?: string;
 }
 
 interface DatasetPlayerRecord {
@@ -256,6 +257,7 @@ function toMetrics(profile: PlayerProfile): DatasetMetric[] {
       sampleMatches: metric.sampleMatches,
       normalization: metric.normalization,
       ...(metric.sampleAttempts === undefined ? {} : { sampleAttempts: metric.sampleAttempts }),
+      ...(metric.sampleAttemptsLabel === undefined ? {} : { sampleAttemptsLabel: metric.sampleAttemptsLabel }),
     });
   }
   return metrics.sort((left, right) => compareText(left.key, right.key));
@@ -372,7 +374,7 @@ export async function buildWyscoutDataset(options: BuildWyscoutDatasetOptions): 
     },
     derivation: {
       ruleset: DERIVATION_RULESET,
-      description: "TactiScout aggregates event counts and derives progressive-pass and ground-defensive-duel indicators from Wyscout event records. Unsupported fields are omitted; no model-generated metrics are included.",
+      description: "TactiScout aggregates event counts and derives progressive-pass, ground-attacking-duel, and ground-defensive-duel indicators from Wyscout event records. Unsupported fields are omitted; no model-generated metrics are included.",
     },
     inputs,
     coverage: buildCoverage(records, matchCount),
@@ -380,7 +382,7 @@ export async function buildWyscoutDataset(options: BuildWyscoutDatasetOptions): 
       "The upstream data is a historical 2017/18 competition sample, not a current player or transfer-market database.",
       "Estimated minutes assume 90-minute regulation appearances and substitution minutes; added time and red-card adjustments are not modeled.",
       "Progressive-pass metrics depend on event coordinates and TactiScout's documented coordinate-distance thresholds.",
-      "Ground-defensive-duel outcome rates retain neutral outcomes in the denominator and are not tackle-success rates.",
+      "Ground-attacking and ground-defensive duel metrics require exactly one 701, 702, or 703 outcome tag per event; outcome rates retain neutral outcomes and are not dribbling, take-on, tackle-success, or general duel-success rates.",
       "Missing or incomplete source fields are represented as unavailable metrics, not zero-valued performance.",
     ],
     records,

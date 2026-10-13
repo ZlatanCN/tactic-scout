@@ -1,9 +1,14 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { getDatasetStatus, getRecruitmentProgress, turnRecruitmentCase } from "./api";
-import { buildEvidenceComparison, toggleComparedPlayer } from "./comparison";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { ApiContractError, ApiServiceUnavailableError, cancelRecruitmentTurn, getDatasetStatus, getRecruitmentProgress, turnRecruitmentCase } from "./api";
 import { SearchableTeamSelect } from "./SearchableTeamSelect";
 import { PlayerObservationsDialog } from "./PlayerObservationsDialog";
+import { RecruitmentReportPanel, type DatasetConnectionStatus } from "./RecruitmentReportPanel";
+import { formatDate } from "./format-date";
+import { allProgressSteps, visibleProgressSteps } from "./progress";
+import { isTurnUnresolved, resolveTurnRequest, type PendingTurnRequest } from "./turn-requests";
 import {
+  createFreshReanalysisMessage,
+  createFreshReanalysisTurn,
   loadRecruitmentPlans,
   messageFromTurn,
   removeRecruitmentPlan,
@@ -12,9 +17,7 @@ import {
   type ConversationMessage,
   type SavedRecruitmentPlan,
 } from "./plans";
-import type { DatasetStatus, PlayerEloSignal, RecruitmentProgress, RecruitmentProgressStage, RecruitmentReport } from "../../src/domain/schemas.js";
-import { describeDatasetScope } from "../../src/domain/dataset-scope.js";
-import { firstPartyObservationSourceId } from "../../src/knowledge/source-ids.js";
+import type { DatasetStatus, RecruitmentProgress, RecruitmentReport, TeamRosterContext } from "../../src/domain/schemas.js";
 
 const suggestedBriefs = [
   "为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋",
@@ -22,33 +25,61 @@ const suggestedBriefs = [
   "给阿森纳找一个能推进、也愿意参与压迫的中场",
 ];
 
-const completedProgressLabels: Partial<Record<RecruitmentProgressStage, string>> = {
-  starting: "已启动本轮调查",
-  planning: "已规划下一步调查",
-  methodology: "已查找角色评估方法",
-  team_sample: "已检查目标球队样本",
-  candidate_search: "已搜索候选球员",
-  player_evaluation: "已评估候选球员表现",
-  external_signal: "已核对外部表现信号",
-  historical_archive: "已核对跨来源历史表现样本",
-  report_search: "已查找球员报告资料",
-  synthesizing: "已汇总候选证据",
-  review: "已核对推荐证据",
-  asking_user: "已准备好需要确认的问题",
-  completed: "已生成调查报告",
-  failed: "调查遇到问题",
-};
-
-type DatasetConnectionStatus = "connecting" | "connected" | "disconnected" | "unavailable";
-
 function elapsedLabel(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function describeTurnError(error: unknown): string {
+  if (!(error instanceof Error)) return "对话暂时无法继续，请稍后再试。你输入的内容还在。";
+  if (/connection error|econnrefused|fetch failed/i.test(error.message)) {
+    return "无法连接当前配置的模型服务。若使用 Ollama，请确认它正在运行，并检查模型服务配置后重试；你的需求已保留。";
+  }
+  return error.message;
+}
+
+function progressStepCountLabel(events: RecruitmentProgress["events"]): string {
+  return `${allProgressSteps(events).length} 步`;
+}
+
+function ProgressTimeline({ events, active, label, compact = false }: {
+  events: RecruitmentProgress["events"];
+  active: boolean;
+  label: string;
+  compact?: boolean;
+}) {
+  const steps = compact ? visibleProgressSteps(events) : allProgressSteps(events);
+  return <ol className="recruitment-progress-timeline" aria-label={label}>
+    {steps.map((event, index) => {
+      const current = index === steps.length - 1;
+      const activeEvent = current && active && event.status === "started";
+      const repeatLabel = event.occurrence > 1 ? `第 ${event.occurrence} 次` : null;
+      const statusLabel = event.status === "completed"
+        ? "已完成"
+        : event.status === "waiting_for_user"
+          ? "等待补充"
+          : event.status === "notice"
+            ? "需要留意"
+            : event.status === "failed"
+              ? "未完成"
+              : event.status === "cancelled"
+                ? "已停止"
+              : activeEvent ? "进行中" : "已开始";
+      return <li className={activeEvent ? "is-current" : event.status === "failed" || event.status === "notice" ? "is-notice" : event.status === "cancelled" ? "is-cancelled" : "is-history"} key={`${event.stage}:${event.occurrence}`} aria-current={activeEvent ? "step" : undefined}>
+        <span className="recruitment-progress-marker" aria-hidden="true">{event.status === "completed" ? "✓" : event.status === "failed" ? "!" : event.status === "cancelled" ? "×" : ""}</span>
+        <span className="recruitment-progress-event">
+          <span className="recruitment-progress-event-meta">{statusLabel}{repeatLabel && <small>{repeatLabel}</small>}</span>
+          <span className="recruitment-progress-event-label">{event.message}</span>
+        </span>
+      </li>;
+    })}
+  </ol>;
 }
 
 function App() {
   const [threadId, setThreadId] = useState<string>(() => crypto.randomUUID());
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [report, setReport] = useState<RecruitmentReport | null>(null);
+  const [teamRosterContext, setTeamRosterContext] = useState<TeamRosterContext | null>(null);
   const [reportAt, setReportAt] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "needs_input" | "completed">("ready");
   const [draft, setDraft] = useState("");
@@ -61,13 +92,23 @@ function App() {
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [hasConversationState, setHasConversationState] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cancellingRequestId, setCancellingRequestId] = useState<string | null>(null);
+  const [pendingTurnRequest, setPendingTurnRequest] = useState<PendingTurnRequest | null>(null);
   const [progress, setProgress] = useState<RecruitmentProgress | null>(null);
-  const [progressConnection, setProgressConnection] = useState<"idle" | "connecting" | "live" | "stale">("idle");
+  const [progressConnection, setProgressConnection] = useState<"idle" | "connecting" | "live" | "stale" | "incompatible">("idle");
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [playerObservationsOpen, setPlayerObservationsOpen] = useState(false);
+  const conversationThreadRef = useRef<HTMLDivElement>(null);
+  const shouldFollowConversationRef = useRef(true);
+
+  useLayoutEffect(() => {
+    const conversationThread = conversationThreadRef.current;
+    if (!conversationThread || !shouldFollowConversationRef.current) return;
+    conversationThread.scrollTop = conversationThread.scrollHeight;
+  }, [activePlanId, messages.length, pendingTurnRequest?.requestId, progress?.updatedAt, threadId]);
 
   async function refreshDatasetStatus() {
     setDatasetConnectionStatus("connecting");
@@ -77,7 +118,7 @@ function App() {
       setDatasetConnectionStatus("connected");
     } catch (caught) {
       setDataset(null);
-      setDatasetConnectionStatus(caught instanceof TypeError ? "disconnected" : "unavailable");
+      setDatasetConnectionStatus(caught instanceof TypeError || caught instanceof ApiServiceUnavailableError ? "disconnected" : "unavailable");
     }
   }
 
@@ -95,23 +136,35 @@ function App() {
     : dataset?.source
       ?? (datasetConnectionStatus === "connecting" ? "正在连接球探服务" : datasetConnectionStatus === "disconnected" ? "服务端未连接" : "数据状态不可用");
   const waitingForAnswer = status === "needs_input";
+  const turnUnresolved = isTurnUnresolved(loading, pendingTurnRequest);
 
   useEffect(() => {
-    if (!loading || startedAt === null) return;
+    const recoveringTurn = pendingTurnRequest?.outcomeUnknown === true;
+    if ((!loading && !recoveringTurn) || startedAt === null || !pendingTurnRequest) return;
     const updateElapsed = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     updateElapsed();
     const elapsedTimer = window.setInterval(updateElapsed, 1000);
     let cancelled = false;
+    let consecutiveProgressFailures = 0;
     let pollTimer: number | undefined;
     const pollProgress = async () => {
       try {
-        const current = await getRecruitmentProgress(threadId);
+        const current = await getRecruitmentProgress(pendingTurnRequest.caseId, pendingTurnRequest.requestId);
         if (!cancelled) {
+          consecutiveProgressFailures = 0;
           setProgress(current);
           setProgressConnection("live");
         }
-      } catch {
-        if (!cancelled) setProgressConnection((previous) => previous === "live" || previous === "stale" ? "stale" : "connecting");
+      } catch (caught) {
+        consecutiveProgressFailures += 1;
+        if (!cancelled) {
+          if (caught instanceof ApiContractError) setProgressConnection("incompatible");
+          else setProgressConnection((previous) => previous === "incompatible"
+            ? "incompatible"
+            : previous === "live" || previous === "stale" || consecutiveProgressFailures >= 5
+              ? "stale"
+              : "connecting");
+        }
       }
       if (!cancelled) pollTimer = window.setTimeout(() => void pollProgress(), 1200);
     };
@@ -121,7 +174,7 @@ function App() {
       window.clearInterval(elapsedTimer);
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
     };
-  }, [loading, startedAt, threadId]);
+  }, [loading, pendingTurnRequest?.caseId, pendingTurnRequest?.outcomeUnknown, pendingTurnRequest?.requestId, startedAt]);
 
   function persistPlans(nextPlans: SavedRecruitmentPlan[], successMessage?: string) {
     try {
@@ -143,13 +196,14 @@ function App() {
     nextHasConversationState: boolean;
     brief: string;
     id: string;
+    threadId?: string;
   }): boolean {
     const now = new Date().toISOString();
     const name = planName.trim() || input.brief.trim().slice(0, 42) || "新的招募计划";
     const saved = upsertRecruitmentPlan(plans, {
       id: input.id,
       name,
-      threadId,
+      threadId: input.threadId ?? threadId,
       originalBrief: input.brief,
       messages: input.nextMessages,
       currentReport: input.nextReport,
@@ -166,15 +220,110 @@ function App() {
     return false;
   }
 
-  async function sendMessage(messageText = draft) {
+  async function cancelCurrentTurn() {
+    const request = pendingTurnRequest;
+    if (!request || cancellingRequestId === request.requestId || progress?.stage === "cancelling" || progress?.stage === "cancelled") return;
+    setCancellingRequestId(request.requestId);
+    setError(null);
+    try {
+      const result = await cancelRecruitmentTurn(request.caseId, request.requestId);
+      if (result.status === "already_settled") {
+        setNotice("本轮已经结束，正在恢复它的结果。");
+        if (!loading) void sendMessage(request.displayText, request.isReanalysis ? "reanalysis" : "normal");
+        return;
+      }
+      const occurredAt = new Date().toISOString();
+      const cancellingEvent: RecruitmentProgress["events"][number] = {
+        sequence: (progress?.events.at(-1)?.sequence ?? 0) + 1,
+        occurrence: 1,
+        stage: "cancelling",
+        status: "started",
+        message: "已收到停止请求，正在结束本轮调查",
+        occurredAt,
+      };
+      setProgress((current) => current?.requestId === request.requestId ? {
+        ...current,
+        active: true,
+        stage: "cancelling",
+        message: "已收到停止请求，正在结束本轮调查",
+        updatedAt: occurredAt,
+        events: current.events.some((event) => event.stage === "cancelling") ? current.events : [...current.events, cancellingEvent].slice(-24),
+      } : current);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "停止请求没有送达；本轮调查仍可能在运行。可稍后重试。");
+    } finally {
+      setCancellingRequestId(null);
+    }
+  }
+
+  async function sendMessage(messageText = draft, mode: "normal" | "reanalysis" = "normal") {
     const text = messageText.trim();
     if (!text || loading) return;
+    const isReanalysis = mode === "reanalysis";
+    const canRecoverReanalysis = isReanalysis && pendingTurnRequest?.outcomeUnknown && pendingTurnRequest.isReanalysis;
+    if (isReanalysis && (!activePlanId || !report || (status !== "completed" && !canRecoverReanalysis))) return;
+    const displayText = isReanalysis
+      ? "重新分析当前招募需求，并按最新可用数据重新搜索候选人。"
+      : text;
+    const userMessage: ConversationMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: displayText,
+      ...(isReanalysis ? { isReanalysisAction: true } : {}),
+      ...(!isReanalysis && teamContext.trim() ? { teamContext: teamContext.trim() } : {}),
+    };
+    const nextMessages = messages;
+    const brief = originalBrief || text;
+    let requestMessage: string;
+    let expectsExistingState: boolean;
+    if (isReanalysis) {
+      requestMessage = createFreshReanalysisMessage({ originalBrief: brief, messages });
+      expectsExistingState = false;
+    } else {
+      const contextParts = [text];
+      if (teamContext.trim()) contextParts.push(`用户补充的目标球队：${teamContext.trim()}`);
+      if (!hasConversationState && messages.length > 0) {
+        contextParts.unshift(`案件原始需求：${originalBrief || messages.find((item) => item.role === "user")?.content || "未记录"}`);
+        const priorConversation = messages.slice(-12).map((item) => `${item.role === "user" ? "用户" : "Agent"}：${item.content}`).join("\n");
+        if (priorConversation) contextParts.unshift(`此前案件对话（用于恢复讨论上下文）：\n${priorConversation}`);
+        if (report) contextParts.push(`此前报告摘要：${report.needSummary}`);
+      }
+      requestMessage = contextParts.join("\n\n");
+      expectsExistingState = hasConversationState;
+    }
+    const requestCaseId = isReanalysis ? crypto.randomUUID() : threadId;
+    const turn = isReanalysis
+      ? createFreshReanalysisTurn({ caseId: requestCaseId, message: requestMessage })
+      : { caseId: requestCaseId, message: requestMessage, expectsExistingState };
+    const resolution = resolveTurnRequest({
+      requested: {
+        ...turn,
+        isReanalysis,
+        displayText,
+        ...(!isReanalysis && teamContext.trim() ? { displayTeamContext: teamContext.trim() } : {}),
+      },
+      pending: pendingTurnRequest,
+      createRequestId: () => crypto.randomUUID(),
+    });
+    if (resolution.blockedByUnknownOutcome || !resolution.request) {
+      setError("上一轮连接中断，结果尚未确认。请先恢复原输入并重新发送，取回结果后再修改需求。");
+      return;
+    }
+    const request = resolution.request;
+    shouldFollowConversationRef.current = true;
+    if (isReanalysis) {
+      setStatus("ready");
+    }
+    setPendingTurnRequest({ ...request, outcomeUnknown: false });
+    if (!isReanalysis) setDraft("");
+
     const requestStartedAt = Date.now();
     setLoading(true);
     setStartedAt(requestStartedAt);
     setElapsedSeconds(0);
     setProgressConnection("connecting");
     setProgress({
+      requestId: request.requestId,
       active: true,
       stage: "starting",
       message: "正在启动本轮球探调查",
@@ -185,37 +334,60 @@ function App() {
     setError(null);
     setNotice(null);
 
-    const userMessage: ConversationMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-      ...(teamContext.trim() ? { teamContext: teamContext.trim() } : {}),
-    };
-    const nextMessages = [...messages, userMessage];
-    const brief = originalBrief || text;
-    const contextParts = [text];
-    if (teamContext.trim()) contextParts.push(`用户补充的目标球队：${teamContext.trim()}`);
-    if (!hasConversationState && messages.length > 0) {
-      contextParts.unshift(`案件原始需求：${originalBrief || messages.find((item) => item.role === "user")?.content || "未记录"}`);
-      if (report) contextParts.push(`此前报告摘要：${report.needSummary}`);
-    }
-
     try {
-      const response = await turnRecruitmentCase(threadId, contextParts.join("\n\n"), hasConversationState);
-      const assistantMessage = messageFromTurn(response);
-      const updatedMessages = [...nextMessages, assistantMessage];
+      const response = await turnRecruitmentCase(request.caseId, request.message, request.expectsExistingState, request.requestId);
+      if (response.status === "cancelled") {
+        const assistantMessage = messageFromTurn(response);
+        const updatedMessages = [...nextMessages, userMessage, assistantMessage];
+        const nextThreadId = isReanalysis ? threadId : crypto.randomUUID();
+        const nextHasConversationState = isReanalysis ? hasConversationState : false;
+        setMessages(updatedMessages);
+        setThreadId(nextThreadId);
+        setHasConversationState(nextHasConversationState);
+        setStatus(report ? "completed" : "ready");
+        setDraft(text);
+        setOriginalBrief(brief);
+        setPendingTurnRequest(null);
+        setProgressConnection("idle");
+        setNotice(report
+          ? "本轮调查已停止。最近一份完整报告仍保留；输入框中保留了本轮需求，可修改后重新开始。"
+          : "本轮调查已停止，尚未生成报告；输入框中保留了本轮需求，可修改后重新开始。");
+        if (activePlanId) {
+          persistCurrentPlan({
+            nextMessages: updatedMessages,
+            nextReport: report,
+            nextReportAt: reportAt,
+            nextHasConversationState,
+            brief,
+            id: activePlanId,
+            threadId: nextThreadId,
+          });
+        }
+        return;
+      }
+      setCancellingRequestId(null);
+      const progressNotice = response.progressEvents?.length
+        ? undefined
+        : "本轮调查已完成，但当前球探服务没有提供可回看的 LangGraph 阶段记录。结束本轮后重启本地 API 服务，再开始的新调查会显示实际步骤。";
+      const assistantMessage = messageFromTurn(response, progressNotice);
+      const updatedMessages = [...nextMessages, userMessage, assistantMessage];
       const now = new Date().toISOString();
-      const updatedReport = response.report ?? report;
-      const updatedReportAt = response.report ? now : reportAt;
+      const completedReport = response.status === "completed" ? response.report : null;
+      const updatedReport = completedReport ?? report;
+      const updatedReportAt = completedReport ? now : reportAt;
 
       setMessages(updatedMessages);
       setReport(updatedReport);
+      if (completedReport) setTeamRosterContext(response.teamRosterContext ?? null);
       setReportAt(updatedReportAt);
+      setThreadId(request.caseId);
       setStatus(response.status);
       setDraft("");
       setTeamContext("");
       setOriginalBrief(brief);
       setHasConversationState(true);
+      setPendingTurnRequest(null);
+      setCancellingRequestId(null);
 
       if (activePlanId) {
         persistCurrentPlan({
@@ -225,12 +397,22 @@ function App() {
           nextHasConversationState: true,
           brief,
           id: activePlanId,
+          threadId: request.caseId,
         });
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "对话暂时无法继续，请稍后再试。你输入的内容还在。");
+      if (!isReanalysis) setDraft(text);
+      if (caught instanceof TypeError) {
+        setPendingTurnRequest({ ...request, outcomeUnknown: true });
+        setError("连接中断，本轮结果尚未确认。恢复连接后重发同一条内容可取回结果；服务进程仍运行时，已接收的请求不会重复执行。");
+      } else {
+        setPendingTurnRequest(null);
+        if (isReanalysis) setStatus("completed");
+        setError(describeTurnError(caught));
+      }
     } finally {
       setLoading(false);
+      setCancellingRequestId(null);
     }
   }
 
@@ -240,6 +422,7 @@ function App() {
   }
 
   function saveCurrentPlan() {
+    if (turnUnresolved) return;
     if (!messages.length) {
       setError("先描述一条招募需求，再保存计划。");
       return;
@@ -256,9 +439,12 @@ function App() {
   }
 
   function openPlan(plan: SavedRecruitmentPlan) {
+    if (turnUnresolved) return;
+    shouldFollowConversationRef.current = true;
     setThreadId(plan.threadId);
     setMessages(plan.messages);
     setReport(plan.lastReport);
+    setTeamRosterContext(null);
     setReportAt(plan.lastReportedAt);
     setStatus(plan.messages.at(-1)?.questionReason ? "needs_input" : plan.lastReport ? "completed" : "ready");
     setDraft("");
@@ -276,9 +462,12 @@ function App() {
   }
 
   function startNewCase() {
+    if (turnUnresolved) return;
+    shouldFollowConversationRef.current = true;
     setThreadId(crypto.randomUUID());
     setMessages([]);
     setReport(null);
+    setTeamRosterContext(null);
     setReportAt(null);
     setStatus("ready");
     setDraft("");
@@ -294,6 +483,7 @@ function App() {
   }
 
   function deletePlan(id: string) {
+    if (turnUnresolved) return;
     const plan = plans.find((item) => item.id === id);
     if (!plan || !window.confirm(`确定删除“${plan.name}”吗？`)) return;
     const next = removeRecruitmentPlan(plans, id);
@@ -301,6 +491,21 @@ function App() {
   }
 
   const userCount = messages.filter((message) => message.role === "user").length;
+  const reportPanelView = report
+    ? {
+      kind: "report" as const,
+      report,
+      teamRosterContext,
+      reportedAt: reportAt,
+      status: waitingForAnswer ? "waiting" as const : pendingTurnRequest?.isReanalysis && (loading || pendingTurnRequest.outcomeUnknown) ? "refreshing" as const : "complete" as const,
+      snapshot: dataset?.snapshot ?? null,
+    }
+    : {
+      kind: "empty" as const,
+      dataset,
+      datasetLabel,
+      connectionStatus: datasetConnectionStatus,
+    };
 
   return (
     <div className="app-shell">
@@ -310,8 +515,10 @@ function App() {
           <span>TactiScout</span>
         </a>
         <div className="topbar-meta">
-          <span className={`source-pill ${dataset?.mode === "sportmonks" || dataset?.mode === "fbref" ? "source-pill-live" : ""} ${datasetConnectionStatus === "connecting" ? "source-pill-connecting" : ""} ${datasetConnectionStatus === "disconnected" || datasetConnectionStatus === "unavailable" ? "source-pill-unavailable" : ""}`}><span className="status-dot" />{datasetLabel}</span>
+          <span className={`source-pill ${dataset?.mode === "sportmonks" || dataset?.mode === "fbref" || dataset?.mode === "fpl" || dataset?.mode === "premier_league" || dataset?.mode === "asa" || dataset?.mode === "understat" ? "source-pill-live" : ""} ${datasetConnectionStatus === "connecting" ? "source-pill-connecting" : ""} ${datasetConnectionStatus === "disconnected" || datasetConnectionStatus === "unavailable" ? "source-pill-unavailable" : ""}`}><span className="status-dot" />{datasetLabel}</span>
           <button type="button" className="text-button observations-open-button" onClick={() => setPlayerObservationsOpen(true)}>球探观察</button>
+          <a className="text-button review-open-button" href="/review">短名单盲评</a>
+          <a className="text-button review-open-button" href="/adjudicate">质量评估</a>
           <span className="topbar-caption">对话式球探工作台 <span>·</span> MVP</span>
         </div>
       </header>
@@ -323,66 +530,90 @@ function App() {
             <h1>把阵容问题交给球探，<em>一起找到答案。</em></h1>
             <p className="intro-copy">用一句话描述需求。Agent 会先调查数据，必要时再向你追问，并说明推荐依据和证据边界。</p>
           </div>
-          <div className="intro-stamp"><span>01</span><span>SCOUTING<br />CASE</span></div>
+          <a className="showcase-home-link" href="/showcase">
+            <span className="showcase-home-icon" aria-hidden="true">↗</span>
+            <span><strong>先看一段真实运行</strong><small>免配置 · 无需启动模型</small></span>
+            <span className="showcase-home-arrow" aria-hidden="true">→</span>
+          </a>
         </section>
 
-        <SavedPlans plans={plans} activePlanId={activePlanId} onOpen={openPlan} onDelete={deletePlan} onNew={startNewCase} />
+        <SavedPlans plans={plans} activePlanId={activePlanId} disabled={turnUnresolved} onOpen={openPlan} onDelete={deletePlan} onNew={startNewCase} />
 
         <div className="conversation-workspace">
           <section className="conversation-panel" aria-label="球探对话">
             <div className="conversation-heading">
-              <div className="conversation-heading-title"><span className="section-kicker">01 / CASE</span><input aria-label="招募计划名称" value={planName} onChange={(event) => setPlanName(event.target.value)} placeholder={activePlanId ? "已保存的招募计划" : "计划名称（可选）"} /></div>
+              <div className="conversation-heading-title"><span className="section-kicker">01 / CASE</span><input aria-label="招募计划名称" value={planName} onChange={(event) => setPlanName(event.target.value)} placeholder={activePlanId ? "已保存的招募计划" : "计划名称（可选）"} disabled={turnUnresolved} /></div>
               <div className="conversation-heading-actions">
-                {activePlanId && report && <button type="button" className="text-button" onClick={() => void sendMessage("请基于原始需求重新调查候选人，复核此前结论，并更新报告。")} disabled={loading}>复核报告</button>}
-                <button type="button" className="text-button" onClick={saveCurrentPlan} disabled={!messages.length || loading}>保存计划</button>
+                {activePlanId && report && status === "completed" && <button type="button" className="text-button" onClick={() => void sendMessage("重新分析招募需求", "reanalysis")} disabled={turnUnresolved}>重新分析</button>}
+                <button type="button" className="text-button" onClick={saveCurrentPlan} disabled={!messages.length || turnUnresolved}>保存计划</button>
               </div>
             </div>
 
-            <div className="conversation-thread" aria-live="polite">
-              {messages.length === 0 ? (
-                <div className="conversation-welcome">
-                  <span className="assistant-avatar">TS</span>
-                  <div className="welcome-card">
-                    <strong>你想解决什么阵容问题？</strong>
-                    <p>说说球队和你期待的球员特点。不必先填位置、年龄或一长串筛选条件。</p>
-                    <div className="suggested-briefs">
-                      {suggestedBriefs.map((brief) => <button type="button" key={brief} onClick={() => setDraft(brief)}>{brief}<span aria-hidden="true">↗</span></button>)}
+            <div
+              className="conversation-thread"
+              ref={conversationThreadRef}
+              onScroll={(event) => {
+                const thread = event.currentTarget;
+                shouldFollowConversationRef.current = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 64;
+              }}
+            >
+              <div className="conversation-message-log" role="log" aria-live="polite" aria-relevant="additions" aria-label="案件对话消息">
+                {messages.length === 0 ? (
+                  <div className="conversation-welcome">
+                    <span className="assistant-avatar">TS</span>
+                    <div className="welcome-card">
+                      <strong>你想解决什么阵容问题？</strong>
+                      <p>说说球队和你期待的球员特点。不必先填位置、年龄或一长串筛选条件。</p>
+                      <div className="suggested-briefs">
+                        {suggestedBriefs.map((brief) => <button type="button" key={brief} onClick={() => setDraft(brief)}>{brief}<span aria-hidden="true">↗</span></button>)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : messages.map((message) => (
-                <article className={`chat-message ${message.role === "user" ? "chat-message-user" : "chat-message-assistant"}`} key={message.id}>
-                  {message.role === "assistant" && <span className="assistant-avatar">TS</span>}
+                ) : messages.map((message) => (
+                  <article className={`chat-message ${message.role === "user" ? "chat-message-user" : "chat-message-assistant"}`} key={message.id}>
+                    {message.role === "assistant" && <span className="assistant-avatar">TS</span>}
+                    <div className="chat-bubble">
+                      <p>{message.content}</p>
+                      {message.teamContext && <span className="chat-context-chip">目标球队：{message.teamContext}</span>}
+                      {message.questionReason && <div className="question-reason"><strong>为什么需要确认</strong><span>{message.questionReason}</span></div>}
+                      {message.progressNotice && <small className="conversation-progress-warning">{message.progressNotice}</small>}
+                      {message.progressEvents && message.progressEvents.length > 0 && <details className="conversation-progress-details">
+                        <summary>查看 Agent 实际调查步骤 <span>{progressStepCountLabel(message.progressEvents)}</span></summary>
+                        <ProgressTimeline events={message.progressEvents} active={false} label="本轮已执行的调查阶段" />
+                      </details>}
+                    </div>
+                  </article>
+                ))}
+                {(loading || pendingTurnRequest?.outcomeUnknown) && pendingTurnRequest && <article className="chat-message chat-message-user chat-message-pending" aria-label="本轮已提交的需求">
                   <div className="chat-bubble">
-                    <p>{message.content}</p>
-                    {message.teamContext && <span className="chat-context-chip">目标球队：{message.teamContext}</span>}
-                    {message.questionReason && <div className="question-reason"><strong>为什么需要确认</strong><span>{message.questionReason}</span></div>}
+                    <p>{pendingTurnRequest.displayText}</p>
+                    {pendingTurnRequest.displayTeamContext && <span className="chat-context-chip">目标球队：{pendingTurnRequest.displayTeamContext}</span>}
+                    <small>{pendingTurnRequest.outcomeUnknown ? "等待恢复本轮结果" : pendingTurnRequest.isReanalysis ? "正在全新案件中搜索；最近报告仍保留" : "已提交，Agent 正在处理"}</small>
                   </div>
-                </article>
-              ))}
-              {loading && <div className="chat-message chat-message-assistant">
+                </article>}
+              </div>
+              {(loading || pendingTurnRequest?.outcomeUnknown) && <div className="chat-message chat-message-assistant">
                 <span className="assistant-avatar">TS</span>
                 <div className="chat-bubble recruitment-progress">
-                  <div className="recruitment-progress-heading" role="status" aria-live="polite">
-                    <span className="recruitment-progress-live-dot" aria-hidden="true" />
+                  <div className="recruitment-progress-heading" role="status" aria-live="polite" aria-atomic="true">
+                    <span className={`recruitment-progress-live-dot${progress?.active === false ? " is-settled" : ""}`} aria-hidden="true" />
                     <strong>{progress?.message ?? "正在启动本轮球探调查"}</strong>
                   </div>
-                  <ol className="recruitment-progress-timeline" aria-label="本轮调查已发生的阶段">
-                    {(progress?.events ?? []).slice(-6).map((event, index, visibleEvents) => {
-                      const current = index === visibleEvents.length - 1;
-                      const repeatLabel = event.occurrence > 1 ? `第 ${event.occurrence} 次` : null;
-                      return <li className={current ? "is-current" : "is-complete"} key={event.sequence} aria-current={current ? "step" : undefined}>
-                        <span className="recruitment-progress-marker" aria-hidden="true">{current ? "" : "✓"}</span>
-                        <span className="recruitment-progress-event">
-                          <span className="recruitment-progress-event-meta">{current ? "当前环节" : "已完成"}{repeatLabel && <small>{repeatLabel}</small>}</span>
-                          <span className="recruitment-progress-event-label">{current ? event.message : completedProgressLabels[event.stage] ?? event.message}</span>
-                        </span>
-                      </li>;
-                    })}
-                  </ol>
-                  <div className="recruitment-progress-meta"><span>已等待 {elapsedLabel(elapsedSeconds)}</span><span>阶段轨迹，不代表完成比例</span></div>
-                  {progressConnection !== "live" && <small>{progressConnection === "stale" ? "阶段更新暂时不可用；本轮仍在继续，计时会保留。" : "正在连接实时阶段；等待时间会持续更新。"}</small>}
-                  {progressConnection === "live" && elapsedSeconds >= 20 && <small>本地模型仍在处理；调查阶段会随流程继续更新。</small>}
+                  <ProgressTimeline events={progress?.events ?? []} active={progress?.active ?? false} compact label="本轮调查各阶段状态" />
+                  <div className="recruitment-progress-meta"><span>已等待 {elapsedLabel(elapsedSeconds)}</span><span>记录 Agent 实际完成的调查步骤</span></div>
+                  <small role="status" aria-live="polite" aria-atomic="true">{progress?.stage === "cancelling"
+                    ? "已向本地服务发送停止信号；正在确认本轮结束。"
+                    : progress?.stage === "cancelled"
+                    ? "本轮调查已停止。"
+                    : pendingTurnRequest?.outcomeUnknown
+                    ? progressConnection === "live" ? "已恢复本轮阶段；取回本轮结果不会重复启动调查。" : progressConnection === "incompatible" ? "本地 API 返回了旧版阶段数据；请保留原输入，先不要更改这轮需求。" : progressConnection === "stale" ? "阶段更新暂时不可用；连接恢复后可取回本轮结果。" : "正在确认这轮调查的执行状态；请保留原输入。"
+                    : progressConnection === "incompatible" ? "本地 API 返回的阶段格式与工作台不匹配；本轮仍在运行，结束后重启 API 服务即可恢复实际步骤显示。"
+                      : progressConnection === "stale" ? "阶段更新暂时不可用；本轮仍在继续，计时会保留。"
+                        : progressConnection === "live" ? "实时阶段已连接；当前步骤来自 Agent 的实际执行。"
+                          : "正在连接实时阶段；等待时间会持续更新。"}</small>
+                  {pendingTurnRequest && <button type="button" className="cancel-turn-button" onClick={() => void cancelCurrentTurn()} disabled={cancellingRequestId === pendingTurnRequest.requestId || progress?.stage === "cancelling" || progress?.stage === "cancelled"}>{cancellingRequestId === pendingTurnRequest.requestId || progress?.stage === "cancelling" ? "正在结束本轮…" : progress?.stage === "cancelled" ? "已停止" : "停止调查"}</button>}
+                  {pendingTurnRequest?.outcomeUnknown && pendingTurnRequest.isReanalysis && <button type="button" className="text-button recovery-action" onClick={() => void sendMessage("重新分析招募需求", "reanalysis")} disabled={loading}>恢复重新分析</button>}
+                  {!pendingTurnRequest?.outcomeUnknown && progress?.stage !== "cancelling" && progress?.stage !== "cancelled" && progressConnection === "live" && elapsedSeconds >= 20 && <small>当前环节仍在处理；完成后会显示本次调查结果。</small>}
                 </div>
               </div>}
               {waitingForAnswer && !loading && <p className="turn-hint">补充信息后，Agent 会在同一案件中继续调查。</p>}
@@ -390,7 +621,13 @@ function App() {
 
             <form className="composer" onSubmit={handleSubmit}>
               <label className="sr-only" htmlFor="message-composer">描述招募需求或回答球探问题</label>
-              <textarea id="message-composer" rows={3} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} placeholder={waitingForAnswer ? "回答这个问题，或补充你希望优先考虑的方向…" : "例如：为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋"} disabled={loading} />
+              <textarea id="message-composer" rows={3} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+                const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+                if (event.key === "Enter" && !event.shiftKey && !isComposing) {
+                  event.preventDefault();
+                  void sendMessage();
+                }
+              }} placeholder={waitingForAnswer ? "回答这个问题，或补充你希望优先考虑的方向…" : "例如：为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋"} disabled={turnUnresolved} />
               <div className="composer-bottom">
                 <div className="composer-context">
                   <label id="team-context-label" htmlFor="team-context">可选：指定目标球队</label>
@@ -398,7 +635,7 @@ function App() {
                 </div>
                 <div className="composer-actions">
                   <span>Enter 发送 <i>·</i> Shift + Enter 换行</span>
-                  <button className="submit-button" type="submit" disabled={loading || !draft.trim()}><span>{loading ? "研究中…" : waitingForAnswer ? "继续案件" : "开始研究"}</span><span className="button-arrow" aria-hidden="true">→</span></button>
+                  <button className="submit-button" type="submit" disabled={turnUnresolved || !draft.trim()}><span>{loading ? "研究中…" : waitingForAnswer ? "继续案件" : "开始研究"}</span><span className="button-arrow" aria-hidden="true">→</span></button>
                 </div>
               </div>
               {error && <p className="error-message" role="alert">{error}</p>}
@@ -407,8 +644,11 @@ function App() {
             <div className="conversation-footnote">已进行 {userCount} 轮用户输入 <span>·</span> 对话与报告可保存到此浏览器</div>
           </section>
 
-          <section className="report-panel" aria-live="polite">
-            {report ? <RecruitmentReportView report={report} reportedAt={reportAt} isWaiting={waitingForAnswer} snapshot={dataset?.snapshot ?? null} /> : <EmptyReport dataset={dataset} datasetLabel={datasetLabel} connectionStatus={datasetConnectionStatus} onRetry={() => void refreshDatasetStatus()} />}
+          <section className="report-panel" aria-label="球探报告">
+            <RecruitmentReportPanel view={reportPanelView} onAction={(action) => {
+              if (action === "retry_dataset") void refreshDatasetStatus();
+              else setPlayerObservationsOpen(true);
+            }} />
           </section>
         </div>
       </main>
@@ -418,9 +658,10 @@ function App() {
   );
 }
 
-function SavedPlans({ plans, activePlanId, onOpen, onDelete, onNew }: {
+function SavedPlans({ plans, activePlanId, disabled, onOpen, onDelete, onNew }: {
   plans: SavedRecruitmentPlan[];
   activePlanId: string | null;
+  disabled: boolean;
   onOpen: (plan: SavedRecruitmentPlan) => void;
   onDelete: (id: string) => void;
   onNew: () => void;
@@ -429,281 +670,17 @@ function SavedPlans({ plans, activePlanId, onOpen, onDelete, onNew }: {
     <section className="saved-plans" aria-label="保存的招募计划">
       <div className="saved-plans-heading">
         <div><span className="section-kicker">LOCAL WORKSPACE</span><h2>招募计划 <small>{plans.length}</small></h2></div>
-        <button type="button" className="secondary-button new-plan-button" onClick={onNew}>＋ 新建案件</button>
+        <button type="button" className="secondary-button new-plan-button" onClick={onNew} disabled={disabled}>＋ 新建案件</button>
       </div>
+      {disabled && <p className="saved-plans-busy-note" role="status">当前调查尚未结束；完成或恢复结果后即可切换计划。</p>}
       {plans.length ? <div className="saved-plan-list">{plans.map((plan) => (
         <article className={`saved-plan-card ${activePlanId === plan.id ? "active" : ""}`} key={plan.id}>
           <div className="saved-plan-copy"><strong>{plan.name}</strong><span>{plan.lastReportedAt ? `最近报告 ${formatDate(plan.lastReportedAt)}` : "对话已保存，尚无报告"}</span></div>
-          <div className="saved-plan-actions"><button type="button" className="text-button" onClick={() => onOpen(plan)}>打开</button><button type="button" className="text-button danger-text" onClick={() => onDelete(plan.id)}>删除</button></div>
+          <div className="saved-plan-actions"><button type="button" className="text-button" aria-label={`打开招募计划：${plan.name}`} onClick={() => onOpen(plan)} disabled={disabled}>打开</button><button type="button" className="text-button danger-text" aria-label={`删除招募计划：${plan.name}`} onClick={() => onDelete(plan.id)} disabled={disabled}>删除</button></div>
         </article>
       ))}</div> : <p className="no-saved-plans">保存后，计划和最近一份分析报告会留在此浏览器。</p>}
     </section>
   );
-}
-
-function EmptyReport({ dataset, datasetLabel, connectionStatus, onRetry }: { dataset: DatasetStatus | null; datasetLabel: string; connectionStatus: DatasetConnectionStatus; onRetry: () => void }) {
-  return (
-    <div className="empty-state report-empty-state">
-      <div className="pitch-art" aria-hidden="true"><span className="pitch-circle" /><span className="pitch-dot" /><span className="pitch-line" /></div>
-      <span className="section-kicker">02 / SCOUTING REPORT</span>
-      <h2>先说说你要解决的<br /><em>阵容问题。</em></h2>
-      <p>球探会围绕可观察的比赛表现建立能力画像，比较候选人的数据、样本和风险，不会用未经验证的总分替代判断。</p>
-      <div className="empty-data-note"><span className="status-dot" />当前数据来源：{datasetLabel}</div>
-      {dataset ? <DatasetScopeCard
-        scope={describeDatasetScope(dataset.mode, undefined, dataset.snapshot)}
-        showCoverageState={false}
-        snapshot={dataset.snapshot}
-      /> : <section className={`dataset-connection-card ${connectionStatus === "connecting" ? "dataset-connection-pending" : ""}`} aria-label="球探服务连接状态" role="status" aria-live="polite">
-        <div className="dataset-connection-copy">
-          <strong>{connectionStatus === "connecting" ? "正在读取数据范围" : connectionStatus === "disconnected" ? "无法连接球探服务" : "暂时无法读取数据范围"}</strong>
-          <p>{connectionStatus === "connecting" ? "正在连接本地服务并确认可用的数据源。" : connectionStatus === "disconnected" ? "请确认本地球探服务已启动，再重试连接。" : "服务端暂时没有返回数据范围，请检查服务状态后重试。"}</p>
-        </div>
-        <button type="button" className="secondary-button dataset-retry-button" onClick={onRetry} disabled={connectionStatus === "connecting"}>{connectionStatus === "connecting" ? "连接中…" : "重试连接"}</button>
-      </section>}
-      <div className="empty-index"><span>INVESTIGATE</span><i /><span>COMPARE</span><i /><span>EXPLAIN</span></div>
-    </div>
-  );
-}
-
-function RecruitmentReportView({ report, reportedAt, isWaiting, snapshot }: { report: RecruitmentReport; reportedAt: string | null; isWaiting: boolean; snapshot: DatasetStatus["snapshot"] }) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  useEffect(() => setSelectedIds([]), [report]);
-  const selectedRecommendations = report.recommendations.filter((item) => selectedIds.includes(item.player.playerId));
-
-  function toggleRecommendation(playerId: string) {
-    setSelectedIds((current) => toggleComparedPlayer(current, playerId));
-  }
-
-  return (
-    <div className="report-content">
-      <div className="report-title-row">
-        <div><span className="section-kicker">02 / SCOUTING REPORT</span><h2>{report.targetTeam || "球员招募"}<span className="heading-tail">候选评估</span></h2></div>
-        <span className={`report-status ${isWaiting ? "report-status-pending" : ""}`}>{isWaiting ? "补充信息中" : "已完成一轮评估"}</span>
-      </div>
-      {isWaiting && <p className="snapshot-warning">正在等待补充信息。下方保留最近一次完整报告，后续调查完成后会更新。</p>}
-      <section className="need-summary"><span className="report-section-label">需求理解</span><p>{report.needSummary}</p></section>
-      {report.capabilityProfile.length > 0 && <section className="capability-profile"><span className="report-section-label">目标能力画像 · Agent 根据需求推导，可继续修正</span><ul>{report.capabilityProfile.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></section>}
-      <DatasetScopeCard scope={report.datasetScope ?? describeDatasetScope(report.datasetMode)} showCoverageState snapshot={snapshot} />
-      {report.searchScopes.length > 0 && <section className="search-scope"><span className="report-section-label">候选检索范围</span><p>以下是 Agent 实际使用的条件；可继续在对话中补充或纠正。</p><ul>{report.searchScopes.map((scope, index) => <li key={`${scope.source}-${index}`}><strong>{scope.source === "user_confirmed" ? "用户确认" : scope.source === "mixed" ? "包含用户确认条件" : "Agent 根据对话解释"}</strong>{" · "}{[
-        scope.position ? `位置 ${scope.position}` : null,
-        scope.maxAge !== null ? `${scope.maxAge} 岁及以下` : null,
-        scope.minimumMinutes > 0 ? `至少 ${scope.minimumMinutes} 分钟` : null,
-        scope.competition ? `赛事 ${scope.competition}` : null,
-        scope.season ? `赛季 ${scope.season}` : null,
-      ].filter(Boolean).join(" · ") || "未设位置、年龄或赛事赛季限制"}</li>)}</ul></section>}
-      <section className="evidence-coverage"><span className="report-section-label">证据覆盖</span><p>已评估 {report.evidenceCoverage.evaluatedCandidateCount} 名候选 · 指标值 {report.evidenceCoverage.availableMetricValues} / {report.evidenceCoverage.expectedMetricValues} 项 · 小样本 {report.evidenceCoverage.lowSampleCandidates} 人 · 同组比较受限 {report.evidenceCoverage.limitedPeerGroupCandidates} 人</p><small>说明当前数据覆盖和样本情况，不代表推荐正确率。</small></section>
-      <section className="external-signal-coverage"><span className="report-section-label">独立外部信号 · PlayerElo</span><p>{externalSignalCoverageText(report.externalSignalCoverage)}</p><small>仅作整体表现参考；不进入战术能力评分、候选排序或 Agent 结论。</small></section>
-      <section className="external-signal-coverage historical-archive-coverage"><span className="report-section-label">跨来源历史表现样本 · Wyscout</span><p>{historicalArchiveCoverageText(report.historicalArchiveCoverage)}</p><small>只有 Reep 精确 ID 映射成功才会关联；2017/18 档案仅供纵向背景参考，不进入本轮能力评分、推荐排序或 Agent 结论。</small></section>
-      <section className="knowledge-coverage"><span className="report-section-label">资料检索</span><p>角色/方法片段 {report.knowledgeCoverage.methodologyChunksRetrieved} 条{report.knowledgeCoverage.methodologySearchFailed ? "（检索失败）" : ""} · 球员报告 {report.knowledgeCoverage.playerReportChunksRetrieved} 条{report.knowledgeCoverage.playerReportSearchFailed ? "（检索失败）" : report.knowledgeCoverage.playerReportSearchPerformed ? "（已在表现评估后检索）" : "（未检索）"}</p><small>球员报告只补充定性观察，不直接计入能力评分；关联比赛指标也不代表整条观察已证实。</small></section>
-      <div className="recommendation-heading"><div><span className="report-section-label">候选推荐</span><p>名单顺序是建议的后续考察优先级，不是客观能力排名；每项依据都来自可观察数据。</p></div><span className="results-count">{String(report.recommendations.length).padStart(2, "0")} <small>球员</small></span></div>
-      {report.recommendations.length ? <>
-        <p className="compare-hint">选择 2–3 名球员，并排查看有数据支持的能力维度；缺失项会明确标出。</p>
-        <CompareRecommendations recommendations={selectedRecommendations} onClear={() => setSelectedIds([])} />
-        <div className="recommendation-list">{report.recommendations.map((recommendation, index) => <RecommendationCard key={recommendation.player.playerId} recommendation={recommendation} rank={index + 1} selected={selectedIds.includes(recommendation.player.playerId)} selectionDisabled={selectedIds.length >= 3 && !selectedIds.includes(recommendation.player.playerId)} onToggle={() => toggleRecommendation(recommendation.player.playerId)} />)}</div>
-      </> : <div className="no-candidates"><span className="no-candidates-mark">∅</span><div><strong>当前证据不足以推荐具体球员</strong><p>Agent 的结论和仍缺少的数据列在下方。你也可以继续补充需求。</p></div></div>}
-      {report.limitations.length > 0 && <details className="caveats-panel" open><summary><span>数据范围与风险</span><span className="details-plus">+</span></summary><ul>{report.limitations.map((limitation, index) => <li key={`${limitation}-${index}`}>{limitation}</li>)}</ul></details>}
-      <div className="report-source"><span><i className="status-dot" />{report.dataSource}</span>{reportedAt && <span>报告时间 {formatDate(reportedAt)}</span>}</div>
-    </div>
-  );
-}
-
-function DatasetScopeCard({ scope, showCoverageState, snapshot }: { scope: RecruitmentReport["datasetScope"] | null; showCoverageState: boolean; snapshot?: DatasetStatus["snapshot"] }) {
-  if (!scope) {
-    return <section className="dataset-scope-card dataset-scope-unavailable" aria-label="数据范围说明"><span className="report-section-label">数据范围</span><p>这份报告没有提供数据范围说明。</p></section>;
-  }
-  const matchingSnapshot = scope.datasetId === snapshot?.datasetId ? snapshot : undefined;
-  return (
-    <section className={`dataset-scope-card dataset-scope-${scope.kind}`} aria-label="数据范围说明">
-      <div className="dataset-scope-heading"><span className="report-section-label">数据范围</span><strong>{scope.title}</strong></div>
-      <p>{scope.summary}</p>
-      {scope.datasetId && <p className="dataset-scope-observed">使用数据集版本 <code className="dataset-version" aria-label={`完整版本号 ${scope.datasetId}`} title={scope.datasetId}>{shortDatasetId(scope.datasetId)}</code>{scope.datasetBuiltAt ? ` · 构建于 ${formatDate(scope.datasetBuiltAt)}` : ""}</p>}
-      {scope.observedCoverage && <p className="dataset-scope-observed">本次读取 {scope.observedCoverage.playerRecordCount.toLocaleString()} 条球员记录 · 赛事 {scope.observedCoverage.competitions.map(datasetCompetitionLabel).join("、") || "未知"} · 赛季 {scope.observedCoverage.seasons.join("、") || "未知"}</p>}
-      {matchingSnapshot && <details><summary>查看数据集完整覆盖</summary>
-        <p>{matchingSnapshot.playerSeasonRecords.toLocaleString()} 条球员赛季记录 · {matchingSnapshot.uniquePlayers.toLocaleString()} 名不同球员 · {matchingSnapshot.teams.toLocaleString()} 支球队 · {matchingSnapshot.matches.toLocaleString()} 场比赛</p>
-        <p>赛事：{matchingSnapshot.competitions.map(datasetCompetitionLabel).join("、")} · 赛季：{matchingSnapshot.seasons.join("、")}</p>
-        <ul className="dataset-metric-coverage">{matchingSnapshot.metrics.map((metric) => <li key={metric.key}>{datasetMetricLabel(metric.key)}：{metric.availableRecords.toLocaleString()} / {metric.totalRecords.toLocaleString()} 条 · {Math.round(metric.coverageRatio * 100)}% 可用</li>)}</ul>
-      </details>}
-      {!scope.observedCoverage && showCoverageState && <p className="dataset-scope-observed">本次数据池覆盖范围未知；具体候选范围需依据已核实的赛事、赛季和球员来源确认。</p>}
-      {!scope.observedCoverage && !showCoverageState && <p className="dataset-scope-observed">开始调查后，报告会记录本次实际读取到的赛事、赛季和球员记录数。</p>}
-      <details><summary>这份数据的限制</summary><ul>{scope.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul></details>
-    </section>
-  );
-}
-
-function datasetMetricLabel(key: string): string {
-  const labels: Record<string, string> = {
-    goals: "进球",
-    assists: "助攻",
-    keyPasses: "关键传球",
-    passesAttempted: "传球尝试",
-    passesCompleted: "成功传球",
-    wyscoutAccurateProgressivePassesPct: "渐进传球成功率",
-    wyscoutClearlyWonGroundDefensiveDuelPct: "明确胜出地面防守对抗占比",
-    wyscoutGroundDefensiveDuelsPer90: "地面防守对抗 / 90 分钟",
-    wyscoutProgressivePassesPer90: "渐进传球 / 90 分钟",
-  };
-  return labels[key] ?? key;
-}
-
-function datasetCompetitionLabel(name: string): string {
-  const labels: Record<string, string> = {
-    "English first division": "英超",
-    "French first division": "法甲",
-    "German first division": "德甲",
-    "Italian first division": "意甲",
-    "Spanish first division": "西甲",
-  };
-  return labels[name] ?? name;
-}
-
-function shortDatasetId(datasetId: string): string {
-  const digest = datasetId.match(/-([a-f\d]{12})-/i)?.[1];
-  const version = datasetId.match(/-v(\d+)-/i)?.[1];
-  return version && digest ? `v${version} · ${digest}` : datasetId;
-}
-
-function CompareRecommendations({ recommendations, onClear }: { recommendations: RecruitmentReport["recommendations"]; onClear: () => void }) {
-  if (recommendations.length < 2) {
-    return <div className="compare-empty"><span>球员比较</span><p>从推荐名单中选中至少两名候选人；最多可比较三人。</p></div>;
-  }
-  const metricRows = buildEvidenceComparison(recommendations);
-  return (
-    <section className="compare-panel" aria-label="推荐球员比较">
-      <div className="compare-heading"><div><span className="section-kicker">SIDE BY SIDE</span><h3>能力证据比较</h3></div><button type="button" className="text-button" onClick={onClear}>清除选择</button></div>
-      <div className="compare-table-wrap"><table className="compare-table"><thead><tr><th>比较维度</th>{recommendations.map((item) => <th key={item.player.playerId}>{item.player.name}</th>)}</tr></thead><tbody>
-        <tr><th scope="row">出场样本</th>{recommendations.map((item) => <td key={item.player.playerId}>{item.player.minutes.toLocaleString()} 分钟</td>)}</tr>
-        <tr><th scope="row">赛事 / 赛季</th>{recommendations.map((item) => <td key={item.player.playerId}>{item.player.competition} · {item.player.season}</td>)}</tr>
-        <tr><th scope="row">数据来源</th>{recommendations.map((item) => <td key={item.player.playerId}>{item.player.source}</td>)}</tr>
-        <tr><th scope="row">样本与数据风险</th>{recommendations.map((item) => <td key={item.player.playerId}>{item.tradeoffs.join("；") || "暂无额外风险提示"}</td>)}</tr>
-        {metricRows.map((metric) => <tr key={metric.key}><th scope="row">{metric.label}</th>{recommendations.map((item, index) => {
-          const evidence = metric.values[index];
-          const comparison = evidence?.peerPercentile === null
-            ? `同组 ${evidence.peerGroupSize} 人，未显示百分位`
-            : evidence
-              ? `同组第 ${evidence.peerPercentile} 百分位 · ${evidence.peerGroupSize} 人`
-              : "无数据";
-          return <td key={item.player.playerId}>{evidence ? <>{formatMetric(evidence.value)} {evidence.unit}<small className="comparison-cell-detail">{comparison}</small></> : "无数据"}</td>;
-        })}</tr>)}
-      </tbody></table></div>
-    </section>
-  );
-}
-
-function RecommendationCard({ recommendation, rank, selected, selectionDisabled, onToggle }: {
-  recommendation: RecruitmentReport["recommendations"][number];
-  rank: number;
-  selected: boolean;
-  selectionDisabled: boolean;
-  onToggle: () => void;
-}) {
-  const { player } = recommendation;
-  return (
-    <article className="recommendation-card">
-      <div className="recommendation-card-heading"><span className="candidate-rank">{String(rank).padStart(2, "0")}</span><div className="candidate-title"><h3>{player.name}</h3><span>{player.team} <i>·</i> {player.competition} {player.season}</span></div></div>
-      <div className="candidate-meta"><span>{player.position}</span><span>{player.age === null ? "年龄未知" : `${player.age} 岁`}</span><span>{player.minutes.toLocaleString()} 分钟</span></div>
-      <p className="player-provenance">数据来源：{player.source}{player.sourceIdentity?.retrievedAt ? ` · 抓取于 ${formatDate(player.sourceIdentity.retrievedAt)}` : ""}{player.sourceUrl && <> · <a href={player.sourceUrl} target="_blank" rel="noreferrer">查看来源页</a></>}</p>
-      <label className="compare-select"><input type="checkbox" checked={selected} disabled={selectionDisabled} onChange={onToggle} /><span>加入比较</span></label>
-      <p className="recommendation-rationale">{recommendation.rationale}</p>
-      <div className="evidence-columns">
-        <div><strong className="evidence-label">重点引用的数据</strong>{recommendation.strengths.length ? <ul>{recommendation.strengths.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul> : <p>未单独标注</p>}</div>
-        <div className="risk-column"><strong className="evidence-label">取舍与待核实</strong>{recommendation.tradeoffs.length ? <ul>{recommendation.tradeoffs.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul> : <p>未单独标注</p>}</div>
-      </div>
-      {recommendation.externalSignals.map((signal) => <section className="external-player-signal" key={`${signal.provider}-${signal.providerPlayerId}`}>
-        <strong className="evidence-label">独立表现参考 · PlayerElo</strong>
-        <p><b>Elo {formatMetric(signal.elo)}</b>{signal.earLabel ? ` · ${signal.earLabel}` : ""}</p>
-        <small>{[signal.currentTeam ? `来源当前球队：${signal.currentTeam}` : null, signal.currentLeague ? `联赛：${signal.currentLeague}` : null, signal.position ? `位置：${signal.position}` : null].filter(Boolean).join(" · ") || "来源未提供球队或位置"}</small>
-        <small>{playerEloIdentityText(signal)} 更新于 {formatDate(signal.retrievedAt)}。</small>
-        <a href="https://playerelo.football/" target="_blank" rel="noreferrer">PlayerElo · 模型说明与来源</a>
-      </section>)}
-      {recommendation.historicalArchiveSamples.length > 0 && <section className="historical-archive-samples">
-        <strong className="evidence-label">历史表现样本 · Wyscout Open Data</strong>
-        <p>以下是 Reep release {recommendation.historicalArchiveSamples[0]!.identityLink.reepReleaseStamp} 按来源球员 ID 精确关联到的历史记录。该数据代表对应旧赛季，不表示当前效力或当前能力。</p>
-        <ul>{recommendation.historicalArchiveSamples.map((sample) => <li key={`${sample.providerPlayerId}:${sample.competition}:${sample.season}:${sample.team}`}>
-          <b>{sample.season} · {sample.competition}</b><span>{sample.team} · {sample.minutes.toLocaleString()} 分钟</span>
-          {sample.metrics.length > 0 && <div className="archive-metrics">{sample.metrics.map((metric) => <span key={metric.key}>{metric.label} <b>{formatMetric(metric.value)} {metric.unit}</b><small>{metric.definition}</small></span>)}</div>}
-          <small>跨源 ID {sample.identityLink.sourceProvider}:{sample.identityLink.sourcePlayerId} ↔ Wyscout:{sample.providerPlayerId} · Reep rung {sample.identityLink.sourceRung ?? "未提供"} → {sample.identityLink.archiveRung ?? "未提供"}</small>
-          <small>映射状态 {sample.identityLink.sourceUpstreamStatus ?? "未提供"} → {sample.identityLink.archiveUpstreamStatus ?? "未提供"} · release {sample.identityLink.reepReleaseStamp}</small>
-          <small>{sample.attribution}</small>
-          <small>许可：<a href={sample.licenseUrl} target="_blank" rel="noreferrer">{sample.license}</a></small>
-          <a href={sample.sourceUrl} target="_blank" rel="noreferrer">打开论文与数据集出处</a>
-        </li>)}</ul>
-      </section>}
-      {recommendation.evidence.length > 0 && <div className="evidence-table-wrap"><table className="evidence-table"><thead><tr><th>可观测指标</th><th>数值</th><th>对比组</th><th>来源样本</th></tr></thead><tbody>{recommendation.evidence.map((evidence) => <tr key={evidence.key}><th scope="row">{evidence.label}{recommendation.focusEvidenceKeys.includes(evidence.key) && <small className="focus-evidence-tag">本轮重点</small>}{evidence.definition && <small className="evidence-description">{evidence.definition}</small>}</th><td>{formatMetric(evidence.value)} {evidence.unit}</td><td>{evidence.peerPercentile === null ? `样本 ${evidence.peerGroupSize} 人，不显示百分位` : `第 ${evidence.peerPercentile} 百分位 · ${evidence.peerGroupSize} 人`}</td><td>{evidence.sampleMatches === undefined ? "—" : `${evidence.sampleMatches} 场 · ${Math.round(evidence.minutes)} 分钟`}{evidence.sampleAttempts !== undefined && <small>{evidence.sampleAttempts} 次非点球射门</small>}{evidence.sourceField && <small>{evidence.sourceField}</small>}</td></tr>)}</tbody></table></div>}
-      {recommendation.reportObservations.length > 0 && <section className="report-observations"><strong className="evidence-label">球员定性观察</strong><ul>{recommendation.reportObservations.map((observation, index) => {
-        const firstParty = observation.source.sourceId === firstPartyObservationSourceId;
-        const internalObservationUrl = firstParty && new URL(observation.source.url).hostname === "tactiscout.local";
-        return <li key={`${observation.source.sourceId}-${index}`}>
-          <p>{observation.summary}</p>
-          <small>{observation.verificationStatus === "linked_to_match_data" ? `关联比赛数据：${observation.linkedMetricKeys.join("、")}；需人工核实完整语义。` : "当前比赛数据未核实，作为单一来源的定性观点。"}</small>
-          {firstParty && <small className="observation-origin">TactiScout 自录观察 · 作者观点，未经独立核实</small>}
-          {internalObservationUrl
-            ? <small>没有提供外部参考链接；此观察只保存在本机。</small>
-            : <a href={observation.source.url} target="_blank" rel="noreferrer">{firstParty ? "打开观察者提供的参考链接" : `${observation.source.title} · ${observation.source.author} · ${observation.source.license}`}</a>}
-          <small>{observation.source.attribution}</small>
-        </li>;
-      })}</ul></section>}
-    </article>
-  );
-}
-
-function formatMetric(value: number): string {
-  return Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
-}
-
-function externalSignalCoverageText(coverage: RecruitmentReport["externalSignalCoverage"]): string {
-  if (coverage.status === "disabled") {
-    return coverage.disabledReason === "api_key_missing"
-      ? "未配置服务端 API key，当前未查询。"
-      : coverage.disabledReason === "report_display_not_allowed"
-        ? "尚未开启报告展示许可，当前未查询。"
-        : "尚未开启本机案件与报告快照保留许可，当前未查询。";
-  }
-  if (coverage.status === "not_run") return "本轮未查询；配置并获准展示后，只会在证据审查通过后核对最终推荐对象。";
-  const identityMethods = coverage.directIdentityCandidates + coverage.crosswalkIdentityCandidates > 0
-    ? `（来源 ID 直连 ${coverage.directIdentityCandidates} 人，Reep 桥接 ${coverage.crosswalkIdentityCandidates} 人）`
-    : "";
-  const summary = `${coverage.checkedCandidates} 人可安全精确关联${identityMethods}，已匹配 ${coverage.matchedCandidates} 人；另有 ${coverage.identityUnavailableCandidates} 人无法安全关联`;
-  if (coverage.status === "complete") return `${summary}；查询完整。未匹配项不会按零分处理。`;
-  if (coverage.status === "partial") return `${summary}；${coverage.failedCandidates} 人查询失败。未匹配项不会按零分处理。`;
-  return `${summary}；外部查询失败，未匹配项不会按零分处理。`;
-}
-
-function playerEloIdentityText(signal: PlayerEloSignal): string {
-  const crosswalk = signal.identityCrosswalk;
-  if (signal.identityMatch === "reep_crosswalk" && !crosswalk) {
-    return "身份映射出处不完整，无法说明该 PlayerElo 数据对应的来源球员。";
-  }
-  if (signal.identityMatch === "reep_crosswalk" && crosswalk) {
-    const rungDetails = [
-      crosswalk.sourceRungs.length ? `来源 rung：${crosswalk.sourceRungs.join("、")}` : null,
-      crosswalk.apiFootballRungs.length ? `API-Football rung：${crosswalk.apiFootballRungs.join("、")}` : null,
-    ].filter(Boolean).join("；");
-    return `经 Reep ${crosswalk.releaseStamp} 桥接：${signal.identitySourceProvider} ID ${signal.identitySourcePlayerId} → ${crosswalk.canonicalId} → API-Football / PlayerElo ID ${signal.providerPlayerId}${rungDetails ? `（${rungDetails}）` : ""}。`;
-  }
-  return `来源 ${signal.identitySourceProvider} ID ${signal.identitySourcePlayerId} 与 PlayerElo ID ${signal.providerPlayerId} 完全一致。`;
-}
-
-function historicalArchiveCoverageText(coverage: RecruitmentReport["historicalArchiveCoverage"]): string {
-  if (coverage.status === "disabled") {
-    switch (coverage.disabledReason) {
-      case "report_display_not_allowed": return "未开启 Wyscout 历史档案的报告展示许可，当前未读取。";
-      case "local_retention_not_allowed": return "未开启本机案件与报告快照保留许可，当前未读取。";
-      case "reep_index_missing": return "本机未找到 Reep 身份索引；手动导入官方 release 后才能进行精确跨源关联。";
-      case "wyscout_archive_missing": return "本机没有可读取的 Wyscout 历史档案文件。";
-      case "primary_source_is_archive": return "当前候选本身来自 Wyscout 历史档案；不重复附加同一来源记录。";
-      default: return "历史档案当前未启用。";
-    }
-  }
-  if (coverage.status === "not_run") return "本轮未查询；历史样本仅在结论通过证据审查后查询。";
-  const summary = `核对 ${coverage.checkedCandidates} 名候选，Reep 映射到 Wyscout ${coverage.mappedCandidates} 人，找到历史样本 ${coverage.matchedCandidates} 人`;
-  if (coverage.status === "complete") return `${summary}。`;
-  if (coverage.status === "partial") return `${summary}；来源 ID 未映射或本机档案未覆盖的候选会保持缺失。`;
-  return `${summary}；本机档案读取失败，未将历史值当作零。`;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "未知时间" : new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 export default App;

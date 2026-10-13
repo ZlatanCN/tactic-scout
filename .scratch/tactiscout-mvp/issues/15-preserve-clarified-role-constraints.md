@@ -29,3 +29,7 @@ The 2026-10-03 full local Qwen 3.5 9B evaluation for `bayern-kane-replacement` i
 确定性对话测试覆盖中断恢复、冲突工具动作、此前发现的异位置候选、显式改换位置、泛称保持宽泛和空结果限制。
 
 2026-10-04，本机 `qwen3.5:9b`、虚构演示数据、两个独立新案件复验：位置行为检查 `searchedExpectedPositionAfterAnswer`、`recommendationsMatchExpectedPosition`、`emptyExpectedPositionHandledHonestly` 均为 2/2 通过；补答后均实际按 `ST` 检索，无候选时均输出中锋位置的数据限制，没有跨位置推荐。端到端耗时分别为 93.963 秒和 92.572 秒，p50 92.572 秒、p95 93.963 秒。完整凯恩场景套件仍为 0/2 全项通过：两次都丢失目标球队语境，首次追问未通过角色歧义检查，空结果后的重复追问触发策略循环保护；这些非位置约束失败保留为后续工作，不能算作球员排名或球探质量评估。
+
+## Comments
+
+- 2026-10-09: When a resumed answer confirms the exact scope of the latest completed search, LangGraph now reuses that search's observed match count instead of replaying an exhausted cursor. If the confirmed scope differs, it still issues a fresh query from the first page. Checkpoint recovery and the full 330-test suite pass.

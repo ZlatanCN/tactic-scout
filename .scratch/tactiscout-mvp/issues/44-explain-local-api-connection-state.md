@@ -15,11 +15,11 @@ The web preview at `127.0.0.1:5173` is served separately from the Fastify API at
 
 ## Acceptance criteria
 
-- The header distinguishes initial connection, connected data source, and unavailable API states.
-- The empty report explains that the local scouting service is unreachable and offers a retry action.
-- Retrying updates the connection state and does not fabricate a data mode or dataset scope.
-- Existing connected and report states continue to render their real data source and range.
-- Web production build succeeds.
+- [x] The header distinguishes initial connection, connected data source, and unavailable API states.
+- [x] The empty report explains that the local scouting service is unreachable and offers a retry action.
+- [x] Retrying updates the connection state and does not fabricate a data mode or dataset scope.
+- [x] Existing connected and report states continue to render their real data source and range.
+- [x] Web production build succeeds.
 
 ## Research and evidence
 
@@ -29,10 +29,12 @@ The web preview at `127.0.0.1:5173` is served separately from the Fastify API at
 
 ## Answer
 
-已实现三态连接状态：正在连接时显示连接提示；网络请求失败时明确显示服务端未连接；服务端返回非网络错误时显示数据状态读取失败。服务连接失败时，工作台说明需要确认本地服务并提供可重试按钮，不再把空状态写成“数据源未知”。重试期间按钮禁用并显示连接状态。
+保留工作台现有三态连接状态。在数据范围请求返回 5xx 时，客户端再检查 `/health`：API 不可达或健康响应不属于 TactiScout 时，归类为“服务端未连接”；API 健康但数据范围接口仍失败时，继续归类为“状态读取失败”。健康探测只发生在数据接口返回 5xx 的错误路径，正常连接不增加请求。直接网络失败仍使用原有断连状态。
 
-`pnpm build:web` 通过。重新打开本地工作台后，当前 API 已恢复响应；浏览器界面显示 `TactiScout 自建球探数据集 · Wyscout 2017/18`，数据范围卡加载到快照版本。当前服务在线，因此没有中断用户服务来再次触发离线状态；未运行测试。
+Verification: 浏览器刷新前重现错误文案“暂时无法读取数据范围”，修复后刷新显示“无法连接球探服务 / 请确认本地球探服务已启动”；重试入口仍可用。`pnpm build:web` 与 `git diff --check` 通过。已连接状态本轮无法复验，因为沙箱禁止启动本机 API；成功路径未改动，上一轮 issue 44 浏览器验收记录了实际数据源和快照范围。
 
 ## Comments
 
+- 2026-10-13: 修复 Vite 代理将后端连接失败表现为 HTTP 5xx 的回归，并在真实工作台页完成离线状态红/绿复验。
+- 2026-10-13: Reopened after the actual Vite preview showed `暂时无法读取数据范围` while the API was stopped. The browser reaches Vite, which proxies both `/api` and `/health` to port 8000; a failed proxy request is returned as an HTTP error, so the old TypeError-only detection classifies an unreachable API as a data-status failure. Keep the accepted workbench browser surface and distinguish an unavailable API from an API that is reachable but returns a dataset error.
 - 2026-10-04：复现时网页可访问但 Fastify API 不可连接；前端 `catch` 静默清空 dataset，导致“数据源状态未知”。增加显式加载/断连/状态读取失败文案及重试入口后，Web 生产构建通过。之后实际预览观察到 API 已在线并成功显示真实数据模式与快照范围。

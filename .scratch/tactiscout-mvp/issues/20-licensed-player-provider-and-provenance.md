@@ -1,8 +1,8 @@
 # Add a licensed player-data provider with field-level provenance
 
 Type: task
-Status: claimed
-Labels: ready-for-agent
+Status: open
+Labels: needs-info
 
 ## Goal
 
@@ -32,6 +32,7 @@ See [provider landscape research](../research/football-data-provider-landscape-2
 - 2026-10-04：adapter、fixture 测试和球员卡来源显示已实现；统计覆盖需由部署者按 Sportmonks 账户/联赛显式登记，避免将套餐缺项误当零。官方统计类型以 Sportmonks `player-statistics` 文档为准；真实账户联调仍未完成。
 - 2026-10-04：重新核对 Sportmonks 当前官方价格页与服务条款，修正旧文档中的免费联赛/限额描述。当前公开页列出 Starter €29/月、5 个联赛、每实体每小时 2,000 次调用；xG/Pressure Index 另付费。14 天付费试用需有效银行卡并会自动续费，除非到期前取消。真实账户和目标联赛 entitlement 仍未联调。
 - 2026-10-04：按 [官方按赛季球队响应](https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/teams/get-teams-by-season-id) 和 [Participants 字段说明](https://docs.sportmonks.com/v3/tutorials-and-guides/tutorials/includes/participants) 收紧球队解析：仅接受 `domestic`、排除明确的 `national`，缺失或未知类型均作为无效响应停止，避免进入俱乐部候选池或把 schema 变化误报成空名单。
+- 2026-10-10：状态改为 `needs-info`：代码与脱敏 smoke 已交付，剩余验收依赖真实账号的赛季/联赛权限及 token；没有这些账户事实时不声称 live provider 已验证。
 
 ## Answer
 

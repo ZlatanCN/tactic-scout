@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { LocalKnowledgeBase } from "../src/knowledge/index.js";
+import { LocalKnowledgeBase, methodologyRetrievalPolicy } from "../src/knowledge/index.js";
 import { KnowledgePermissionError, type KnowledgeDocumentInput, type KnowledgeSource } from "../src/knowledge/schemas.js";
 import { PlosDiscoveryProvider } from "../src/knowledge/plos-discovery.js";
 
@@ -83,6 +83,120 @@ test("authorized local imports are persisted with provenance and searchable by c
     assert.equal(results[0]?.license, source.license);
     assert.equal(status.playerReportChunks, 1);
     assert.equal(status.embeddingModel, "test-embedding");
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("searching an empty corpus returns no matches without initializing the embedder", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "tactiscout-knowledge-empty-corpus-"));
+  try {
+    const registryPath = path.join(tempRoot, "sources.json");
+    await writeFile(registryPath, JSON.stringify([{ ...source, allowedCorpora: ["methodology", "player_report"] }]), "utf8");
+    const embedKinds: string[] = [];
+    const base = new LocalKnowledgeBase({
+      indexPath: path.join(tempRoot, "index"),
+      registryPath,
+      seedDocuments: [],
+      embedder: {
+        modelId: "test-embedding",
+        async embed(_text: string, kind: "query" | "passage") {
+          embedKinds.push(kind);
+          if (kind === "query") throw new Error("query embedding should be skipped when the corpus is empty");
+          return [1, 0];
+        },
+      },
+    });
+    await base.ingest({ ...document, corpus: "methodology" });
+
+    const results = await base.search({
+      corpus: "player_report",
+      query: "Jonas Vale scouting report",
+      playerNames: ["Jonas Vale"],
+      limit: 3,
+    });
+
+    assert.deepEqual(results, []);
+    assert.deepEqual(embedKinds, ["passage"]);
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("methodology retrieval abstains unless calibrated semantic and lexical evidence both pass", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "tactiscout-methodology-abstention-"));
+  try {
+    const methodologySource: KnowledgeSource = {
+      ...source,
+      id: "test-methodology-source",
+      allowedCorpora: ["methodology"],
+    };
+    const registryPath = path.join(tempRoot, "sources.json");
+    await writeFile(registryPath, JSON.stringify([methodologySource]), "utf8");
+    const base = new LocalKnowledgeBase({
+      indexPath: path.join(tempRoot, "index"),
+      registryPath,
+      seedDocuments: [],
+      embedder: {
+        modelId: methodologyRetrievalPolicy.embeddingModel,
+        async embed() { return [1, 0]; },
+      },
+    });
+    const methodologyDocument: KnowledgeDocumentInput = {
+      sourceId: methodologySource.id,
+      corpus: "methodology",
+      title: "Performance analysis methods",
+      url: "https://allowed.test/docs/methodology-1",
+      author: "A Scout",
+      publisher: methodologySource.publisher,
+      publishedAt: null,
+      license: methodologySource.license,
+      attribution: "A Scout, Test Source, 2026",
+      entityIds: [],
+      entityNames: [],
+      competition: null,
+      season: null,
+      acquisition: "manual_import",
+      content: "比赛技术和战术表现指标能帮助球员发展和反馈，但解释指标时需要结合明确的比赛语境。",
+    };
+    await base.ingest(methodologyDocument);
+
+    const supported = await base.search({
+      corpus: "methodology",
+      query: "比赛技术和战术指标怎样帮助球员发展？",
+      limit: 3,
+    });
+    const unsupported = await base.search({
+      corpus: "methodology",
+      query: "这名球员的转会身价和合同到期时间是什么？",
+      limit: 3,
+    });
+    const unsupportedSignal = await base.inspectMethodologySearch({
+      corpus: "methodology",
+      query: "这名球员的转会身价和合同到期时间是什么？",
+      limit: 3,
+    });
+
+    assert.equal(supported[0]?.sourceId, methodologySource.id);
+    assert.deepEqual(unsupported, []);
+    assert.equal(unsupportedSignal[0]?.maxCosineSimilarity, 1);
+    assert.equal(unsupportedSignal[0]?.maxQueryTermCoverageAtAcceptedCosine, 0);
+
+    const uncalibratedBase = new LocalKnowledgeBase({
+      indexPath: path.join(tempRoot, "uncalibrated-index"),
+      registryPath,
+      seedDocuments: [],
+      embedder: {
+        modelId: "uncalibrated-test-embedding",
+        async embed() { return [1, 0]; },
+      },
+    });
+    await uncalibratedBase.ingest(methodologyDocument);
+    assert.deepEqual(await uncalibratedBase.search({
+      corpus: "methodology",
+      query: "比赛技术和战术指标怎样帮助球员发展？",
+      limit: 3,
+    }), []);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

@@ -1,8 +1,8 @@
 # Issue 36: FBref 五大联赛当前表现数据源
 
 Type: task
-Status: claimed
-Labels: ready-for-agent
+Status: open
+Labels: needs-info
 Blocked by: none
 
 ## Goal
@@ -41,3 +41,4 @@ Blocked by: none
 - 2026-10-04：开始实现 provider、数据范围/来源展示和配置文档。
 - 2026-10-04：后端和前端生产构建通过，`git diff --check` 通过。一次服务端联通确认收到 FBref 标准 Big 5 页面 HTTP 403；provider 已停止请求，没有重试、伪装浏览器或绕过访问检查。代码接入完成，但 live 数据链路仍被来源拒绝阻塞，issue 保持 claimed。
 - 2026-10-04：改为先取标准页，后续统计页至少间隔 1 秒串行读取；任一页面返回 403/429 后停止其余请求并冷却 24 小时，避免用户下一轮对话重复触发请求。位置无法识别与无单一球队 ID 的多队汇总记录不会被错误归类，并在来源说明中披露。
+- 2026-10-12：官方 [Data Use](https://www.sports-reference.com/data_use.html) 与 [Terms of Use §5](https://www.sports-reference.com/termsofuse.html) 明确限制未经许可将内容用于 AI prompting/instructing 和生成结果。非商业用途不能替代来源许可；因此当前实现不应进入 Agent 模型链路。FBref HTTP 403 仍只表示该请求被拒，不证明网站永久下线；本轮没有重试。issue 等待来源方明确许可，或可行且获准的数据路线，不再处于 claimed。详见[官方复核](../research/fbref-route-revalidation-2026-10-12.md)及 [issue 163](163-block-fbref-model-processing.md)。

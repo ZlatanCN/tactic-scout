@@ -1,8 +1,8 @@
 # 面向按需调查的数据源查询契约
 
 Type: task
-Status: claimed
-Labels: ready-for-agent
+Status: open
+Labels: needs-info
 
 ## Goal
 
@@ -49,6 +49,7 @@ Labels: ready-for-agent
 - 2026-10-04：重新查看 [PlayerElo 官方 API access](https://playerelo.football/api-access) 与[接口文档](https://playerelo.football/docs)：官网当前仍列免费档 €0、500 次/月、每分钟 10 次、evaluation/hobby 用途，且所有 endpoint 需要 Bearer key；页面的 key/subscription 入口当前显示 “Temporarily unavailable”。因此它暂时不能作为无需用户凭据的 live 验证路径，也不适合替代 FBref 成为主候选源；保留现有可选 report-only adapter，等 free-key 入口恢复后再联调。
 - 2026-10-04：修订此前姓名查询阶段记录：PlayerElo enrichment 已改为精确 `getPlayer(id)`；API-Football 来源直接用来源 ID，其他来源只有经 Reep 唯一跨来源映射后才查询，并校验响应 ID。当前没有可用 key 和展示/本机留存授权，因此 live API smoke 仍未完成。参见 [跨来源身份映射 issue 43](43-playerelo-reep-identity-mapping.md)。
 - 2026-10-04：重新核对 [PlayerElo API access](https://playerelo.football/api-access)：免费档申请入口目前显示邮箱输入框和 “Get free key”，免费额度为每月 500 次、每分钟 10 次，定位为 evaluation/hobby；官网标示 79K+ 球员、176 项赛事，所有 endpoint 都要求 Bearer key。此前记录的 “Temporarily unavailable” 已过期。工作区仍没有用户提供的 key；公开作品集展示、应用持久化和本地 Ollama 处理范围仍未从条款中确认，因此现有默认关闭的 gates 不变。
+- 2026-10-10：状态改为 `needs-info`：按需查询契约和默认关闭的 PlayerElo enrichment 已实现；剩余 live smoke 依赖可用 key、报告展示权和本地持久化权确认。该外部信号不阻塞现有 Agent 主链。
 
 ## Answer
 

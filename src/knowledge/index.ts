@@ -22,6 +22,7 @@ import { starterKnowledgeDocuments } from "./seed.js";
 import { assertCanIngestDocument } from "./permissions.js";
 import { knowledgeDocumentId } from "./document-id.js";
 import { firstPartyObservationSourceId } from "./source-ids.js";
+import { throwIfAborted } from "../domain/abort.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const tableName = "knowledge_chunks";
@@ -30,6 +31,11 @@ const localEmbeddingDtype = "q8";
 const chunkSize = 900;
 const chunkOverlap = 120;
 const allowedChunkSearch = "permissionsVerified = true";
+const chineseTokenizer = new Intl.Segmenter("zh-CN", { granularity: "word" });
+const retrievalStopwords = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "can", "data", "do", "for", "football", "from", "how", "in", "is", "it", "match", "metric", "metrics", "of", "on", "or", "performance", "player", "players", "should", "soccer", "team", "the", "to", "what", "when", "where", "which", "who", "why", "with",
+  "一个", "一些", "什么", "为什么", "可以", "如何", "怎么", "怎样", "是否", "哪些", "多少", "能", "会", "对", "和", "与", "的", "了", "吗", "呢", "在", "把", "被", "是", "有", "更", "最", "每", "每场", "时候", "时", "才能", "算", "说明", "告诉", "应该", "需要", "现在", "目前", "这", "这两篇", "一名", "名", "个", "数据", "球员", "球队", "俱乐部", "比赛", "足球", "职业", "表现", "指标", "运动员", "运动", "论文", "来源", "研究", "评价", "吗",
+]);
 
 interface KnowledgeRow extends Record<string, unknown> {
   id: string;
@@ -58,7 +64,7 @@ interface KnowledgeRow extends Record<string, unknown> {
 }
 
 export interface KnowledgeRepository {
-  search(input: KnowledgeSearchRequest): Promise<KnowledgeSearchResult[]>;
+  search(input: KnowledgeSearchRequest, options?: { signal?: AbortSignal }): Promise<KnowledgeSearchResult[]>;
 }
 
 export interface KnowledgeBase extends KnowledgeRepository {
@@ -66,6 +72,28 @@ export interface KnowledgeBase extends KnowledgeRepository {
   removeDocument(documentId: string): Promise<number>;
   purgeSourceData(sourceId: string): Promise<number>;
   status(): Promise<KnowledgeStatus>;
+}
+
+export interface MethodologySourceRelevanceSignal {
+  sourceId: string;
+  maxCosineSimilarity: number;
+  maxBm25Score: number;
+  maxQueryTermCoverage: number;
+  maxQueryTermCoverageAtAcceptedCosine: number;
+}
+
+export const methodologyRetrievalPolicy = {
+  version: "methodology-rag-v2",
+  embeddingModel: "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+  minimumSourceCosineSimilarity: 0.812,
+  minimumQueryTermCoverageAtAcceptedCosine: 0.5,
+  rule: "accept a methodology source only when one indexed chunk meets the pinned-model cosine threshold and the same chunk covers at least the configured share of non-stopword query terms",
+} as const;
+
+export function acceptsMethodologySourceSignal(signal: MethodologySourceRelevanceSignal, embeddingModel: string): boolean {
+  return embeddingModel === methodologyRetrievalPolicy.embeddingModel
+    && signal.maxCosineSimilarity >= methodologyRetrievalPolicy.minimumSourceCosineSimilarity
+    && signal.maxQueryTermCoverageAtAcceptedCosine >= methodologyRetrievalPolicy.minimumQueryTermCoverageAtAcceptedCosine;
 }
 
 interface TextEmbedder {
@@ -191,7 +219,17 @@ function observationReferenceUrl(row: KnowledgeRow): string | undefined {
 }
 
 function tokenize(value: string): string[] {
-  return value.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  return [...chineseTokenizer.segment(value.toLocaleLowerCase())]
+    .filter((part) => part.isWordLike)
+    .map((part) => part.segment)
+    .filter((term) => term.length > 1 && !retrievalStopwords.has(term));
+}
+
+function queryTermCoverage(row: KnowledgeRow, queryTerms: string[]): number {
+  if (!queryTerms.length) return 0;
+  const documentTerms = new Set(tokenize(`${row.title} ${row.text}`));
+  const matchedTerms = queryTerms.filter((term) => documentTerms.has(term)).length;
+  return matchedTerms / queryTerms.length;
 }
 
 function normalizeEntityName(value: string): string {
@@ -359,25 +397,51 @@ export class LocalKnowledgeBase implements KnowledgeBase {
     return { documentId, chunkCount: rows.length };
   }
 
-  async search(unparsedRequest: KnowledgeSearchRequest): Promise<KnowledgeSearchResult[]> {
+  async search(unparsedRequest: KnowledgeSearchRequest, options: { signal?: AbortSignal } = {}): Promise<KnowledgeSearchResult[]> {
+    const { signal } = options;
+    throwIfAborted(signal);
     const request = KnowledgeSearchRequestSchema.parse(unparsedRequest);
+    const { results, methodologySignals } = await this.searchWithSignals(request, signal);
+    throwIfAborted(signal);
+    const acceptedSourceIds = request.corpus === "methodology"
+      ? new Set(methodologySignals.filter((signal) => this.acceptsMethodologySignal(signal)).map(({ sourceId }) => sourceId))
+      : undefined;
+    return results
+      .filter((result) => !acceptedSourceIds || acceptedSourceIds.has(result.sourceId))
+      .slice(0, request.limit);
+  }
+
+  async inspectMethodologySearch(unparsedRequest: KnowledgeSearchRequest): Promise<MethodologySourceRelevanceSignal[]> {
+    const request = KnowledgeSearchRequestSchema.parse(unparsedRequest);
+    if (request.corpus !== "methodology") throw new Error("方法 RAG 检索诊断只支持 methodology 语料。");
+    const { methodologySignals } = await this.searchWithSignals(request);
+    return methodologySignals;
+  }
+
+  private async searchWithSignals(request: KnowledgeSearchRequest, signal?: AbortSignal): Promise<{
+    results: KnowledgeSearchResult[];
+    methodologySignals: MethodologySourceRelevanceSignal[];
+  }> {
+    throwIfAborted(signal);
     await this.ensureSeedDocuments();
+    throwIfAborted(signal);
     const table = await this.openTable();
-    if (!table) return [];
+    throwIfAborted(signal);
+    if (!table) return { results: [], methodologySignals: [] };
     await this.assertIndexModelCompatible();
+    throwIfAborted(signal);
     const sourcesById = new Map((await this.sources()).map((source) => [source.id, source]));
+    throwIfAborted(signal);
     const eligibleSourceIds = [...sourcesById.values()]
       .filter((source) => source.allowedCorpora.includes(request.corpus)
         && source.rights.persistentStorage
         && source.rights.aiProcessing)
       .map((source) => source.id);
-    if (!eligibleSourceIds.length) return [];
+    if (!eligibleSourceIds.length) return { results: [], methodologySignals: [] };
     const filter = searchFilter(request.corpus, eligibleSourceIds);
-    const [corpusRows, queryVector] = await Promise.all([
-      table.query().where(filter).toArray() as Promise<KnowledgeRow[]>,
-      this.embedder.embed(request.query, "query"),
-    ]);
-    if (!corpusRows.length) return [];
+    const corpusRows = await table.query().where(filter).toArray() as KnowledgeRow[];
+    throwIfAborted(signal);
+    if (!corpusRows.length) return { results: [], methodologySignals: [] };
 
     const requestedPlayerNames = request.playerNames.map(normalizeEntityName).filter(Boolean);
     const allRows = request.corpus === "player_report"
@@ -386,15 +450,21 @@ export class LocalKnowledgeBase implements KnowledgeBase {
         return requestedPlayerNames.some((name) => indexedNames.includes(name));
       })
       : corpusRows;
-    if (!allRows.length) return [];
+    if (!allRows.length) return { results: [], methodologySignals: [] };
 
-    const lexicalRanks = rankedIds(bm25Scores(allRows, request.query));
+    const queryVector = await this.embedder.embed(request.query, "query");
+    throwIfAborted(signal);
+    const lexicalScores = bm25Scores(allRows, request.query);
+    const lexicalRanks = rankedIds(lexicalScores);
+    const cosineScores = new Map(allRows.map((row) => [row.id, cosineSimilarity(queryVector, numberList(row.vector))]));
+    const queryTerms = [...new Set(tokenize(request.query))];
+    const lexicalCoverageById = new Map(allRows.map((row) => [row.id, queryTermCoverage(row, queryTerms)]));
     const vectorRanks = request.corpus === "player_report"
-      ? allRows
-        .map((row) => ({ id: row.id, score: cosineSimilarity(queryVector, numberList(row.vector)) }))
-        .sort((left, right) => right.score - left.score)
-        .map(({ id }) => id)
+      ? allRows.map((row) => ({ id: row.id, score: cosineScores.get(row.id) ?? Number.NEGATIVE_INFINITY }))
+          .sort((left, right) => right.score - left.score)
+          .map(({ id }) => id)
       : (await table.query().nearestTo(queryVector).where(filter).limit(Math.max(request.limit * 4, 20)).toArray() as KnowledgeRow[]).map((row) => row.id);
+    throwIfAborted(signal);
     const fused = reciprocalRankFusion([lexicalRanks, vectorRanks]);
     for (const row of allRows) {
       const indexedNames = stringList(row.entityNames).map(normalizeEntityName);
@@ -402,9 +472,29 @@ export class LocalKnowledgeBase implements KnowledgeBase {
       if (explicitEntityMatch) fused.set(row.id, (fused.get(row.id) ?? 0) + 0.02);
     }
     const byId = new Map(allRows.map((row) => [row.id, row]));
-    return [...fused.entries()]
+    const methodologySignalsBySource = new Map<string, MethodologySourceRelevanceSignal>();
+    if (request.corpus === "methodology") {
+      for (const row of allRows) {
+        const previous = methodologySignalsBySource.get(row.sourceId) ?? {
+          sourceId: row.sourceId,
+          maxCosineSimilarity: Number.NEGATIVE_INFINITY,
+          maxBm25Score: 0,
+          maxQueryTermCoverage: 0,
+          maxQueryTermCoverageAtAcceptedCosine: 0,
+        };
+        const cosineSimilarity = cosineScores.get(row.id) ?? Number.NEGATIVE_INFINITY;
+        const lexicalCoverage = lexicalCoverageById.get(row.id) ?? 0;
+        previous.maxCosineSimilarity = Math.max(previous.maxCosineSimilarity, cosineSimilarity);
+        previous.maxBm25Score = Math.max(previous.maxBm25Score, lexicalScores.get(row.id) ?? 0);
+        previous.maxQueryTermCoverage = Math.max(previous.maxQueryTermCoverage, lexicalCoverage);
+        if (cosineSimilarity >= methodologyRetrievalPolicy.minimumSourceCosineSimilarity) {
+          previous.maxQueryTermCoverageAtAcceptedCosine = Math.max(previous.maxQueryTermCoverageAtAcceptedCosine, lexicalCoverage);
+        }
+        methodologySignalsBySource.set(row.sourceId, previous);
+      }
+    }
+    const results = [...fused.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, request.limit)
       .flatMap(([id]) => {
         const row = byId.get(id);
         const source = row ? sourcesById.get(row.sourceId) : undefined;
@@ -430,6 +520,14 @@ export class LocalKnowledgeBase implements KnowledgeBase {
           displayAllowed: source.rights.display,
         })];
       });
+    return {
+      results,
+      methodologySignals: [...methodologySignalsBySource.values()].sort((left, right) => right.maxCosineSimilarity - left.maxCosineSimilarity),
+    };
+  }
+
+  private acceptsMethodologySignal(signal: MethodologySourceRelevanceSignal): boolean {
+    return acceptsMethodologySourceSignal(signal, this.embedder.modelId);
   }
 
   async status(): Promise<KnowledgeStatus> {

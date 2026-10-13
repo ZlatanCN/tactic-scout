@@ -192,14 +192,14 @@ test("SkillCorner performance evidence reaches the report without inventing unav
     const repository = makeRepository(aggregatesDirectory);
     const playerId = "skillcorner:1001:2001:61:95:Full Back";
     const actions: RecruitmentAction[] = [
-      { action: "search_methodology", query: "边后卫表现指标" },
+      { action: "search_methodology", query: "后卫表现指标" },
       { action: "search_candidates", position: "DEF", minimumMinutes: 0, limit: 10 },
       { action: "evaluate_candidates", playerIds: [playerId] },
-      { action: "search_player_reports", query: "边后卫报告", playerNames: ["Mara, Test"] },
+      { action: "search_player_reports", query: "后卫报告", playerNames: ["Mara, Test"] },
       {
         action: "finish",
         targetTeam: "Sample Club",
-        needSummary: "评估边后卫的可观察比赛表现。",
+        needSummary: "评估后卫的可观察比赛表现。",
         capabilityProfile: ["推进和无球跑动"],
         recommendations: [{ playerId, evidenceKeys: ["highIntensityDistancePer90"] }],
         limitationKeys: [],
@@ -225,7 +225,7 @@ test("SkillCorner performance evidence reaches the report without inventing unav
       knowledgeBase: { async search() { return []; } },
     });
 
-    const response = await conversation.turn({ threadId: "skillcorner-evidence-path", message: "为 Sample Club 找一名边后卫" });
+    const response = await conversation.turn({ threadId: "skillcorner-evidence-path", message: "为 Sample Club 找一名后卫" });
 
     assert.equal(response.status, "completed");
     assert.deepEqual(response.report?.recommendations[0]?.focusEvidenceKeys, ["highIntensityDistancePer90"]);

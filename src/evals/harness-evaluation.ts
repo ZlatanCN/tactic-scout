@@ -1,6 +1,36 @@
 import type { RecruitmentTraceEvent } from "../agent/conversation.js";
-import type { ToolActionName } from "../agent/recruitment-actions.js";
-import type { ConversationTurnResponse, Position } from "../domain/schemas.js";
+import { toolBudgets, type ToolActionName } from "../agent/recruitment-actions.js";
+import type {
+  CapabilityMetricKey,
+  ConversationTurnResponse,
+  Position,
+  RecruitmentProgressEventStatus,
+  RecruitmentProgressStage,
+} from "../domain/schemas.js";
+import { positionMatches } from "../domain/positions.js";
+import { minimumMinutesForPercentileComparison } from "../domain/evidence-comparison.js";
+
+export type EvaluationProgressEvent = {
+  sequence: number;
+  turn: number;
+  stage: RecruitmentProgressStage;
+  status: RecruitmentProgressEventStatus;
+  message: string;
+  completedSteps: number;
+};
+
+type RequestedCapabilityExpectation = {
+  name: string;
+  metricKeys: readonly CapabilityMetricKey[];
+  limitationTerms: readonly string[];
+};
+
+type ExpectedCapabilityCoverage = {
+  name: string;
+  requestedMetricKeys: readonly CapabilityMetricKey[];
+};
+
+export type ClarificationIntent = "role_preference" | "position_expansion";
 
 export type EvaluationScenario = {
   id: string;
@@ -10,14 +40,22 @@ export type EvaluationScenario = {
   targetTeamAliases: readonly string[];
   requiredTools: readonly ToolActionName[];
   requireBroadPositionSearch: boolean;
-  expectedMaxAge: number;
+  expectedBroadPosition?: Position;
+  expectedMaxAge: number | null;
+    requestedCapabilities?: readonly RequestedCapabilityExpectation[];
+    expectedCapabilityCoverage?: readonly ExpectedCapabilityCoverage[];
 } | {
   id: string;
   message: string;
   answers: string[];
   kind: "clarification-resume";
   targetTeamAliases: readonly string[];
+  answerIntents: readonly ClarificationIntent[];
   expectedPosition: Position;
+  expectedBroadenedPosition?: Position;
+  requestedCapabilities?: readonly RequestedCapabilityExpectation[];
+  expectedCapabilityCoverage?: readonly ExpectedCapabilityCoverage[];
+  requireRecommendationsWhenEvidenceObserved?: boolean;
 } | {
   id: "custom";
   message: string;
@@ -25,6 +63,7 @@ export type EvaluationScenario = {
   kind: "custom";
   requireClarificationResume: boolean;
   expectedPosition?: Position;
+  requireRecommendationsWhenEvidenceObserved?: boolean;
 };
 
 export const localAgentEvaluationScenarios: readonly EvaluationScenario[] = [
@@ -36,17 +75,117 @@ export const localAgentEvaluationScenarios: readonly EvaluationScenario[] = [
     targetTeamAliases: ["巴萨", "Barcelona", "FC Barcelona"],
     requiredTools: ["search_methodology", "search_candidates"],
     requireBroadPositionSearch: true,
+    expectedBroadPosition: "MID",
     expectedMaxAge: 23,
+    requestedCapabilities: [
+      {
+        name: "推进",
+        metricKeys: ["wyscoutProgressivePassesPer90", "wyscoutAccurateProgressivePassesPct", "lineBreakPassesCompletedPer30Tip"],
+        limitationTerms: ["推进", "渐进传球"],
+      },
+      {
+        name: "压迫",
+        metricKeys: ["pressures"],
+        limitationTerms: ["施压", "压迫"],
+      },
+    ],
+    expectedCapabilityCoverage: [
+      {
+        name: "推进",
+        requestedMetricKeys: [
+          "wyscoutProgressivePassesPer90",
+          "wyscoutAccurateProgressivePassesPct",
+          "lineBreakPassesCompletedPer30Tip",
+        ],
+      },
+      { name: "压迫", requestedMetricKeys: ["pressures"] },
+    ],
   },
   {
     id: "bayern-kane-replacement",
-    message: "为拜仁寻找凯恩的替代者。",
-    answers: ["按中锋职责，优先未来接班。"],
+    message: "为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋。",
+    answers: [
+      "延续凯恩的中锋角色，暂不增加年龄或预算限制。",
+      "可以扩大到其他前锋位置继续找，重点仍是能接应、做球和终结。",
+    ],
     kind: "clarification-resume",
     targetTeamAliases: ["拜仁", "Bayern", "FC Bayern"],
+    answerIntents: ["role_preference", "position_expansion"],
     expectedPosition: "ST",
+    expectedBroadenedPosition: "ATT",
+    requestedCapabilities: [
+      {
+        name: "创造机会",
+        metricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"],
+        limitationTerms: ["创造机会", "做球"],
+      },
+      { name: "进球产出", metricKeys: ["goals", "premierLeagueGoalsPer90"], limitationTerms: ["进球产出", "终结"] },
+      { name: "射门终结", metricKeys: [], limitationTerms: ["射门终结", "射术", "终结能力"] },
+      { name: "进攻接应", metricKeys: [], limitationTerms: ["进攻接应", "接应"] },
+    ],
+    expectedCapabilityCoverage: [
+      { name: "进球产出", requestedMetricKeys: ["goals", "premierLeagueGoalsPer90"] },
+      { name: "创造机会", requestedMetricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"] },
+      { name: "射门终结", requestedMetricKeys: [] },
+      { name: "进攻接应", requestedMetricKeys: [] },
+    ],
+    requireRecommendationsWhenEvidenceObserved: true,
+  },
+  {
+    id: "barcelona-attacking-one-on-one-forward",
+    message: "为巴萨找一位 23 岁以下的前锋，重点考察进攻一对一对抗。",
+    answers: [],
+    kind: "shortlist",
+    targetTeamAliases: ["巴萨", "Barcelona", "FC Barcelona"],
+    requiredTools: ["search_methodology", "search_candidates"],
+    requireBroadPositionSearch: true,
+    expectedBroadPosition: "ATT",
+    expectedMaxAge: 23,
+    requestedCapabilities: [{
+      name: "进攻一对一对抗",
+      metricKeys: ["wyscoutGroundAttackingDuelsPer90", "wyscoutExplicitlyWonGroundAttackingDuelSharePct"],
+      limitationTerms: ["进攻一对一对抗", "地面进攻对抗"],
+    }],
+    expectedCapabilityCoverage: [{
+      name: "进攻一对一对抗",
+      requestedMetricKeys: ["wyscoutGroundAttackingDuelsPer90", "wyscoutExplicitlyWonGroundAttackingDuelSharePct"],
+    }],
   },
 ];
+
+export const understatLocalAgentEvaluationScenario: EvaluationScenario = {
+  id: "understat-five-league-xg-creation",
+  message: "为拜仁找一名前锋，重点比较创造机会和射门机会质量，尤其是 xA、关键传球与非点球 xG。",
+  answers: [],
+  kind: "shortlist",
+  targetTeamAliases: ["拜仁", "Bayern", "FC Bayern"],
+  requiredTools: ["search_methodology", "search_candidates"],
+  requireBroadPositionSearch: true,
+  expectedBroadPosition: "ATT",
+  expectedMaxAge: null,
+  requestedCapabilities: [
+    {
+      name: "创造机会",
+      metricKeys: ["understatExpectedAssistsPer90", "understatKeyPassesPer90"],
+      limitationTerms: ["创造机会", "机会创造"],
+    },
+    {
+      name: "射门机会质量",
+      metricKeys: ["understatExpectedGoalsPer90", "understatNonPenaltyExpectedGoalsPer90", "understatExpectedGoalsPerShot", "asaExpectedGoalsPer90", "asaExpectedGoalsPerShot"],
+      limitationTerms: ["机会质量"],
+    },
+  ],
+  expectedCapabilityCoverage: [
+    {
+      name: "创造机会",
+      requestedMetricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"],
+    },
+    {
+      name: "射门机会质量",
+      requestedMetricKeys: ["statsbombNonPenaltyXgPer90", "statsbombNonPenaltyXgPerShot", "understatExpectedGoalsPer90", "understatNonPenaltyExpectedGoalsPer90", "understatExpectedGoalsPerShot", "asaExpectedGoalsPer90", "asaExpectedGoalsPerShot"],
+    },
+  ],
+};
 
 export interface ScenarioEvaluationInput {
   scenario: EvaluationScenario;
@@ -55,6 +194,7 @@ export interface ScenarioEvaluationInput {
   response: ConversationTurnResponse;
   firstTurnEvents: RecruitmentTraceEvent[];
   continuedEvents: RecruitmentTraceEvent[];
+  progressEvents?: EvaluationProgressEvent[];
   answersUsed: number;
   threadId: string;
 }
@@ -86,6 +226,163 @@ function recommendationsUseTheirEvidence(response: ConversationTurnResponse): bo
     recommendation.focusEvidenceKeys.length > 0
     && recommendation.focusEvidenceKeys.every((key) => recommendation.evidence.some((evidence) => evidence.key === key))
   ));
+}
+
+function percentilesRespectMetricSamples(response: ConversationTurnResponse): boolean {
+  if (!response.report) return true;
+  return response.report.recommendations.every((recommendation) => recommendation.evidence.every((evidence) => {
+    if (evidence.minutes === null) {
+      return evidence.peerPercentile === null
+        && evidence.peerPercentileUnavailableReason === "candidate_sample_unknown";
+    }
+    if (evidence.minutes < minimumMinutesForPercentileComparison) {
+      return evidence.peerPercentile === null
+        && evidence.peerPercentileUnavailableReason === "candidate_low_sample";
+    }
+    if (evidence.peerPercentile === null) {
+      return evidence.peerPercentileUnavailableReason === "insufficient_peer_group";
+    }
+    return evidence.peerPercentileUnavailableReason === undefined;
+  }));
+}
+
+function requestedCapabilitiesGrounded(
+  response: ConversationTurnResponse,
+  requestedCapabilities: readonly RequestedCapabilityExpectation[],
+): boolean {
+  const report = response.report;
+  if (!report) return false;
+  const limitations = report.limitations.join(" ");
+
+  if (report.recommendations.length === 0) return true;
+  return requestedCapabilities.every(({ metricKeys, limitationTerms }) => report.recommendations.every((recommendation) => {
+    const candidateEvidenceKeys = recommendation.evidence.map(({ key }) => key);
+    const availableKeys = metricKeys.filter((key) => candidateEvidenceKeys.includes(key));
+    if (availableKeys.length === 0) return limitationTerms.some((term) => limitations.includes(term));
+    return recommendation.focusEvidenceKeys.some((key) => availableKeys.includes(key));
+  }));
+}
+
+function requestedCapabilityGapsAreReported(
+  response: ConversationTurnResponse,
+  requestedCapabilities: readonly RequestedCapabilityExpectation[],
+): boolean {
+  const report = response.report;
+  if (!report) return false;
+  const limitations = report.limitations.join(" ");
+  return requestedCapabilities.every((requested) => {
+    const coverage = report.requestedCapabilityCoverage.find(({ name }) => name === requested.name);
+    if (!coverage) return false;
+    const hasObservedMetric = requested.metricKeys.some((key) => coverage.observedMetricKeys.includes(key));
+    return hasObservedMetric || requested.limitationTerms.some((term) => limitations.includes(term));
+  });
+}
+
+function returnsLeadWhenRelevantEvidenceObserved(response: ConversationTurnResponse): boolean {
+  const report = response.report;
+  if (!report) return false;
+  const evidenceSupportsRequestedCapability = report.requestedCapabilityCoverage.some((coverage) => (
+    coverage.observedMetricKeys.length > 0 && coverage.candidatesWithEvidenceCount > 0
+  ));
+  return !evidenceSupportsRequestedCapability || report.recommendations.length > 0;
+}
+
+function requestedCapabilityCoverageIsConsistent(response: ConversationTurnResponse): boolean {
+  const report = response.report;
+  if (!report) return true;
+  const evaluatedCandidateCount = report.evidenceCoverage.evaluatedCandidateCount;
+  const seenNames = new Set<string>();
+
+  return report.requestedCapabilityCoverage.every((coverage) => {
+    if (seenNames.has(coverage.name)) return false;
+    seenNames.add(coverage.name);
+
+    if (coverage.evaluatedCandidateCount !== evaluatedCandidateCount
+      || coverage.candidatesWithEvidenceCount > evaluatedCandidateCount
+      || new Set(coverage.requestedMetricKeys).size !== coverage.requestedMetricKeys.length
+      || new Set(coverage.observedMetricKeys).size !== coverage.observedMetricKeys.length
+      || coverage.observedMetricKeys.some((key) => !coverage.requestedMetricKeys.includes(key))) return false;
+
+    const expectedStatus = coverage.candidatesWithEvidenceCount === 0
+      ? "missing"
+      : coverage.candidatesWithEvidenceCount < evaluatedCandidateCount ? "partial" : "observed";
+    return coverage.status === expectedStatus
+      && (coverage.candidatesWithEvidenceCount === 0) === (coverage.observedMetricKeys.length === 0);
+  });
+}
+
+function historicalArchiveEvidenceIsConsistent(
+  response: ConversationTurnResponse,
+  evaluatedPlayerIds: ReadonlySet<string>,
+): boolean {
+  const report = response.report;
+  if (!report) return true;
+
+  const coverage = report.historicalArchiveCoverage;
+  const candidates = [
+    ...report.historicalArchiveCandidates,
+    ...report.recommendations.flatMap(({ player, historicalArchiveSamples }) => (
+      historicalArchiveSamples?.length ? [{ player, samples: historicalArchiveSamples }] : []
+    )),
+  ];
+  const countsAreValid = coverage.mappedCandidates <= coverage.checkedCandidates
+    && coverage.matchedCandidates <= coverage.mappedCandidates
+    && coverage.failedCandidates <= coverage.checkedCandidates
+    && coverage.checkedCandidates <= report.evidenceCoverage.evaluatedCandidateCount
+    && candidates.length === coverage.matchedCandidates;
+  if (!countsAreValid) return false;
+
+  if (coverage.status === "disabled" || coverage.status === "not_run") {
+    return coverage.checkedCandidates === 0
+      && coverage.mappedCandidates === 0
+      && coverage.matchedCandidates === 0
+      && coverage.failedCandidates === 0
+      && candidates.length === 0;
+  }
+  if (coverage.status === "complete"
+    && (coverage.mappedCandidates !== coverage.checkedCandidates
+      || coverage.matchedCandidates !== coverage.mappedCandidates
+      || coverage.failedCandidates !== 0)) return false;
+
+  const seenPlayerIds = new Set<string>();
+  return candidates.every(({ player, samples }) => {
+    const identity = player.sourceIdentity;
+    if (!identity || !evaluatedPlayerIds.has(player.playerId)
+      || seenPlayerIds.has(player.playerId) || samples.length === 0) return false;
+    seenPlayerIds.add(player.playerId);
+
+    return samples.every(({ identityLink }) => {
+      if (identityLink.sourceProvider !== identity.provider || identityLink.sourcePlayerId !== identity.playerId) {
+        return false;
+      }
+      const bridge = identityLink.sourceBridge;
+      if (!bridge) return false;
+      const matchesPrimaryIdentity = bridge.provider === identity.provider
+        && bridge.externalId === identity.playerId;
+      const matchesProviderIdentifier = (identity.providerIdentifiers ?? []).some((identifier) => (
+        identifier.provider === bridge.provider
+        && identifier.namespace === bridge.namespace
+        && identifier.externalId === bridge.externalId
+        && (bridge.sourceField === null || identifier.sourceField === bridge.sourceField)
+      ));
+      return matchesPrimaryIdentity || matchesProviderIdentifier;
+    });
+  });
+}
+
+function requestedCapabilityCoverageMatchesScenario(
+  response: ConversationTurnResponse,
+  expectedCoverage: readonly ExpectedCapabilityCoverage[],
+): boolean {
+  if (!response.report) return false;
+  const actualCoverage = response.report.requestedCapabilityCoverage;
+  if (actualCoverage.length !== expectedCoverage.length) return false;
+
+  return expectedCoverage.every((expected) => {
+    const actual = actualCoverage.find(({ name }) => name === expected.name);
+    return Boolean(actual && actual.requestedMetricKeys.length === expected.requestedMetricKeys.length
+      && expected.requestedMetricKeys.every((key) => actual.requestedMetricKeys.includes(key)));
+  });
 }
 
 function stringArrayFilter(event: Extract<RecruitmentTraceEvent, { phase: "tool" }>, key: string): string[] {
@@ -144,6 +441,8 @@ export function privacySafeTraceEvent(event: RecruitmentTraceEvent): Record<stri
     const { targetTeam, ...safeEvent } = event;
     return { ...safeEvent, ...(targetTeam !== undefined ? { targetTeamProvided: Boolean(targetTeam) } : {}) };
   }
+  if (event.phase === "review") return event;
+  if (event.phase === "model_usage") return { ...event };
 
   const filters = { ...event.filters };
   for (const key of redactedKeys) {
@@ -193,7 +492,29 @@ function targetTeamContextPreserved(
 }
 
 function reportAvoidsLoopLimit(response: ConversationTurnResponse): boolean {
-  return !response.report || !response.report.limitations.some((item) => /安全步数上限|连续重复.*动作/.test(item));
+  return !response.report || !response.report.limitations.some((item) => (
+    /安全步数上限|连续重复.*动作|连续两次重复提出.*相同动作/.test(item)
+  ));
+}
+
+function didNotRepeatPolicyBlockedAction(events: RecruitmentTraceEvent[]): boolean {
+  let previousBlockedAction: string | null = null;
+  for (const event of events) {
+    if (!isDecisionEvent(event)) continue;
+    if (event.policyBlocked !== true || !event.action) {
+      previousBlockedAction = null;
+      continue;
+    }
+    if (event.action === previousBlockedAction) return false;
+    previousBlockedAction = event.action;
+  }
+  return true;
+}
+
+function noBlockedFollowUpQuestions(events: RecruitmentTraceEvent[]): boolean {
+  return !events.some((event) => isDecisionEvent(event)
+    && event.action === "ask_user"
+    && event.policyBlocked === true);
 }
 
 function investigatedBeforeQuestion(events: RecruitmentTraceEvent[]): boolean {
@@ -201,12 +522,24 @@ function investigatedBeforeQuestion(events: RecruitmentTraceEvent[]): boolean {
   return questionIndex > 0 && events.slice(0, questionIndex).some((event) => isToolEvent(event) && event.ok);
 }
 
-function questionAddressesRoleAmbiguity(response: ConversationTurnResponse): boolean {
+export function questionAddressesRoleAmbiguity(response: ConversationTurnResponse): boolean {
   const question = response.message;
   const asksAnotherDimension = /联赛|赛事|国籍|预算|年龄|身价|合同|薪资|市场/u.test(question);
   const addressesRole = /凯恩|替代者|接班人|替补|职责|角色|中锋|前锋|主力|首发|即战力|培养/u.test(question);
   const asksForAChoice = /还是|更偏向|优先|立即|即插即用|短期|长期|未来|潜力|培养|接班|主力|首发|哪种|什么样|什么类型/u.test(question);
   return !asksAnotherDimension && addressesRole && asksForAChoice;
+}
+
+export function questionMatchesClarificationIntent(
+  intent: ClarificationIntent,
+  response: ConversationTurnResponse,
+): boolean {
+  if (intent === "role_preference") return questionAddressesRoleAmbiguity(response);
+  const question = response.message;
+  const mentionsPosition = /位置|中锋|前锋|边锋|中场|后卫|ST|ATT/u.test(question);
+  const asksToBroaden = /扩大|扩展|放宽|其他.{0,8}(?:位置|前锋|范围)|范围.{0,8}(?:扩大|扩展|放宽)|是否接受.{0,12}(?:其他|更宽)/u.test(question);
+  const asksAnotherDimension = /年龄|预算|身价|国籍|合同|薪资|联赛|赛事|赛季/u.test(question);
+  return mentionsPosition && asksToBroaden && !asksAnotherDimension;
 }
 
 function clarificationResumeChecks(
@@ -231,6 +564,53 @@ function clarificationResumeChecks(
   };
 }
 
+/**
+ * Evaluate the no-answer arm of the interaction ablation. The graph still gets
+ * to decide whether to ask; this arm stops at the first real interrupt and
+ * deliberately does not inject the scenario's hidden answer script.
+ */
+export function evaluateWithheldAnswerArm(input: ScenarioEvaluationInput): ScenarioEvaluation {
+  const { scenario, firstTurnResponse, response, firstTurnEvents, continuedEvents, progressEvents, answersUsed } = input;
+  if (scenario.kind !== "clarification-resume") {
+    throw new Error("The withheld-answer evaluator requires a registered clarification scenario.");
+  }
+
+  const acceptedQuestions = firstTurnEvents.filter((event) => (
+    isDecisionEvent(event) && event.action === "ask_user" && event.policyBlocked !== true
+  ));
+  const firstQuestionIndex = firstTurnEvents.findIndex((event) => (
+    isDecisionEvent(event) && event.action === "ask_user" && event.policyBlocked !== true
+  ));
+  const noToolWorkAfterQuestion = firstQuestionIndex >= 0
+    && !firstTurnEvents.slice(firstQuestionIndex + 1).some(isToolEvent);
+  let emptyExpectedPositionObserved = false;
+  const noUnapprovedExpansion = firstTurnEvents.every((event) => {
+    if (!scenario.expectedBroadenedPosition || !isToolEvent(event) || !event.ok || event.toolName !== "search_candidates") {
+      return true;
+    }
+    if (event.filters.position === scenario.expectedPosition && event.matchingRecordCount === 0) {
+      emptyExpectedPositionObserved = true;
+    }
+    return event.filters.position !== scenario.expectedBroadenedPosition || !emptyExpectedPositionObserved;
+  });
+  const pausedProgressMatchesRuntime = Boolean(progressEvents?.some((event) => (
+    event.turn === 1 && event.stage === "asking_user" && event.status === "waiting_for_user"
+  ))) && progressRepresentsObservedWork(input);
+  const checks = {
+    pausedAtFirstClarification: firstTurnResponse.status === "needs_input"
+      && response.status === "needs_input"
+      && response.report === null,
+    askedExactlyOnce: acceptedQuestions.length === 1,
+    questionFollowedObservedInvestigation: investigatedBeforeQuestion(firstTurnEvents),
+    questionAddressesRoleAmbiguity: questionAddressesRoleAmbiguity(firstTurnResponse),
+    noAnswerWasInjected: answersUsed === 0,
+    noPostInterruptActions: continuedEvents.length === 0 && noToolWorkAfterQuestion,
+    noUnapprovedPositionExpansion: noUnapprovedExpansion,
+    progressMatchesPausedGraph: pausedProgressMatchesRuntime,
+  };
+  return { checks, allPassed: Object.values(checks).every(Boolean) };
+}
+
 function evidenceEvaluationsFollowCandidateDiscovery(events: RecruitmentTraceEvent[]): boolean {
   const discoveredIds = new Set<string>();
   let candidateSearchSucceeded = false;
@@ -248,6 +628,91 @@ function evidenceEvaluationsFollowCandidateDiscovery(events: RecruitmentTraceEve
     }
   }
   return true;
+}
+
+function candidateSearchOutcomeIsExplicit(
+  response: ConversationTurnResponse,
+  candidateSearches: CandidateSearchEvent[],
+): boolean {
+  const successful = candidateSearches.some((event) => event.ok);
+  if (successful) return true;
+  if (response.status === "needs_input") return candidateSearches.length > 0;
+  const report = response.report;
+  if (!report || candidateSearches.length === 0 || report.recommendations.length > 0) return false;
+  return /查询.*失败|无法确认/.test(report.needSummary)
+    && report.limitations.some((limitation) => /候选查询.*失败/.test(limitation)
+      && /不能解释为零匹配|不代表没有符合条件的球员/.test(limitation));
+}
+
+const progressStageByTool: Record<ToolActionName, RecruitmentProgressStage> = {
+  search_methodology: "methodology",
+  inspect_team: "team_sample",
+  search_candidates: "candidate_search",
+  evaluate_candidates: "player_evaluation",
+  search_player_reports: "report_search",
+};
+
+function progressTurnForTool(input: ScenarioEvaluationInput, target: CandidateSearchEvent): number | null {
+  const toolIndex = input.events.filter(isToolEvent).indexOf(target);
+  if (toolIndex < 0 || !input.progressEvents) return null;
+  const toolStages = new Set(Object.values(progressStageByTool));
+  const starts = input.progressEvents.filter((event) => toolStages.has(event.stage) && event.status === "started");
+  return starts[toolIndex]?.turn ?? null;
+}
+
+function toolProgressMatchesTrace(
+  toolEvents: Extract<RecruitmentTraceEvent, { phase: "tool" }>[],
+  progressEvents: EvaluationProgressEvent[],
+): boolean {
+  if (progressEvents.length !== toolEvents.length * 2) return false;
+
+  for (let index = 0; index < toolEvents.length; index += 1) {
+    const trace = toolEvents[index]!;
+    const start = progressEvents[index * 2]!;
+    const terminal = progressEvents[index * 2 + 1]!;
+    const expectedStage = progressStageByTool[trace.toolName];
+    const terminalStatusMatches = trace.ok
+      ? terminal.status === "completed"
+      : terminal.status === "notice" || terminal.status === "failed";
+
+    if (start.stage !== expectedStage
+      || start.status !== "started"
+      || terminal.stage !== expectedStage
+      || !terminalStatusMatches
+      || start.turn !== terminal.turn) return false;
+  }
+
+  return true;
+}
+
+function progressRepresentsObservedWork(input: ScenarioEvaluationInput): boolean {
+  const progressEvents = input.progressEvents;
+  if (!progressEvents || progressEvents.length === 0) return false;
+  if (progressEvents.some((event, index) => event.sequence !== index + 1
+    || event.turn < 1
+    || event.turn > input.answersUsed + 1)) return false;
+
+  const toolStages = new Set(Object.values(progressStageByTool));
+  const toolProgressEvents = progressEvents.filter((event) => toolStages.has(event.stage));
+  if (!toolProgressMatchesTrace(
+    input.firstTurnEvents.filter(isToolEvent),
+    toolProgressEvents.filter((event) => event.turn === 1),
+  ) || !toolProgressMatchesTrace(
+    input.continuedEvents.filter(isToolEvent),
+    toolProgressEvents.filter((event) => event.turn > 1),
+  )) return false;
+
+  const firstTurnPaused = input.firstTurnResponse.status === "needs_input";
+  if (firstTurnPaused && !progressEvents.some((event) => (
+    event.turn === 1 && event.stage === "asking_user" && event.status === "waiting_for_user"
+  ))) return false;
+
+  const finalTurn = input.answersUsed + 1;
+  const expectedFinalStage = input.response.status === "needs_input" ? "asking_user" : "completed";
+  const expectedFinalStatus = input.response.status === "needs_input" ? "waiting_for_user" : "completed";
+  return progressEvents.some((event) => (
+    event.turn === finalTurn && event.stage === expectedFinalStage && event.status === expectedFinalStatus
+  ));
 }
 
 function explicitEmptyPositionLimitation(response: ConversationTurnResponse, expectedPosition: Position): boolean {
@@ -269,21 +734,48 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     && stringArrayFilter(event, "evaluatedPlayerIds").length > 0);
   const evaluatedPlayerIds = new Set(successfulEvidenceEvaluations
     .flatMap((event) => stringArrayFilter(event, "evaluatedPlayerIds")));
-  const successfulDecisions = events.filter((event) => isDecisionEvent(event) && event.ok).length;
+  const decisionEvents = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "decision" }> => (
+    isDecisionEvent(event) && event.ok
+  ));
+  const hasDecisionSource = decisionEvents.some((event) => event.decisionSource !== undefined);
+  const successfulPlannerDecisions = hasDecisionSource
+    ? decisionEvents.filter((event) => event.decisionSource === "planner").length
+    : decisionEvents.length;
   const report = response.report;
+  const expectedCapabilityCoverage = "expectedCapabilityCoverage" in scenario
+    ? scenario.expectedCapabilityCoverage
+    : undefined;
+  const requestedCapabilities = "requestedCapabilities" in scenario
+    ? scenario.requestedCapabilities
+    : undefined;
   const commonChecks = {
-    usedMultipleModelActions: successfulDecisions > 1,
+    usedMultipleModelActions: successfulPlannerDecisions > 1,
     finalStatusMatchesReport: response.status === "needs_input" ? report === null : report !== null,
     ...("targetTeamAliases" in scenario ? {
       targetTeamContextPreserved: targetTeamContextPreserved(response, events, scenario.targetTeamAliases),
     } : {}),
     recommendationsAreEvidenceBacked: recommendationsUseTheirEvidence(response),
+    historicalArchiveEvidenceIsConsistent: historicalArchiveEvidenceIsConsistent(response, evaluatedPlayerIds),
+    percentilesRespectMetricSamples: percentilesRespectMetricSamples(response),
     recommendationsWereEvaluated: Boolean(!report || report.recommendations.every((item) => (
       evaluatedPlayerIds.has(item.player.playerId)
     ))),
     evaluatedOnlyAfterCandidateDiscovery: !successfulEvidenceEvaluations.length
       || evidenceEvaluationsFollowCandidateDiscovery(events),
+    candidateSearchOutcomeIsExplicit: candidateSearchOutcomeIsExplicit(response, candidateSearches),
     didNotHitDecisionOrPolicyLoopLimit: reportAvoidsLoopLimit(response),
+    didNotRepeatPolicyBlockedAction: didNotRepeatPolicyBlockedAction(events),
+    ...(input.progressEvents ? { progressMatchesObservedToolsAndTurnState: progressRepresentsObservedWork(input) } : {}),
+    requestedCapabilityCoverageIsConsistent: requestedCapabilityCoverageIsConsistent(response),
+    requestedCapabilityCoverageMatchesScenario: response.status !== "completed" || !expectedCapabilityCoverage
+      || requestedCapabilityCoverageMatchesScenario(response, expectedCapabilityCoverage),
+    requestedCapabilitiesAreGrounded: response.status !== "completed" || !requestedCapabilities
+      || requestedCapabilitiesGrounded(response, requestedCapabilities),
+    requestedCapabilityGapsAreReported: response.status !== "completed" || !requestedCapabilities
+      || requestedCapabilityGapsAreReported(response, requestedCapabilities),
+    ...(response.status === "completed" && "requireRecommendationsWhenEvidenceObserved" in scenario && scenario.requireRecommendationsWhenEvidenceObserved
+      ? { returnsLeadWhenRelevantEvidenceObserved: returnsLeadWhenRelevantEvidenceObserved(response) }
+      : {}),
   };
 
   let checks: Record<string, boolean>;
@@ -297,7 +789,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     const ageLimitApplied = candidateSearches.length > 0
       && candidateSearches.every((event) => event.filters.maxAge === scenario.expectedMaxAge);
     const broadPositionPreserved = !scenario.requireBroadPositionSearch || (candidateSearches.length > 0
-      && candidateSearches.every((event) => event.filters.position === null));
+      && candidateSearches.every((event) => event.filters.position === (scenario.expectedBroadPosition ?? null)));
     const candidateResultsFound = successfulCandidateSearches.some((event) => (event.matchingRecordCount ?? 0) > 0);
     const evaluationReturnedEvidence = successfulEvidenceEvaluations.length > 0;
     const candidateSearchDoesNotUseAnUnrequestedName = candidateSearches.length > 0
@@ -318,6 +810,10 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       noInferredCompetitionSeasonOrMinutesFilters: scopesAvoidUnauthorizedFilters,
       appliedUserAgeLimit: ageLimitApplied,
       broadPositionWasNotNarrowed: broadPositionPreserved,
+      recommendationsRespectRequestedPosition: !report || !scenario.expectedBroadPosition
+        || report.recommendations.every(({ player }) => positionMatches(player.position, scenario.expectedBroadPosition!)),
+      requestedCapabilitiesGrounded: !scenario.requestedCapabilities
+        || requestedCapabilitiesGrounded(response, scenario.requestedCapabilities),
       candidateSearchDoesNotUseAnUnrequestedName,
       candidatePagesFollowCursors,
       searchedMethodologyCorpus: toolEvents.some((event) => event.toolName === "search_methodology" && event.ok),
@@ -334,26 +830,123 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     const constrainedPositionSearches = postAnswerCandidateSearches.filter((event) => (
       event.ok && event.filters.position === scenario.expectedPosition
     ));
+    const allConstrainedPositionSearches = candidateSearches.filter((event) => (
+      event.ok && event.filters.position === scenario.expectedPosition
+    ));
+    const constrainedPositionPaginationIsValid = constrainedPositionSearches.length > 0
+      && (candidateSearchPagesFollowCursors(constrainedPositionSearches)
+        || candidateSearchPagesFollowCursors(allConstrainedPositionSearches));
+    const broadenedPositionSearchIndex = scenario.expectedBroadenedPosition
+      ? postAnswerCandidateSearches.findIndex((event) => event.ok
+        && event.filters.position === scenario.expectedBroadenedPosition)
+      : -1;
+    const emptyExpectedPositionSearchIndex = postAnswerCandidateSearches.findIndex((event) => (
+      event.ok
+      && event.filters.position === scenario.expectedPosition
+      && event.matchingRecordCount === 0
+    ));
+    const emptyExpectedPositionSearch = emptyExpectedPositionSearchIndex >= 0
+      ? postAnswerCandidateSearches[emptyExpectedPositionSearchIndex]!
+      : undefined;
+    const expectedPositionMatchesObserved = constrainedPositionSearches.some((event) => (
+      typeof event.matchingRecordCount === "number" && event.matchingRecordCount > 0
+    ));
+    const broadenedSearches = scenario.expectedBroadenedPosition
+      ? postAnswerCandidateSearches.filter((event) => event.ok && event.filters.position === scenario.expectedBroadenedPosition)
+      : [];
+    const allBroadenedSearches = scenario.expectedBroadenedPosition
+      ? candidateSearches.filter((event) => event.ok && event.filters.position === scenario.expectedBroadenedPosition)
+      : [];
+    const broadenedPositionSearch = broadenedPositionSearchIndex >= 0
+      ? postAnswerCandidateSearches[broadenedPositionSearchIndex]!
+      : undefined;
+    const emptyPositionTurn = emptyExpectedPositionSearch
+      ? progressTurnForTool(input, emptyExpectedPositionSearch)
+      : null;
+    const broadenedPositionTurn = broadenedPositionSearch
+      ? progressTurnForTool(input, broadenedPositionSearch)
+      : null;
+    const userWasAskedAfterEmptyPosition = emptyPositionTurn !== null
+      && Boolean(input.progressEvents?.some((event) => (
+        event.turn === emptyPositionTurn
+        && event.stage === "asking_user"
+        && event.status === "waiting_for_user"
+      )));
+    const broadenedSearchFollowsEmptyPosition = emptyExpectedPositionSearchIndex >= 0
+      && broadenedPositionSearchIndex > emptyExpectedPositionSearchIndex
+      && emptyPositionTurn !== null
+      && broadenedPositionTurn !== null
+      && broadenedPositionTurn > emptyPositionTurn
+      && input.answersUsed >= 2
+      && userWasAskedAfterEmptyPosition
+      && candidateSearchPagesFollowCursors(allBroadenedSearches)
+      && response.status === "completed";
+    const expectedPositionSearchTurns = constrainedPositionSearches
+      .map((event) => progressTurnForTool(input, event))
+      .filter((turn): turn is number => turn !== null);
+    const lastExpectedPositionSearchTurn = expectedPositionSearchTurns.length
+      ? Math.max(...expectedPositionSearchTurns)
+      : null;
+    const userApprovedBroadeningAfterObservedCandidates = expectedPositionMatchesObserved
+      && lastExpectedPositionSearchTurn !== null
+      && broadenedPositionSearchIndex >= 0
+      && broadenedPositionTurn !== null
+      && broadenedPositionTurn > lastExpectedPositionSearchTurn
+      && input.answersUsed >= 2
+      && Boolean(input.progressEvents?.some((event) => (
+        event.turn === lastExpectedPositionSearchTurn
+        && event.stage === "asking_user"
+        && event.status === "waiting_for_user"
+      )))
+      && candidateSearchPagesFollowCursors(allBroadenedSearches)
+      && response.status === "completed";
     checks = {
       ...commonChecks,
       ...clarificationResumeChecks(input, true),
+      noBlockedFollowUpQuestions: noBlockedFollowUpQuestions(input.continuedEvents),
       searchedExpectedPositionAfterAnswer: postAnswerCandidateSearches.some((event) => (
         event.ok && event.filters.position === scenario.expectedPosition
       )),
-      expectedPositionSearchStartedAtFirstPage: constrainedPositionSearches.length > 0
-        && candidateSearchPagesFollowCursors(constrainedPositionSearches),
+      didNotInferCandidateFilters: candidateSearches.length > 0 && candidateSearches.every((event) => (
+        event.filters.maxAge === null
+        && event.filters.minimumMinutes === 0
+        && event.filters.competition === null
+        && event.filters.season === null
+        && event.filters.playerNameFilterUsed === false
+      )),
+      expectedPositionSearchStartedAtFirstPage: constrainedPositionPaginationIsValid,
       recommendationsMatchExpectedPosition: report
-        ? report.recommendations.every((recommendation) => recommendation.player.position === scenario.expectedPosition)
+        ? report.recommendations.every((recommendation) => positionMatches(
+          recommendation.player.position,
+          (broadenedSearchFollowsEmptyPosition || userApprovedBroadeningAfterObservedCandidates)
+            ? scenario.expectedBroadenedPosition ?? scenario.expectedPosition
+            : scenario.expectedPosition,
+        ))
         : response.status === "needs_input",
+      ...(scenario.expectedBroadenedPosition ? {
+        positionExpansionMatchesEvidenceAndConsent: expectedPositionMatchesObserved
+          ? broadenedSearches.length === 0 || userApprovedBroadeningAfterObservedCandidates
+          : broadenedSearchFollowsEmptyPosition,
+      } : {}),
       emptyExpectedPositionHandledHonestly: (() => {
         const constrainedSearches = postAnswerCandidateSearches.filter((event) => (
           event.ok && event.filters.position === scenario.expectedPosition
         ));
         if (constrainedSearches.length === 0 || constrainedSearches.some((event) => event.matchingRecordCount === undefined)) return false;
         const noCandidatesFound = constrainedSearches.every((event) => event.matchingRecordCount === 0);
-        return !noCandidatesFound || response.status === "needs_input"
-          || Boolean(report && report.recommendations.length === 0
-            && explicitEmptyPositionLimitation(response, scenario.expectedPosition));
+        if (!noCandidatesFound || response.status === "needs_input") return true;
+        if (scenario.expectedBroadenedPosition) {
+          return broadenedPositionSearchIndex > emptyExpectedPositionSearchIndex
+            && (broadenedSearches.some((event) => (event.matchingRecordCount ?? event.resultCount) > 0)
+              || Boolean(report?.recommendations.length)
+              ? Boolean(report?.recommendations.every((recommendation) => positionMatches(
+                recommendation.player.position,
+                scenario.expectedBroadenedPosition!,
+              )))
+              : Boolean(report && explicitEmptyPositionLimitation(response, scenario.expectedBroadenedPosition)));
+        }
+        return Boolean(report && report.recommendations.length === 0
+          && explicitEmptyPositionLimitation(response, scenario.expectedPosition));
       })(),
     };
   } else {
@@ -368,6 +961,13 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
           recommendation.player.position === scenario.expectedPosition
         )),
       } : {}),
+      ...(scenario.requireRecommendationsWhenEvidenceObserved ? {
+        returnsLeadWhenRelevantEvidenceObserved: !report
+          || !report.requestedCapabilityCoverage.some((coverage) => (
+            coverage.observedMetricKeys.length > 0 && coverage.candidatesWithEvidenceCount > 0
+          ))
+          || report.recommendations.length > 0,
+      } : {}),
     };
   }
 
@@ -377,7 +977,17 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
 export interface EvaluationRunSummaryInput {
   checks: Record<string, boolean>;
   elapsedMs: number;
+  operationLatencySamples?: readonly EvaluationOperationLatencySample[];
 }
+
+export type EvaluationOperationLatencySample = {
+  kind: "planner_action" | "policy_decision" | "tool";
+  operation: string;
+  elapsedMs: number;
+};
+
+const knownToolOperations = new Set(Object.keys(toolBudgets));
+const knownPlannerOperations = new Set(["ask_user", "finish", ...knownToolOperations]);
 
 export interface EvaluationRunSummary {
   runCount: number;
@@ -385,6 +995,13 @@ export interface EvaluationRunSummary {
   passRate: number;
   failedRunsByCheck: Record<string, number>;
   latencyMs: { p50: number; p95: number };
+  operationLatencyMs: Array<{
+    kind: "planner_action" | "tool";
+    operation: string;
+    sampleCount: number;
+    p50: number;
+    p95: number;
+  }>;
 }
 
 function nearestRankPercentile(values: number[], percentile: number): number {
@@ -400,6 +1017,17 @@ export function summarizeEvaluationRuns(runs: readonly EvaluationRunSummaryInput
   if (runs.some(({ elapsedMs }) => !Number.isFinite(elapsedMs) || elapsedMs < 0)) {
     throw new Error("Evaluation elapsed time must be a finite non-negative number.");
   }
+  const operationLatencySamples = runs.flatMap(({ operationLatencySamples: samples }) => samples ?? []);
+  if (operationLatencySamples.some((sample) => !sample
+    || !["planner_action", "policy_decision", "tool"].includes(sample.kind)
+    || typeof sample.operation !== "string"
+    || (sample.kind === "tool"
+      ? !knownToolOperations.has(sample.operation)
+      : sample.operation !== "unresolved" && !knownPlannerOperations.has(sample.operation))
+    || !Number.isFinite(sample.elapsedMs)
+    || sample.elapsedMs < 0)) {
+    throw new Error("Operation latency samples must have a supported kind and operation name, and a finite non-negative duration.");
+  }
 
   const checkNames = new Set(runs.flatMap(({ checks }) => Object.keys(checks)));
   const failedRunsByCheck: Record<string, number> = {};
@@ -409,6 +1037,24 @@ export function summarizeEvaluationRuns(runs: readonly EvaluationRunSummaryInput
   }
   const passedRunCount = runs.filter(({ checks }) => [...checkNames].every((name) => checks[name] === true)).length;
   const elapsedTimes = runs.map(({ elapsedMs }) => elapsedMs);
+  const samplesByOperation = new Map<string, { kind: "planner_action" | "tool"; operation: string; elapsedMs: number[] }>();
+  for (const sample of operationLatencySamples) {
+    if (sample.kind === "policy_decision") continue;
+    const key = JSON.stringify([sample.kind, sample.operation]);
+    const group = samplesByOperation.get(key) ?? { kind: sample.kind, operation: sample.operation, elapsedMs: [] };
+    group.elapsedMs.push(sample.elapsedMs);
+    samplesByOperation.set(key, group);
+  }
+  const operationLatencyMs = [...samplesByOperation.values()]
+    .sort((left, right) => left.kind < right.kind ? -1 : left.kind > right.kind ? 1
+      : left.operation < right.operation ? -1 : left.operation > right.operation ? 1 : 0)
+    .map(({ kind, operation, elapsedMs: values }) => ({
+      kind,
+      operation,
+      sampleCount: values.length,
+      p50: nearestRankPercentile(values, 0.5),
+      p95: nearestRankPercentile(values, 0.95),
+    }));
 
   return {
     runCount: runs.length,
@@ -419,5 +1065,6 @@ export function summarizeEvaluationRuns(runs: readonly EvaluationRunSummaryInput
       p50: nearestRankPercentile(elapsedTimes, 0.5),
       p95: nearestRankPercentile(elapsedTimes, 0.95),
     },
+    operationLatencyMs,
   };
 }

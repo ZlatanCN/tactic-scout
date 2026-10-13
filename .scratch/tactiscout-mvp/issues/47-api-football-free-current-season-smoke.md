@@ -1,7 +1,7 @@
 # Verify a free API-Football current-season sample
 
 Type: task
-Status: claimed
+Status: open
 Labels: needs-info
 Blocked by: none
 

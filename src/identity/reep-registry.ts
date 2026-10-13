@@ -1,6 +1,8 @@
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 
 export const ReepPlayerBridgeKeys = [
+  { provider: "opta", namespace: "person_numeric" },
+  { provider: "understat", namespace: "player" },
   { provider: "skillcorner", namespace: "player" },
   { provider: "sportmonks", namespace: "player" },
   { provider: "statsbomb", namespace: "offline_player" },
@@ -13,6 +15,7 @@ const SourceProviderKeys = {
   "skillcorner-open-data": { provider: "skillcorner", namespace: "player" },
   "sportmonks": { provider: "sportmonks", namespace: "player" },
   "statsbomb-open-data": { provider: "statsbomb", namespace: "offline_player" },
+  "understat": { provider: "understat", namespace: "player" },
   "wyscout-open-data": { provider: "wyscout", namespace: "player" },
 } as const;
 

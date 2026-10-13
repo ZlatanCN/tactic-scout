@@ -15,6 +15,19 @@ export const PlayerObservationDimensionSchema = z.enum([
 ]);
 export type PlayerObservationDimension = z.infer<typeof PlayerObservationDimensionSchema>;
 
+export const PlayerObservationViewingScopeSchema = z.enum([
+  "full_match",
+  "partial_match",
+  "edited_clips",
+]);
+export type PlayerObservationViewingScope = z.infer<typeof PlayerObservationViewingScopeSchema>;
+
+export const PlayerObservationViewingScopeDefinitions: Record<PlayerObservationViewingScope, string> = {
+  full_match: "完整比赛",
+  partial_match: "部分比赛",
+  edited_clips: "剪辑片段",
+};
+
 export const PlayerObservationDimensionDefinitions: Record<PlayerObservationDimension, {
   label: string;
   phase: "in_possession" | "out_of_possession" | "transition";
@@ -38,7 +51,7 @@ export const PlayerObservationRatingSchema = z.object({
 });
 export type PlayerObservationRating = z.infer<typeof PlayerObservationRatingSchema>;
 
-export const PlayerObservationInputSchema = z.object({
+const PlayerObservationFieldsSchema = z.object({
   playerName: z.string().trim().min(2).max(120),
   playerAliases: z.array(z.string().trim().min(2).max(120)).max(12).default([]),
   playerIdentityProvider: z.string().trim().max(80).nullable().default(null),
@@ -49,6 +62,8 @@ export const PlayerObservationInputSchema = z.object({
   competition: z.string().trim().max(120).nullable().default(null),
   season: z.string().trim().max(40).nullable().default(null),
   match: z.string().trim().max(180).nullable().default(null),
+  viewingScope: PlayerObservationViewingScopeSchema.nullable().default(null),
+  viewedMinuteRanges: z.string().trim().max(120).nullable().default(null),
   observedAt: z.iso.date(),
   matchMinute: z.number().int().min(0).max(150).nullable().default(null),
   observer: z.string().trim().min(2).max(120),
@@ -66,9 +81,22 @@ export const PlayerObservationInputSchema = z.object({
   message: "同一场观察中，每个能力维度只能记录一次；请将多个场景写入该维度的依据。",
   path: ["ratings"],
 });
+
+export const PlayerObservationInputSchema = PlayerObservationFieldsSchema.superRefine((value, context) => {
+  if (value.ratings.length === 0) return;
+  for (const field of ["competition", "season", "match", "viewingScope"] as const) {
+    if (value[field] === null || (typeof value[field] === "string" && value[field].trim().length === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: [field],
+        message: "结构化评分必须绑定赛事、赛季、比赛和观看范围。",
+      });
+    }
+  }
+});
 export type PlayerObservationInput = z.infer<typeof PlayerObservationInputSchema>;
 
-export const PlayerObservationSchema = PlayerObservationInputSchema.extend({
+export const PlayerObservationSchema = PlayerObservationFieldsSchema.extend({
   id: z.string().uuid(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

@@ -8,7 +8,7 @@ export const FinishActionSchema = z.object({
   capabilityProfile: z.array(z.string()).max(8),
   recommendations: z.array(z.object({
     playerId: z.string().min(1),
-    evidenceKeys: z.array(CapabilityMetricKeySchema).min(1),
+    evidenceKeys: z.array(CapabilityMetricKeySchema).min(1).describe("仅引用直接支持用户明确提出能力与角色的评估指标；不能用不相关指标凑足推荐依据。"),
   })).max(5),
   limitationKeys: z.array(z.enum([
     "current_roster",
@@ -38,24 +38,26 @@ export const AskUserActionSchema = z.object({
 
 const targetTeamContextField = { targetTeam: z.string().trim().min(1).nullable().optional() };
 
+export const SearchCandidatesActionSchema = z.object({
+  ...targetTeamContextField,
+  action: z.literal("search_candidates"),
+  position: PositionSchema.nullable().default(null),
+  playerName: z.string().trim().min(1).nullable().default(null),
+  maxAge: z.number().int().min(15).max(45).nullable().default(null),
+  minimumMinutes: z.number().int().min(0).max(5000).default(0),
+  competition: z.string().nullable().default(null),
+  season: z.string().nullable().default(null),
+  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(20).default(20),
+});
+
 export const RecruitmentActionSchema = z.discriminatedUnion("action", [
   z.object({
     ...targetTeamContextField,
     action: z.literal("inspect_team"),
     teamName: z.string().min(1).describe("The club mentioned by the user; inspect only the dataset sample."),
   }),
-  z.object({
-    ...targetTeamContextField,
-    action: z.literal("search_candidates"),
-    position: PositionSchema.nullable().default(null),
-    playerName: z.string().trim().min(1).nullable().default(null),
-    maxAge: z.number().int().min(15).max(45).nullable().default(null),
-    minimumMinutes: z.number().int().min(0).max(5000).default(0),
-    competition: z.string().nullable().default(null),
-    season: z.string().nullable().default(null),
-    offset: z.number().int().min(0).default(0),
-    limit: z.number().int().min(1).max(20).default(10),
-  }),
+  SearchCandidatesActionSchema,
   z.object({
     ...targetTeamContextField,
     action: z.literal("search_methodology"),
@@ -90,7 +92,7 @@ export const toolBudgets = {
   search_methodology: 2,
   search_candidates: 4,
   evaluate_candidates: 3,
-  search_player_reports: 2,
+  search_player_reports: 3,
 } as const;
 
 export type ToolActionName = keyof typeof toolBudgets;

@@ -8,6 +8,7 @@ import {
   createPlayerObservationLibrary,
   type PlayerObservationIndex,
 } from "../src/observations/library.js";
+import { PlayerObservationInputSchema, PlayerObservationSchema } from "../src/observations/schemas.js";
 import { knowledgeDocumentId } from "../src/knowledge/document-id.js";
 import { createLocalKnowledgeBase } from "../src/knowledge/index.js";
 import { firstPartyObservationSourceId } from "../src/knowledge/source-ids.js";
@@ -31,6 +32,49 @@ const observationInput = {
   allowPersistentStorage: true as const,
   allowAiProcessing: false,
 };
+
+test("structured scouting ratings require match context while unrated and legacy records can remain unknown", () => {
+  const rating = {
+    dimension: "progression" as const,
+    rating: 4,
+    matchMinute: 63,
+    evidence: "他在右侧肋部摆脱第一道压迫，并完成一次向前推进。",
+  };
+
+  for (const field of ["competition", "season", "match", "viewingScope"] as const) {
+    const missingValues = field === "viewingScope" ? [null] : [null, ""];
+    for (const missingValue of missingValues) {
+      const result = PlayerObservationInputSchema.safeParse({
+        ...observationInput,
+        [field]: missingValue,
+        ratings: [rating],
+      });
+      assert.equal(result.success, false, `a rating without ${field} must be rejected`);
+    }
+  }
+
+  assert.equal(PlayerObservationInputSchema.safeParse({
+    ...observationInput,
+    competition: null,
+    season: null,
+    match: null,
+    viewingScope: null,
+    ratings: [],
+  }).success, true, "records without ratings can keep unknown legacy context");
+
+  assert.equal(PlayerObservationSchema.safeParse({
+    ...observationInput,
+    competition: null,
+    season: null,
+    match: null,
+    viewingScope: null,
+    ratings: [rating],
+    id: "11111111-1111-4111-8111-111111111111",
+    createdAt: "2026-10-04T10:00:00.000Z",
+    updatedAt: "2026-10-04T10:00:00.000Z",
+    indexStatus: "local_only",
+  }).success, true, "stored records from before the context requirement remain readable");
+});
 
 test("球探观察默认只保存在本地，未同意模型处理时不进入 RAG 检索", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "tactiscout-observations-"));

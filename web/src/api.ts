@@ -1,15 +1,12 @@
 import {
   DatasetStatusSchema,
   ConversationTurnResponseSchema,
-  ParseBriefResponseSchema,
   RecruitmentProgressSchema,
-  ScoutResponseSchema,
+  RecruitmentTurnCancellationResponseSchema,
   type DatasetStatus,
   type ConversationTurnResponse,
-  type ParseBriefResponse,
   type RecruitmentProgress,
-  type ScoutInput as ScoutRequest,
-  type ScoutResponse,
+  type RecruitmentTurnCancellationResponse,
 } from "../../src/domain/schemas.js";
 import {
   PlayerObservationInputSchema,
@@ -34,49 +31,68 @@ async function readResponse(response: Response): Promise<unknown> {
   }
 }
 
+export class ApiContractError extends Error {
+  constructor(subject: string, cause: unknown) {
+    super(`服务端返回的数据格式不符合当前${subject}契约。`, { cause });
+    this.name = "ApiContractError";
+  }
+}
+
+export class ApiServiceUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super("本地球探服务没有正常响应。", { cause });
+    this.name = "ApiServiceUnavailableError";
+  }
+}
+
 function parseContract<T>(schema: { parse: (data: unknown) => T }, value: unknown, subject = "招募"): T {
   try {
     return schema.parse(value);
   } catch (error) {
-    throw new Error(`服务端返回的数据格式不符合当前${subject}契约。`, { cause: error });
+    throw new ApiContractError(subject, error);
   }
 }
 
 export async function getDatasetStatus(): Promise<DatasetStatus> {
   const response = await fetch("/api/v1/dataset");
+  if (response.status >= 500) {
+    let health: Response;
+    try {
+      health = await fetch("/health");
+    } catch (cause) {
+      throw new ApiServiceUnavailableError(cause);
+    }
+    if (!health.ok) throw new ApiServiceUnavailableError();
+    const healthBody: unknown = await health.json().catch(() => null);
+    if (!healthBody || typeof healthBody !== "object"
+      || !("service" in healthBody) || healthBody.service !== "tactiscout-api"
+      || !("status" in healthBody) || healthBody.status !== "ok") {
+      throw new ApiServiceUnavailableError();
+    }
+  }
   return parseContract(DatasetStatusSchema, await readResponse(response));
 }
 
-export async function scout(request: ScoutRequest): Promise<ScoutResponse> {
-  const response = await fetch("/api/v1/scout", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  return parseContract(ScoutResponseSchema, await readResponse(response));
-}
-
-export async function parseBrief(brief: string): Promise<ParseBriefResponse> {
-  const response = await fetch("/api/v1/requirements/parse", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ brief }),
-  });
-  return parseContract(ParseBriefResponseSchema, await readResponse(response));
-}
-
-export async function turnRecruitmentCase(caseId: string, message: string, expectsExistingState = false): Promise<ConversationTurnResponse> {
+export async function turnRecruitmentCase(caseId: string, message: string, expectsExistingState = false, requestId?: string): Promise<ConversationTurnResponse> {
   const response = await fetch(`/api/v1/recruitment/cases/${encodeURIComponent(caseId)}/turns`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message, expectsExistingState }),
+    body: JSON.stringify({ ...(requestId ? { requestId } : {}), message, expectsExistingState }),
   });
   return parseContract(ConversationTurnResponseSchema, await readResponse(response));
 }
 
-export async function getRecruitmentProgress(caseId: string): Promise<RecruitmentProgress> {
-  const response = await fetch(`/api/v1/recruitment/cases/${encodeURIComponent(caseId)}/progress`);
+export async function getRecruitmentProgress(caseId: string, requestId?: string): Promise<RecruitmentProgress> {
+  const requestQuery = requestId ? `?requestId=${encodeURIComponent(requestId)}` : "";
+  const response = await fetch(`/api/v1/recruitment/cases/${encodeURIComponent(caseId)}/progress${requestQuery}`);
   return parseContract(RecruitmentProgressSchema, await readResponse(response));
+}
+
+export async function cancelRecruitmentTurn(caseId: string, requestId: string): Promise<RecruitmentTurnCancellationResponse> {
+  const response = await fetch(`/api/v1/recruitment/cases/${encodeURIComponent(caseId)}/turns/${encodeURIComponent(requestId)}/cancel`, {
+    method: "POST",
+  });
+  return parseContract(RecruitmentTurnCancellationResponseSchema, await readResponse(response));
 }
 
 export async function getPlayerObservations(): Promise<PlayerObservation[]> {

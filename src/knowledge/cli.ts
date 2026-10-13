@@ -3,6 +3,9 @@ import path from "node:path";
 import { KnowledgeDocumentInputSchema } from "./schemas.js";
 import { createLocalKnowledgeBase } from "./index.js";
 import { PlosDiscoveryProvider } from "./plos-discovery.js";
+import { PmcOaiDiscoveryProvider } from "./pmc-oai-discovery.js";
+
+const roleAwareArticleDoi = "10.3389/fpsyg.2022.813206";
 
 const argumentsList = process.argv.slice(2).filter((argument) => argument !== "--");
 const [command, fileArgument] = argumentsList;
@@ -35,10 +38,11 @@ if (command === "discover") {
   }
 } else if (command === "crawl" && fileArgument) {
   try {
-    const provider = new PlosDiscoveryProvider();
-    const document = await provider.fetchRegisteredArticle(fileArgument);
+    const document = fileArgument.trim() === roleAwareArticleDoi
+      ? await new PmcOaiDiscoveryProvider().fetchRegisteredArticle(fileArgument)
+      : await new PlosDiscoveryProvider().fetchRegisteredArticle(fileArgument);
     const result = await createLocalKnowledgeBase().ingest(document);
-    console.log(`已核验来源许可并写入 ${result.chunkCount} 个片段（文档 ${result.documentId}）。`);
+    console.log(`已核验来源登记与许可并写入 ${result.chunkCount} 个片段（文档 ${result.documentId}）。`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "许可范围内的 PLOS 正文采集失败。";
     console.error(message);
@@ -54,6 +58,6 @@ if (command === "discover") {
     process.exitCode = 1;
   }
 } else {
-  console.error("用法：pnpm knowledge:discover -- <搜索词>\n      pnpm knowledge:crawl -- <已获准 PLOS DOI>\n      pnpm knowledge:ingest -- <已获准来源的文档 JSON 文件>\n      pnpm knowledge:purge-source -- <来源 ID>");
+  console.error(`用法：pnpm knowledge:discover -- <搜索词>\n      pnpm knowledge:crawl -- <已获准 PLOS DOI 或单篇 PMC DOI（${roleAwareArticleDoi}）>\n      pnpm knowledge:ingest -- <已获准来源的文档 JSON 文件>\n      pnpm knowledge:purge-source -- <来源 ID>`);
   process.exitCode = 2;
 }

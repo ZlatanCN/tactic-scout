@@ -9,6 +9,7 @@ import { firstPartyObservationSourceId } from "../knowledge/source-ids.js";
 import {
   PlayerObservationInputSchema,
   PlayerObservationDimensionDefinitions,
+  PlayerObservationViewingScopeDefinitions,
   PlayerObservationSchema,
   type PlayerObservation,
   type PlayerObservationInput,
@@ -182,6 +183,8 @@ function toKnowledgeDocument(observation: StoredPlayerObservation): KnowledgeDoc
     observation.competition ? `赛事：${observation.competition}` : undefined,
     observation.season ? `赛季：${observation.season}` : undefined,
     observation.match ? `比赛：${observation.match}` : undefined,
+    `观看范围：${observation.viewingScope ? PlayerObservationViewingScopeDefinitions[observation.viewingScope] : "未记录"}`,
+    observation.viewedMinuteRanges ? `观看分钟范围：${observation.viewedMinuteRanges}` : undefined,
     observation.matchMinute === null ? undefined : `比赛时间点：第 ${observation.matchMinute} 分钟`,
     `作者记录的优势：${observation.strengths.join("；")}`,
     observation.risks.length ? `待核实风险：${observation.risks.join("；")}` : "待核实风险：作者未记录明确风险。",
@@ -192,7 +195,7 @@ function toKnowledgeDocument(observation: StoredPlayerObservation): KnowledgeDoc
       return `球探主观评估 · ${phase} · ${dimension.label} · ${rating.rating}/5${minute}：${rating.evidence}`;
     }),
     `比赛观察：${observation.evidenceNote}`,
-    "该内容由作者自录。1–5 档是观察者对该场样本的主观判断，不是统计事实、跨球员标准化分数或未来表现预测；不同观察记录不会自动求平均或进入适配评分。",
+    "该内容由作者自录。1–5 档是本项目尚未校准的暂定量表，只表示观察者对本场样本的主观判断，不是统计事实、跨球员标准化分数或未来表现预测；不同观察记录不会自动求平均或进入适配评分。",
   ].filter(Boolean);
   const reference = observation.sourceReferenceUrl ? `；参考链接：${observation.sourceReferenceUrl}` : "";
 

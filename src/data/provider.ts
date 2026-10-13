@@ -13,10 +13,19 @@ import {
 } from "../domain/schemas.js";
 import { positionMatches } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { throwIfAborted } from "../domain/abort.js";
+import { matchesPlayerSearch, searchLoadedPlayers } from "./player-search.js";
+import type { PlayerSearchFilter, PlayerSearchPage, PlayerSearchQuery } from "./player-search.js";
+export type { PlayerSearchFilter, PlayerSearchPage, PlayerSearchQuery } from "./player-search.js";
 import { SportmonksPlayerRepository, SportmonksProviderError } from "./sportmonks-provider.js";
 import { SkillCornerPlayerRepository } from "./skillcorner-provider.js";
 import { WyscoutPlayerRepository } from "./wyscout-provider.js";
 import { FbrefPlayerRepository, FbrefProviderError } from "./fbref-provider.js";
+import { PremierLeagueFantasyPlayerRepository } from "./premier-league-fantasy-provider.js";
+import { PremierLeaguePlayerRepository, PremierLeagueProviderError } from "./premier-league-provider.js";
+import { AmericanSoccerAnalysisPlayerRepository } from "./asa-provider.js";
+import { UnderstatPlayerRepository, UnderstatProviderError } from "./understat-provider.js";
+import { MultiSourceCurrentPlayerRepository, MultiSourceProviderError } from "./multi-source-provider.js";
 import { CuratedDatasetRepository } from "../dataset/curated-repository.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -26,40 +35,22 @@ export interface PlayerRepository {
   readonly mode: DatasetMode;
   readonly sourceName: string;
   getDatasetStatus?(): Promise<DatasetSnapshotStatus>;
-  loadPlayers?(refresh?: boolean): Promise<PlayerProfile[]>;
-  searchCandidates?(query: PlayerSearchQuery): Promise<PlayerSearchPage>;
-  inspectTeam?(teamName: string): Promise<PlayerProfile[]>;
-  getPlayersByIds?(playerIds: readonly string[]): Promise<PlayerProfile[]>;
-  getComparisonPlayers?(players: readonly PlayerProfile[]): Promise<PlayerProfile[]>;
+  loadPlayers?(refresh?: boolean, signal?: AbortSignal): Promise<PlayerProfile[]>;
+  searchCandidates?(query: PlayerSearchQuery, signal?: AbortSignal): Promise<PlayerSearchPage>;
+  inspectTeam?(teamName: string, signal?: AbortSignal): Promise<PlayerProfile[]>;
+  getPlayersByIds?(playerIds: readonly string[], signal?: AbortSignal): Promise<PlayerProfile[]>;
+  getComparisonPlayers?(players: readonly PlayerProfile[], signal?: AbortSignal): Promise<PlayerProfile[]>;
 }
 
-export async function loadAllPlayers(repository: PlayerRepository, refresh = false): Promise<PlayerProfile[]> {
+export async function loadAllPlayers(repository: PlayerRepository, refresh = false, signal?: AbortSignal): Promise<PlayerProfile[]> {
+  throwIfAborted(signal);
   if (!repository.loadPlayers) {
     throw new Error(`${repository.sourceName} supports scoped queries but does not expose a full-catalog load.`);
   }
-  return repository.loadPlayers(refresh);
+  const players = await repository.loadPlayers(refresh, signal);
+  throwIfAborted(signal);
+  return players;
 }
-
-export interface PlayerSearchQuery {
-  playerName: string | null;
-  position: Position | null;
-  maxAge: number | null;
-  minimumMinutes: number;
-  competition: string | null;
-  season: string | null;
-  offset: number;
-  limit: number;
-}
-
-export interface PlayerSearchPage {
-  players: PlayerProfile[];
-  totalRecords: number | null;
-  offset: number;
-  nextOffset: number | null;
-  appliedFilters: PlayerSearchFilter[];
-}
-
-export type PlayerSearchFilter = "playerName" | "position" | "maxAge" | "minimumMinutes" | "competition" | "season";
 
 interface DemoDataset {
   source: string;
@@ -286,6 +277,9 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
   const lineupsById = fileIndex(lineupFiles);
   const competitions = await readJson<any[]>(path.join(root, "competitions.json")).catch(() => []);
   const competitionNames = new Map(asList(competitions).map((item) => [String(item.competition_id), String(item.competition_name ?? "StatsBomb Open Data")]));
+  const maleCompetitionSeasonScopes = new Set(asList(competitions)
+    .filter((item) => item.competition_gender === "male" && item.competition_id != null && item.season_id != null)
+    .map((item) => `${item.competition_id}:${item.season_id}`));
   const selectedCompetitions = new Set((process.env.TACTISCOUT_STATSBOMB_COMPETITION_IDS ?? "").split(",").map((value) => value.trim()).filter(Boolean));
   const selectedSeasons = new Set((process.env.TACTISCOUT_STATSBOMB_SEASON_IDS ?? "").split(",").map((value) => value.trim()).filter(Boolean));
   const players = new Map<string, MutablePlayer>();
@@ -301,9 +295,10 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
       const seasonId = String(match.season?.season_id ?? match.season_id ?? seasonFallback ?? "");
       const season = String(match.season?.season_name ?? seasonId ?? "unknown");
       const competition = String(match.competition?.competition_name ?? competitionNames.get(compId) ?? "StatsBomb Open Data");
+      const scopeKey = `${compId}:${seasonId}`;
+      if (!maleCompetitionSeasonScopes.has(scopeKey)) continue;
       if (selectedCompetitions.size && !selectedCompetitions.has(compId)) continue;
       if (selectedSeasons.size && !selectedSeasons.has(seasonId)) continue;
-      const scopeKey = `${compId}:${seasonId}`;
       completeLineupCoverageByScope.set(scopeKey, completeLineupCoverageByScope.get(scopeKey) ?? true);
       const eventFile = eventsById.get(matchId);
       const eventRows = eventFile ? await readJson<unknown>(eventFile).catch(() => undefined) : undefined;
@@ -422,6 +417,7 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
           sampleMinutes: item.minutes,
           sampleMatches: item.appearances.size,
           sampleAttempts: item.nonPenaltyShots,
+          sampleAttemptsLabel: "次非点球射门",
         };
       })
       : [];
@@ -477,69 +473,53 @@ export class StatsBombRepository implements PlayerRepository {
   }
 }
 
-function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQuery): boolean {
-  if (query.playerName && !normalizeSearchText(player.name).includes(normalizeSearchText(query.playerName))) return false;
-  if (query.position && !positionMatches(player.position, query.position)) return false;
-  if (player.minutes < query.minimumMinutes) return false;
-  if (query.maxAge !== null && (player.age === null || player.age > query.maxAge)) return false;
-  if (query.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(query.competition))) return false;
-  if (query.season && !normalizeSearchText(player.season).includes(normalizeSearchText(query.season))) return false;
-  return true;
-}
-
-function searchLoadedPlayers(players: readonly PlayerProfile[], query: PlayerSearchQuery): PlayerSearchPage {
-  const matching = players.filter((player) => matchesPlayerSearch(player, query));
-  const page = matching.slice(query.offset, query.offset + query.limit);
-  const appliedFilters: PlayerSearchFilter[] = [];
-  if (query.playerName) appliedFilters.push("playerName");
-  if (query.position) appliedFilters.push("position");
-  if (query.maxAge !== null) appliedFilters.push("maxAge");
-  if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
-  if (query.competition) appliedFilters.push("competition");
-  if (query.season) appliedFilters.push("season");
-  return {
-    players: page,
-    totalRecords: matching.length,
-    offset: query.offset,
-    nextOffset: query.offset + page.length < matching.length ? query.offset + page.length : null,
-    appliedFilters,
-  };
-}
-
 function withLocalQueries(repository: PlayerRepository): PlayerRepository {
   return {
     mode: repository.mode,
     sourceName: repository.sourceName,
-    ...(repository.loadPlayers ? { loadPlayers: (refresh?: boolean) => repository.loadPlayers!(refresh) } : {}),
+    ...(repository.loadPlayers ? { loadPlayers: (refresh?: boolean, signal?: AbortSignal) => repository.loadPlayers!(refresh, signal) } : {}),
     ...(repository.getDatasetStatus ? { getDatasetStatus: () => repository.getDatasetStatus!() } : {}),
-    searchCandidates: async (query) => repository.searchCandidates
-      ? repository.searchCandidates(query)
-      : searchLoadedPlayers(await loadAllPlayers(repository), query),
-    inspectTeam: async (teamName) => {
-      if (repository.inspectTeam) return repository.inspectTeam(teamName);
+    searchCandidates: async (query, signal) => {
+      throwIfAborted(signal);
+      const page = repository.searchCandidates
+        ? await repository.searchCandidates(query, signal)
+        : searchLoadedPlayers(await loadAllPlayers(repository, false, signal), query);
+      throwIfAborted(signal);
+      return page;
+    },
+    inspectTeam: async (teamName, signal) => {
+      throwIfAborted(signal);
+      if (repository.inspectTeam) return repository.inspectTeam(teamName, signal);
       const key = normalizeSearchText(teamName);
-      const players = await loadAllPlayers(repository);
+      const players = await loadAllPlayers(repository, false, signal);
+      throwIfAborted(signal);
       return players.filter((player) => {
         const team = normalizeSearchText(player.team);
         return team === key || (key.length >= 4 && team.includes(key)) || (team.length >= 4 && key.includes(team));
       });
     },
-    getPlayersByIds: async (playerIds) => {
-      if (repository.getPlayersByIds) return repository.getPlayersByIds(playerIds);
+    getPlayersByIds: async (playerIds, signal) => {
+      throwIfAborted(signal);
+      if (repository.getPlayersByIds) return repository.getPlayersByIds(playerIds, signal);
       const wanted = new Set(playerIds);
-      return (await loadAllPlayers(repository)).filter((player) => wanted.has(player.playerId));
+      return (await loadAllPlayers(repository, false, signal)).filter((player) => wanted.has(player.playerId));
     },
-    getComparisonPlayers: async (players) => repository.getComparisonPlayers
-      ? repository.getComparisonPlayers(players)
-      : loadAllPlayers(repository),
+    getComparisonPlayers: async (players, signal) => {
+      throwIfAborted(signal);
+      return repository.getComparisonPlayers
+        ? repository.getComparisonPlayers(players, signal)
+        : loadAllPlayers(repository, false, signal);
+    },
   };
 }
 
-export async function searchPlayerPage(repository: PlayerRepository, query: PlayerSearchQuery): Promise<PlayerSearchPage> {
+export async function searchPlayerPage(repository: PlayerRepository, query: PlayerSearchQuery, signal?: AbortSignal): Promise<PlayerSearchPage> {
+  throwIfAborted(signal);
   const page = repository.searchCandidates
-    ? repository.searchCandidates(query)
-    : searchLoadedPlayers(await loadAllPlayers(repository), query);
+    ? repository.searchCandidates(query, signal)
+    : searchLoadedPlayers(await loadAllPlayers(repository, false, signal), query);
   const result = await page;
+  throwIfAborted(signal);
   if (result.offset !== query.offset) {
     throw new Error(`Player source returned offset ${result.offset} for requested offset ${query.offset}.`);
   }
@@ -582,30 +562,39 @@ export async function searchPlayerPage(repository: PlayerRepository, query: Play
   return result;
 }
 
-export async function inspectTeamPlayers(repository: PlayerRepository, teamName: string): Promise<PlayerProfile[]> {
-  if (repository.inspectTeam) return repository.inspectTeam(teamName);
+export async function inspectTeamPlayers(repository: PlayerRepository, teamName: string, signal?: AbortSignal): Promise<PlayerProfile[]> {
+  throwIfAborted(signal);
+  if (repository.inspectTeam) return repository.inspectTeam(teamName, signal);
   const key = normalizeSearchText(teamName);
-  return (await loadAllPlayers(repository)).filter((player) => {
+  const players = await loadAllPlayers(repository, false, signal);
+  throwIfAborted(signal);
+  return players.filter((player) => {
     const team = normalizeSearchText(player.team);
     return team === key || (key.length >= 4 && team.includes(key)) || (team.length >= 4 && key.includes(team));
   });
 }
 
-export async function loadPlayersByIds(repository: PlayerRepository, playerIds: readonly string[]): Promise<PlayerProfile[]> {
-  if (repository.getPlayersByIds) return repository.getPlayersByIds(playerIds);
+export async function loadPlayersByIds(repository: PlayerRepository, playerIds: readonly string[], signal?: AbortSignal): Promise<PlayerProfile[]> {
+  throwIfAborted(signal);
+  if (repository.getPlayersByIds) return repository.getPlayersByIds(playerIds, signal);
   const wanted = new Set(playerIds);
-  return (await loadAllPlayers(repository)).filter((player) => wanted.has(player.playerId));
+  return (await loadAllPlayers(repository, false, signal)).filter((player) => wanted.has(player.playerId));
 }
 
-export async function loadComparisonPlayers(repository: PlayerRepository, players: readonly PlayerProfile[]): Promise<PlayerProfile[]> {
+export async function loadComparisonPlayers(repository: PlayerRepository, players: readonly PlayerProfile[], signal?: AbortSignal): Promise<PlayerProfile[]> {
+  throwIfAborted(signal);
   if (players.length === 0) return [];
   return repository.getComparisonPlayers
-    ? repository.getComparisonPlayers(players)
-    : loadAllPlayers(repository);
+    ? repository.getComparisonPlayers(players, signal)
+    : loadAllPlayers(repository, false, signal);
+}
+
+export function getConfiguredDataMode(): string {
+  return (process.env.TACTISCOUT_DATA_MODE ?? "demo").trim().toLowerCase();
 }
 
 export function createRepository(): PlayerRepository {
-  const mode = (process.env.TACTISCOUT_DATA_MODE ?? "demo").trim().toLowerCase();
+  const mode = getConfiguredDataMode();
   if (mode === "fbref") {
     const cacheLifetimeText = process.env.TACTISCOUT_FBREF_CACHE_TTL_MS;
     const cacheTtlMs = cacheLifetimeText === undefined || cacheLifetimeText.trim() === ""
@@ -615,6 +604,66 @@ export function createRepository(): PlayerRepository {
       throw new FbrefProviderError("invalid_configuration", "TACTISCOUT_FBREF_CACHE_TTL_MS must be a non-negative number of milliseconds.");
     }
     return withLocalQueries(new FbrefPlayerRepository({ ...(cacheTtlMs === undefined ? {} : { cacheTtlMs }) }));
+  }
+  if (mode === "fpl") {
+    const cacheLifetimeText = process.env.TACTISCOUT_FPL_CACHE_TTL_MS;
+    const cacheTtlMs = cacheLifetimeText === undefined || cacheLifetimeText.trim() === ""
+      ? undefined
+      : Number(cacheLifetimeText);
+    if (cacheLifetimeText !== undefined && cacheLifetimeText.trim() !== "" && !Number.isFinite(cacheTtlMs)) {
+      throw new Error("TACTISCOUT_FPL_CACHE_TTL_MS must be a non-negative number of milliseconds.");
+    }
+    return withLocalQueries(new PremierLeagueFantasyPlayerRepository({ ...(cacheTtlMs === undefined ? {} : { cacheTtlMs }) }));
+  }
+  if (mode === "premier_league") {
+    const cacheLifetimeText = process.env.TACTISCOUT_PREMIER_LEAGUE_CACHE_TTL_MS;
+    const cacheTtlMs = cacheLifetimeText === undefined || cacheLifetimeText.trim() === ""
+      ? undefined
+      : Number(cacheLifetimeText);
+    if (cacheLifetimeText !== undefined && cacheLifetimeText.trim() !== "" && !Number.isFinite(cacheTtlMs)) {
+      throw new PremierLeagueProviderError("invalid_configuration", "TACTISCOUT_PREMIER_LEAGUE_CACHE_TTL_MS must be a non-negative number of milliseconds.");
+    }
+    const seasonId = process.env.TACTISCOUT_PREMIER_LEAGUE_SEASON_ID?.trim();
+    return withLocalQueries(new PremierLeaguePlayerRepository({
+      ...(cacheTtlMs === undefined ? {} : { cacheTtlMs }),
+      ...(seasonId ? { seasonId } : {}),
+    }));
+  }
+  if (mode === "asa") {
+    const cacheLifetimeText = process.env.TACTISCOUT_ASA_CACHE_TTL_MS;
+    const cacheTtlMs = cacheLifetimeText === undefined || cacheLifetimeText.trim() === ""
+      ? undefined
+      : Number(cacheLifetimeText);
+    if (cacheLifetimeText !== undefined && cacheLifetimeText.trim() !== "" && !Number.isFinite(cacheTtlMs)) {
+      throw new Error("TACTISCOUT_ASA_CACHE_TTL_MS must be a non-negative number of milliseconds.");
+    }
+    return withLocalQueries(new AmericanSoccerAnalysisPlayerRepository({ ...(cacheTtlMs === undefined ? {} : { cacheTtlMs }) }));
+  }
+  if (mode === "understat") {
+    const cacheLifetimeText = process.env.TACTISCOUT_UNDERSTAT_CACHE_TTL_MS;
+    const cacheTtlMs = cacheLifetimeText === undefined || cacheLifetimeText.trim() === ""
+      ? undefined
+      : Number(cacheLifetimeText);
+    if (cacheLifetimeText !== undefined && cacheLifetimeText.trim() !== "" && !Number.isFinite(cacheTtlMs)) {
+      throw new UnderstatProviderError("invalid_configuration", "TACTISCOUT_UNDERSTAT_CACHE_TTL_MS must be a non-negative number of milliseconds.");
+    }
+    return withLocalQueries(new UnderstatPlayerRepository({ ...(cacheTtlMs === undefined ? {} : { cacheTtlMs }) }));
+  }
+  if (mode === "mosaic") {
+    const asaCacheText = process.env.TACTISCOUT_ASA_CACHE_TTL_MS;
+    const asaCacheTtlMs = asaCacheText === undefined || asaCacheText.trim() === "" ? undefined : Number(asaCacheText);
+    if (asaCacheTtlMs !== undefined && !Number.isFinite(asaCacheTtlMs)) {
+      throw new MultiSourceProviderError("source_error", "TACTISCOUT_ASA_CACHE_TTL_MS must be a non-negative number of milliseconds.");
+    }
+    const understatCacheText = process.env.TACTISCOUT_UNDERSTAT_CACHE_TTL_MS;
+    const understatCacheTtlMs = understatCacheText === undefined || understatCacheText.trim() === "" ? undefined : Number(understatCacheText);
+    if (understatCacheTtlMs !== undefined && !Number.isFinite(understatCacheTtlMs)) {
+      throw new MultiSourceProviderError("source_error", "TACTISCOUT_UNDERSTAT_CACHE_TTL_MS must be a non-negative number of milliseconds.");
+    }
+    return withLocalQueries(new MultiSourceCurrentPlayerRepository({
+      understat: new UnderstatPlayerRepository({ ...(understatCacheTtlMs === undefined ? {} : { cacheTtlMs: understatCacheTtlMs }) }),
+      asa: new AmericanSoccerAnalysisPlayerRepository({ ...(asaCacheTtlMs === undefined ? {} : { cacheTtlMs: asaCacheTtlMs }) }),
+    }));
   }
   if (mode === "statsbomb") {
     return withLocalQueries(new StatsBombRepository());

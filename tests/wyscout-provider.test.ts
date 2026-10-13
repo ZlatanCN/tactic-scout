@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,10 +8,12 @@ import {
   type RecruitmentAction,
   type RecruitmentPlanner,
 } from "../src/agent/conversation.js";
-import { assessRoles, toPer90 } from "../src/agent/scoring.js";
+import { toPer90 } from "../src/agent/performance-metrics.js";
 import { createRepository } from "../src/data/provider.js";
-import { RequirementsSchema } from "../src/domain/schemas.js";
+import { CuratedDatasetRepository } from "../src/dataset/curated-repository.js";
+import { buildWyscoutDataset } from "../src/dataset/wyscout-dataset.js";
 import { WyscoutPlayerRepository, WyscoutProviderError } from "../src/data/wyscout-provider.js";
+import type { PlayerRepository } from "../src/data/provider.js";
 
 const playerRows = [
   { wyId: 101, firstName: "Ari", lastName: "Sample", shortName2: "A. Sample", role: { name: "Defender" }, birthDate: "1997-07-10", currentTeamId: 10 },
@@ -72,6 +74,9 @@ const eventRows = [
   { id: 8, matchId: 3, teamId: 10, playerId: 101, eventName: "Shot", subEventName: "Shot", matchPeriod: "1H", eventSec: 8, tags: [{ id: 101 }] },
   { id: 9, matchId: 1, teamId: 10, playerId: 101, eventName: "Free kick", subEventName: "Free kick cross", matchPeriod: "2H", eventSec: 14, tags: [{ id: 302 }] },
   { id: 10, matchId: 1, teamId: 10, playerId: 0, eventName: "Duel", subEventName: "Ground attacking duel", matchPeriod: "2H", eventSec: 15, tags: [] },
+  { id: 11, matchId: 1, teamId: 10, playerId: 101, eventName: "Duel", subEventName: "Ground attacking duel", matchPeriod: "2H", eventSec: 16, positions: [{ x: 20, y: 50 }], tags: [{ id: 703 }] },
+  { id: 12, matchId: 1, teamId: 10, playerId: 101, eventName: "Duel", subEventName: "Ground attacking duel", matchPeriod: "2H", eventSec: 17, positions: [{ x: 30, y: 50 }], tags: [{ id: 701 }] },
+  { id: 13, matchId: 1, teamId: 10, playerId: 101, eventName: "Duel", subEventName: "Ground attacking duel", matchPeriod: "2H", eventSec: 18, positions: [{ x: 40, y: 50 }], tags: [{ id: 702 }] },
 ];
 
 async function writeFixture(dataDirectory: string, options: { omitEvents?: boolean; malformedEvents?: boolean; mismatchedEventTeam?: boolean; unselectedMalformedEvents?: boolean } = {}): Promise<void> {
@@ -101,6 +106,72 @@ async function writeFixture(dataDirectory: string, options: { omitEvents?: boole
   if (options.unselectedMalformedEvents) {
     await writeFile(path.join(dataDirectory, "events_World_Cup.json"), "this file belongs to an excluded competition");
   }
+}
+
+async function buildCuratedFixtureRepository(
+  dataDirectory: string,
+  extraEventRows: Array<Record<string, unknown>> = [],
+): Promise<{ repository: CuratedDatasetRepository; datasetId: string }> {
+  await writeFixture(dataDirectory);
+  if (extraEventRows.length > 0) {
+    const eventsPath = path.join(dataDirectory, "events_England.json");
+    const events = JSON.parse(await readFile(eventsPath, "utf8")) as unknown[];
+    await writeFile(eventsPath, JSON.stringify([...events, ...extraEventRows]));
+  }
+  await writeFile(path.join(dataDirectory, "provenance.json"), JSON.stringify({
+    dataset: "Soccer match event dataset",
+    publisher: "Pappalardo et al.",
+    publicationDoi: "10.1038/s41597-019-0247-7",
+    retrievedAt: "2026-10-06",
+    license: "CC BY 4.0",
+    licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+    scope: "Synthetic fixture for the Wyscout data-to-report integration test.",
+    items: [{ name: "synthetic fixture", url: "https://example.invalid/fixture", file: "events_England.json", sha256: "fixture-only" }],
+  }));
+  const built = await buildWyscoutDataset({
+    sourceDirectory: dataDirectory,
+    outputDirectory: path.join(dataDirectory, "snapshots"),
+    now: () => new Date("2026-10-06T00:00:00.000Z"),
+  });
+  return {
+    repository: new CuratedDatasetRepository({ filePath: built.latestPath, allowModelProcessing: true }),
+    datasetId: built.snapshot.datasetId,
+  };
+}
+
+async function runAttackingDuelRequest(repository: PlayerRepository, threadId: string, recommendPlayer = true) {
+  const playerId = "wyscout:101:team:10:competition:1:season:2017/18";
+  const actions: RecruitmentAction[] = [
+    { action: "search_methodology", query: "边后卫进攻一对一对抗" },
+    { action: "search_candidates", position: "DEF", minimumMinutes: 0, limit: 10 },
+    { action: "evaluate_candidates", playerIds: [playerId] },
+    {
+      action: "finish",
+      targetTeam: "Current Synthetic Club",
+      needSummary: "寻找进攻一对一对抗有依据的边后卫。",
+      capabilityProfile: ["进攻一对一对抗"],
+      recommendations: recommendPlayer
+        ? [{ playerId, evidenceKeys: ["wyscoutGroundAttackingDuelsPer90", "wyscoutExplicitlyWonGroundAttackingDuelSharePct"] }]
+        : [],
+      limitationKeys: [],
+    },
+  ];
+  const planner: RecruitmentPlanner = {
+    async decide() {
+      const action = actions.shift();
+      assert.ok(action, "the case should finish after the scripted evidence path");
+      return action;
+    },
+  };
+  const conversation = createRecruitmentConversation({
+    repository,
+    planner,
+    knowledgeBase: { async search() { return []; } },
+  });
+  return conversation.turn({
+    threadId,
+    message: "为 Current Synthetic Club 找一个后卫，重点看进攻一对一对抗。",
+  });
 }
 
 function makeRepository(dataDirectory: string, allowModelProcessing = true, competitionIds?: string[]): WyscoutPlayerRepository {
@@ -133,13 +204,6 @@ test("Wyscout repository streams local event JSON and maps only source-supported
     assert.deepEqual(ariAtSyntheticClub.availableStats, ["goals", "assists", "passesAttempted", "passesCompleted", "keyPasses"]);
     assert.equal(toPer90(ariAtSyntheticClub).shotAssists, null);
     assert.equal(toPer90(ariAtSyntheticClub).keyPasses, 1.2);
-    const creationRole = assessRoles(RequirementsSchema.parse({
-      targetTeam: "Synthetic Club",
-      position: "DEF",
-      inPossessionRoles: ["creation"],
-      outOfPossessionRoles: [],
-    }), ariAtSyntheticClub)[0];
-    assert.equal(creationRole?.fit, 16.8, "creation heuristics should use key passes and assists without inventing shot assists");
     assert.equal(ariAtSyntheticClub.sourceIdentity?.provider, "wyscout-open-data");
     assert.equal(ariAtSyntheticClub.sourceIdentity?.playerId, "101");
     assert.equal(ariAtSyntheticClub.sourceIdentity?.isCurrentSeason, false);
@@ -218,6 +282,39 @@ test("Wyscout model processing is disabled until the operator opts in", async ()
   }
 });
 
+test("Wyscout source text decodes literal Unicode escapes in names and labels", async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-wyscout-unicode-"));
+  try {
+    await writeFixture(dataDirectory);
+
+    const players = JSON.parse(await readFile(path.join(dataDirectory, "players.json"), "utf8")) as Array<Record<string, unknown>>;
+    const teams = JSON.parse(await readFile(path.join(dataDirectory, "teams.json"), "utf8")) as Array<Record<string, unknown>>;
+    const competitions = JSON.parse(await readFile(path.join(dataDirectory, "competitions.json"), "utf8")) as Array<Record<string, unknown>>;
+    const [firstPlayer] = players;
+    const [firstTeam] = teams;
+    const [firstCompetition] = competitions;
+    assert.ok(firstPlayer);
+    assert.ok(firstTeam);
+    assert.ok(firstCompetition);
+    firstPlayer.firstName = String.raw`R\u00e9mi`;
+    firstTeam.name = String.raw`Cl\u00e9ment FC`;
+    firstCompetition.name = String.raw`Ligue d\u2019\u00e9t\u00e9`;
+    await Promise.all([
+      writeFile(path.join(dataDirectory, "players.json"), JSON.stringify(players)),
+      writeFile(path.join(dataDirectory, "teams.json"), JSON.stringify(teams)),
+      writeFile(path.join(dataDirectory, "competitions.json"), JSON.stringify(competitions)),
+    ]);
+
+    const profiles = await makeRepository(dataDirectory).loadPlayers();
+    const player = profiles.find(({ playerId }) => playerId === "wyscout:101:team:10:competition:1:season:2017/18");
+    assert.equal(player?.name, "Rémi Sample");
+    assert.equal(player?.team, "Clément FC");
+    assert.equal(player?.competition, "Ligue d’été");
+  } finally {
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
 test("Wyscout repository distinguishes missing and malformed event files from an empty pool", async () => {
   const missingDirectory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-wyscout-"));
   const malformedDirectory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-wyscout-"));
@@ -257,7 +354,7 @@ test("Wyscout evidence is available to the LangGraph investigation with historic
       {
         action: "finish",
         targetTeam: "Current Synthetic Club",
-        needSummary: "比较边后卫的历史比赛证据。",
+        needSummary: "比较后卫的历史比赛证据。",
         capabilityProfile: ["传球与进攻参与"],
         recommendations: [{ playerId, evidenceKeys: ["goals"] }],
         limitationKeys: [],
@@ -276,9 +373,9 @@ test("Wyscout evidence is available to the LangGraph investigation with historic
       knowledgeBase: { async search() { return []; } },
     });
 
-    const response = await conversation.turn({ threadId: "wyscout-history", message: "为 Current Synthetic Club 找一个边后卫" });
+    const response = await conversation.turn({ threadId: "wyscout-history", message: "为 Current Synthetic Club 找一个后卫" });
 
-    assert.equal(response.status, "completed");
+    assert.equal(response.status, "completed", response.message);
     assert.equal(response.report?.recommendations[0]?.player.name, "Ari Sample");
     assert.equal(response.report?.recommendations[0]?.player.age, 20);
     assert.equal(response.report?.recommendations[0]?.player.sourceIdentity?.isCurrentSeason, false);
@@ -287,5 +384,69 @@ test("Wyscout evidence is available to the LangGraph investigation with historic
     assert.ok(response.report?.limitations.some((item) => /不是现役球员池/.test(item)));
   } finally {
     await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("a built Wyscout dataset carries source-labelled attacking-duel evidence through LangGraph into the report", async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-wyscout-duels-"));
+  try {
+    const { repository, datasetId } = await buildCuratedFixtureRepository(dataDirectory);
+    const response = await runAttackingDuelRequest(repository, "wyscout-attacking-duel-history");
+
+    assert.equal(response.status, "completed");
+    const recommendation = response.report?.recommendations[0];
+    assert.ok(recommendation);
+    assert.deepEqual(recommendation.evidence.map(({ key }) => key).filter((key) => [
+      "wyscoutGroundAttackingDuelsPer90",
+      "wyscoutExplicitlyWonGroundAttackingDuelSharePct",
+    ].includes(key)), [
+      "wyscoutGroundAttackingDuelsPer90",
+      "wyscoutExplicitlyWonGroundAttackingDuelSharePct",
+    ]);
+    const duelRate = recommendation.evidence.find(({ key }) => key === "wyscoutGroundAttackingDuelsPer90");
+    const wonShare = recommendation.evidence.find(({ key }) => key === "wyscoutExplicitlyWonGroundAttackingDuelSharePct");
+    assert.equal(duelRate?.value, 1.8);
+    assert.ok(Math.abs((wonShare?.value ?? 0) - 33.3333) < 0.0001);
+    assert.equal(wonShare?.sampleAttempts, 3);
+    assert.equal(wonShare?.sampleAttemptsLabel, "次已分类进攻对抗");
+    assert.equal(recommendation.player.sourceIdentity?.isCurrentSeason, false);
+    assert.equal(recommendation.player.datasetId, datasetId);
+    assert.ok(wonShare?.definition?.includes("702（中性）"));
+    assert.ok(wonShare?.sourceField?.includes("Ground attacking duel"));
+    assert.ok(response.report?.limitations.some((item) => /不是现役球员池/.test(item)));
+    assert.equal(response.report?.requestedCapabilityCoverage.find(({ name }) => name === "进攻一对一对抗")?.status, "observed");
+  } finally {
+    await rm(dataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("the LangGraph report leaves unclassified attacking duels unavailable", async () => {
+  const invalidOutcomes = [
+    { label: "accuracy is not an outcome", tags: [{ id: 1801 }] },
+    { label: "contradictory outcomes", tags: [{ id: 701 }, { id: 703 }] },
+  ];
+  for (const [index, invalidOutcome] of invalidOutcomes.entries()) {
+    const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-wyscout-unclassified-"));
+    try {
+      const { repository } = await buildCuratedFixtureRepository(dataDirectory, [{
+        id: 14 + index,
+        matchId: 1,
+        teamId: 10,
+        playerId: 101,
+        eventName: "Duel",
+        subEventName: "Ground attacking duel",
+        matchPeriod: "2H",
+        eventSec: 19 + index,
+        tags: invalidOutcome.tags,
+      }]);
+      const response = await runAttackingDuelRequest(repository, `wyscout-attacking-duel-invalid-${index}`, false);
+
+      assert.equal(response.status, "completed", invalidOutcome.label);
+      assert.equal(response.report?.recommendations.length, 0, invalidOutcome.label);
+      assert.equal(response.report?.requestedCapabilityCoverage.find(({ name }) => name === "进攻一对一对抗")?.status, "missing", invalidOutcome.label);
+      assert.ok(response.report?.limitations.some((item) => item.includes("进攻一对一对抗") && item.includes("没有提供")), invalidOutcome.label);
+    } finally {
+      await rm(dataDirectory, { recursive: true, force: true });
+    }
   }
 });

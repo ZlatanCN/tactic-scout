@@ -10,13 +10,13 @@ TactiScout needs a way to accumulate its own current player evidence when struct
 
 ## Decision
 
-First-party observation records may include one human-authored 1–5 rating for each TactiScout-defined ability dimension in a match sample. Each rating stores its observer, player, match context, optional minute, and a concrete evidence note. A record may also keep qualitative strengths and risks.
+First-party observation records may include one human-authored 1–5 rating for each TactiScout-defined ability dimension in a match sample. Each rating stores its observer, player, match context, viewing scope, optional minute, and a concrete evidence note. A record may also keep qualitative strengths and risks. The 1–5 scale is provisional and uncalibrated in TactiScout; a small double-coded pilot can expose disagreements but cannot establish reliability.
 
 Ratings remain attributed, subjective observations. TactiScout does not average ratings across matches or observers, normalize them into a player score, or include them in the deterministic tactical-fit formula. If the author separately enables AI/RAG processing, the model may use a rating and its evidence as a qualitative scouting viewpoint, with its provenance intact.
 
 ## Consequences
 
-- The collection UI provides a small, phase-aware vocabulary rather than an unstructured scorecard.
+- The collection UI provides a small, phase-aware vocabulary and records whether the observer watched the full match, part of it, or edited clips.
 - Missing observation stays unknown; observers are not required to rate every dimension.
 - Comparisons must show sample, author, match context, and supporting scenes. Cross-match consistency requires a later calibration/evaluation task.
 - The data can be accumulated now without implying that one observer's 4/5 is comparable to another's 4/5.

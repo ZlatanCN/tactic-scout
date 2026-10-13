@@ -1,8 +1,8 @@
 # Add reproducible build checks for the public repository
 
 Type: task
-Status: claimed
-Labels: ready-for-agent
+Status: resolved
+Labels: ready-for-human
 
 ## Goal
 
@@ -24,3 +24,7 @@ Run the same deterministic API and web production builds on GitHub for every pus
 ## Answer
 
 工作流已在本地准备并通过 YAML 解析和差异格式检查；推送后仍需核实首个远端 Actions 运行结果。
+
+## Comments
+
+- 2026-10-10: Resolved against the checked-in workflow and acceptance criteria. The workflow covers push, pull request, and manual runs, grants only contents read access, installs from the frozen lockfile with Node.js 22/pnpm 12.6.0, and builds API and web without credentials. No remote Actions result is claimed or checked.

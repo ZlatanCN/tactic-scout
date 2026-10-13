@@ -122,10 +122,10 @@ export class PlayerEloClient {
     return this.listPlayers(`/v1/leagues/${encodeURIComponent(id)}/players?${this.pageQuery(page)}`);
   }
 
-  async getPlayer(playerId: string): Promise<PlayerEloPlayerRecord> {
+  async getPlayer(playerId: string, signal?: AbortSignal): Promise<PlayerEloPlayerRecord> {
     const id = playerId.trim();
     if (!id) throw new PlayerEloClientError("invalid_configuration", "A PlayerElo player ID is required.");
-    const value = await this.requestJson(`/v1/players/${encodeURIComponent(id)}`);
+    const value = await this.requestJson(`/v1/players/${encodeURIComponent(id)}`, signal);
     const parsed = playerRecordSchema.safeParse(value);
     if (!parsed.success) {
       throw new PlayerEloClientError("invalid_response", "PlayerElo returned a player record with an unsupported shape.");
@@ -133,14 +133,14 @@ export class PlayerEloClient {
     return { ...parsed.data, retrievedAt: this.now().toISOString() };
   }
 
-  async getPlayerHistory(playerId: string, from?: string, to?: string): Promise<PlayerEloHistoryItem[]> {
+  async getPlayerHistory(playerId: string, from?: string, to?: string, signal?: AbortSignal): Promise<PlayerEloHistoryItem[]> {
     const id = playerId.trim();
     if (!id) throw new PlayerEloClientError("invalid_configuration", "A PlayerElo player ID is required.");
     const query = new URLSearchParams();
     if (from) query.set("frm", from);
     if (to) query.set("to", to);
     const suffix = query.size ? `?${query.toString()}` : "";
-    const value = await this.requestJson(`/v1/players/${encodeURIComponent(id)}/history${suffix}`);
+    const value = await this.requestJson(`/v1/players/${encodeURIComponent(id)}/history${suffix}`, signal);
     const parsed = z.array(historyItemSchema).safeParse(value);
     if (!parsed.success) {
       throw new PlayerEloClientError("invalid_response", "PlayerElo returned rating history with an unsupported shape.");
@@ -168,7 +168,7 @@ export class PlayerEloClient {
     return parsed.data;
   }
 
-  private async requestJson(path: string): Promise<unknown> {
+  private async requestJson(path: string, signal?: AbortSignal): Promise<unknown> {
     let response: Response;
     try {
       response = await this.fetchImpl(`${baseUrl}${path}`, {
@@ -176,9 +176,10 @@ export class PlayerEloClient {
           accept: "application/json",
           authorization: `Bearer ${this.options.apiKey}`,
         },
-        signal: AbortSignal.timeout(this.requestTimeoutMs),
+        signal: signal ? AbortSignal.any([AbortSignal.timeout(this.requestTimeoutMs), signal]) : AbortSignal.timeout(this.requestTimeoutMs),
       });
     } catch (error) {
+      if (signal?.aborted) throw signal.reason ?? error;
       const name = error instanceof Error ? error.name : "";
       if (name === "TimeoutError" || name === "AbortError") {
         throw new PlayerEloClientError("timeout", "PlayerElo request timed out.");

@@ -65,6 +65,7 @@ Blocked by: none
 - 2026-10-04：近期数据复核没有发现符合“较新、跨联赛、成年实名、细粒度能力指标、可明确复用”全部条件的免费主库。SkillCorner 2024/25 A-League 聚合指标值得优先核清数据 CSV 的许可范围，但本机无真实 CSV，MIT 文件的“Software”定义未明确覆盖数据；IDSSE/DFL–Sportec 的 CC BY 4.0 数据限 2022/23 七场，适合作为追踪/事件方法基准而非候选池；OpenLigaDB 只有射手与进球事实。详见[近期开放数据复核](../research/recent-open-player-performance-data-2026-10.md)。
 - 2026-10-04：额外核查 SoccerTrack v2、Metrica、Impect、TheSportsDB、FPL、evmax、The Viking Striker 和 Global Football Data Lake 后，仍没有找到满足广覆盖、当前赛季、实名成年职业球员和明确公开复用权的能力数据主库。SoccerTrack 适合隔离验证空间战术指标；单球员日志只适合追溯流程演示。FPL 及汇总仓库的 CC BY 标签不能替代上游 PL/API 权利；TheSportsDB 免费访问限开发用途且无能力字段保障。详见[新增开放足球数据源复核](../research/open-data-tracking-and-current-repositories-2026-10.md)。
 - 2026-10-04 更正：本 issue 较早评论提到 SkillCorner 真实 CSV 尚未下载；随后已由 issue 24 的固定版本刷新流程将三份 CSV 校验并放入 Git 忽略的 `.data/skillcorner-open-data/`。文件未提交，应用权限 gate 仍关闭。较早记录只反映当时状态。
+- 2026-10-08：按用户选定“数据仓库到 LangGraph 报告”完整验收面，`pnpm dataset:build` 从本机已核验的开放事件源重建快照 v2（5 个联赛、1,826 场、98 队、2,561 名球员、2,682 条球员赛季记录），随后用本地 Qwen 3.5 9B 完成两次追问/同案恢复、候选分页、30 人评估、Reviewer 与报告；28/28 Harness 检查通过。报告把该快照标为 2017/18 历史样本，缺少的射门终结和接应证据保持 missing。这个整链验收不代表现役转会市场覆盖或推荐排序准确率。详见 [issue 96](96-avoid-blocked-follow-up-questions-after-expansion.md) 和 [Harness 记录](14-agent-harness-evaluation-suite.md)。
 
 ## Answer
 
