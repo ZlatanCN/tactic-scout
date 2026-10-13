@@ -219,6 +219,75 @@ test("FPL turns stop before reading players or calling the Planner, even with lo
   }
 });
 
+test("Premier League Pulselive turns stop before state, player, or Planner access even with Ollama configured", async () => {
+  let playerReads = 0;
+  let plannerCalls = 0;
+  let checkpointReads = 0;
+  const checkpointer = new MemorySaver();
+  const getTuple = checkpointer.getTuple.bind(checkpointer);
+  checkpointer.getTuple = async (config) => {
+    checkpointReads += 1;
+    return getTuple(config);
+  };
+  const playerRepository: PlayerRepository = {
+    mode: "premier_league",
+    sourceName: "Injected Premier League fixture",
+    async loadPlayers() {
+      playerReads += 1;
+      return [];
+    },
+    async searchCandidates(query: PlayerSearchQuery): Promise<PlayerSearchPage> {
+      playerReads += 1;
+      return { players: [], totalRecords: 0, offset: query.offset, nextOffset: null, appliedFilters: [] };
+    },
+  };
+  const app = createApp({
+    playerRepository,
+    checkpointer,
+    recruitmentPlanner: { async decide() { plannerCalls += 1; throw new Error("Planner must not run for unapproved Pulselive data"); } },
+    knowledgeBase: {
+      async search() { return []; },
+      async ingest() { return { documentId: "injected-document", chunkCount: 1 }; },
+      async removeDocument() { return 0; },
+      async status() {
+        return {
+          indexedChunks: 0,
+          methodologyChunks: 0,
+          playerReportChunks: 0,
+          registeredSources: 0,
+          ingestiblePlayerReportSources: 0,
+          embeddingModel: "injected-embedding",
+          indexPath: "/injected/knowledge-index",
+        };
+      },
+    },
+  });
+  const previousModelEndpoint = process.env.OPENAI_BASE_URL;
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+
+  try {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/recruitment/cases/premier-league-source-policy/turns",
+      payload: { message: "为阿森纳寻找一名能推进的后卫" },
+    });
+
+    assert.equal(response.statusCode, 503);
+    assert.match(response.json().error, /Premier League/i);
+    assert.match(response.json().error, /书面|许可|授权/);
+    assert.equal(checkpointReads, 0);
+    assert.equal(playerReads, 0);
+    assert.equal(plannerCalls, 0);
+  } finally {
+    try {
+      await app.close();
+    } finally {
+      if (previousModelEndpoint === undefined) delete process.env.OPENAI_BASE_URL;
+      else process.env.OPENAI_BASE_URL = previousModelEndpoint;
+    }
+  }
+});
+
 test("Understat, ASA, and mosaic turns reject remote model endpoints before reading case or player data", async () => {
   const scenarios = [
     { mode: "understat" as const, sourceName: "Injected Understat fixture" },

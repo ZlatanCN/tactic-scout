@@ -16,12 +16,16 @@ const ProviderTeamSchema = z.object({
   idTeam: ProviderIdSchema,
   strTeam: z.string().trim().min(1),
   strTeamAlternate: z.string().nullable().optional(),
+  strSport: z.string().trim().nullable().optional(),
+  strGender: z.string().trim().nullable().optional(),
 });
 
 const ProviderPlayerSchema = z.object({
   idPlayer: ProviderIdSchema,
   strPlayer: z.string().trim().min(1),
   strPosition: z.string().trim().nullable().optional(),
+  strSport: z.string().trim().nullable().optional(),
+  strGender: z.string().trim().nullable().optional(),
 });
 
 const SearchTeamsResponseSchema = z.object({
@@ -76,6 +80,10 @@ function exactNameMatches(team: z.infer<typeof ProviderTeamSchema>, requestedNam
   if (!target) return false;
   const names = [team.strTeam, ...(team.strTeamAlternate ?? "").split(/[;,]/)];
   return names.some((name) => normalizeSearchText(name) === target);
+}
+
+function isVerifiedMenSoccer(record: { strSport?: string | null; strGender?: string | null }): boolean {
+  return record.strSport === "Soccer" && record.strGender === "Male";
 }
 
 function abortReason(signal?: AbortSignal): never {
@@ -159,8 +167,10 @@ export function createTheSportsDbRosterEnrichment(options: {
         notice: "TheSportsDB 球队搜索响应缺少预期字段；没有把失败解释为空阵容。",
       });
 
-      const exactMatches = [...new Map((parsedSearch.data.teams ?? [])
-        .filter((team) => exactNameMatches(team, requestedTeam))
+      const exactNameTeams = (parsedSearch.data.teams ?? [])
+        .filter((team) => exactNameMatches(team, requestedTeam));
+      const exactMatches = [...new Map(exactNameTeams
+        .filter(isVerifiedMenSoccer)
         .map((team) => [team.idTeam, team])).values()];
       const matchReferences = exactMatches.slice(0, 5).map((team) => ({
         id: team.idTeam,
@@ -172,7 +182,9 @@ export function createTheSportsDbRosterEnrichment(options: {
         status: "not_found",
         requestedTeam,
         retrievedAt,
-        notice: "TheSportsDB 没有返回名称完全匹配的球队；未查询球员列表。",
+        notice: exactNameTeams.length > 0
+          ? "TheSportsDB 返回了同名球队，但没有明确标为 Soccer + Male 的记录；无法核实为男子足球，未查询球员列表。"
+          : "TheSportsDB 没有返回名称完全匹配的球队；未查询球员列表。",
       });
       if (exactMatches.length > 1) return emptyContext({
         status: "ambiguous",
@@ -210,16 +222,7 @@ export function createTheSportsDbRosterEnrichment(options: {
       const rawPlayers = parsedRoster.data.player ?? [];
       const validPlayers = rawPlayers.flatMap((player) => {
         const parsed = ProviderPlayerSchema.safeParse(player);
-        return parsed.success ? [parsed.data] : [];
-      });
-      if (rawPlayers.length > 0 && validPlayers.length === 0) return emptyContext({
-        status: "unavailable",
-        requestedTeam,
-        matchedTeams: matchReferences,
-        team: matchReferences[0],
-        retrievedAt: new Date().toISOString(),
-        failureKind: "invalid_response",
-        notice: "TheSportsDB 球员记录没有可用的 ID 和姓名字段；没有把失败解释为空阵容。",
+        return parsed.success && isVerifiedMenSoccer(parsed.data) ? [parsed.data] : [];
       });
 
       const players = [...new Map(validPlayers.map((player) => [player.idPlayer, player])).values()]
@@ -232,8 +235,10 @@ export function createTheSportsDbRosterEnrichment(options: {
         }));
       const possiblyTruncated = rawPlayers.length >= RESULT_LIMIT;
       const notice = players.length === 0
-        ? "TheSportsDB 没有返回球员记录；这不证明球队当前没有注册球员。该列表只覆盖提供方记录的第一球队归属，完整性和更新时间均未验证。"
-        : `仅供球队背景参考：TheSportsDB 列出球员的第一球队归属，不能证明当前注册、可转会状态或完整阵容；更新时间与覆盖完整性未验证。${possiblyTruncated ? "本次结果达到免费接口每队 10 条上限，列表可能被截断。" : "即使少于 10 人，也不能据此认定阵容完整。"}${validPlayers.length < rawPlayers.length ? "部分缺少稳定 ID 或姓名的记录已省略。" : ""}`;
+        ? rawPlayers.length === 0
+          ? "TheSportsDB 没有返回球员记录；这不证明球队当前没有注册球员。该列表只覆盖提供方记录的第一球队归属，完整性和更新时间均未验证。"
+          : "TheSportsDB 没有返回任何能明确核实为男子足球的球员记录；不显示未核验名单。这不证明球队当前没有注册球员。"
+        : `仅供球队背景参考：TheSportsDB 列出球员的第一球队归属，不能证明当前注册、可转会状态或完整阵容；更新时间与覆盖完整性均未验证。${possiblyTruncated ? "本次结果达到免费接口每队 10 条上限，名单可能被截断。" : "即使少于 10 人，也不能据此认定阵容完整。"}${validPlayers.length < rawPlayers.length ? "部分记录不符合明确的男子足球范围或缺少必要字段，未予显示。" : ""}`;
 
       return TeamRosterContextSchema.parse({
         status: players.length === 0 ? "empty" : "partial",
@@ -241,7 +246,7 @@ export function createTheSportsDbRosterEnrichment(options: {
         matchedTeams: matchReferences,
         team: { ...matchReferences[0] },
         players,
-        returnedCount: rawPlayers.length,
+        returnedCount: players.length,
         resultLimit: RESULT_LIMIT,
         possiblyTruncated,
         retrievedAt: new Date().toISOString(),

@@ -229,6 +229,11 @@ function unsupportedCurrentAffiliationFeedback(action: ParsedRecruitmentAction, 
 }
 
 function assertRepositoryModelProcessingAllowed(repository: PlayerRepository): void {
+  if (repository.mode === "premier_league") {
+    throw new RecruitmentModelUnavailableError(
+      "Premier League Pulselive 数据在取得书面批准前不能自动抓取、建库或交给 Agent 处理；请切换到已确认适用的数据源。",
+    );
+  }
   if (repository.mode === "fpl") {
     throw new RecruitmentModelUnavailableError(
       "FPL 仅保留历史实验和离线测试；官方条款不允许本项目发起新的自动访问与数据提取，因此不能用于招募 Agent。",

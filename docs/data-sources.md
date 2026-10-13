@@ -51,13 +51,7 @@ FBref 暂不属于可由 Agent 使用的数据路线。Sports Reference 的 [Dat
 
 Fantasy Premier League（FPL）适配器仅为复现既有实验而保留，不是可用的自动数据路线。2026/27 官方条款 §28(d) 禁止自动系统访问游戏并提取信息，§29 声明英超拥有游戏数据的知识产权。因此不要把 `TACTISCOUT_DATA_MODE=fpl` 用于新的自动请求、缓存、模型/RAG 处理或公开展示。应用会在招募案件开始时返回 HTTP 503，并在读取 checkpoint、候选数据或调用 Planner 前停止；本机模型地址不能覆盖此来源门控。此前保存的 FPL Harness 记录只说明当时的工程链路行为，不证明数据使用获准；也不要把它宣传为当前支持的数据源。来源复核和一手条款见[2026-10-11 免密男足数据源调查](../.scratch/tactiscout-mvp/research/current-no-key-men-player-sources-after-fbref-403-2026-10-11.md)、[公共球员目录](https://fantasy.premierleague.com/api/bootstrap-static/)与[2026/27 游戏条款](https://fantasy.premierleague.com/help/terms)。
 
-Premier League Pulselive provider 是一个单一英超当前赛季表现源。在 `.env` 中设置 `TACTISCOUT_DATA_MODE=premier_league` 启用；默认在 API 进程内缓存 15 分钟，可用 `TACTISCOUT_PREMIER_LEAGUE_CACHE_TTL_MS` 调整。赛季默认为当前 UTC 赛季，也可通过 `TACTISCOUT_PREMIER_LEAGUE_SEASON_ID` 指定起始年份。适配器合并来源球员目录和九类统计榜，并按球员 ID 与同赛季球队名单连接出生日期；只映射实测返回的进球、助攻、关键传球、成功盘带、抢断、成功抢断、拦截、恢复球权、向前传球和空中对抗胜出。所有次数指标按来源分钟归一到每 90 分钟；缺失值和零分钟样本不补零。它不是全球转会市场或完整注册名单，位置仅为门将/后卫/中场/前锋宽组；当前接入没有可用 xG、渐进传球、压迫、身价、预算、合同或伤病字段，普通向前传球不能代称渐进传球。底层 Pulselive JSON 路由没有公开开发者 schema 或稳定性 SLA；抓取失败时 Agent 会报告来源不可用，而不是报告零匹配。[Premier League 球员统计口径](https://www.premierleague.com/en/stats/clarification) · [当前赛季统计页](https://www.premierleague.com/en/stats?se=85)。
-
-```env
-TACTISCOUT_DATA_MODE=premier_league
-TACTISCOUT_PREMIER_LEAGUE_SEASON_ID=
-TACTISCOUT_PREMIER_LEAGUE_CACHE_TTL_MS=
-```
+Premier League Pulselive adapter 暂不属于可由 Agent 使用的数据路线。Premier League [官网条款 § Intellectual Property Rights](https://www.premierleague.com/en/terms-and-conditions) 限制未经书面批准再利用网站/App 内容，包括据此创建数据库；[官方统计说明](https://www.premierleague.com/en/stats/clarification) 指出表现数据由 Opta/Stats Perform 收集与分析。当前 adapter 读取网站使用的 Pulselive JSON 路由并建立球员/统计仓库，未记录覆盖自动读取、建库、AI/RAG 处理和展示的书面许可。因此即使配置 `TACTISCOUT_DATA_MODE=premier_league`，自然语言 Agent 也会在读取 checkpoint、候选数据或调用 Planner 前返回 HTTP 503；本机模型地址或环境变量不能覆盖此 gate。adapter 仅保留给隔离的确定性测试，暂不发起 live 请求。历史实现、字段观察和验收记录见 [issue 93](../.scratch/tactiscout-mvp/issues/93-premier-league-current-stats-provider.md)，当前门控见 [issue 184](../.scratch/tactiscout-mvp/issues/184-block-premier-league-unauthorized-automation.md)。
 
 American Soccer Analysis（ASA）是当前赛季表现数据 provider。在 `.env` 设置 `TACTISCOUT_DATA_MODE=asa` 即可启用；默认缓存 15 分钟，可由 `TACTISCOUT_ASA_CACHE_TTL_MS` 调整。TactiScout 只纳入 MLS、USL Championship 与 USL League One，并按赛事、球员、球队和赛季 ID 精确合并 xGoals、xPass 与 Goals Added 记录，提供来源字段、样本分钟、本机读取时间和宽位置。2026 年 MLS Next Pro 的 xGoals 返回超过 1000 行，超过本项目当前完整性保护上限，因此不纳入候选池。
 

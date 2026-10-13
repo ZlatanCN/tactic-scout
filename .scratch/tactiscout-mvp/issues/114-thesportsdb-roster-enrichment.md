@@ -55,4 +55,5 @@ API and web builds and the user-selected warehouse-to-LangGraph-report Harness h
 
 ## Comments
 
+- 2026-10-13: Follow-up scope audit found that TheSportsDB includes `strSport` and `strGender` on official team/player response examples. The sidecar now displays only records explicitly marked Soccer + Male; teams without both values are rejected before the roster request. See [issue 185](185-enforce-mens-soccer-roster-scope.md).
 - 2026-10-09：使用官方文档公布的免费开发 key 完成两请求 live smoke：Bayern Munich 精确匹配到 provider ID 133664，球队球员端点返回 10/10 且被标记为 partial/possibly truncated。只输出覆盖摘要、未落盘球员行。官方条款区分开发用途与公开 app 订阅要求；本次不验证球员数据的模型处理、持久保存或公开展示许可。

@@ -157,7 +157,7 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
 function TeamRosterContextPanel({ context }: { context: TeamRosterContext }) {
   if (context.status === "not_configured") return null;
   const statusLabel = context.status === "partial" ? "不完整样本"
-      : context.status === "empty" ? "无返回记录"
+      : context.status === "empty" ? "无核验名单记录"
         : context.status === "not_found" ? "未找到精确球队"
           : context.status === "ambiguous" ? "球队匹配不唯一"
             : context.failureKind === "cancelled" ? "已停止补充"
@@ -175,7 +175,7 @@ function TeamRosterContextPanel({ context }: { context: TeamRosterContext }) {
     {context.team && <div className="team-roster-context-data">
       <div className="team-roster-context-meta">
         <a href={context.team.url} target="_blank" rel="noreferrer">打开球队来源资料 ↗</a>
-        {context.status !== "unavailable" && <span>{context.returnedCount} 条接口记录 / 最多显示 {context.resultLimit} 条{context.possiblyTruncated ? " · 可能截断" : ""}</span>}
+        {context.status !== "unavailable" && <span>{context.returnedCount} 条男足核验记录 / 最多显示 {context.resultLimit} 条{context.possiblyTruncated ? " · 可能截断" : ""}</span>}
       </div>
       {context.players.length > 0 && <details className="team-roster-player-details">
         <summary>查看 {context.players.length} 条球员记录</summary>

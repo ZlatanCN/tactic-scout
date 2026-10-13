@@ -28,6 +28,8 @@ Expose the Premier League's observed 2026/27 performance pool through the existi
 
 ## Comments
 
+- 2026-10-13: Runtime review found that the provider's automated access, database creation, and model-processing permissions are not established. The Agent route is now blocked pending written source approval; see [issue 184](184-block-premier-league-unauthorized-automation.md). This ticket records the historical adapter implementation and does not authorize new live requests.
+
 ## Answer
 
 Added a `premier_league` repository backed by live Premier League Pulselive endpoints. The adapter reads the current-season player directory and nine verified statistical leaderboards, joins birth dates only by exact player/team identity from same-source club squads, and carries source, season, retrieval and sample provenance into evidence. It bounds pagination, response sizes and request duration, rejects redirects and unsafe cursors, caches concurrent reads, and leaves absent or zero-minute metrics unavailable. The default dataset mode remains unchanged.

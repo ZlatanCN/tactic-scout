@@ -8,6 +8,8 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-13：[issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：依据英超官网未授权建库条款，`premier_league` Agent turn 现在在 checkpoint、球员和 Planner 读取前返回 503；移除了 `.env.example` 的启用参数和文档使用指引，adapter 仅留作 fixture 测试。无 live 请求；HTTP 回归与 API/Web build 通过。[官方来源复核](research/source-scope-recheck-2026-10-13.md)
+- 2026-10-13：[issue 185](issues/185-enforce-mens-soccer-roster-scope.md) 已解决：TheSportsDB 球队与球员行都必须明确标为 Soccer + Male，缺失元数据时不取名单且展示核验说明；同名女足/其他运动队不会造成误选或歧义。adapter 双请求/单请求回归、全套 434 项测试与 API/Web 构建通过；未发起 live 请求。[官方字段复核](research/source-scope-recheck-2026-10-13.md)
 - 2026-10-13：[issue 183](issues/183-agent-engineer-hiring-signal-review.md) 已解决：抽查腾讯、OpenAI、Anthropic 的 6 个雇主官网职位，重复信号包括完整任务交付、评测驱动迭代、Harness/runtime、可靠性与安全、成本/延迟意识和产品判断。小样本不代表整个市场；资深分布式平台要求不应机械加到单机作品集。最大缺口仍是真人短名单质量标签，转交既有 [issue 168](issues/168-collect-independent-one-on-one-review-labels.md) 等待双人盲评与裁决；在此之前真实排序质量继续 `not_evaluable`。详见[招聘信号与项目证据对照](research/agent-engineer-hiring-signal-review-2026-10-13.md)。
 - 2026-10-13：[issue 182](issues/182-ablate-current-turn-search-freshness.md) 已解决：同一 LangGraph、同一 Planner 的过期 `finish` 提案、同一固定仓库与候选动作策略旁路下，只切换当前回合 freshness guard。开启时图强制发起范围完整的 EPL 查询（位置、年龄、最低分钟、赛事、赛季均被断言），并只推荐新返回的 EPL 记录；旁路时没有第三次 EPL 查询。旁路组没有推荐是共享 Reviewer 等下游门阻止旧结论，不能单独归因于 freshness。全套测试 431/431、API/Web build 与 diff check 通过；此固定 fixture 不证明模型可靠性、推荐/排序质量或真实来源新鲜度。
 - 2026-10-13：[issue 181](issues/181-enforce-complete-candidate-search-intent.md) 已解决：位置、年龄、最低分钟、赛事、赛季贯穿发现、评估和报告；明确取消才清除限制，否定式“不要取消”会保留。每次范围改变都要求当前回合产生完整匹配的新查询，即使旧回合搜过相同范围。三轮英超→德甲→英超整图回归通过。候选动作策略消融显示：关闭动作策略会发出越界首查，但独立完整意图守卫会强制补查并保持最终名单在范围内。全套测试 430/430、API/Web 构建和 diff check 通过。
@@ -248,7 +250,7 @@ Labels: wayfinder:map
 - [issue 118](issues/118-screen-new-authorized-source-leads.md) 已解决：NCAA / NCAA.com 与 Football Web Pages 是新增候选线索，不是获准数据源；在本地存储、本机模型/RAG 和公开展示边界明确前不运行数据请求或抓取。
 - [issue 116](issues/116-extract-scouting-report-panel.md) 已解决：报告面板通过单一判别视图接口接收数据与 pending 状态，面板内部处理展示与比较选择；Fastify 请求、案件状态、localStorage 计划和对话流程仍由主工作台协调器拥有。
 - [issue 115](issues/115-finish-evaluating-discovered-candidates.md) 已解决：候选页内已发现且符合用户当前范围的候选必须先按 10 人批次完成评估和报告检索，再回到 Planner；确认具体位置时要先查询新范围。工具预算可造成未评估候选时，报告显示明确计数。
-- [issue 114](issues/114-thesportsdb-roster-enrichment.md) 已解决：TheSportsDB 保持默认关闭的球队背景来源，只在报告复核后按球队精确匹配；名单是临时、署名且明确不完整，不进入 Planner、checkpoint、评分、排序或保存报告。官方免费开发 key 的两请求 live smoke 返回 10/10，adapter 正确标记 partial 和可能截断；不代表现役注册或任何 LLM/公开展示许可。
+- [issue 114](issues/114-thesportsdb-roster-enrichment.md) 已解决：TheSportsDB 保持默认关闭的球队背景来源，只在报告复核后按精确球队匹配；名单仅显示明确标为 Soccer + Male 的记录，是临时、署名且明确不完整的背景信息，不进入 Planner、checkpoint、评分、排序或保存报告。官方免费开发 key 的两请求 live smoke 返回 10/10，adapter 正确标记 partial 和可能截断；不代表现役注册或任何 LLM/公开展示许可。范围核验回归见 [issue 185](issues/185-enforce-mens-soccer-roster-scope.md)。
 - [issue 113](issues/113-open-current-player-source-expansion.md) 已解决：对 xG Stat、Eredivisie、LPF Data、TheStatsAPI 和 StatPal 核查当前赛季球员池、`PlayerRepository` 查询契约及使用边界；没有新来源同时满足可复现候选查询与本地 Ollama/RAG、持久化和公开报告要求。暂不接入或采集球员行；若取得具体 feed/schema 与逐项许可再做有界 smoke。详见[研究报告](research/current-player-source-routes-2026-10-09.md)。
 - [Frontiers 单篇官方获取路径](issues/108-frontiers-official-article-access-route.md)：已解决。Europe PMC 和 PMC OAI-PMH 元数据确认 Forcher 等（2022）对应 PMC9197445、开放访问和 CC BY 4.0；PMC 文档提供单篇 OAI 获取并限制 3 req/s。实现与正文边界及后续全链验收见 issue 109。
 - [授权且相关的方法 RAG 扩容](issues/107-authorized-methodology-rag-expansion.md)：已解决。Forcher 等（2022）是角色化方法查询的相关来源；CC BY 4.0、Frontiers Terms §14 和官方 PMC 单篇路径支持有署名、限速的接入。publisher 浏览返回正文的范围说明保留在研究记录中；后续只走核验后的 PMC 元数据和正文路由，详见 issues 108/109。
