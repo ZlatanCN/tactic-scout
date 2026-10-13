@@ -1,0 +1,9 @@
+# Use LangGraph StateGraph for recruitment-case orchestration
+
+**Status: accepted**
+
+TactiScout uses LangGraph.js `StateGraph` to orchestrate a recruitment case because the work is a durable, multi-turn investigation: the Planner selects evidence-gathering actions, policy controls transitions, a missing decision can pause for the user, the same case resumes from its checkpoint, and the Reviewer can route weak conclusions back for more research. The graph makes that application-owned state and control flow explicit; user-facing progress is a project-defined projection of graph events, not an automatic LangGraph feature.
+
+**Alternatives considered:** a one-shot LLM call does not model this lifecycle without an external controller; a hand-written tool loop could do so but would make the application own its state, pause/resume, and routing machinery. LangChain `createAgent` is a credible higher-level option with middleware, checkpointing, and human-in-the-loop, and is itself built on LangGraph; Vercel AI SDK provides a strong TypeScript tool-loop and streaming abstraction, while the recruitment case lifecycle would still need explicit application modeling. Direct `StateGraph` costs more workflow design and implementation. This is a fit decision, not evidence of universal framework superiority.
+
+Deterministic graph and Harness evidence verifies selected workflow behaviors, including same-case checkpoint recovery and frozen-scenario policy/evidence contracts. No equivalent cross-framework implementation or matched comparison of quality, latency, cost, or maintenance effort exists, and player shortlist quality remains unevaluated. See the [official-docs and code audit](../../.scratch/tactiscout-mvp/research/langgraph-framework-fit-2026-10-13.md) for source links, current-code references, and detailed limits.

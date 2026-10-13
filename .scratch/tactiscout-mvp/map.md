@@ -8,6 +8,7 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-13：[issue 192](issues/192-record-langgraph-workflow-fit.md) 已解决：ADR 0010 记录 `StateGraph` 对可暂停/恢复招募案件、策略路由与 Reviewer 回环的项目级适配，并承认 `createAgent` 和 Vercel AI SDK 的能力；官方资料、代码证据与未验证范围见[研究报告](research/langgraph-framework-fit-2026-10-13.md)。未做跨框架性能/质量对照，也不声称名单质量已验证。
 - 2026-10-13：[issue 191](issues/191-show-cross-lingual-rag-evidence.md) 已解决：`/showcase` 方法 RAG 折叠卡先展示 v5 留出结果（可回答覆盖 1/3→3/3、候选论文 0/2→2/2、召回 1/3→3/3、precision 1.0 不变），并分开展示早期整图报告传递与 10 月 13 日两臂 27/29 的复跑。页面说明样本小、译文未独立双语审校、不启用线上翻译且不验证推荐质量；README 同步。Web build 与预览无障碍树核对通过；CSS 经 390px 几何复核，未声称实际窄屏预览，issue 144 仍等用户验收。
 - 2026-10-13：[issue 190](issues/190-evaluate-cross-lingual-methodology-retrieval.md) 已解决：全新 12 家族 v5 跨语言对照中，英文译问的留出可回答覆盖从 1/3 升至 3/3，PLOS 候选覆盖从 0/2 升至 2/2，模糊/范围外误接收未增加；生产 `0.812 / 0.5` 门槛与来源登记未变，56 个临时片段已从当前索引表版本删除。译文无独立双语审校，因此不据此启用线上翻译。见[评测结果](../../docs/evaluation.md#中文-query-与英文论文的-v5-跨语言诊断)和[研究](research/chinese-english-methodology-rag-retrieval-2026-10-13.md)。
 - 2026-10-13：[issue 188](issues/188-diversify-authorized-methodology-rag-sources.md) 已解决：PLOS 2026 多维球员画像论文可作为带署名的方法文本候选，但要先用独立校准/留出问题验证新覆盖；PLOS 2024 事件检测论文仅适用于数据口径/测量误差主题；PlayeRank 因 CC BY-NC-SA 复用边界而不准入。保留 v3 与生产阈值不变；未下载文章、入库或获取足球数据。详见[来源审查](research/methodology-rag-additional-sources-2026-10-13.md)。
@@ -206,6 +207,7 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- [issue 192](issues/192-record-langgraph-workflow-fit.md) 已解决：在框架选择上采用 LangGraph.js `StateGraph` 显式建模动态调查、条件路由、用户中断/同案恢复和 Reviewer 回环；`createAgent` 仍是可行的更高层方案，Vercel 与手写循环也能构建替代工作流。该决策依据是当前案件控制流需求，不是跨框架优越性结论；性能、质量和维护成本对比尚未测量。
 - [issue 191](issues/191-show-cross-lingual-rag-evidence.md) 已解决：在招聘方可见的 RAG 实验摘要中并列来源级跨语言诊断与整图机制证据，但分清它们回答不同问题；把 10 月 13 日共同失败的 27/29 重跑和译文未审校限制放在卡片中，避免把小样本检索结果包装成线上翻译或排序质量结论。
 - [issue 190](issues/190-evaluate-cross-lingual-methodology-retrieval.md) 已解决：冻结的 12 家族 v5 对照中，英文译问使留出相关证据覆盖从 1/3 升至 3/3，候选来源覆盖从 0/2 升至 2/2；模糊/范围外误接收未增，固定生产门槛不变。译文尚无独立双语审校，不把结果推广为线上翻译或一般跨语言检索能力。
 - 新增方法 RAG 来源必须有逐篇确认的文章级许可和官方自动读取路径，并经来源专属的独立校准/留出查询验证；论文许可不延伸至其底层比赛/球员数据、图表或第三方材料。新增内容不得改写既有 v3 基准。

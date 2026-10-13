@@ -57,6 +57,8 @@ pnpm dev:web
 
 > 这不是一次 Prompt 后生成名单的链。LangGraph 保存招募案件状态，Planner 在调查过程中选择下一步；结构化工具负责检索与指标计算；条件边控制合法状态迁移；关键需求不明确时用 `interrupt` 等用户补充，之后从同一案件 checkpoint 恢复；Reviewer 发现证据不足时可以把图送回调查。进度时间线来自真实节点和工具执行，因此可以和报告里的来源及覆盖范围核对。
 
+为什么直接选 `StateGraph`，以及它与 `createAgent`、手写工具循环和 Vercel AI SDK 的取舍，见[框架选择 ADR](adr/0010-langgraph-stategraph-for-recruitment-cases.md)。
+
 现场演示用于说明 Agent 如何工作。要查看可复算的行为验收，运行：
 
 ```bash
