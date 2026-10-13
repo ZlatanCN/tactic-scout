@@ -8,6 +8,7 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-13：[issue 186](issues/186-centralize-team-inspection-fallback.md) 已解决：`withLocalQueries` 改为委托 `inspectTeamPlayers`，以同一实现处理专用球队查询和本地目录回退；公开接口特征测试覆盖归一化部分匹配、单次整库读取及加载期间取消。聚焦测试 2/2、API build、全套 436/436 测试和 diff check 通过。
 - 2026-10-13：[issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：依据英超官网未授权建库条款，`premier_league` Agent turn 现在在 checkpoint、球员和 Planner 读取前返回 503；移除了 `.env.example` 的启用参数和文档使用指引，adapter 仅留作 fixture 测试。无 live 请求；HTTP 回归与 API/Web build 通过。[官方来源复核](research/source-scope-recheck-2026-10-13.md)
 - 2026-10-13：[issue 185](issues/185-enforce-mens-soccer-roster-scope.md) 已解决：TheSportsDB 球队与球员行都必须明确标为 Soccer + Male，缺失元数据时不取名单且展示核验说明；同名女足/其他运动队不会造成误选或歧义。adapter 双请求/单请求回归、全套 434 项测试与 API/Web 构建通过；未发起 live 请求。[官方字段复核](research/source-scope-recheck-2026-10-13.md)
 - 2026-10-13：[issue 183](issues/183-agent-engineer-hiring-signal-review.md) 已解决：抽查腾讯、OpenAI、Anthropic 的 6 个雇主官网职位，重复信号包括完整任务交付、评测驱动迭代、Harness/runtime、可靠性与安全、成本/延迟意识和产品判断。小样本不代表整个市场；资深分布式平台要求不应机械加到单机作品集。最大缺口仍是真人短名单质量标签，转交既有 [issue 168](issues/168-collect-independent-one-on-one-review-labels.md) 等待双人盲评与裁决；在此之前真实排序质量继续 `not_evaluable`。详见[招聘信号与项目证据对照](research/agent-engineer-hiring-signal-review-2026-10-13.md)。
@@ -200,6 +201,7 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- [issue 186](issues/186-centralize-team-inspection-fallback.md) 已解决：球队检查的专用仓库调用与本地整库回退统一由 `inspectTeamPlayers` 处理；归一化匹配和取消行为保持不变。
 - [issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：`premier_league` Agent turn 在 checkpoint、球员与 Planner 访问前拒绝，且不能被模型地址或环境变量绕过；来源许可未核实前只保留隔离 fixture adapter。
 - [issue 185](issues/185-enforce-mens-soccer-roster-scope.md) 已解决：TheSportsDB 球队及球员必须分别具备明确 `Soccer` + `Male` 元数据才会被展示；未知/越界记录被过滤，未核实球队不会触发名单请求。
 - [issue 182](issues/182-ablate-current-turn-search-freshness.md) 已解决：对照只切换独立的当前轮搜索新鲜度门，两臂收到同一 stale `finish` 提案。开启时按位置、年龄、最低分钟、赛事和赛季完整意图补做 EPL 检索，并可使用新的搜索观察；旁路时不会检索第三次。旁路报告被共享下游审查门安全停止，因此实验验证的是图控制流，而非 freshness 单独造成拒绝，也不说明模型泛化、排名质量或 provider 数据新鲜度。

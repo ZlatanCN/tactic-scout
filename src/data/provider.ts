@@ -487,17 +487,7 @@ function withLocalQueries(repository: PlayerRepository): PlayerRepository {
       throwIfAborted(signal);
       return page;
     },
-    inspectTeam: async (teamName, signal) => {
-      throwIfAborted(signal);
-      if (repository.inspectTeam) return repository.inspectTeam(teamName, signal);
-      const key = normalizeSearchText(teamName);
-      const players = await loadAllPlayers(repository, false, signal);
-      throwIfAborted(signal);
-      return players.filter((player) => {
-        const team = normalizeSearchText(player.team);
-        return team === key || (key.length >= 4 && team.includes(key)) || (team.length >= 4 && key.includes(team));
-      });
-    },
+    inspectTeam: (teamName, signal) => inspectTeamPlayers(repository, teamName, signal),
     getPlayersByIds: async (playerIds, signal) => {
       throwIfAborted(signal);
       if (repository.getPlayersByIds) return repository.getPlayersByIds(playerIds, signal);
