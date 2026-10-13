@@ -13,7 +13,7 @@ const cases = [
     evidence: "推进 20/20 有数据；压迫数据缺失。",
     recommendations: ["3", "1"],
     plannerDispatchAttempts: ["3", "1"],
-    plannerTokensMean: ["8,706 / 505 / 9,211", "713 / 402 / 1,115"],
+    plannerTokensMean: ["8,625 / 602 / 9,227", "706 / 292 / 998"],
   },
   {
     number: "02",
@@ -21,13 +21,13 @@ const cases = [
     title: "拜仁中锋替代者",
     checks: "29/29",
     runs: "3/3",
-    evaluated: "30",
-    tools: "10",
+    evaluated: "19",
+    tools: "8",
     clarifications: "2",
-    evidence: "进球产出、创造机会 30/30 有数据；射门终结、进攻接应数据缺失。",
-    recommendations: ["1", "1"],
+    evidence: "进球产出、创造机会 19/19 有数据；射门终结、进攻接应数据缺失。",
+    recommendations: ["3", "1"],
     plannerDispatchAttempts: ["5", "3"],
-    plannerTokensMean: ["11,604 / 659 / 12,263", "6,150 / 526 / 6,676"],
+    plannerTokensMean: ["13,011 / 515 / 13,526", "5,095 / 470 / 5,565"],
   },
 ] as const;
 
@@ -37,7 +37,7 @@ export function ShowcaseInvestigationPlanningAblation() {
   return <section className="showcase-planning-ablation" aria-labelledby="planning-ablation-title">
     <header className="planning-ablation-heading">
       <div>
-        <p className="eyebrow">INVESTIGATION PLANNING · FULL-GRAPH ABLATION · 2026-10-11</p>
+        <p className="eyebrow">INVESTIGATION PLANNING · FULL-GRAPH ABLATION · 2026-10-13</p>
         <h2 id="planning-ablation-title">两组冻结场景中，自适应臂的 Planner tokens 均更高。</h2>
         <p>12 次整图运行的 Harness 检查全部通过；候选评估和报告推荐人数分别展示，不代表排序质量。</p>
       </div>
@@ -88,7 +88,8 @@ export function ShowcaseInvestigationPlanningAblation() {
       <div>
         <p><b>固定基线：</b>用同一条通用方法查询和一页候选请求；图在用户确认具体位置或同意扩展后仍可强制精确范围重查。两个臂共用候选批量评估、球员报告检索、追问与同案恢复、Reviewer 和最终报告模型，配对间交错运行顺序。</p>
         <p><b>运行环境：</b>Qwen 3.5 9B；TactiScout 自建 Wyscout 2017/18 curated 快照；SHA-256 `6f9c45c889d5ae553d1b395d87dd3ad6d1bac8dcf21c3cdadbcb627d14e8be4f`。</p>
-        <p><b>实测用量：</b>2026-10-11 使用带 usage 记录的真实 Qwen/Ollama 调用，对巴萨和拜仁各重跑三组配对；36/36 次实际 Planner 请求均返回完整的输入、输出和总 token 数。表中显示每臂三次整图运行的均值；更早的 2026-10-10 运行没有埋点，不补估或回填。</p>
+        <p><b>实测用量：</b>2026-10-13 在候选意图与当前轮新鲜度守卫生效后，使用真实本机 Qwen/Ollama 对两个场景各重跑三组配对；36/36 次实际 Planner 请求均返回完整的输入、输出和总 token 数。表中显示每臂三次整图运行的均值。</p>
+        <p><b>澄清后搜索：</b>拜仁样例先读取一页宽位置候选，再按用户确认的中锋位置重新查询；零匹配后，只有获得扩大范围的同意才开始新的 ATT 第 0 页搜索。评测将它视为新查询轮，同时要求同一分页序列严格沿用来源返回的下一页游标。</p>
         <p><b>解释边界：</b>这是两个冻结案例上的探索性机制检查。Planner 调度尝试包含报告生成、不含固定规则动作，不能替代实际调用账本。不同策略的输入上下文和生成内容不同，token 数不是金额成本，也不是 token 匹配比较。Harness 从 LangGraph 案件的 <code>conversation.turn()</code> 开始，只报告图内 Planner 用量，不代表完整浏览器交互或整款应用的模型用量。报告推荐条数不代表准确性；没有真人球探排序标签，也不比较 LangGraph 与其他框架。</p>
       </div>
     </details>
