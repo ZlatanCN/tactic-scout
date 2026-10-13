@@ -74,7 +74,7 @@ const studies = [
   { key: "clarification", title: "追问、暂停与同案恢复", takeaway: "答复可用时继续；答复缺席时在必要追问处暂停。", limitation: "两个冻结场景，各三组配对；不是通用追问策略评测。", content: <ShowcaseClarificationInteraction /> },
   { key: "ask-policy", title: "禁用追问策略的对照", takeaway: "关键职责缺失时安全暂停，清晰需求仍正常完成。", limitation: "切换的是整图追问边界；Planner 禁问本身不能替代该对照。", content: <ShowcaseAskPolicyAblation /> },
   { key: "reviewer", title: "Reviewer 证据复核", takeaway: "缺证据时修复引用；证据完整时维持原报告。", limitation: "两个场景，各三组配对；没有真人球探标签。", content: <ShowcaseReviewerAblation /> },
-  { key: "rag", title: "方法 RAG 是否进入报告", takeaway: "检索片段进入报告；本样本未改变候选顺序。", limitation: "一个场景、一个本地模型、三组配对；不衡量排序质量。", content: <ShowcaseMethodologyRagAblation /> },
+  { key: "rag", title: "方法 RAG 的检索与整图证据", takeaway: "跨语言留出证据覆盖从 1/3 升到 3/3；早期整图消融把检索证据传入报告。", limitation: "仅 12 个作者标注意图；译文未独立双语审校，也不评估推荐质量。", content: <ShowcaseMethodologyRagAblation /> },
   { key: "latency", title: "Planner 与工具的延迟", takeaway: "三个运行中，长等待集中在 Planner 决策。", limitation: "3 次端到端样本；Planner 时间不是纯模型推理时间，也不能相加推导总时长。", content: <ShowcaseLatencySummary /> },
 ] as const;
 

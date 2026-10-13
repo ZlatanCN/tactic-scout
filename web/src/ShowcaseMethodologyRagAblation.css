@@ -1,48 +1,76 @@
 .showcase-rag-ablation { margin: 0 0 38px; overflow: hidden; border: 1px solid #d8e3d7; border-radius: 9px; background: #fbfcf9; box-shadow: 0 10px 28px rgba(35,62,42,.045); }
-.rag-ablation-heading { display: grid; grid-template-columns: minmax(0,1fr) minmax(190px,.34fr); gap: 28px; align-items: center; padding: 25px 28px 22px; border-bottom: 1px solid #e7ece4; background: linear-gradient(112deg,#f3f7f1,#fbfcf9 70%); }
-.rag-ablation-heading .eyebrow { margin: 0 0 8px; color: #708873; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; }
+.rag-ablation-heading { display: grid; grid-template-columns: minmax(0,1fr) minmax(205px,.38fr); gap: 28px; align-items: center; padding: 25px 28px 22px; border-bottom: 1px solid #e7ece4; background: linear-gradient(112deg,#f3f7f1,#fbfcf9 70%); }
+.rag-ablation-heading .eyebrow, .rag-graph-heading .eyebrow { margin: 0 0 8px; color: #708873; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; }
 .rag-ablation-heading h2 { max-width: 760px; margin: 0; color: #233d2c; font-size: clamp(21px,2.45vw,29px); font-weight: 560; letter-spacing: -.045em; line-height: 1.35; }
-.rag-ablation-heading > div > p:last-child { max-width: 720px; margin: 9px 0 0; color: #6f7b70; font-size: 12px; line-height: 1.75; }
+.rag-ablation-heading > div > p:last-child { max-width: 720px; margin: 9px 0 0; color: #5e6a61; font-size: 12px; line-height: 1.75; }
 .rag-ablation-proof { display: grid; align-content: center; min-height: 126px; padding: 13px 17px; border: 1px solid #dce7da; border-radius: 6px; background: #fffefa; }
-.rag-ablation-proof > span { color: #7a8e7c; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; }
-.rag-ablation-proof > strong { margin-top: 4px; color: #28543a; font-family: var(--mono); font-size: 35px; font-weight: 500; letter-spacing: -.07em; line-height: 1.1; }
-.rag-ablation-proof > strong span { color: #96ac98; font-size: 20px; }
-.rag-ablation-proof > small { margin-top: 3px; color: #727e73; font-size: 10px; }
-.rag-ablation-arms { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; padding: 18px 20px 15px; }
+.rag-ablation-proof > span { color: #657667; font-family: var(--mono); font-size: 9px; letter-spacing: .09em; }
+.rag-ablation-proof > strong { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; color: #28543a; font-family: var(--mono); font-size: 32px; font-weight: 500; letter-spacing: -.07em; line-height: 1.1; white-space: nowrap; }
+.rag-ablation-proof > strong i { color: #91a991; font-size: 21px; font-style: normal; }
+.rag-ablation-proof > small { margin-top: 6px; color: #5e6a61; font-size: 10px; line-height: 1.5; }
+.rag-crosslingual-results { padding: 18px 20px 17px; border-bottom: 1px solid #e7ece4; }
+.rag-crosslingual-grid { width: 100%; table-layout: fixed; border: 1px solid #e4e9e0; border-collapse: separate; border-spacing: 0; border-radius: 6px; background: #fffefa; }
+.rag-crosslingual-grid col:first-child { width: 45%; }
+.rag-crosslingual-grid col:nth-child(2) { width: 25%; }
+.rag-crosslingual-grid col:nth-child(3) { width: 30%; }
+.rag-crosslingual-grid th, .rag-crosslingual-grid td { min-width: 0; padding: 11px 13px; border-bottom: 1px solid #edf0ea; color: #556359; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.rag-crosslingual-grid thead th { padding-top: 9px; padding-bottom: 9px; color: #68766b; background: #f4f6f1; font-size: 9px; font-weight: 600; text-align: center; }
+.rag-crosslingual-grid thead th:first-child { text-align: left; }
+.rag-crosslingual-grid tbody th { color: #4e5d51; font-weight: 600; text-align: left; }
+.rag-crosslingual-grid tbody td { color: #756e5b; font-family: var(--mono); font-size: 13px; font-weight: 500; text-align: center; }
+.rag-crosslingual-grid tbody td.is-improved { color: #326a43; background: #f4f8f2; font-weight: 700; }
+.rag-crosslingual-grid tbody td.is-unchanged { color: #4d6550; background: #f6f8f4; }
+.rag-crosslingual-grid tr:last-child > * { border-bottom: 0; }
+.rag-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.rag-crosslingual-safety { margin: 12px 0 0; color: #536255; font-size: 11px; line-height: 1.7; }
+.rag-graph-ablation { padding: 18px 20px 0; }
+.rag-graph-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.rag-graph-heading h3 { max-width: 720px; margin: 0; color: #344839; font-size: 16px; font-weight: 650; letter-spacing: -.025em; line-height: 1.45; }
+.rag-graph-heading > div > p:last-child { margin: 6px 0 0; color: #5e6a61; font-size: 11px; line-height: 1.65; }
+.rag-graph-pass { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 7px 9px; border: 1px solid #dce7da; border-radius: 5px; color: #647267; background: #fffefa; font-size: 9px; }
+.rag-graph-pass b { color: #456b4e; font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.rag-ablation-arms { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; padding: 15px 0 14px; }
 .rag-ablation-arm { min-width: 0; padding: 16px; border: 1px solid #e4e9e0; border-top: 3px solid #607f68; border-radius: 6px; background: #fffefa; }
 .rag-ablation-arm.is-suppressed { border-top-color: #a89a7f; }
 .rag-ablation-arm > header { display: flex; gap: 9px; align-items: center; }
 .rag-ablation-arm > header > span { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; color: #416749; background: #eaf1e7; font-size: 12px; }
 .rag-ablation-arm.is-suppressed > header > span { color: #77694d; background: #f1eee6; }
-.rag-ablation-arm h3 { margin: 0; color: #304536; font-size: 14px; font-weight: 650; }
+.rag-ablation-arm h4 { margin: 0; color: #304536; font-size: 13px; font-weight: 650; }
 .rag-ablation-flow { display: grid; grid-template-columns: minmax(0,1fr) 20px minmax(0,1fr); gap: 7px; align-items: center; margin-top: 15px; }
 .rag-ablation-flow > div { display: grid; min-height: 102px; align-content: center; gap: 2px; padding: 10px; border: 1px solid #e8ece5; border-radius: 5px; background: #f7f9f5; }
 .rag-ablation-flow strong { color: #315c3d; font-family: var(--mono); font-size: 28px; font-weight: 500; letter-spacing: -.06em; line-height: 1.15; }
 .is-suppressed .rag-ablation-flow strong { color: #75694f; }
 .rag-ablation-flow span { color: #536255; font-size: 10px; line-height: 1.5; }
-.rag-ablation-flow small { margin-top: 3px; color: #8a9488; font-size: 9px; }
-.rag-ablation-flow > i { color: #a1aca0; font-size: 13px; font-style: normal; text-align: center; }
-.rag-ablation-check { display: flex; gap: 8px; align-items: baseline; margin: 10px 0 0; color: #748174; font-size: 10px; line-height: 1.55; }
+.rag-ablation-flow small { margin-top: 3px; color: #68746a; font-size: 9px; }
+.rag-ablation-flow > i { color: #7a867b; font-size: 13px; font-style: normal; text-align: center; }
+.rag-ablation-check { display: flex; gap: 8px; align-items: baseline; margin: 10px 0 0; color: #5e6a61; font-size: 10px; line-height: 1.55; }
 .rag-ablation-check b { color: #42634a; font-family: var(--mono); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .is-suppressed .rag-ablation-check b { color: #75694f; }
-.rag-ablation-pair-note { display: flex; gap: 9px; align-items: flex-start; margin: 0 20px 14px; padding: 10px 12px; border-left: 2px solid #8ca88c; background: #f5f8f2; }
-.rag-ablation-pair-note > span { color: #607f68; font-size: 13px; }
-.rag-ablation-pair-note p { margin: 0; color: #697668; font-size: 10px; line-height: 1.7; }
-.rag-ablation-pair-note strong { color: #405743; font-weight: 650; }
+.rag-ablation-pair-note { display: flex; gap: 9px; align-items: flex-start; margin: 0 0 14px; padding: 10px 12px; border-left: 2px solid #bcaa82; background: #faf6ed; }
+.rag-ablation-pair-note > span { color: #836d47; font-size: 13px; }
+.rag-ablation-pair-note p { margin: 0; color: #665e4f; font-size: 11px; line-height: 1.7; }
+.rag-ablation-pair-note strong { color: #685b42; font-weight: 650; }
 .rag-ablation-method { margin: 0 20px 18px; border-top: 1px solid #e9ece5; }
-.rag-ablation-method summary { padding: 10px 0 3px; color: #738072; cursor: pointer; font-size: 10px; list-style-position: inside; }
+.rag-ablation-method summary { padding: 10px 0 3px; color: #5e6a61; cursor: pointer; font-size: 11px; list-style-position: inside; }
 .rag-ablation-method > div { padding: 3px 0 0 15px; }
-.rag-ablation-method p { margin: 7px 0; color: #758075; font-size: 10px; line-height: 1.7; overflow-wrap: anywhere; }
-.rag-ablation-method code { color: #566b58; font-family: var(--mono); font-size: 9px; overflow-wrap: anywhere; }
+.rag-ablation-method p { margin: 7px 0; color: #5e6a61; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
 @media (max-width: 680px) {
   .rag-ablation-heading { grid-template-columns: 1fr; gap: 16px; padding: 21px 17px 17px; }
   .rag-ablation-proof { grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; min-height: auto; padding: 11px 13px; }
   .rag-ablation-proof > span { grid-column: 1 / -1; }
-  .rag-ablation-proof > strong { grid-row: 2; }
-  .rag-ablation-proof > small { align-self: center; grid-column: 2; grid-row: 2; }
-  .rag-ablation-arms { grid-template-columns: 1fr; gap: 10px; padding: 14px 13px 12px; }
+  .rag-ablation-proof > strong { grid-row: 2; margin-top: 4px; font-size: 29px; }
+  .rag-ablation-proof > small { align-self: center; grid-column: 2; grid-row: 2; margin-top: 2px; }
+  .rag-crosslingual-results { padding: 14px 13px; }
+  .rag-crosslingual-grid col:first-child { width: 43%; }
+  .rag-crosslingual-grid col:nth-child(2) { width: 26%; }
+  .rag-crosslingual-grid col:nth-child(3) { width: 31%; }
+  .rag-crosslingual-grid th, .rag-crosslingual-grid td { padding: 10px 7px; font-size: 10px; }
+  .rag-crosslingual-grid tbody td { font-size: 12px; }
+  .rag-crosslingual-grid thead th { font-size: 8px; }
+  .rag-graph-ablation { padding: 16px 13px 0; }
+  .rag-graph-heading { align-items: start; flex-direction: column; gap: 9px; }
+  .rag-ablation-arms { grid-template-columns: 1fr; gap: 10px; }
   .rag-ablation-arm { padding: 13px; }
   .rag-ablation-flow > div { min-height: 86px; padding: 8px; }
-  .rag-ablation-pair-note { margin-right: 13px; margin-left: 13px; }
   .rag-ablation-method { margin-right: 13px; margin-left: 13px; }
 }
