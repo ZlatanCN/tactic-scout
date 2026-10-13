@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build API and web app
+    name: Test and build API and web app
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -29,6 +29,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Run deterministic regression suite
+        run: pnpm test
 
       - name: Build API
         run: pnpm build

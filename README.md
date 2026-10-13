@@ -11,6 +11,7 @@ TactiScout 是一个全 TypeScript 的作品集项目，重点展示 LangGraph �
 - **工具证据与确定性计算分工：** Agent 选择调查动作；typed tool executor 负责分发，独立的证据 evaluator 负责加载合格候选、构造同位置/赛事/赛季比较组并计算可观测指标。LangGraph 保留案件策略与状态迁移；缺失指标不会按零处理，也不会被相近字段冒充。
 - **停止会传到正在执行的工具：** 用户取消会通知候选/球队查询、Understat/ASA/mosaic 来源请求、RAG 检索和候选评估；共享缓存请求只在最后一个调用者离开时中止。不可中断的本地库调用结束后会丢弃结果，不再开始下一项调查动作。
 - **审阅与可追溯报告：** Reviewer 检查结论是否引用已评估候选的证据。报告展示来源、样本、覆盖情况和限制；进度事件可以和实际工具轨迹对照。
+- **完整回归门：** CI 运行确定性 LangGraph/Harness、API 和数据适配器测试，再构建 API 与 Web；测试使用固定夹具，不依赖在线球员数据或云模型。
 - **来源处理边界在运行时执行：** FBref 与 FPL 在 checkpoint、候选读取和 Planner 之前被拒绝；StatsBomb 必须显式确认协议并使用本机模型；权限尚未核实的 Understat、ASA 与 mosaic 只允许使用本机回环模型。打开网页、个人非商业用途或自设环境变量都不会被当作来源许可。
 - **精确身份分组、证据按来源保留：** 只有 Reep 唯一有效 ID 会把多条来源记录归为同一候选；指标与样本仍按来源独立评估，Reviewer 会阻止同一已确认身份重复推荐。
 - **本地优先的运行时：** Ollama 可作为 OpenAI-compatible 模型服务；LangGraph 案件 checkpoint 存在本地 SQLite，计划和报告快照存在浏览器 `localStorage`。

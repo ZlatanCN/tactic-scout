@@ -10,7 +10,7 @@ pnpm build
 pnpm build:web
 ```
 
-确定性测试经 Fastify HTTP 边界、LangGraph runtime 和前端 API 契约验证追问/恢复、工具顺序、来源处理门控、报告证据和同案队列释放；模型规划器、embedding 与球员数据由固定实现注入，不需要 API key 或在线来源。2026-10-12 当前工作树完整验证：`pnpm test` 415/415、`pnpm build`、`pnpm build:web` 与 `git diff --check` 均通过。测试覆盖 FPL/FBref 与远程模型端点的早期拒绝、Understat/ASA/mosaic 的 loopback 路径与活动依赖取消、StatsBomb 男足赛事/赛季过滤，以及身份自由 Harness 摘要导出。确定性测试、真实模型 Harness 与数据源研究的边界由 [issue 14](../.scratch/tactiscout-mvp/issues/14-agent-harness-evaluation-suite.md) 和 issue map 维护。
+确定性测试经 Fastify HTTP 边界、LangGraph runtime 和前端 API 契约验证追问/恢复、工具顺序、来源处理门控、报告证据和同案队列释放；模型规划器、embedding 与球员数据由固定实现注入，不需要 API key 或在线来源。2026-10-13 当前工作树完整验证：`pnpm test` 436/436、`pnpm build`、`pnpm build:web` 与 `git diff --check` 均通过。CI 也会运行 `pnpm test`，随后构建 API 和 Web。测试覆盖 FPL/FBref 与远程模型端点的早期拒绝、Understat/ASA/mosaic 的 loopback 路径与活动依赖取消、StatsBomb 男足赛事/赛季过滤、TheSportsDB 男足名单范围，以及身份自由 Harness 摘要导出。确定性测试、真实模型 Harness 和数据源研究的边界由 [issue 14](../.scratch/tactiscout-mvp/issues/14-agent-harness-evaluation-suite.md) 和 issue map 维护。
 
 ### 工具取消传播
 

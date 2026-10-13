@@ -8,6 +8,7 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-13：[issue 187](issues/187-run-deterministic-harness-in-ci.md) 已解决：CI 在 API/Web 构建前运行确定性 LangGraph/Harness 回归；本地 436/436 测试、两端构建、YAML 解析和 diff check 通过。没有触发远端 CI。
 - 2026-10-13：[issue 186](issues/186-centralize-team-inspection-fallback.md) 已解决：`withLocalQueries` 改为委托 `inspectTeamPlayers`，以同一实现处理专用球队查询和本地目录回退；公开接口特征测试覆盖归一化部分匹配、单次整库读取及加载期间取消。聚焦测试 2/2、API build、全套 436/436 测试和 diff check 通过。
 - 2026-10-13：[issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：依据英超官网未授权建库条款，`premier_league` Agent turn 现在在 checkpoint、球员和 Planner 读取前返回 503；移除了 `.env.example` 的启用参数和文档使用指引，adapter 仅留作 fixture 测试。无 live 请求；HTTP 回归与 API/Web build 通过。[官方来源复核](research/source-scope-recheck-2026-10-13.md)
 - 2026-10-13：[issue 185](issues/185-enforce-mens-soccer-roster-scope.md) 已解决：TheSportsDB 球队与球员行都必须明确标为 Soccer + Male，缺失元数据时不取名单且展示核验说明；同名女足/其他运动队不会造成误选或歧义。adapter 双请求/单请求回归、全套 434 项测试与 API/Web 构建通过；未发起 live 请求。[官方字段复核](research/source-scope-recheck-2026-10-13.md)
@@ -201,6 +202,7 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- [issue 187](issues/187-run-deterministic-harness-in-ci.md) 已解决：CI 先运行固定夹具的完整 `pnpm test`，再构建 API/Web；不需要云模型、API 凭据或在线球员数据。
 - [issue 186](issues/186-centralize-team-inspection-fallback.md) 已解决：球队检查的专用仓库调用与本地整库回退统一由 `inspectTeamPlayers` 处理；归一化匹配和取消行为保持不变。
 - [issue 184](issues/184-block-premier-league-unauthorized-automation.md) 已解决：`premier_league` Agent turn 在 checkpoint、球员与 Planner 访问前拒绝，且不能被模型地址或环境变量绕过；来源许可未核实前只保留隔离 fixture adapter。
 - [issue 185](issues/185-enforce-mens-soccer-roster-scope.md) 已解决：TheSportsDB 球队及球员必须分别具备明确 `Soccer` + `Male` 元数据才会被展示；未知/越界记录被过滤，未核实球队不会触发名单请求。
