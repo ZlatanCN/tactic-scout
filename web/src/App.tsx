@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { ArrowUpRight, Database, MoreHorizontal, Save } from "lucide-react";
+import { ArrowUpRight, Database, MoreHorizontal, Save, ScanLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,11 +68,11 @@ function App() {
 
   return <div className="min-h-screen bg-background">
     <a href="#workbench-task" className="sr-only z-50 rounded-md bg-background p-3 text-foreground focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:ring-2 focus:ring-ring">跳到招募工作区</a>
-    <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-      <div className="mx-auto flex h-14 max-w-[1680px] items-center justify-between gap-3 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-foreground/10 bg-card">
+      <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6">
         <a className="inline-flex shrink-0 items-center gap-2.5 font-semibold tracking-tight text-foreground no-underline" href="#top" aria-label="TactiScout 首页">
-          <span className="flex h-6 items-end gap-0.5" aria-hidden="true"><span className="h-3 w-1 rounded-t-sm bg-primary/60" /><span className="h-5 w-1 rounded-t-sm bg-primary" /><span className="h-4 w-1 rounded-t-sm bg-primary/80" /></span>
-          <span>TactiScout</span>
+          <span className="grid size-9 place-items-center rounded-lg bg-foreground text-card" aria-hidden="true"><ScanLine className="size-5" /></span>
+          <span className="text-lg">TactiScout<span className="ml-3 hidden border-l pl-3 text-xs font-normal text-muted-foreground sm:inline">球探工作室</span></span>
         </a>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
           <Badge variant="outline" className={`min-w-0 max-w-[54vw] shrink gap-1.5 truncate px-2.5 py-1 text-xs font-normal ${connectionBadgeClass}`}>
@@ -92,9 +92,9 @@ function App() {
       </div>
     </header>
 
-    <main id="top" className="mx-auto grid max-w-[1680px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:py-8 xl:grid-cols-[220px_minmax(0,1fr)]">
+    <main id="top" className="mx-auto grid max-w-[1500px] grid-cols-1 gap-8 px-4 py-8 sm:px-8 lg:gap-12 lg:py-10 xl:grid-cols-[200px_minmax(0,1fr)]">
       <aside className="order-2 min-w-0 xl:order-1">
-        <div className="sticky top-20 space-y-4">
+        <div className="sticky top-24 space-y-5">
           <SavedPlansSidebar plans={state.plans} activePlanId={state.activePlanId} disabled={state.turnUnresolved} onOpen={actions.openPlan} onDelete={actions.deletePlan} onNew={actions.startNewCase} />
           <Separator />
           <p className="m-0 text-xs leading-5 text-muted-foreground">计划与报告保存在此浏览器。</p>
@@ -102,11 +102,11 @@ function App() {
         </div>
       </aside>
 
-      <section id="workbench-task" tabIndex={-1} className={`order-1 min-w-0 outline-none xl:order-2 ${state.isFreshCase ? "mx-auto w-full max-w-4xl" : ""}`}>
+      <section id="workbench-task" tabIndex={-1} className={`order-1 min-w-0 outline-none xl:order-2 ${state.isFreshCase ? "mx-auto w-full max-w-3xl" : ""}`}>
         <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="m-0 break-words text-2xl font-semibold tracking-tight sm:text-3xl">{state.isFreshCase ? "描述引援需求" : state.planName || "招募调查"}</h1>
-            <p className="mb-0 mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{state.isFreshCase ? "描述球队需要的球员，球探会帮你逐步缩小范围。" : state.turnUnresolved ? "正在调查你的需求，上一份报告会继续保留。" : state.waitingForAnswer ? "回答球探的问题，继续这项调查。" : state.report ? "先看本轮结论，再核对球员依据和缺失信息。" : "在对话中继续补充球队与球员需求。"}</p>
+            <h1 className="m-0 break-words text-3xl font-semibold tracking-tight sm:text-4xl">{state.isFreshCase ? "下一位，谁能改变比赛？" : state.planName || "招募调查"}</h1>
+            <p className="mb-0 mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{state.isFreshCase ? "从一个引援想法，开始你的球探调查。" : state.turnUnresolved ? "正在调查你的需求，上一份报告会继续保留。" : state.waitingForAnswer ? "回答球探的问题，继续这项调查。" : state.report ? "查看候选名单，比较表现，决定下一步考察谁。" : "在对话中继续补充球队与球员需求。"}</p>
           </div>
           {!state.isFreshCase && <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" className="sm:hidden" onClick={actions.startNewCase} disabled={state.turnUnresolved}>新建计划</Button>
@@ -115,15 +115,15 @@ function App() {
           </div>}
         </div>
 
-        {!state.isFreshCase && <Tabs value={state.workspaceView} onValueChange={(value) => { if (value === "conversation" || value === "report") actions.setWorkspaceView(value); }} className="mb-4 2xl:hidden">
-          <TabsList className="grid h-10 w-full grid-cols-2">
+        {!state.isFreshCase && <Tabs value={state.workspaceView} onValueChange={(value) => { if (value === "conversation" || value === "report") actions.setWorkspaceView(value); }} className="mb-7">
+          <TabsList className="grid h-11 w-full max-w-md grid-cols-2 bg-border/50 p-1">
             <TabsTrigger value="conversation">球探对话{state.waitingForAnswer ? " · 需要回答" : ""}</TabsTrigger>
             <TabsTrigger value="report">候选报告{state.report ? ` · ${state.report.recommendations.length}` : ""}</TabsTrigger>
           </TabsList>
         </Tabs>}
 
-        <div className="grid min-w-0 grid-cols-1 gap-5 2xl:grid-cols-[minmax(350px,.82fr)_minmax(0,1.18fr)] 2xl:gap-6">
-          <div className={`${state.isFreshCase || state.workspaceView === "conversation" ? "block" : "hidden"} 2xl:block 2xl:self-start`}>
+        <div className="grid min-w-0 grid-cols-1 gap-5">
+          <div className={`${state.isFreshCase || state.workspaceView === "conversation" ? "block" : "hidden"}`}>
             <RecruitmentConversationPanel
               view={{
                 threadId: state.threadId, activePlanId: state.activePlanId, messages: state.messages, report: state.report, status: state.status,
@@ -141,10 +141,7 @@ function App() {
             />
           </div>
 
-          <div className={`${state.isFreshCase || state.workspaceView === "report" ? "block" : "hidden"} 2xl:block`}>
-            {!state.isFreshCase && <div className="mb-2 flex justify-end">
-              <Button type="button" variant="ghost" size="sm" className="hidden 2xl:inline-flex" onClick={actions.startNewCase} disabled={state.turnUnresolved}>新建计划</Button>
-            </div>}
+          <div className={`${state.isFreshCase || state.workspaceView === "report" ? "block" : "hidden"}`}>
             {!state.isFreshCase && <RecruitmentReportPanel view={reportPanelView} onAction={(action) => {
               if (action === "retry_dataset") void refreshDatasetStatus();
               else setPlayerObservationsOpen(true);
@@ -165,7 +162,7 @@ function App() {
     </main>
 
     {playerObservationsOpen && <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-background/70 text-sm text-muted-foreground" role="status">正在打开球探观察…</div>}><PlayerObservationsDialog onClose={() => setPlayerObservationsOpen(false)} /></Suspense>}
-    <footer className="mx-auto flex max-w-[1680px] flex-col gap-1 border-t px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <footer className="mx-auto flex max-w-[1500px] flex-col gap-1 border-t px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <span className="font-medium text-foreground">TactiScout</span><span>每个建议，都有依据可查。</span>
     </footer>
   </div>;

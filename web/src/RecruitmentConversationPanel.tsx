@@ -53,6 +53,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
   view: RecruitmentConversationView;
   actions: RecruitmentConversationActions;
 }) {
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const conversationThreadRef = useRef<HTMLDivElement>(null);
   const shouldFollowConversationRef = useRef(true);
   const previousContextRef = useRef({ threadId: view.threadId, activePlanId: view.activePlanId });
@@ -77,8 +78,8 @@ export function RecruitmentConversationPanel({ view, actions }: {
     sendMessage();
   }
 
-  return <Card className="gap-0 overflow-hidden py-0" aria-label="球探对话">
-    <CardHeader className="flex grid-cols-1 items-center gap-3 border-b px-4 py-3 sm:flex-row sm:justify-between sm:px-5">
+  return <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-sm ring-1 ring-border" aria-label="球探对话">
+    {!view.isFreshCase && <CardHeader className="flex grid-cols-1 items-center gap-3 border-b px-4 py-3 sm:flex-row sm:justify-between sm:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-primary"><Radar className="size-4" aria-hidden="true" /></span>
         <div className="min-w-0 flex-1">
@@ -87,11 +88,11 @@ export function RecruitmentConversationPanel({ view, actions }: {
         </div>
       </div>
       {view.activePlanId && view.report && view.status === "completed" && <Button type="button" variant="outline" size="sm" onClick={() => sendMessage("重新分析招募需求", "reanalysis")} disabled={view.turnUnresolved}>重新分析</Button>}
-    </CardHeader>
+    </CardHeader>}
 
     <CardContent className="space-y-4 p-0">
-      <div
-        className="max-h-[52dvh] min-h-56 space-y-4 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5"
+      {!view.isFreshCase && <div
+        className="max-h-[56dvh] min-h-56 space-y-4 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5"
         ref={conversationThreadRef}
         onScroll={(event) => {
           const thread = event.currentTarget;
@@ -99,17 +100,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
         }}
       >
         <div className="space-y-4" role="log" aria-live="polite" aria-relevant="additions" aria-label="案件对话消息">
-          {view.messages.length === 0 && !view.pendingTurnRequest ? <div className="space-y-5">
-            <div>
-              <h2 className="max-w-2xl text-balance text-2xl font-semibold tracking-tight sm:text-3xl">用一句话描述引援需求。</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">说出目标球队、想替代的球员或要补强的位置，也可以提预算、年龄和重点能力。缺少会影响搜索的信息时，调查中再向你确认。</p>
-            </div>
-            <div className="grid gap-2" aria-label="试试这样描述">
-              {suggestedBriefs.map((brief) => <button type="button" key={brief} disabled={view.turnUnresolved} onClick={() => actions.onDraftChange(brief)} className="group flex items-start justify-between gap-4 rounded-lg border bg-card px-3.5 py-3 text-left text-sm leading-5 text-foreground transition-colors hover:border-primary/30 hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none">
-                <span>{brief}</span><ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
-              </button>)}
-            </div>
-          </div> : view.messages.map((message) => {
+          {view.messages.map((message) => {
             const user = message.role === "user";
             return <article className={`flex gap-2.5 ${user ? "justify-end" : "justify-start"}`} key={message.id}>
               {!user && <span className="grid size-7 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-primary" aria-label="TactiScout">TS</span>}
@@ -143,11 +134,11 @@ export function RecruitmentConversationPanel({ view, actions }: {
           onResumeReanalysis={() => sendMessage("重新分析招募需求", "reanalysis")}
         />}
         {view.waitingForAnswer && !view.loading && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">补充信息后，球探会在同一项引援调查中继续。</p>}
-      </div>
+      </div>}
 
-      <form className="space-y-3 border-t bg-muted/30 p-4 sm:p-5" onSubmit={handleSubmit}>
+      <form className={`space-y-4 p-5 sm:p-7 ${view.isFreshCase ? "bg-card" : "border-t bg-muted/30"}`} onSubmit={handleSubmit}>
         <label className="sr-only" htmlFor="message-composer">描述招募需求或回答球探问题</label>
-        <Textarea id="message-composer" rows={3} className="min-h-28 resize-y bg-background text-sm leading-6 placeholder:text-muted-foreground/80" value={view.draft} onChange={(event) => actions.onDraftChange(event.target.value)} onKeyDown={(event) => {
+        <Textarea ref={composerRef} id="message-composer" rows={3} className={`resize-y bg-card text-base leading-7 placeholder:text-muted-foreground ${view.isFreshCase ? "min-h-40 border-0 p-0 shadow-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring focus-visible:ring-0" : "min-h-28"}`} value={view.draft} onChange={(event) => actions.onDraftChange(event.target.value)} onKeyDown={(event) => {
           const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
           if (event.key === "Enter" && !event.shiftKey && !isComposing) { event.preventDefault(); sendMessage(); }
         }} placeholder={view.waitingForAnswer ? "回答这个问题，或补充你希望优先考虑的方向…" : "例如：为拜仁找凯恩的替代者，优先看接应、做球和射门终结。"} disabled={view.turnUnresolved} />
@@ -165,8 +156,10 @@ export function RecruitmentConversationPanel({ view, actions }: {
         </div>
         {view.error && <p className="m-0 text-sm text-destructive" role="alert">{view.error}</p>}
         {view.notice && <p className="m-0 text-sm text-primary" role="status">{view.notice}</p>}
-        <p className="m-0 text-xs leading-5 text-muted-foreground">{view.isFreshCase ? "无需填写表格。球探会根据实际数据说明依据与未知项。" : `已进行 ${view.userCount} 轮对话，当前结果可保存为计划。`}</p>
+        <p className="m-0 text-xs leading-5 text-muted-foreground">{view.isFreshCase ? "建议基于可获取的数据；缺失的信息会明确标注。" : `已进行 ${view.userCount} 轮对话，当前结果可保存为计划。`}</p>
       </form>
+      {view.isFreshCase && <section className="border-t px-5 pb-6 pt-5 sm:px-7" aria-label="试试这样描述"><h2 className="mb-3 mt-0 text-xs font-medium text-muted-foreground">从这些方向开始</h2><div className="space-y-1">{suggestedBriefs.map((brief) => <button type="button" key={brief} onClick={() => { actions.onDraftChange(brief); composerRef.current?.focus(); }} className="flex w-full items-start justify-between gap-4 rounded-lg px-3 py-3 text-left text-sm leading-6 text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><span>{brief}</span><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></button>)}</div></section>}
+
     </CardContent>
   </Card>;
 }
