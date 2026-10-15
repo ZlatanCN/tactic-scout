@@ -1,4 +1,4 @@
-import "./ShowcaseReviewerAblation.css";
+import { showcaseClasses } from "./showcase-classes";
 
 const scenarios = [
   {
@@ -26,14 +26,14 @@ const scenarios = [
 ] as const;
 
 export function ShowcaseReviewerAblation() {
-  return <section className="showcase-reviewer-ablation" aria-labelledby="showcase-reviewer-ablation-title">
-    <header className="reviewer-ablation-heading">
+  return <section className={showcaseClasses("showcase-reviewer-ablation")} aria-labelledby="showcase-reviewer-ablation-title">
+    <header className={showcaseClasses("reviewer-ablation-heading")}>
       <div>
-        <p className="eyebrow">CONTROLLED ABLATION · 2026-10-10</p>
+        <p className={showcaseClasses("eyebrow")}>CONTROLLED ABLATION · 2026-10-10</p>
         <h2 id="showcase-reviewer-ablation-title">有证据缺口时修复，证据完整时不干预。</h2>
         <p>只切换确定性证据复核门；Planner、工具和 Wyscout 历史快照保持一致。每个场景做三组配对。</p>
       </div>
-      <div className="reviewer-ablation-case-count" aria-label="两个场景，每个场景三组配对">
+      <div className={showcaseClasses("reviewer-ablation-case-count")} aria-label="两个场景，每个场景三组配对">
         <strong>02</strong>
         <span>distinct cases</span>
         <small>3 matched pairs each</small>
@@ -41,32 +41,32 @@ export function ShowcaseReviewerAblation() {
       </div>
     </header>
 
-    <div className="reviewer-ablation-scenarios">
-      {scenarios.map((scenario) => <article className="reviewer-ablation-scenario" key={scenario.number}>
-        <header className="reviewer-ablation-scenario-heading">
-          <span className="reviewer-ablation-scenario-number">{scenario.number}</span>
+    <div className={showcaseClasses("reviewer-ablation-scenarios")}>
+      {scenarios.map((scenario) => <article className={showcaseClasses("reviewer-ablation-scenario")} key={scenario.number}>
+        <header className={showcaseClasses("reviewer-ablation-scenario-heading")}>
+          <span className={showcaseClasses("reviewer-ablation-scenario-number")}>{scenario.number}</span>
           <div>
             <p>{scenario.eyebrow}</p>
             <h3>{scenario.title}</h3>
           </div>
-          <span className="reviewer-ablation-repeat">3 ×</span>
+          <span className={showcaseClasses("reviewer-ablation-repeat")}>3 ×</span>
         </header>
 
-        <div className="reviewer-ablation-comparison" aria-label={`${scenario.title}完整复核与旁路对比`}>
-          <div className="reviewer-ablation-arm is-enabled">
+        <div className={showcaseClasses("reviewer-ablation-comparison")} aria-label={`${scenario.title}完整复核与旁路对比`}>
+          <div className={showcaseClasses("reviewer-ablation-arm", "is-enabled")}>
             <span>FULL HARNESS · 复核开启</span>
             <strong>{scenario.full.score}</strong>
             <small>{scenario.full.runs}</small>
           </div>
-          <span className="reviewer-ablation-versus" aria-hidden="true">vs</span>
-          <div className="reviewer-ablation-arm is-bypassed">
+          <span className={showcaseClasses("reviewer-ablation-versus")} aria-hidden="true">vs</span>
+          <div className={showcaseClasses("reviewer-ablation-arm", "is-bypassed")}>
             <span>REVIEW BYPASSED · 复核旁路</span>
             <strong>{scenario.bypass.score}</strong>
             <small>{scenario.bypass.runs}</small>
           </div>
         </div>
 
-        <div className="reviewer-ablation-observation">
+        <div className={showcaseClasses("reviewer-ablation-observation")}>
           <span aria-hidden="true">{scenario.outcomeSymbol}</span>
           <div>
             <strong>{scenario.action}</strong>
@@ -74,13 +74,13 @@ export function ShowcaseReviewerAblation() {
           </div>
         </div>
 
-        <footer className="reviewer-ablation-scenario-facts">
+        <footer className={showcaseClasses("reviewer-ablation-scenario-facts")}>
           <span><small>焦点证据引用 · 完整 → 旁路</small><b>{scenario.full.evidence} → {scenario.bypass.evidence}</b></span>
           <span><small>配对观察</small><b>{scenario.pairedFact}</b></span>
         </footer>
       </article>)}
     </div>
 
-    <p className="reviewer-ablation-caveat">这是同一模型和历史快照上的两个场景，每个场景重复三次；重复运行不等于更多独立场景。结果说明本次复核修复了一个证据引用缺口，并在无缺口时保持原结果。没有真人球探标签，候选排序质量仍未评估；这也不是 LangGraph 与其他框架的比较。</p>
+    <p className={showcaseClasses("reviewer-ablation-caveat")}>这是同一模型和历史快照上的两个场景，每个场景重复三次；重复运行不等于更多独立场景。结果说明本次复核修复了一个证据引用缺口，并在无缺口时保持原结果。没有真人球探标签，候选排序质量仍未评估；这也不是 LangGraph 与其他框架的比较。</p>
   </section>;
 }

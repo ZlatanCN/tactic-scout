@@ -1,4 +1,4 @@
-import "./ShowcaseAskPolicyAblation.css";
+import { showcaseClasses } from "./showcase-classes";
 
 const scenarios = [
   {
@@ -48,10 +48,10 @@ const scenarios = [
 ] as const;
 
 function ScenarioPath({ label, steps }: { label: string; steps: readonly string[] }) {
-  return <div className="ask-policy-path">
+  return <div className={showcaseClasses("ask-policy-path")}>
     <span>{label}</span>
     <ol aria-label={label}>
-      {steps.map((step, index) => <li key={step} className={index === steps.length - 1 ? "is-end" : ""}>
+      {steps.map((step, index) => <li key={step} className={index === steps.length - 1 ? showcaseClasses("is-end") : undefined}>
         <i aria-hidden="true">{index === steps.length - 1 ? "✓" : String(index + 1).padStart(2, "0")}</i>
         <b>{step}</b>
       </li>)}
@@ -60,14 +60,14 @@ function ScenarioPath({ label, steps }: { label: string; steps: readonly string[
 }
 
 export function ShowcaseAskPolicyAblation() {
-  return <section className="showcase-ask-policy" aria-labelledby="showcase-ask-policy-title">
-    <header className="ask-policy-lead">
-      <div className="ask-policy-lead-copy">
-        <p className="eyebrow">ASK-POLICY ABLATION · 2026-10-10</p>
+  return <section className={showcaseClasses("showcase-ask-policy")} aria-labelledby="showcase-ask-policy-title">
+    <header className={showcaseClasses("ask-policy-lead")}>
+      <div className={showcaseClasses("ask-policy-lead-copy")}>
+        <p className={showcaseClasses("eyebrow")}>ASK-POLICY ABLATION · 2026-10-10</p>
         <h2 id="showcase-ask-policy-title">缺关键职责就停下，需求说清楚就继续。</h2>
         <p>同一套 LangGraph 分别运行正常交互和禁用追问控制，观察 Agent 会不会猜职责，或把清晰需求卡住。</p>
       </div>
-      <aside className="ask-policy-proof" aria-label="配对运行结果">
+      <aside className={showcaseClasses("ask-policy-proof")} aria-label="配对运行结果">
         <span>PAIRED HARNESS RUNS</span>
         <strong>12<span> / 12</span></strong>
         <small>全部通过各自预设的行为检查</small>
@@ -75,33 +75,33 @@ export function ShowcaseAskPolicyAblation() {
       </aside>
     </header>
 
-    <div className="ask-policy-scenario-grid">
-      {scenarios.map((scenario) => <article className="ask-policy-scenario" key={scenario.number}>
-        <header className="ask-policy-scenario-heading">
+    <div className={showcaseClasses("ask-policy-scenario-grid")}>
+      {scenarios.map((scenario) => <article className={showcaseClasses("ask-policy-scenario")} key={scenario.number}>
+        <header className={showcaseClasses("ask-policy-scenario-heading")}>
           <span>{scenario.number}</span>
           <div><p>{scenario.label}</p><h3>{scenario.title}</h3><small>{scenario.summary}</small></div>
         </header>
 
-        <div className="ask-policy-arms">
-          {[scenario.enabled, scenario.disabled].map((arm) => <section className={`ask-policy-arm is-${arm.tone}`} key={arm.heading}>
+        <div className={showcaseClasses("ask-policy-arms")}>
+          {[scenario.enabled, scenario.disabled].map((arm) => <section className={showcaseClasses("ask-policy-arm", arm.tone === "enabled" ? "is-enabled" : "is-disabled")} key={arm.heading}>
             <span>{arm.heading}</span>
             <strong>{arm.outcome}</strong>
             <p>{arm.detail}</p>
           </section>)}
         </div>
 
-        <div className="ask-policy-paths">
+        <div className={showcaseClasses("ask-policy-paths")}>
           {scenario.paths.map((path) => <ScenarioPath key={path.label} {...path} />)}
         </div>
       </article>)}
     </div>
 
-    <div className="ask-policy-architecture-note">
+    <div className={showcaseClasses("ask-policy-architecture-note")}>
       <span aria-hidden="true">↳</span>
       <p><strong>这组对照控制的是整张图的追问边界。</strong>首个职责追问源于 LangGraph 确定性策略门，不是 Planner 的模型动作；只禁用 Planner 仍会触发该策略门，无法构成有效对照。</p>
     </div>
 
-    <details className="ask-policy-method">
+    <details className={showcaseClasses("ask-policy-method")}>
       <summary>实验控制与结论边界</summary>
       <div>
         <p>固定 Qwen 3.5 9B、LangGraph、Reviewer、工具预算、知识库和同一份 Wyscout 2017/18 curated 快照（SHA-256：`6f9c45c889d5ae553d1b395d87dd3ad6d1bac8dcf21c3cdadbcb627d14e8be4f`）。正常臂只在问题符合预登记意图后收到答复；禁问臂在追问边界命中后进入固定 `needs_input` 暂停，不展示生成的问题，也不接收答复。</p>

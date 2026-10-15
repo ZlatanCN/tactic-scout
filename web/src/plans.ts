@@ -113,6 +113,8 @@ function reportFromLegacy(analysis: ScoutResponse, brief: string): RecruitmentRe
     player: candidate.player,
     identityResolution: { status: "not_run", releaseStamp: null, sourceRecordCount: 1 },
     sourceEvidenceRecords: [],
+    comparisonNotes: [],
+    referenceComparisonNotes: [],
     rationale: candidate.reasons.join("；") || "历史分析未保存文字理由。",
     strengths: candidate.reasons,
     tradeoffs: candidate.risks,
@@ -144,6 +146,8 @@ function reportFromLegacy(analysis: ScoutResponse, brief: string): RecruitmentRe
     targetTeam: analysis.targetTeam,
     needSummary: brief || `${analysis.targetTeam} 的 ${analysis.requirements.position} 引援需求（旧版快照）`,
     capabilityProfile,
+    referenceProfiles: [],
+    referenceNameSource: null,
     requestedCapabilityCoverage: [],
     evidenceCoverage: {
       evaluatedCandidateCount: analysis.candidates.length,

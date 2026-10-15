@@ -1,4 +1,5 @@
-import "./ShowcaseInvestigationPlanningAblation.css";
+import { showcaseClasses } from "./showcase-classes";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const cases = [
   {
@@ -34,14 +35,14 @@ const cases = [
 const arms = ["自适应 Planner", "固定单页基线"] as const;
 
 export function ShowcaseInvestigationPlanningAblation() {
-  return <section className="showcase-planning-ablation" aria-labelledby="planning-ablation-title">
-    <header className="planning-ablation-heading">
+  return <section className={showcaseClasses("showcase-planning-ablation")} aria-labelledby="planning-ablation-title">
+    <header className={showcaseClasses("planning-ablation-heading")}>
       <div>
-        <p className="eyebrow">INVESTIGATION PLANNING · FULL-GRAPH ABLATION · 2026-10-13</p>
+        <p className={showcaseClasses("eyebrow")}>INVESTIGATION PLANNING · FULL-GRAPH ABLATION · 2026-10-13</p>
         <h2 id="planning-ablation-title">两组冻结场景中，自适应臂的 Planner tokens 均更高。</h2>
         <p>12 次整图运行的 Harness 检查全部通过；候选评估和报告推荐人数分别展示，不代表排序质量。</p>
       </div>
-      <aside className="planning-ablation-proof" aria-label="整图 Harness 验收结果">
+      <aside className={showcaseClasses("planning-ablation-proof")} aria-label="整图 Harness 验收结果">
         <span>FULL GRAPH RUNS</span>
         <strong>12<span> / 12</span></strong>
         <small>每个运行都通过对应 Harness 检查</small>
@@ -49,41 +50,41 @@ export function ShowcaseInvestigationPlanningAblation() {
       </aside>
     </header>
 
-    <div className="planning-ablation-cases">
-      {cases.map((scenario) => <article className="planning-ablation-case" key={scenario.number}>
-        <header className="planning-case-heading">
-          <span className="planning-case-number">{scenario.number}</span>
+    <div className={showcaseClasses("planning-ablation-cases")}>
+      {cases.map((scenario) => <article className={showcaseClasses("planning-ablation-case")} key={scenario.number}>
+        <header className={showcaseClasses("planning-case-heading")}>
+          <span className={showcaseClasses("planning-case-number")}>{scenario.number}</span>
           <div>
             <p>{scenario.label}</p>
             <h3>{scenario.title}</h3>
           </div>
-          <span className="planning-case-repeat">3 ×</span>
+          <span className={showcaseClasses("planning-case-repeat")}>3 ×</span>
         </header>
 
-        <div className="planning-case-table-wrap">
-          <table className="planning-case-table">
-            <thead><tr>
-              <th scope="col">观察项</th>
-              {arms.map((arm) => <th scope="col" key={arm}>{arm}</th>)}
-            </tr></thead>
-            <tbody>
-              <tr><th scope="row">Harness 检查</th><td>{scenario.runs} · {scenario.checks}</td><td>{scenario.runs} · {scenario.checks}</td></tr>
-              <tr><th scope="row">模型 Planner 调度尝试</th><td>{scenario.plannerDispatchAttempts[0]} 次 / 平均</td><td>{scenario.plannerDispatchAttempts[1]} 次 / 平均</td></tr>
-              <tr><th scope="row">Planner tokens / 整图均值</th><td>{scenario.plannerTokensMean[0]}</td><td>{scenario.plannerTokensMean[1]}</td></tr>
-              <tr><th scope="row">工具调用</th><td>{scenario.tools} 次 / 平均</td><td>{scenario.tools} 次 / 平均</td></tr>
-              <tr><th scope="row">已评估候选</th><td>{scenario.evaluated} 人 / 次</td><td>{scenario.evaluated} 人 / 次</td></tr>
-              <tr className="planning-case-recommendations"><th scope="row">报告推荐</th><td>{scenario.recommendations[0]} 人 / 次</td><td>{scenario.recommendations[1]} 人 / 次</td></tr>
-              <tr><th scope="row">已回答追问</th><td>{scenario.clarifications} 次 / 案</td><td>{scenario.clarifications} 次 / 案</td></tr>
-            </tbody>
-          </table>
+        <div className="overflow-hidden rounded-lg border">
+          <Table className="min-w-[38rem]">
+            <TableHeader><TableRow>
+              <TableHead scope="col">观察项</TableHead>
+              {arms.map((arm) => <TableHead scope="col" key={arm}>{arm}</TableHead>)}
+            </TableRow></TableHeader>
+            <TableBody>
+              <TableRow><TableHead scope="row">Harness 检查</TableHead><TableCell>{scenario.runs} · {scenario.checks}</TableCell><TableCell>{scenario.runs} · {scenario.checks}</TableCell></TableRow>
+              <TableRow><TableHead scope="row">模型 Planner 调度尝试</TableHead><TableCell>{scenario.plannerDispatchAttempts[0]} 次 / 平均</TableCell><TableCell>{scenario.plannerDispatchAttempts[1]} 次 / 平均</TableCell></TableRow>
+              <TableRow><TableHead scope="row">Planner tokens / 整图均值</TableHead><TableCell>{scenario.plannerTokensMean[0]}</TableCell><TableCell>{scenario.plannerTokensMean[1]}</TableCell></TableRow>
+              <TableRow><TableHead scope="row">工具调用</TableHead><TableCell>{scenario.tools} 次 / 平均</TableCell><TableCell>{scenario.tools} 次 / 平均</TableCell></TableRow>
+              <TableRow><TableHead scope="row">已评估候选</TableHead><TableCell>{scenario.evaluated} 人 / 次</TableCell><TableCell>{scenario.evaluated} 人 / 次</TableCell></TableRow>
+              <TableRow className="bg-secondary/40"><TableHead scope="row">报告推荐</TableHead><TableCell>{scenario.recommendations[0]} 人 / 次</TableCell><TableCell>{scenario.recommendations[1]} 人 / 次</TableCell></TableRow>
+              <TableRow><TableHead scope="row">已回答追问</TableHead><TableCell>{scenario.clarifications} 次 / 案</TableCell><TableCell>{scenario.clarifications} 次 / 案</TableCell></TableRow>
+            </TableBody>
+          </Table>
         </div>
-        <p className="planning-case-token-note">tokens 顺序：输入 / 输出 / 合计；每格是该策略 3 次整图运行的均值。</p>
+        <p className={showcaseClasses("planning-case-token-note")}>tokens 顺序：输入 / 输出 / 合计；每格是该策略 3 次整图运行的均值。</p>
 
-        <p className="planning-case-evidence"><span aria-hidden="true">↗</span><span><b>证据覆盖</b>{scenario.evidence}</span></p>
+        <p className={showcaseClasses("planning-case-evidence")}><span aria-hidden="true">↗</span><span><b>证据覆盖</b>{scenario.evidence}</span></p>
       </article>)}
     </div>
 
-    <details className="planning-ablation-method">
+    <details className={showcaseClasses("planning-ablation-method")}>
       <summary>展开实验方法、模型和解释边界</summary>
       <div>
         <p><b>固定基线：</b>用同一条通用方法查询和一页候选请求；图在用户确认具体位置或同意扩展后仍可强制精确范围重查。两个臂共用候选批量评估、球员报告检索、追问与同案恢复、Reviewer 和最终报告模型，配对间交错运行顺序。</p>

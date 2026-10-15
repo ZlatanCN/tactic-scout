@@ -1,4 +1,6 @@
-import "./RecordedRunShowcase.css";
+import { showcaseClasses } from "./showcase-classes";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { ShowcaseLatencySummary } from "./ShowcaseLatencySummary";
 import { ShowcaseReviewerAblation } from "./ShowcaseReviewerAblation";
 import { ShowcaseClarificationInteraction } from "./ShowcaseClarificationInteraction";
@@ -81,23 +83,23 @@ const studies = [
 export function RecordedRunShowcase() {
   const requestedVariant = new URLSearchParams(window.location.search).get("variant");
   const prototypeVariant = import.meta.env.DEV && (requestedVariant === "a" || requestedVariant === "b" || requestedVariant === "c") ? requestedVariant satisfies ShowcasePrototypeVariant : null;
-  return <div className="showcase-shell">
-    <header className="topbar showcase-topbar">
-      <a className="brand" href="/" aria-label="返回 TactiScout 工作台">
-        <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
+  return <div className={showcaseClasses("showcase-shell")}>
+    <header className={showcaseClasses("topbar", "showcase-topbar")}>
+      <a className={showcaseClasses("brand")} href="/" aria-label="返回 TactiScout 工作台">
+        <span className="flex h-6 items-end gap-0.5" aria-hidden="true"><span className="h-3 w-1 rounded-t-sm bg-primary/60" /><span className="h-5 w-1 rounded-t-sm bg-primary" /><span className="h-4 w-1 rounded-t-sm bg-primary/80" /></span>
         <span>TactiScout</span>
       </a>
-      <div className="showcase-topbar-meta">
-        <span className="showcase-recorded-pill"><span aria-hidden="true" />录制运行 · 历史样本</span>
-        <a className="showcase-return-link" href="/">进入交互工作台 <span aria-hidden="true">↗</span></a>
+      <div className={showcaseClasses("showcase-topbar-meta")}>
+        <Badge variant="secondary">录制运行 · 历史样本</Badge>
+        <a href="/" className={buttonVariants({ variant: "outline", size: "sm" })}>进入交互工作台 ↗</a>
       </div>
     </header>
 
-    <main className="showcase-main">
+    <main className={showcaseClasses("showcase-main")}>
       {import.meta.env.DEV && prototypeVariant ? <ShowcaseLayoutPrototype initialVariant={prototypeVariant} run={recordedRun} journey={journey} metrics={metrics} studies={studies} /> : <ShowcaseExecutiveStory run={recordedRun} journey={journey} metrics={metrics} studies={studies} />}
 
     </main>
 
-    <footer className="site-footer showcase-footer"><span>TactiScout <b>·</b> Football scouting research prototype</span><span>RECORDED RUN · {recordedRun.date}</span></footer>
+    <footer className={showcaseClasses("site-footer", "showcase-footer")}><span>TactiScout <b>·</b> Football scouting research prototype</span><span>RECORDED RUN · {recordedRun.date}</span></footer>
   </div>;
 }

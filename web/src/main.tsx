@@ -1,10 +1,11 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { RecordedRunShowcase } from "./RecordedRunShowcase";
-import { ShortlistReviewWorkbench } from "./ShortlistReviewWorkbench";
-import { ShortlistAdjudicationWorkbench } from "./ShortlistAdjudicationWorkbench";
-import "./styles.css";
+import "./index.css";
+
+const RecordedRunShowcase = lazy(() => import("./RecordedRunShowcase").then((module) => ({ default: module.RecordedRunShowcase })));
+const ShortlistReviewWorkbench = lazy(() => import("./ShortlistReviewWorkbench").then((module) => ({ default: module.ShortlistReviewWorkbench })));
+const ShortlistAdjudicationWorkbench = lazy(() => import("./ShortlistAdjudicationWorkbench").then((module) => ({ default: module.ShortlistAdjudicationWorkbench })));
 
 const path = window.location.pathname.replace(/\/+$/, "");
 const isReviewPage = path === "/review";
@@ -15,10 +16,12 @@ if (isShowcasePage) document.title = "TactiScout — 录制运行展示";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {isShowcasePage
-      ? <RecordedRunShowcase />
-      : isReviewPage
-      ? <ShortlistReviewWorkbench />
-      : isAdjudicationPage ? <ShortlistAdjudicationWorkbench /> : <App />}
+    <Suspense fallback={<main className="route-loading" role="status">正在打开工作台…</main>}>
+      {isShowcasePage
+        ? <RecordedRunShowcase />
+        : isReviewPage
+          ? <ShortlistReviewWorkbench />
+          : isAdjudicationPage ? <ShortlistAdjudicationWorkbench /> : <App />}
+    </Suspense>
   </React.StrictMode>,
 );

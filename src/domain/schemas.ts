@@ -572,6 +572,8 @@ export const PlayerRecommendationSchema = z.object({
   }).optional(),
   sourceEvidenceRecords: z.array(CandidateIdentitySourceEvidenceSchema).default([]),
   rationale: z.string(),
+  comparisonNotes: z.array(z.string()).max(3).default([]),
+  referenceComparisonNotes: z.array(z.string()).max(4).default([]),
   strengths: z.array(z.string()),
   tradeoffs: z.array(z.string()),
   focusEvidenceKeys: z.array(CapabilityMetricKeySchema),
@@ -596,6 +598,25 @@ export const PlayerRecommendationSchema = z.object({
   })).default([]),
 });
 export type PlayerRecommendation = z.infer<typeof PlayerRecommendationSchema>;
+
+export const ReferenceProfileMetricSchema = z.object({
+  key: CapabilityMetricKeySchema,
+  label: z.string().min(1),
+  value: z.number().finite(),
+  unit: z.string().min(1),
+  definition: z.string().optional(),
+});
+
+export const ReportReferenceProfileSchema = z.object({
+  playerId: z.string().min(1),
+  name: z.string().min(1),
+  source: z.string().min(1),
+  competition: z.string().min(1),
+  season: z.string().min(1),
+  minutes: z.number().nonnegative(),
+  metrics: z.array(ReferenceProfileMetricSchema),
+});
+export type ReportReferenceProfile = z.infer<typeof ReportReferenceProfileSchema>;
 
 export const HistoricalArchiveCandidateEvidenceSchema = z.object({
   player: PlayerProfileSchema,
@@ -649,6 +670,8 @@ export const RecruitmentReportSchema = z.object({
   targetTeam: z.string().nullable(),
   needSummary: z.string(),
   capabilityProfile: z.array(z.string()),
+  referenceProfiles: z.array(ReportReferenceProfileSchema).max(5).default([]),
+  referenceNameSource: z.object({ entityId: z.string().regex(/^Q\d+$/), url: z.string().regex(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/) }).nullable().default(null),
   requestedCapabilityCoverage: z.array(RequestedCapabilityCoverageSchema).default([]),
   evidenceCoverage: EvidenceCoverageSummarySchema,
   externalSignalCoverage: ExternalSignalCoverageSchema.default(() => createEmptyExternalSignalCoverage()),
@@ -688,6 +711,7 @@ export const RecruitmentReportSchema = z.object({
 export type RecruitmentReport = z.infer<typeof RecruitmentReportSchema>;
 
 export const TeamRosterContextStatusSchema = z.enum([
+  "available",
   "not_configured",
   "partial",
   "empty",
@@ -727,10 +751,12 @@ export const TeamRosterContextSchema = z.object({
     id: z.string().min(1),
     name: z.string().min(1),
     position: z.string().nullable(),
+    dateOfBirth: z.string().nullable().optional(),
+    nationality: z.string().nullable().optional(),
     url: z.string().url(),
-  })).max(10),
+  })).max(100),
   returnedCount: z.number().int().nonnegative(),
-  resultLimit: z.literal(10),
+  resultLimit: z.number().int().min(1).max(100),
   possiblyTruncated: z.boolean(),
   retrievedAt: z.string().datetime().nullable(),
   sourceUrl: z.string().url(),

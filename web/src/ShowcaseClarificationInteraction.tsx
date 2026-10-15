@@ -1,4 +1,4 @@
-import "./ShowcaseClarificationInteraction.css";
+import { showcaseClasses } from "./showcase-classes";
 
 const cases = [
   {
@@ -34,10 +34,10 @@ const cases = [
 ] as const;
 
 function CasePath({ label, steps }: { label: string; steps: readonly string[] }) {
-  return <div className="clarification-path">
+  return <div className={showcaseClasses("clarification-path")}>
     <span>{label}</span>
     <ol aria-label={label}>
-      {steps.map((step, index) => <li key={step} className={index === steps.length - 1 ? "is-end" : ""}>
+      {steps.map((step, index) => <li key={step} className={index === steps.length - 1 ? showcaseClasses("is-end") : undefined}>
         <i aria-hidden="true">{index === steps.length - 1 ? "✓" : String(index + 1).padStart(2, "0")}</i>
         <b>{step}</b>
       </li>)}
@@ -46,14 +46,14 @@ function CasePath({ label, steps }: { label: string; steps: readonly string[] })
 }
 
 export function ShowcaseClarificationInteraction() {
-  return <section className="showcase-clarification" aria-labelledby="showcase-clarification-title">
-    <header className="clarification-lead">
-      <div className="clarification-lead-copy">
-        <p className="eyebrow">LANGGRAPH INTERRUPT · PAIRED HARNESS · 2026-10-10</p>
+  return <section className={showcaseClasses("showcase-clarification")} aria-labelledby="showcase-clarification-title">
+    <header className={showcaseClasses("clarification-lead")}>
+      <div className={showcaseClasses("clarification-lead-copy")}>
+        <p className={showcaseClasses("eyebrow")}>LANGGRAPH INTERRUPT · PAIRED HARNESS · 2026-10-10</p>
         <h2 id="showcase-clarification-title">需求清楚时直接完成；职责有歧义时，先调查再追问。</h2>
         <p>两个冻结场景、每个三组配对：正常交互下，图会在同一案件里暂停并恢复；不给脚本答复时，它会停在真实的用户中断处。</p>
       </div>
-      <aside className="clarification-proof" aria-label="交互消融摘要">
+      <aside className={showcaseClasses("clarification-proof")} aria-label="交互消融摘要">
         <span>HARNESS RUNS</span>
         <strong>12<span> / 12</span></strong>
         <small>预注册行为检查通过</small>
@@ -61,29 +61,29 @@ export function ShowcaseClarificationInteraction() {
       </aside>
     </header>
 
-    <div className="clarification-case-grid">
-      {cases.map((scenario) => <article className="clarification-case" key={scenario.number}>
-        <header className="clarification-case-heading">
+    <div className={showcaseClasses("clarification-case-grid")}>
+      {cases.map((scenario) => <article className={showcaseClasses("clarification-case")} key={scenario.number}>
+        <header className={showcaseClasses("clarification-case-heading")}>
           <span>{scenario.number}</span>
           <div><p>{scenario.tag}</p><h3>{scenario.title}</h3><small>{scenario.description}</small></div>
         </header>
 
-        <div className="clarification-arms">
-          {scenario.arms.map((arm) => <section className="clarification-arm" key={arm.label}>
+        <div className={showcaseClasses("clarification-arms")}>
+          {scenario.arms.map((arm) => <section className={showcaseClasses("clarification-arm")} key={arm.label}>
             <span>{arm.label}</span>
             <strong>{arm.status}</strong>
             <div><b>{arm.questions}</b><b>{arm.checks}</b></div>
           </section>)}
         </div>
 
-        <div className="clarification-outcome"><span aria-hidden="true">↳</span><p>{scenario.outcome}</p></div>
-        <div className="clarification-paths">
+        <div className={showcaseClasses("clarification-outcome")}><span aria-hidden="true">↳</span><p>{scenario.outcome}</p></div>
+        <div className={showcaseClasses("clarification-paths")}>
           {scenario.paths.map((path) => <CasePath key={path.label} {...path} />)}
         </div>
       </article>)}
     </div>
 
-    <details className="clarification-method">
+    <details className={showcaseClasses("clarification-method")}>
       <summary>展开实验控制与结果边界</summary>
       <div>
         <p>两臂固定 Qwen 3.5 9B、LangGraph、Planner / Reviewer、工具预算、方法知识库和 Wyscout 2017/18 curated 快照；只改变脚本答复是否可用，运行顺序在配对间交错。完整实验记录 SHA-256：<code>6f9c45c889d5ae553d1b395d87dd3ad6d1bac8dcf21c3cdadbcb627d14e8be4f</code>。</p>

@@ -404,6 +404,8 @@ Labels: wayfinder:map
 - 近期开放数据来源复核见[研究报告](research/recent-open-player-performance-data-2026-10.md)：SkillCorner 真实 CSV 的数据许可范围仍需确认；IDSSE 仅作七场历史方法基准，不扩大默认球员排名池；OpenLigaDB 不提供能力评分所需的比赛分钟和细粒度表现指标。
 - SkillCorner 2024/25 A-League 三份聚合 CSV 已由 `pnpm dataset:refresh:skillcorner` 从固定官方 commit 校验并获取到 Git 忽略的本机 `.data/`，没有进入 Git；应用权限 gate 仍关闭。来源边界与后续步骤见[来源特定的可追溯表现指标](issues/24-supplementary-performance-evidence.md)。
 
+- 2026-10-15：[210 — 前端工作台重构](issues/210-frontend-workbench-refactor.md) 已解决：全站 Tailwind/shadcn 收敛，桌面实机、320/390px、保存/追问/取消/断线恢复与 21 项针对性回归通过；提交快照独立构建通过。真实手机触摸和读屏未验，模型截断及比较追问空名单另记 [211](issues/211-local-model-investigation-reliability.md)。
+
 ## Out of scope
 
 - 登录、多用户云端同步和服务端保存用户的招募计划。

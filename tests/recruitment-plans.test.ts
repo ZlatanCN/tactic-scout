@@ -15,6 +15,8 @@ const originalReport: RecruitmentReport = {
   targetTeam: "Bayern Munich",
   needSummary: "寻找能承担中锋终结任务的凯恩接班人。",
   capabilityProfile: ["禁区终结", "前场压迫"],
+  referenceProfiles: [],
+  referenceNameSource: null,
   requestedCapabilityCoverage: [],
   evidenceCoverage: { evaluatedCandidateCount: 0, evaluatedSourceRecordCount: 0, availableMetricValues: 0, expectedMetricValues: 0, lowSampleCandidates: 0, limitedPeerGroupCandidates: 0 },
   candidateIdentityCoverage: {

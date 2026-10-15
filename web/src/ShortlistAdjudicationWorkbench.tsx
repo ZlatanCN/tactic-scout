@@ -5,6 +5,13 @@ import {
   type ShortlistReviewGrade,
 } from "../../src/domain/shortlist-review.js";
 import { shortlistFitRubric } from "../../src/domain/shortlist-fit-rubric.js";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   createShortlistQualityDataset,
   parseShortlistAdjudicationBundle,
@@ -200,165 +207,138 @@ export function ShortlistAdjudicationWorkbench() {
   const resultQuery = evaluation?.queries[0];
   const safeFilename = `${packet?.packetId ?? "shortlist"}`.replace(/[^a-zA-Z0-9_-]/g, "-");
 
-  return <div className="app-shell review-app-shell adjudication-app-shell">
-    <header className="topbar">
-      <a className="brand" href="/" aria-label="TactiScout 球探工作台首页">
-        <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
-        <span>TactiScout</span>
-      </a>
-      <div className="topbar-meta">
-        <span className="topbar-caption">独立评审 <span>·</span> 裁决与质量评估</span>
-        <a className="text-button" href="/review">打开盲评工作台</a>
+  const progressValue = packet?.cards.length ? (gradeCount / packet.cards.length) * 100 : 0;
+
+  return <div className="min-h-screen bg-background">
+    <header className="border-b bg-card/90">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <a className="flex items-center gap-2 font-semibold tracking-tight" href="/" aria-label="TactiScout 球探工作台首页">
+          <span className="flex h-6 items-end gap-0.5" aria-hidden="true"><span className="h-3 w-1 rounded-t-sm bg-primary/60" /><span className="h-5 w-1 rounded-t-sm bg-primary" /><span className="h-4 w-1 rounded-t-sm bg-primary/80" /></span>
+          TactiScout
+        </a>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground"><span>独立评审 · 裁决与质量评估</span><a className="font-medium text-primary hover:underline" href="/review">打开盲评工作台</a></div>
       </div>
     </header>
 
-    <main className="main-layout review-layout adjudication-layout">
-      <section className="review-intro">
-        <div>
-          <p className="eyebrow">HUMAN SHORTLIST EVALUATION</p>
-          <h1>先看证据，<em>再看排名。</em></h1>
-          <p className="intro-copy">独立评分完成后，逐张裁决匿名候选；裁决锁定前不会读取系统答案键。</p>
-        </div>
-        <div className="review-intro-mark"><span>03</span><span>ADJUDICATE<br />&amp; EVALUATE</span></div>
-      </section>
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+      <header className="mb-7 max-w-3xl space-y-2">
+        <Badge variant="secondary">匿名评审流程</Badge>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">先看证据，再看排名。</h1>
+        <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">独立评分完成后，逐张裁决匿名候选；裁决锁定前不会读取系统答案键。</p>
+      </header>
 
-      {!draft ? <section className="review-import-card adjudication-import-card">
-        <div className="review-panel-heading"><div><span className="section-kicker">01 / BLIND MATERIALS</span><h2>载入独立评分</h2></div><span className="review-panel-index">A</span></div>
-        <p>选择一份原始匿名证据包和至少两份完整评分导出。文件仅在此浏览器处理。</p>
-        <label className="field-label" htmlFor="adjudication-packet">匿名评审包 JSON</label>
-        <input id="adjudication-packet" className="file-input" type="file" accept="application/json,.json" onChange={(event) => setPacketFile(event.currentTarget.files?.[0] ?? null)} />
-        <label className="field-label" htmlFor="adjudication-submissions">独立评分文件 <span className="field-hint">至少两位不同评审者</span></label>
-        <input id="adjudication-submissions" className="file-input" type="file" accept="application/json,.json" multiple onChange={(event) => setSubmissionFiles(Array.from(event.currentTarget.files ?? []))} />
-        <button type="button" className="submit-button adjudication-load-button" onClick={() => void importBlindMaterials()}>验证并开始盲态裁决 <span aria-hidden="true">→</span></button>
-        <div className="review-local-note"><span className="status-dot" />答案键此时不会导入；评分和裁决草稿仅存于本机 localStorage。</div>
-      </section> : <>
-        <div className="adjudication-steps" aria-label="评测流程">
-          <span className="complete">01 <b>独立评分</b></span><i aria-hidden="true" /><span className={draft.locked ? "complete" : "current"}>02 <b>匿名裁决</b></span><i aria-hidden="true" /><span className={draft.dataset ? "complete" : draft.locked ? "current" : "pending"}>03 <b>揭示排名并计算</b></span>
+      {!draft ? <Card className="max-w-3xl">
+        <CardHeader><CardTitle>载入独立评分</CardTitle><CardDescription>选择一份原始匿名证据包和至少两份完整评分导出。文件仅在此浏览器处理。</CardDescription></CardHeader>
+        <CardContent className="space-y-5">
+          <label className="grid gap-2 text-sm font-medium" htmlFor="adjudication-packet">匿名评审包 JSON<Input id="adjudication-packet" type="file" accept="application/json,.json" onChange={(event) => setPacketFile(event.currentTarget.files?.[0] ?? null)} /></label>
+          <label className="grid gap-2 text-sm font-medium" htmlFor="adjudication-submissions">独立评分文件 <span className="text-xs font-normal text-muted-foreground">至少两位不同评审者</span><Input id="adjudication-submissions" type="file" accept="application/json,.json" multiple onChange={(event) => setSubmissionFiles(Array.from(event.currentTarget.files ?? []))} /></label>
+          <Button type="button" onClick={() => void importBlindMaterials()}>验证并开始盲态裁决 →</Button>
+          <Alert><AlertDescription>答案键此时不会导入；评分和裁决草稿仅存于本机浏览器。</AlertDescription></Alert>
+        </CardContent>
+      </Card> : <>
+        <div className="mb-6 flex flex-wrap items-center gap-2" aria-label="评测流程">
+          <Badge variant="secondary">01 · 独立评分</Badge><span aria-hidden="true" className="text-muted-foreground">→</span>
+          <Badge variant={draft.locked ? "secondary" : "default"}>02 · 匿名裁决</Badge><span aria-hidden="true" className="text-muted-foreground">→</span>
+          <Badge variant={draft.dataset ? "secondary" : draft.locked ? "default" : "outline"}>03 · 揭示排名并计算</Badge>
         </div>
-        <div className="review-workspace-grid adjudication-workspace-grid">
-          <aside className="review-context-panel adjudication-context-panel" aria-label="裁决任务与评测进度">
-            <span className="section-kicker">FROZEN QUERY</span>
-            <h2>候选需求</h2>
-            <blockquote>{packet?.roleBrief}</blockquote>
-            <dl className="review-context-list">
-              <div><dt>数据集</dt><dd>{packet?.snapshot.datasetId}</dd></div>
-              <div><dt>来源与范围</dt><dd>{packet?.snapshot.publisher} · {packet?.snapshot.scope}</dd></div>
-              <div><dt>匿名候选</dt><dd>{gradeCount} / {packet?.cards.length} 已裁决</dd></div>
-              <div><dt>独立评分</dt><dd>{draft.bundle.submissions.length} 份完整提交</dd></div>
-              <div><dt>快照时间</dt><dd>{packet ? new Date(packet.snapshot.asOf).toLocaleDateString("zh-CN") : "—"}</dd></div>
-            </dl>
-            <div className="review-progress-track" role="progressbar" aria-label="匿名候选裁决进度" aria-valuemin={0} aria-valuemax={packet?.cards.length ?? 0} aria-valuenow={gradeCount}><span style={{ width: `${packet?.cards.length ? (gradeCount / packet.cards.length) * 100 : 0}%` }} /></div>
-            <p className="review-source-attribution">{packet?.snapshot.attribution} · 快照 SHA-256 {packet?.snapshot.sha256.slice(0, 12)}…</p>
-            <p className="review-private-note">当前页面不显示球员身份、球队、系统名次或模型解释。界面无法验证评审者是否真正独立。</p>
-            <button type="button" className="text-button danger-text review-clear-draft" onClick={resetDraft}>清除本机裁决草稿</button>
+
+        <div className="grid items-start gap-6 xl:grid-cols-[19rem_minmax(0,1fr)]">
+          <aside className="xl:sticky xl:top-4">
+            <Card><CardHeader><Badge variant="outline" className="w-fit">冻结需求</Badge><CardTitle>候选需求</CardTitle><CardDescription>{packet?.roleBrief}</CardDescription></CardHeader>
+              <CardContent className="space-y-4">
+                <dl className="grid gap-3 text-sm">
+                  <div><dt className="text-xs text-muted-foreground">数据集</dt><dd className="mt-0.5 break-words font-medium">{packet?.snapshot.datasetId}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">来源与范围</dt><dd className="mt-0.5">{packet?.snapshot.publisher} · {packet?.snapshot.scope}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">匿名候选</dt><dd className="mt-0.5 font-medium tabular-nums">{gradeCount} / {packet?.cards.length} 已裁决</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">独立评分</dt><dd className="mt-0.5">{draft.bundle.submissions.length} 份完整提交</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">快照时间</dt><dd className="mt-0.5">{packet ? new Date(packet.snapshot.asOf).toLocaleDateString("zh-CN") : "—"}</dd></div>
+                </dl>
+                <div className="space-y-2"><Progress value={progressValue} aria-label="匿名候选裁决进度" /><p className="text-xs text-muted-foreground">已完成 {gradeCount} / {packet?.cards.length} 张</p></div>
+                <p className="break-words border-t pt-3 text-xs leading-5 text-muted-foreground">{packet?.snapshot.attribution} · 快照 SHA-256 {packet?.snapshot.sha256.slice(0, 12)}…</p>
+                <Alert><AlertDescription>当前页面不显示球员身份、球队、系统名次或模型解释。界面无法验证评审者是否真正独立。</AlertDescription></Alert>
+                <Button type="button" variant="destructive" className="w-full" onClick={resetDraft}>清除本机裁决草稿</Button>
+              </CardContent>
+            </Card>
           </aside>
 
-          <section className="review-card-area adjudication-card-area" aria-label="匿名候选裁决">
+          <section className="min-w-0 space-y-5" aria-label="匿名候选裁决">
             {!draft.locked && currentCard && <>
-              <div className="review-card-progress-row"><div><span className="section-kicker">BLIND ADJUDICATION</span><strong>匿名候选 {String(activeCardIndex + 1).padStart(2, "0")} <small>/ {String(packet?.cards.length ?? 0).padStart(2, "0")}</small></strong></div><span className="review-current-state">{draft.grades[currentCard.cardId] === undefined ? "待裁决" : "已保存"}</span></div>
-              <article className="review-evidence-card">
-                <div className="review-evidence-heading"><div><span className="report-section-label">独立评审原始判断</span><h2>来源证据与评分</h2></div></div>
-                <div className="adjudication-reviewer-scores">{draft.bundle.submissions.map((submission, index) => {
-                  const score = submission.ratings.find(({ cardId }) => cardId === currentCard.cardId)?.rating;
-                  return <div className="adjudication-reviewer-score" key={submission.reviewerId}><span>评审 {index + 1}</span><strong>{gradeLabel(score)}</strong></div>;
-                })}</div>
-                {currentCard.performances.map((performance, performanceIndex) => <section className="review-performance" key={`${performance.competition}:${performance.season}:${performanceIndex}`}>
-                  <div className="review-performance-heading"><div><strong>{performance.competition}</strong><span>{performance.season}</span></div><span>{performance.position ?? "位置未知"}{performance.ageAtSeasonEnd === null ? " · 年龄未知" : ` · ${performance.ageAtSeasonEnd} 岁`}</span></div>
-                  <p className="review-sample-size">样本：{performance.sampleSize.minutes.toLocaleString()} 分钟 · {performance.sampleSize.matches} 场</p>
-                  <div className="review-metric-list">{performance.metrics.map((metric) => <article className={`review-metric ${metric.status === "missing" ? "review-metric-missing" : ""}`} key={metric.key}>
-                    <div className="review-metric-value"><strong>{metric.status === "missing" || metric.value === null ? "未提供" : new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(metric.value)}</strong><span>{metric.unit ?? ""}</span></div>
-                    <div className="review-metric-definition"><span>{metric.definition ?? `指标 ${metric.key}`}</span><small>来源字段：{metric.sourceField ?? "未提供"}</small></div>
-                    {metric.status === "missing" && <small className="review-missing-note">缺少数据不表示能力较差</small>}
-                  </article>)}</div>
-                </section>)}
-                <small className="review-card-footer">{packet?.snapshot.derivationRuleset} · 来源快照 SHA-256 {packet?.snapshot.sha256.slice(0, 12)}…</small>
-              </article>
-              <fieldset className="review-rating-fieldset adjudication-grade-fieldset" disabled={draft.locked}>
-                <legend>裁决这名匿名候选的适配证据</legend>
-                <p>保留每位评审者的原始分数。不要取平均；证据不足以裁决时选择“未知”。</p>
-                <div className="review-rating-options">{gradeOptions.map((option) => <label className={`review-rating-option ${draft.grades[currentCard.cardId] === option.value ? "selected" : ""}`} key={String(option.value)}>
-                  <input type="radio" name={`adjudication-${currentCard.cardId}`} value={String(option.value)} checked={draft.grades[currentCard.cardId] === option.value} onChange={() => adjudicate(option.value)} />
-                  <span className="review-rating-score">{option.label}</span><span className="review-rating-detail">{option.help}</span>
-                </label>)}</div>
-                <details className="review-rubric"><summary>展开评分锚点</summary><ol>{shortlistFitRubric.filter(({ value }) => value !== "unknown").map((option) => <li key={option.label}><strong>{option.label} · {option.detail}：</strong>{option.anchor}</li>)}</ol><p><strong>未知：</strong>{shortlistFitRubric.find(({ value }) => value === "unknown")?.anchor} 这些等级是本项目尚未校准的主观适配判断，不是球员能力真值，也不由单个统计值自动换算。</p></details>
-              </fieldset>
-              <div className="review-card-actions"><button type="button" className="secondary-button" onClick={() => setActiveCardIndex((index) => Math.max(0, index - 1))} disabled={activeCardIndex === 0}>← 上一张</button><span>{gradeCount} / {packet?.cards.length} 张已裁决</span>{activeCardIndex < (packet?.cards.length ?? 0) - 1 ? <button type="button" className="submit-button review-next-button" onClick={() => setActiveCardIndex((index) => Math.min((packet?.cards.length ?? 1) - 1, index + 1))}>下一张 <span aria-hidden="true">→</span></button> : <button type="button" className="submit-button review-next-button" onClick={() => setActiveCardIndex(0)}>回到第一张 <span aria-hidden="true">↺</span></button>}</div>
-              <div className="review-export-card"><div><strong>{complete ? "匿名裁决已完成" : "逐张完成独立裁决"}</strong><p>{complete ? "锁定后才会显示答案键载入入口。" : `还有 ${(packet?.cards.length ?? 0) - gradeCount} 张卡片待裁决；未知也是有效判断。`}</p></div><button type="button" className="submit-button" onClick={lockAdjudications} disabled={!complete}>锁定匿名裁决 <span aria-hidden="true">✓</span></button></div>
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-medium text-muted-foreground">匿名裁决</p><h2 className="text-xl font-semibold">候选 {String(activeCardIndex + 1).padStart(2, "0")} <span className="text-sm font-normal text-muted-foreground">/ {String(packet?.cards.length ?? 0).padStart(2, "0")}</span></h2></div><Badge variant={draft.grades[currentCard.cardId] === undefined ? "outline" : "secondary"}>{draft.grades[currentCard.cardId] === undefined ? "待裁决" : "已保存"}</Badge></div>
+              <Card><CardHeader><Badge variant="secondary" className="w-fit">独立评审原始判断</Badge><CardTitle>来源证据与评分</CardTitle></CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid gap-2 sm:grid-cols-2">{draft.bundle.submissions.map((submission, index) => {
+                    const score = submission.ratings.find(({ cardId }) => cardId === currentCard.cardId)?.rating;
+                    return <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm" key={submission.reviewerId}><span className="text-muted-foreground">评审 {index + 1}</span><strong>{gradeLabel(score)}</strong></div>;
+                  })}</div>
+                  {currentCard.performances.map((performance, performanceIndex) => <section className="space-y-3 border-t pt-4" key={`${performance.competition}:${performance.season}:${performanceIndex}`}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2"><div className="flex flex-wrap items-baseline gap-2"><strong>{performance.competition}</strong><Badge variant="outline">{performance.season}</Badge></div><span className="text-xs text-muted-foreground">{performance.position ?? "位置未知"}{performance.ageAtSeasonEnd === null ? " · 年龄未知" : ` · ${performance.ageAtSeasonEnd} 岁`}</span></div>
+                    <p className="m-0 text-xs text-muted-foreground">样本：{performance.sampleSize.minutes.toLocaleString()} 分钟 · {performance.sampleSize.matches} 场</p>
+                    <div className="grid gap-2 sm:grid-cols-2">{performance.metrics.map((metric) => <article className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-lg border p-3 ${metric.status === "missing" ? "bg-muted/60" : "bg-card"}`} key={metric.key}>
+                      <div><strong className="block text-base tabular-nums">{metric.status === "missing" || metric.value === null ? "未提供" : new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(metric.value)}</strong><span className="text-[11px] text-muted-foreground">{metric.unit ?? ""}</span></div>
+                      <div className="min-w-0 text-xs leading-5"><span>{metric.definition ?? `指标 ${metric.key}`}</span><small className="mt-1 block text-[11px] text-muted-foreground">来源字段：{metric.sourceField ?? "未提供"}</small></div>
+                      {metric.status === "missing" && <small className="col-span-2 text-xs text-amber-900">缺少数据不表示能力较差</small>}
+                    </article>)}</div>
+                  </section>)}
+                  <p className="m-0 break-all border-t pt-3 text-[11px] text-muted-foreground">{packet?.snapshot.derivationRuleset} · 来源快照 SHA-256 {packet?.snapshot.sha256.slice(0, 12)}…</p>
+                </CardContent>
+              </Card>
+
+              <Card><CardHeader><CardTitle className="text-base">裁决这名匿名候选的适配证据</CardTitle><CardDescription>保留每位评审者的原始分数。不要取平均；证据不足以裁决时选择“未知”。</CardDescription></CardHeader>
+                <CardContent className="space-y-4"><fieldset className="m-0 min-w-0 border-0 p-0" disabled={draft.locked}><legend className="sr-only">匿名候选适配评分</legend>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{gradeOptions.map((option) => <label className={`flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50 motion-reduce:transition-none ${draft.grades[currentCard.cardId] === option.value ? "border-primary bg-secondary" : "bg-card"}`} key={String(option.value)}>
+                    <input className="mt-1 size-4 shrink-0 accent-primary" type="radio" name={`adjudication-${currentCard.cardId}`} value={String(option.value)} checked={draft.grades[currentCard.cardId] === option.value} onChange={() => adjudicate(option.value)} />
+                    <span><strong className="block text-sm">{option.label}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.help}</span></span>
+                  </label>)}</div>
+                </fieldset>
+                <details className="rounded-md border px-3 py-2"><summary className="cursor-pointer text-sm font-medium">展开评分锚点</summary><div className="space-y-2 border-t pt-3 text-xs leading-5 text-muted-foreground"><ol className="mb-0 list-decimal space-y-1 pl-5">{shortlistFitRubric.filter(({ value }) => value !== "unknown").map((option) => <li key={option.label}><strong className="text-foreground">{option.label} · {option.detail}：</strong>{option.anchor}</li>)}</ol><p className="mb-0"><strong className="text-foreground">未知：</strong>{shortlistFitRubric.find(({ value }) => value === "unknown")?.anchor} 这些等级是本项目尚未校准的主观适配判断，不是球员能力真值，也不由单个统计值自动换算。</p></div></details></CardContent>
+              </Card>
+
+              <div className="flex flex-col items-center justify-between gap-3 sm:flex-row"><Button type="button" variant="outline" onClick={() => setActiveCardIndex((index) => Math.max(0, index - 1))} disabled={activeCardIndex === 0}>← 上一张</Button><span className="text-sm text-muted-foreground">{gradeCount} / {packet?.cards.length} 张已裁决</span>{activeCardIndex < (packet?.cards.length ?? 0) - 1 ? <Button type="button" onClick={() => setActiveCardIndex((index) => Math.min((packet?.cards.length ?? 1) - 1, index + 1))}>下一张 →</Button> : <Button type="button" onClick={() => setActiveCardIndex(0)}>回到第一张 ↺</Button>}</div>
+              <Card className="border-primary/20 bg-secondary/40"><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><strong className="text-sm">{complete ? "匿名裁决已完成" : "逐张完成独立裁决"}</strong><p className="mb-0 mt-1 text-xs leading-5 text-muted-foreground">{complete ? "锁定后才会显示答案键载入入口。" : `还有 ${(packet?.cards.length ?? 0) - gradeCount} 张卡片待裁决；未知也是有效判断。`}</p></div><Button type="button" className="w-full sm:w-auto" onClick={lockAdjudications} disabled={!complete}>锁定匿名裁决</Button></CardContent></Card>
             </>}
 
-            {draft.locked && !draft.dataset && <section className="adjudication-unlock-card">
-              <span className="section-kicker">03 / UNBLIND AFTER LOCK</span>
-              <h2>匿名裁决已锁定</h2>
-              <p>所有候选已有独立裁决。现在可以载入单独保存的答案键；评测数据集会使用匿名卡 ID，不会带入球员姓名、球队或来源球员 ID。</p>
-              <label className="review-file-picker adjudication-key-picker" htmlFor="answer-key-file"><span className="review-file-picker-icon" aria-hidden="true">↥</span><span><strong>载入答案键 JSON</strong><small>只用于按匿名卡 ID 恢复系统名次</small></span><input id="answer-key-file" type="file" accept="application/json,.json" onChange={(event) => void importAnswerKey(event)} /></label>
-            </section>}
+            {draft.locked && !draft.dataset && <Card><CardHeader><Badge variant="secondary" className="w-fit">裁决已锁定</Badge><CardTitle>载入答案键</CardTitle><CardDescription>所有候选已有独立裁决。现在载入单独保存的答案键；评测数据集只使用匿名卡 ID，不会带入球员姓名、球队或来源球员 ID。</CardDescription></CardHeader><CardContent><label className="grid max-w-xl gap-2 text-sm font-medium" htmlFor="answer-key-file">答案键 JSON<Input id="answer-key-file" type="file" accept="application/json,.json" onChange={(event) => void importAnswerKey(event)} /></label></CardContent></Card>}
 
-            {draft.dataset && evaluation && <section className="adjudication-results">
-              <div className="adjudication-result-heading"><div><span className="section-kicker">QUERY-SCOPED EVALUATION</span><h2>短名单质量结果</h2></div><span className={`adjudication-status-pill ${evaluation.status}`}>{evaluation.status === "evaluable" ? "可评估" : evaluation.status === "partially_evaluable" ? "部分可评估" : "不可评估"}</span></div>
-              <p className="adjudication-result-scope">只适用于「{packet?.roleBrief}」及当前冻结候选池与数据快照，不代表其他需求或完整转会市场。</p>
-              {resultQuery && <div className="adjudication-metric-grid">
-                <article><span>双人评分覆盖</span><strong>{resultQuery.judgmentCoverage.candidatesWithTwoRatings} / {resultQuery.judgmentCoverage.totalCandidates}</strong><small>每张匿名卡至少两份评分</small></article>
-                <article><span>全部类别完全一致</span><strong>{resultQuery.rawPairwiseAgreement.rate === null ? "—" : `${Math.round(resultQuery.rawPairwiseAgreement.rate * 100)}%`}</strong><small>{resultQuery.rawPairwiseAgreement.agreements} / {resultQuery.rawPairwiseAgreement.comparablePairs} 对，含 unknown</small></article>
-                <article><span>数值等级完全一致</span><strong>{resultQuery.numericGradeAgreement.rate === null ? "—" : `${Math.round(resultQuery.numericGradeAgreement.rate * 100)}%`}</strong><small>{resultQuery.numericGradeAgreement.agreements} / {resultQuery.numericGradeAgreement.comparablePairs} 个数值评分对</small></article>
-                <article><span>双方均选未知</span><strong>{resultQuery.unknownOutcomePairs.bothUnknown}</strong><small>不计入数值等级一致率</small></article>
-                <article><span>未知与数值分歧</span><strong>{resultQuery.unknownOutcomePairs.mixedWithNumeric}</strong><small>单独保留，不折算成 0</small></article>
-              </div>}
-              {resultQuery && <details className="adjudication-disagreement-details">
-                <summary>查看评审分布与等级分歧</summary>
-                <div className="adjudication-disagreement-content">
-                  <p>以下是当前冻结 query 的描述性统计。0–3 是有序类别，等级差距不代表能力差距；unknown 不进入数值表。</p>
-                  <div className="adjudication-rating-distributions">
-                    {resultQuery.reviewerRatingDistributions.map((distribution, index) => <article key={distribution.reviewerId}>
-                      <h3>评审 {index + 1}</h3>
-                      <dl>
-                        <div><dt>0</dt><dd>{distribution.ratings.grade0}</dd></div>
-                        <div><dt>1</dt><dd>{distribution.ratings.grade1}</dd></div>
-                        <div><dt>2</dt><dd>{distribution.ratings.grade2}</dd></div>
-                        <div><dt>3</dt><dd>{distribution.ratings.grade3}</dd></div>
-                        <div><dt>未知</dt><dd>{distribution.ratings.unknown}</dd></div>
-                      </dl>
-                      <small>{distribution.totalRatings} 张候选卡</small>
-                    </article>)}
-                  </div>
-                  {resultQuery.reviewerPairComparisons.map((comparison) => {
-                    const leftReviewerIndex = resultQuery.reviewerRatingDistributions.findIndex(({ reviewerId }) => reviewerId === comparison.reviewerIds[0]) + 1;
-                    const rightReviewerIndex = resultQuery.reviewerRatingDistributions.findIndex(({ reviewerId }) => reviewerId === comparison.reviewerIds[1]) + 1;
-                    return <section className="adjudication-pair-comparison" key={comparison.reviewerIds.join(":")}>
-                      <h3>评审 {leftReviewerIndex} × 评审 {rightReviewerIndex}</h3>
-                      <p>{comparison.sharedCandidateCount} 张候选卡有双方评分；其中 {comparison.numericPairs} 对是两边都有 0–3 数值等级。</p>
-                      <div className="adjudication-gap-summary">
-                        <span>同分 <strong>{comparison.exactAgreements}</strong></span>
-                        <span>相差一档 <strong>{comparison.oneGradeApart}</strong></span>
-                        <span>相差两档或以上 <strong>{comparison.twoOrMoreGradesApart}</strong></span>
-                        <span>双方未知 <strong>{comparison.unknownOutcomePairs.bothUnknown}</strong></span>
-                        <span>未知 / 数值 <strong>{comparison.unknownOutcomePairs.mixedWithNumeric}</strong></span>
-                      </div>
-                      <div className="adjudication-contingency-scroll">
-                        <table className="adjudication-contingency-table">
-                          <caption>行：评审 {leftReviewerIndex}；列：评审 {rightReviewerIndex}。只计双方都有数值等级的卡片。</caption>
-                          <thead><tr><th scope="col">等级</th>{[0, 1, 2, 3].map((grade) => <th scope="col" key={grade}>{grade}</th>)}</tr></thead>
-                          <tbody>{comparison.numericGradeContingency.map((row, grade) => <tr key={grade}>
-                            <th scope="row">{grade}</th>
-                            {row.map((count, column) => <td key={column}>{count}</td>)}
-                          </tr>)}</tbody>
-                        </table>
-                      </div>
-                    </section>;
-                  })}
-                </div>
-              </details>}
-              <div className="adjudication-system-results"><div className="section-kicker">SYSTEM RANKING</div>{resultQuery?.systems.map((system) => <article className="adjudication-system-row" key={`${system.systemId}:${system.runId}`}><div><strong>{system.systemId}</strong><small>{system.runId} · {system.rankedCandidateCount} 位候选</small></div><span>{system.ndcgAt5 === null ? "—" : system.ndcgAt5.toFixed(4)}</span></article>)}</div>
-              {resultQuery && resultQuery.notEvaluableReasons.length > 0 && <div className="adjudication-reasons"><strong>当前不能计算 nDCG 的原因</strong><ul>{resultQuery.notEvaluableReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>}
-              <p className="review-private-note">原始一致率只是本批评审结果的描述，不证明量表可靠或评审者独立。单个 query 的 nDCG 不是普遍推荐准确率；unknown 和缺失标签均未按 0 分处理。</p>
-              <div className="adjudication-download-actions"><button type="button" className="secondary-button" onClick={() => downloadJson(`tactiscout-quality-input-${safeFilename}.json`, draft.dataset!)}>下载可复算评测输入 JSON</button><button type="button" className="submit-button" onClick={() => downloadJson(`tactiscout-quality-result-${safeFilename}.json`, evaluation)}>下载评测结果 JSON</button></div>
+            {draft.dataset && evaluation && <section className="space-y-5">
+              <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><Badge variant="secondary">单条需求评测</Badge><CardTitle className="mt-2">短名单质量结果</CardTitle></div><Badge variant={evaluation.status === "evaluable" ? "default" : "outline"}>{evaluation.status === "evaluable" ? "可评估" : evaluation.status === "partially_evaluable" ? "部分可评估" : "不可评估"}</Badge></div><CardDescription>只适用于「{packet?.roleBrief}」及当前冻结候选池与数据快照，不代表其他需求或完整转会市场。</CardDescription></CardHeader>
+                {resultQuery && <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <MetricCard label="双人评分覆盖" value={`${resultQuery.judgmentCoverage.candidatesWithTwoRatings} / ${resultQuery.judgmentCoverage.totalCandidates}`} note="每张匿名卡至少两份评分" />
+                  <MetricCard label="全部类别完全一致" value={resultQuery.rawPairwiseAgreement.rate === null ? "—" : `${Math.round(resultQuery.rawPairwiseAgreement.rate * 100)}%`} note={`${resultQuery.rawPairwiseAgreement.agreements} / ${resultQuery.rawPairwiseAgreement.comparablePairs} 对，含 unknown`} />
+                  <MetricCard label="数值等级完全一致" value={resultQuery.numericGradeAgreement.rate === null ? "—" : `${Math.round(resultQuery.numericGradeAgreement.rate * 100)}%`} note={`${resultQuery.numericGradeAgreement.agreements} / ${resultQuery.numericGradeAgreement.comparablePairs} 个数值评分对`} />
+                  <MetricCard label="双方均选未知" value={String(resultQuery.unknownOutcomePairs.bothUnknown)} note="不计入数值等级一致率" />
+                  <MetricCard label="未知与数值分歧" value={String(resultQuery.unknownOutcomePairs.mixedWithNumeric)} note="单独保留，不折算成 0" />
+                </CardContent>}
+              </Card>
+
+              {resultQuery && <details className="rounded-lg border bg-card"><summary className="cursor-pointer px-4 py-3 text-sm font-medium">查看评审分布与等级分歧</summary><div className="space-y-5 border-t p-4">
+                <p className="m-0 text-sm leading-6 text-muted-foreground">以下是当前冻结 query 的描述性统计。0–3 是有序类别，等级差距不代表能力差距；unknown 不进入数值表。</p>
+                <div className="grid gap-3 sm:grid-cols-2">{resultQuery.reviewerRatingDistributions.map((distribution, index) => <Card key={distribution.reviewerId}><CardHeader className="p-4"><CardTitle className="text-sm">评审 {index + 1}</CardTitle></CardHeader><CardContent className="space-y-2 p-4 pt-0"><dl className="grid grid-cols-5 gap-2 text-center text-xs">{(["grade0", "grade1", "grade2", "grade3", "unknown"] as const).map((key, gradeIndex) => <div key={key} className="rounded-md bg-muted p-2"><dt className="text-muted-foreground">{gradeIndex === 4 ? "未知" : gradeIndex}</dt><dd className="mt-1 font-semibold tabular-nums">{distribution.ratings[key]}</dd></div>)}</dl><p className="m-0 text-xs text-muted-foreground">{distribution.totalRatings} 张候选卡</p></CardContent></Card>)}</div>
+                {resultQuery.reviewerPairComparisons.map((comparison) => {
+                  const leftReviewerIndex = resultQuery.reviewerRatingDistributions.findIndex(({ reviewerId }) => reviewerId === comparison.reviewerIds[0]) + 1;
+                  const rightReviewerIndex = resultQuery.reviewerRatingDistributions.findIndex(({ reviewerId }) => reviewerId === comparison.reviewerIds[1]) + 1;
+                  return <Card key={comparison.reviewerIds.join(":")}><CardHeader><CardTitle className="text-base">评审 {leftReviewerIndex} × 评审 {rightReviewerIndex}</CardTitle><CardDescription>{comparison.sharedCandidateCount} 张候选卡有双方评分；其中 {comparison.numericPairs} 对是两边都有 0–3 数值等级。</CardDescription></CardHeader><CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">{[["同分", comparison.exactAgreements], ["相差一档", comparison.oneGradeApart], ["相差两档或以上", comparison.twoOrMoreGradesApart], ["双方未知", comparison.unknownOutcomePairs.bothUnknown], ["未知 / 数值", comparison.unknownOutcomePairs.mixedWithNumeric]].map(([label, value]) => <div className="rounded-md border p-2" key={String(label)}><span className="block text-muted-foreground">{label}</span><strong className="mt-1 block tabular-nums">{value}</strong></div>)}</div>
+                    <div className="overflow-x-auto"><Table><caption className="p-2 text-left text-xs text-muted-foreground">行：评审 {leftReviewerIndex}；列：评审 {rightReviewerIndex}。只计双方都有数值等级的卡片。</caption><TableHeader><TableRow><TableHead>等级</TableHead>{[0, 1, 2, 3].map((grade) => <TableHead key={grade}>{grade}</TableHead>)}</TableRow></TableHeader><TableBody>{comparison.numericGradeContingency.map((row, grade) => <TableRow key={grade}><TableHead>{grade}</TableHead>{row.map((count, column) => <TableCell key={column}>{count}</TableCell>)}</TableRow>)}</TableBody></Table></div>
+                  </CardContent></Card>;
+                })}
+              </div></details>}
+
+              <Card><CardHeader><Badge variant="outline" className="w-fit">系统排序</Badge><CardTitle className="text-base">各系统 nDCG@5</CardTitle></CardHeader><CardContent className="space-y-2">{resultQuery?.systems.map((system) => <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3" key={`${system.systemId}:${system.runId}`}><div className="min-w-0"><strong className="break-all text-sm">{system.systemId}</strong><p className="m-0 text-xs text-muted-foreground">{system.runId} · {system.rankedCandidateCount} 位候选</p></div><strong className="font-mono tabular-nums">{system.ndcgAt5 === null ? "—" : system.ndcgAt5.toFixed(4)}</strong></div>)}</CardContent></Card>
+              {resultQuery && resultQuery.notEvaluableReasons.length > 0 && <Alert variant="destructive"><AlertDescription><strong>当前不能计算 nDCG 的原因</strong><ul className="mb-0 mt-2 list-disc space-y-1 pl-5">{resultQuery.notEvaluableReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></AlertDescription></Alert>}
+              <Alert><AlertDescription>原始一致率只是本批评审结果的描述，不证明量表可靠或评审者独立。单个 query 的 nDCG 不是普遍推荐准确率；unknown 和缺失标签均未按 0 分处理。</AlertDescription></Alert>
+              <div className="flex flex-col gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => downloadJson(`tactiscout-quality-input-${safeFilename}.json`, draft.dataset!)}>下载可复算评测输入 JSON</Button><Button type="button" onClick={() => downloadJson(`tactiscout-quality-result-${safeFilename}.json`, evaluation)}>下载评测结果 JSON</Button></div>
             </section>}
           </section>
         </div>
       </>}
 
-      {error && <p className="error-message review-message" role="alert">{error}</p>}
-      {message && <p className="plan-message review-message" role="status" aria-live="polite">{message}</p>}
+      {error && <Alert variant="destructive" className="mt-5"><AlertDescription>{error}</AlertDescription></Alert>}
+      {message && <Alert className="mt-5"><AlertDescription>{message}</AlertDescription></Alert>}
     </main>
-    <footer className="site-footer"><span>TactiScout <b>·</b> Query-scoped human evaluation</span><span>LOCK RATINGS BEFORE UNBLINDING</span></footer>
+    <footer className="mx-auto flex max-w-7xl flex-col gap-1 border-t px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:justify-between sm:px-6"><span className="font-medium text-foreground">TactiScout · 单条需求人工评估</span><span>先锁定匿名裁决，再载入答案键</span></footer>
   </div>;
+}
+
+function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return <Card><CardHeader className="gap-2 p-4"><CardDescription>{label}</CardDescription><CardTitle className="text-2xl tabular-nums">{value}</CardTitle></CardHeader><CardContent className="p-4 pt-0 text-xs text-muted-foreground">{note}</CardContent></Card>;
 }

@@ -1,4 +1,5 @@
-import "./ShowcaseMethodologyRagAblation.css";
+import { showcaseClasses } from "./showcase-classes";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const arms = [
   {
@@ -31,63 +32,64 @@ const retrievalMetrics = [
 ] as const;
 
 export function ShowcaseMethodologyRagAblation() {
-  return <section className="showcase-rag-ablation" aria-labelledby="showcase-rag-title">
-    <header className="rag-ablation-heading">
+  return <section className={showcaseClasses("showcase-rag-ablation")} aria-labelledby="showcase-rag-title">
+    <header className={showcaseClasses("rag-ablation-heading")}>
       <div>
-        <p className="eyebrow">METHODOLOGY RAG · CROSS-LINGUAL RETRIEVAL · 2026-10-13</p>
+        <p className={showcaseClasses("eyebrow")}>METHODOLOGY RAG · CROSS-LINGUAL RETRIEVAL · 2026-10-13</p>
         <h2 id="showcase-rag-title">作者译写的英文问题，让留出证据覆盖从 1/3 提高到 3/3。</h2>
         <p>只切换查询语言；同一索引、multilingual E5 与原有检索门槛。翻译没有接入 Agent。</p>
       </div>
-      <aside className="rag-ablation-proof" aria-label="留出集可回答证据覆盖：中文原问 1/3，作者英文译问 3/3">
+      <aside className={showcaseClasses("rag-ablation-proof")} aria-label="留出集可回答证据覆盖：中文原问 1/3，作者英文译问 3/3">
         <span>HELD-OUT EVIDENCE</span>
         <strong>1/3 <i>→</i> 3/3</strong>
         <small>中文原问 → 项目作者英文译问</small>
       </aside>
     </header>
 
-    <div className="rag-crosslingual-results">
-      <table className="rag-crosslingual-grid">
-        <caption className="rag-sr-only">中文原问与作者英文译问的留出集检索指标</caption>
-        <colgroup><col /><col /><col /></colgroup>
-        <thead><tr><th scope="col">留出集指标</th><th scope="col">中文原问</th><th scope="col">作者英文译问</th></tr></thead>
-        <tbody>{retrievalMetrics.map((metric) => <tr key={metric.label}>
-          <th scope="row">{metric.label}</th>
-          <td>{metric.chinese}</td>
-          <td className={metric.chinese === metric.english ? "is-unchanged" : "is-improved"}>{metric.english}</td>
-        </tr>)}</tbody>
-      </table>
-      <p className="rag-crosslingual-safety">两臂都没有接受不支持的模糊来源；范围外误接收均为 0/2。阈值保持不变：cosine ≥ 0.812，片段词项覆盖 ≥ 0.5。</p>
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-lg border">
+      <Table className="min-w-[32rem]">
+        <TableCaption>中文原问与作者英文译问的留出集检索指标</TableCaption>
+        <TableHeader><TableRow><TableHead scope="col">留出集指标</TableHead><TableHead scope="col">中文原问</TableHead><TableHead scope="col">作者英文译问</TableHead></TableRow></TableHeader>
+        <TableBody>{retrievalMetrics.map((metric) => <TableRow key={metric.label}>
+          <TableHead scope="row">{metric.label}</TableHead>
+          <TableCell>{metric.chinese}</TableCell>
+          <TableCell className={metric.chinese === metric.english ? "text-muted-foreground" : "font-semibold text-primary"}>{metric.english}</TableCell>
+        </TableRow>)}</TableBody>
+      </Table>
+      </div>
+      <p className={showcaseClasses("rag-crosslingual-safety")}>两臂都没有接受不支持的模糊来源；范围外误接收均为 0/2。阈值保持不变：cosine ≥ 0.812，片段词项覆盖 ≥ 0.5。</p>
     </div>
 
-    <section className="rag-graph-ablation" aria-labelledby="rag-graph-title">
-      <header className="rag-graph-heading">
+    <section className={showcaseClasses("rag-graph-ablation")} aria-labelledby="rag-graph-title">
+      <header className={showcaseClasses("rag-graph-heading")}>
         <div>
-          <p className="eyebrow">FULL-GRAPH ABLATION · 2026-10-10</p>
+          <p className={showcaseClasses("eyebrow")}>FULL-GRAPH ABLATION · 2026-10-10</p>
           <h3 id="rag-graph-title">方法证据进入了报告；这次实验没有观察到候选顺序变化。</h3>
           <p>同一张 LangGraph 做三组配对，只屏蔽方法语料，其余工具和 Reviewer 保持运行。</p>
         </div>
-        <span className="rag-graph-pass">早期运行 <b>6/6</b> 通过</span>
+        <span className={showcaseClasses("rag-graph-pass")}>早期运行 <b>6/6</b> 通过</span>
       </header>
 
-      <div className="rag-ablation-arms">
-        {arms.map((arm) => <article className={`rag-ablation-arm is-${arm.className}`} key={arm.className}>
+      <div className={showcaseClasses("rag-ablation-arms")}>
+        {arms.map((arm) => <article className={showcaseClasses("rag-ablation-arm", arm.className === "available" ? "is-enabled" : "is-disabled")} key={arm.className}>
           <header><span aria-hidden="true">{arm.className === "available" ? "↗" : "—"}</span><h4>{arm.heading}</h4></header>
-          <div className="rag-ablation-flow">
+          <div className={showcaseClasses("rag-ablation-flow")}>
             <div><strong>{arm.retrieval}</strong><span>{arm.retrievalLabel}</span><small>检索结果</small></div>
             <i aria-hidden="true">→</i>
             <div><strong>{arm.report}</strong><span>{arm.reportLabel}</span><small>最终报告</small></div>
           </div>
-          <p className="rag-ablation-check"><b>{arm.result}</b><span>{arm.resultLabel}</span></p>
+          <p className={showcaseClasses("rag-ablation-check")}><b>{arm.result}</b><span>{arm.resultLabel}</span></p>
         </article>)}
       </div>
 
-      <div className="rag-ablation-pair-note">
+      <div className={showcaseClasses("rag-ablation-pair-note")}>
         <span aria-hidden="true">!</span>
         <p><strong>复跑暴露了场景检查波动。</strong>10 月 13 日两臂均为 27/29，并同时未通过候选位置与范围扩展检查；这次复跑不能支持 RAG 改变调查决策的结论。</p>
       </div>
     </section>
 
-    <details className="rag-ablation-method">
+    <details className={showcaseClasses("rag-ablation-method")}>
       <summary>评测样本、实验设置与结论边界</summary>
       <div>
         <p>跨语言诊断使用 12 个全新意图家族，校准和留出各 6 个；每个中文问题配一条项目作者的英文译写，同族共享答案标签。两臂使用同一临时 PLOS 论文索引、multilingual E5、来源登记与检索策略，只改变 query 语言。评测后清除了当前索引中的 56 个临时片段。</p>

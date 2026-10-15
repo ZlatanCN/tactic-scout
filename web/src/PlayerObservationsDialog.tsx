@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { AlertCircle, Plus, Save, Trash2, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   deletePlayerObservation,
   getPlayerObservations,
@@ -45,6 +54,15 @@ interface Draft {
   allowPersistentStorage: boolean;
   allowAiProcessing: boolean;
 }
+
+function ObservationField({ label, required = false, wide = false, children }: { label: string; required?: boolean; wide?: boolean; children: ReactNode }) {
+  return <label className={`grid min-w-0 content-start gap-1.5 text-xs font-medium text-foreground ${wide ? "sm:col-span-2" : ""}`}>
+    <span>{label}{required && <span className="ml-1 text-destructive" aria-hidden="true">*</span>}</span>
+    {children}
+  </label>;
+}
+
+const selectClassName = "h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring";
 
 function today(): string {
   return new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
@@ -150,9 +168,6 @@ function validationMessage(error: unknown): string {
 }
 
 export function PlayerObservationsDialog({ onClose }: Props) {
-  const dialogRef = useRef<HTMLElement>(null);
-  const closeRef = useRef(onClose);
-  const savingRef = useRef(false);
   const [records, setRecords] = useState<PlayerObservation[]>([]);
   const [selectedId, setSelectedId] = useState("new");
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -163,8 +178,6 @@ export function PlayerObservationsDialog({ onClose }: Props) {
   const selectedRecord = records.find((record) => record.id === selectedId);
   const ratingContextRequired = draft.ratings.length > 0;
   const datasetSummary = useMemo(() => summarizePlayerObservationDataset(records), [records]);
-  closeRef.current = onClose;
-  savingRef.current = saving;
 
   useEffect(() => {
     let active = true;
@@ -179,47 +192,6 @@ export function PlayerObservationsDialog({ onClose }: Props) {
     setDraft(selectedId === "new" ? emptyDraft() : selectedRecord ? draftFromRecord(selectedRecord) : emptyDraft());
     setError(null);
   }, [selectedId, selectedRecord]);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousBodyOverflow = document.body.style.overflow;
-    const focusableElements = () => [...dialog.querySelectorAll<HTMLElement>(
-      "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])",
-    )].filter((element) => element.getClientRects().length > 0);
-    dialog.querySelector<HTMLElement>("[data-dialog-autofocus]")?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (!savingRef.current) closeRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = focusableElements();
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (!first || !last) {
-        event.preventDefault();
-        dialogRef.current?.focus();
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus();
-    };
-  }, []);
 
   function updateDraft<Key extends keyof Draft>(key: Key, value: Draft[Key]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -305,110 +277,116 @@ export function PlayerObservationsDialog({ onClose }: Props) {
     updateDraft("allowPersistentStorage", false);
   }
 
-  return (
-    <div className="observation-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-        <section ref={dialogRef} className="observation-dialog" role="dialog" aria-modal="true" aria-labelledby="observation-dialog-title" aria-describedby="observation-dialog-description" tabIndex={-1}>
-        <header className="observation-dialog-header">
-          <div>
-            <span className="section-kicker">FIRST-PARTY SCOUTING NOTES</span>
-            <h2 id="observation-dialog-title">球探观察记录</h2>
-            <p id="observation-dialog-description">每条记录对应一名球员的一场比赛。写明赛事、赛季、比赛和具体场景；这里不会抓取外部链接，也不应粘贴第三方报告全文。</p>
-          </div>
-          <button type="button" className="observation-close" onClick={onClose} aria-label="关闭球探观察" disabled={saving}>×</button>
-        </header>
-
-        <div className="observation-dialog-body">
-          <aside className="observation-library" aria-label="已有观察记录">
-            <button type="button" className={`observation-new-button ${selectedId === "new" ? "selected" : ""}`} onClick={() => { setNotice(null); setSelectedId("new"); }}>＋ 新建观察</button>
-            <section className="observation-dataset-summary" aria-label="自采观察数据概况">
-              <div className="observation-dataset-summary-heading">
-                <strong>自采样本</strong>
-                <span>按记录统计，不按姓名合并</span>
-              </div>
-              <div className="observation-dataset-stats">
-                <div><strong>{datasetSummary.observationRecords}</strong><span>场次记录</span></div>
-                <div><strong>{datasetSummary.matchScopedRecords}/{datasetSummary.observationRecords}</strong><span>赛事、赛季、比赛齐全</span></div>
-                <div><strong>{datasetSummary.ratingEntries}</strong><span>条主观维度判断</span></div>
-                <div><strong>{datasetSummary.indexedRecords}</strong><span>已授权检索</span></div>
-              </div>
-              {datasetSummary.ratingEntries > 0 && <div className="observation-dataset-dimensions" aria-label="各能力维度记录数">
-                {datasetSummary.dimensionCoverage.filter((item) => item.recordCount > 0).map((item) => <span key={item.dimension}>{item.label}<b>{item.recordCount}</b></span>)}
-              </div>}
-              {datasetSummary.observationRecords === 0 && <p className="observation-dataset-empty">还没有真实样本。先固定一个位置和比赛范围，再按同一量表记录场景；没有看到的维度留空。</p>}
-            </section>
-            {loading ? <p className="observation-list-state">正在读取本机记录…</p> : records.length === 0
-              ? <p className="observation-list-state">还没有自录观察。</p>
-              : records.map((record) => (
-                <button type="button" className={`observation-list-card ${selectedId === record.id ? "selected" : ""}`} key={record.id} onClick={() => { setNotice(null); setSelectedId(record.id); }}>
-                  <strong>{record.playerName}</strong>
-                  <span>{record.observedAt} · {record.competition ?? "赛事待补"}</span>
-                  <span>{record.viewingScope ? PlayerObservationViewingScopeDefinitions[record.viewingScope] : "观看范围未记录"}{record.viewedMinuteRanges ? ` · ${record.viewedMinuteRanges}` : ""}</span>
-                  <small>{record.ratings.length ? `${record.ratings.length} 项能力观察 · ` : ""}{record.indexStatus === "indexed" ? "已加入 Agent 检索" : record.indexStatus === "index_failed" ? "索引待重试" : "仅保存在本机"}</small>
-                </button>
-              ))}
-            <p className="observation-storage-note">本机服务保存于忽略提交的 `.data/player-observations.json`。</p>
-          </aside>
-
-          <form className="observation-form" onSubmit={(event) => void submit(event)}>
-            {selectedRecord?.indexStatus === "index_failed" && <p className="observation-index-warning">这条观察尚未进入检索索引。保留模型处理授权并重新保存可再次尝试。</p>}
-            <div className="observation-form-grid">
-              <label className="observation-field observation-field-wide"><span>球员姓名 <b>*</b></span><input data-dialog-autofocus value={draft.playerName} onChange={(event) => updateDraft("playerName", event.target.value)} required maxLength={120} /></label>
-              <label className="observation-field"><span>观察日期 <b>*</b></span><input type="date" value={draft.observedAt} onChange={(event) => updateDraft("observedAt", event.target.value)} required /></label>
-              <label className="observation-field"><span>观察者 <b>*</b></span><input value={draft.observer} onChange={(event) => updateDraft("observer", event.target.value)} required maxLength={120} placeholder="你的姓名或观察者署名" /></label>
-              <label className="observation-field"><span>其他球员姓名</span><textarea rows={2} value={draft.playerAliases} onChange={(event) => updateDraft("playerAliases", event.target.value)} placeholder="每行一个，例如常用拼写" /></label>
-              <label className="observation-field"><span>关联数据来源</span><input value={draft.playerIdentityProvider} onChange={(event) => updateDraft("playerIdentityProvider", event.target.value)} placeholder="例如 Sportmonks" maxLength={80} /></label>
-              <label className="observation-field"><span>来源中的球员 ID</span><input value={draft.externalPlayerId} onChange={(event) => updateDraft("externalPlayerId", event.target.value)} placeholder="与上项同时填写" maxLength={120} /></label>
-              <label className="observation-field"><span>观察时效力球队</span><input value={draft.teamAtObservation} onChange={(event) => updateDraft("teamAtObservation", event.target.value)} placeholder="由观察者记录" maxLength={120} /></label>
-              <label className="observation-field"><span>观察时位置</span><select value={draft.observedPosition} onChange={(event) => updateDraft("observedPosition", event.target.value)}><option value="">未知 / 未记录</option>{PositionSchema.options.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>
-              <label className="observation-field observation-field-wide"><span>观察时职责</span><input value={draft.observedRole} onChange={(event) => updateDraft("observedRole", event.target.value)} placeholder="例如右侧中卫、内收边后卫；只记这场比赛中的职责" maxLength={120} /></label>
-              <label className="observation-field"><span>赛事 {ratingContextRequired && <b>*</b>}</span><input value={draft.competition} onChange={(event) => updateDraft("competition", event.target.value)} placeholder="例如 Bundesliga" maxLength={120} required={ratingContextRequired} /></label>
-              <label className="observation-field"><span>赛季 {ratingContextRequired && <b>*</b>}</span><input value={draft.season} onChange={(event) => updateDraft("season", event.target.value)} placeholder="例如 2025/26" maxLength={40} required={ratingContextRequired} /></label>
-              <label className="observation-field observation-field-wide"><span>比赛 {ratingContextRequired && <b>*</b>}</span><input value={draft.match} onChange={(event) => updateDraft("match", event.target.value)} placeholder="例如 Bayern vs Example FC" maxLength={180} required={ratingContextRequired} /></label>
-              <label className="observation-field"><span>观看范围 {ratingContextRequired && <b>*</b>}</span><select value={draft.viewingScope} onChange={(event) => updateDraft("viewingScope", event.target.value)} required={ratingContextRequired}><option value="">未知 / 未记录</option>{Object.entries(PlayerObservationViewingScopeDefinitions).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-              <label className="observation-field"><span>观看分钟范围</span><input value={draft.viewedMinuteRanges} onChange={(event) => updateDraft("viewedMinuteRanges", event.target.value)} placeholder="例如 1–30、60–90 分钟" maxLength={120} /></label>
-              <label className="observation-field"><span>比赛分钟</span><input type="number" min={0} max={150} value={draft.matchMinute} onChange={(event) => updateDraft("matchMinute", event.target.value)} placeholder="可选" /></label>
-              <label className="observation-field observation-field-wide"><span>表现优势 <b>*</b></span><textarea rows={3} value={draft.strengths} onChange={(event) => updateDraft("strengths", event.target.value)} placeholder="每行一条，只记录你亲眼观察到的内容" required /></label>
-              <label className="observation-field observation-field-wide"><span>待核实风险</span><textarea rows={3} value={draft.risks} onChange={(event) => updateDraft("risks", event.target.value)} placeholder="每行一条；没有明确风险时可以留空" /></label>
-              <label className="observation-field observation-field-wide"><span>具体比赛观察 <b>*</b></span><textarea rows={4} value={draft.evidenceNote} onChange={(event) => updateDraft("evidenceNote", event.target.value)} placeholder="记下比赛场景、动作和结果；至少 20 个字符。它仍是你的主观观察，不等于统计事实。" required /></label>
-              <details className="observation-ratings observation-field-wide">
-                <summary>结构化能力观察 <span>可选 · 按本场样本记录</span></summary>
-                <p>这是尚未校准的项目暂定量表，不代表观察者之间已经一致。填写评分时，请同时补全赛事、赛季、比赛和观看范围；无证据时留空。不同记录不会自动平均或计入适配分。</p>
-                <div className="observation-rating-list">
-                  {draft.ratings.map((rating, index) => {
-                    const dimension = PlayerObservationDimensionSchema.safeParse(rating.dimension);
-                    const definition = dimension.success ? PlayerObservationDimensionDefinitions[dimension.data] : undefined;
-                    return <fieldset className="observation-rating-card" key={`${rating.dimension}-${index}`}>
-                      <div className="observation-rating-controls">
-                        <label className="observation-field"><span>能力维度 <b>*</b></span><select value={rating.dimension} onChange={(event) => updateRating(index, "dimension", event.target.value)}>{Object.entries(PlayerObservationDimensionDefinitions).map(([key, value]) => <option key={key} value={key}>{value.label} · {value.phase === "in_possession" ? "有球" : value.phase === "out_of_possession" ? "无球" : "转换"}</option>)}</select></label>
-                        <label className="observation-field"><span>主观档位 <b>*</b></span><select value={rating.rating} onChange={(event) => updateRating(index, "rating", event.target.value)} required><option value="">选择 1–5</option><option value="1">1 · 明显短板</option><option value="2">2 · 偏弱</option><option value="3">3 · 一般 / 参差</option><option value="4">4 · 经常展现优势</option><option value="5">5 · 多次突出</option></select></label>
-                        <label className="observation-field"><span>比赛分钟</span><input type="number" min={0} max={150} value={rating.matchMinute} onChange={(event) => updateRating(index, "matchMinute", event.target.value)} placeholder="可选" /></label>
-                        <button type="button" className="text-button danger-text observation-rating-remove" onClick={() => removeRating(index)}>移除此项</button>
-                      </div>
-                      <label className="observation-field"><span>支持此判断的具体场景 <b>*</b>{definition ? ` · ${definition.description}` : ""}</span><textarea rows={2} value={rating.evidence} onChange={(event) => updateRating(index, "evidence", event.target.value)} placeholder="描述对手压力、球员动作、结果；至少 20 个字符" required /></label>
-                    </fieldset>;
-                  })}
-                </div>
-                <button type="button" className="observation-rating-add" onClick={addRating} disabled={draft.ratings.length >= 8}>＋ 添加一个维度</button>
-              </details>
-              <label className="observation-field observation-field-wide"><span>参考链接</span><input type="url" value={draft.sourceReferenceUrl} onChange={(event) => updateDraft("sourceReferenceUrl", event.target.value)} placeholder="可选，仅作为出处链接；不会自动访问或抓取" /></label>
-            </div>
-
-            <fieldset className="observation-permissions">
-              <legend>保存与使用权限</legend>
-              <label><input type="checkbox" checked={draft.allowPersistentStorage} onChange={(event) => changeStoragePermission(event.target.checked)} /><span><strong>允许保存在这台设备上</strong><small>记录写入本机项目数据目录；取消已保存记录的授权会删除该记录。</small></span></label>
-              <label><input type="checkbox" checked={draft.allowAiProcessing} onChange={(event) => updateDraft("allowAiProcessing", event.target.checked)} /><span><strong>允许加入 Agent 检索与模型分析</strong><small>若模型或 embedding 配置为远程服务，观察文本可能发送给该服务；关闭后会从当前检索索引移除。</small></span></label>
-            </fieldset>
-
-            <div className="observation-form-footer">
-              <div>{error && <p className="error-message" role="alert">{error}</p>}{notice && <p className="plan-message" role="status">{notice}</p>}</div>
-              <div className="observation-form-actions">
-                {selectedRecord && <button type="button" className="text-button danger-text" onClick={() => void removeSelected()} disabled={saving}>删除记录</button>}
-                <button type="submit" className="submit-button observation-save-button" disabled={saving}>{saving ? "正在保存…" : "保存观察"}<span className="button-arrow" aria-hidden="true">→</span></button>
-              </div>
-            </div>
-          </form>
+  return <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+    <DialogContent showCloseButton={false} className="grid h-[min(94dvh,980px)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:w-[calc(100vw-2rem)] sm:max-w-6xl">
+      <DialogHeader className="flex flex-row items-start justify-between gap-4 border-b px-4 py-4 text-left sm:px-6">
+        <div className="min-w-0">
+          <Badge variant="secondary" className="mb-2">本机观察资料</Badge>
+          <DialogTitle id="observation-dialog-title" className="text-xl font-semibold tracking-tight">球探观察记录</DialogTitle>
+          <DialogDescription id="observation-dialog-description" className="mt-2 max-w-3xl leading-5">每条记录对应一名球员的一场比赛。写明赛事、赛季、比赛和具体场景；这里不会抓取外部链接，也不应粘贴第三方报告全文。</DialogDescription>
         </div>
-      </section>
-    </div>
-  );
+        <Button type="button" variant="ghost" size="icon" aria-label="关闭球探观察" onClick={onClose} disabled={saving}><X aria-hidden="true" /></Button>
+      </DialogHeader>
+
+      <div className="grid min-h-0 grid-cols-1 overflow-y-auto overscroll-contain sm:grid-cols-[250px_minmax(0,1fr)] sm:overflow-hidden">
+        <aside className="space-y-3 border-b bg-muted/30 p-3 sm:overflow-y-auto sm:border-b-0 sm:border-r sm:p-4" aria-label="已有观察记录">
+          <Button type="button" variant={selectedId === "new" ? "default" : "outline"} className="w-full justify-start" onClick={() => { setNotice(null); setSelectedId("new"); }}><Plus aria-hidden="true" />新建观察</Button>
+          <Card className="gap-3 py-3">
+            <CardHeader className="px-3 py-0"><CardTitle className="text-sm">自采样本</CardTitle><p className="m-0 text-xs text-muted-foreground">按记录统计，不按姓名合并</p></CardHeader>
+            <CardContent className="space-y-3 px-3">
+              <dl className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-muted p-2"><dd className="m-0 text-lg font-semibold tabular-nums">{datasetSummary.observationRecords}</dd><dt className="text-muted-foreground">场次记录</dt></div>
+                <div className="rounded-md bg-muted p-2"><dd className="m-0 text-lg font-semibold tabular-nums">{datasetSummary.matchScopedRecords}/{datasetSummary.observationRecords}</dd><dt className="text-muted-foreground">比赛信息齐全</dt></div>
+                <div className="rounded-md bg-muted p-2"><dd className="m-0 text-lg font-semibold tabular-nums">{datasetSummary.ratingEntries}</dd><dt className="text-muted-foreground">能力判断</dt></div>
+                <div className="rounded-md bg-muted p-2"><dd className="m-0 text-lg font-semibold tabular-nums">{datasetSummary.indexedRecords}</dd><dt className="text-muted-foreground">已授权检索</dt></div>
+              </dl>
+              {datasetSummary.ratingEntries > 0 && <div className="flex flex-wrap gap-1.5" aria-label="各能力维度记录数">
+                {datasetSummary.dimensionCoverage.filter((item) => item.recordCount > 0).map((item) => <Badge variant="outline" key={item.dimension}>{item.label}<span className="ml-1 tabular-nums">{item.recordCount}</span></Badge>)}
+              </div>}
+              {datasetSummary.observationRecords === 0 && <p className="m-0 text-xs leading-5 text-muted-foreground">还没有真实样本。先固定一个位置和比赛范围，再按同一量表记录场景；没有看到的维度留空。</p>}
+            </CardContent>
+          </Card>
+          {loading ? <p className="px-1 py-2 text-xs text-muted-foreground">正在读取本机记录…</p> : records.length === 0
+            ? <p className="px-1 py-2 text-xs text-muted-foreground">还没有自录观察。</p>
+            : <ul className="space-y-1" aria-label="观察记录列表">
+              {records.map((record) => <li key={record.id}>
+                <button type="button" className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${selectedId === record.id ? "border-primary/30 bg-secondary" : "border-transparent hover:border-border hover:bg-card"}`} onClick={() => { setNotice(null); setSelectedId(record.id); }}>
+                  <strong className="block break-words text-sm">{record.playerName}</strong>
+                  <span className="mt-1 block text-xs text-muted-foreground">{record.observedAt} · {record.competition ?? "赛事待补"}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{record.viewingScope ? PlayerObservationViewingScopeDefinitions[record.viewingScope] : "观看范围未记录"}{record.viewedMinuteRanges ? ` · ${record.viewedMinuteRanges}` : ""}</span>
+                  <span className="mt-1 block text-[11px] text-muted-foreground">{record.ratings.length ? `${record.ratings.length} 项能力观察 · ` : ""}{record.indexStatus === "indexed" ? "已加入 Agent 检索" : record.indexStatus === "index_failed" ? "索引待重试" : "仅保存在本机"}</span>
+                </button>
+              </li>)}
+            </ul>}
+          <p className="m-0 text-[11px] leading-5 text-muted-foreground">本机服务保存于忽略提交的 <code className="break-all">.data/player-observations.json</code>。</p>
+        </aside>
+
+        <form className="min-w-0 space-y-5 p-4 sm:overflow-y-auto sm:p-6" onSubmit={(event) => void submit(event)}>
+          {selectedRecord?.indexStatus === "index_failed" && <Alert className="border-amber-300 bg-amber-50 text-amber-950"><AlertCircle aria-hidden="true" /><AlertDescription>这条观察尚未进入检索索引。保留模型处理授权并重新保存可再次尝试。</AlertDescription></Alert>}
+          <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+            <ObservationField label="球员姓名" required wide><Input autoFocus value={draft.playerName} onChange={(event) => updateDraft("playerName", event.target.value)} required maxLength={120} /></ObservationField>
+            <ObservationField label="观察日期" required><Input type="date" value={draft.observedAt} onChange={(event) => updateDraft("observedAt", event.target.value)} required /></ObservationField>
+            <ObservationField label="观察者" required><Input value={draft.observer} onChange={(event) => updateDraft("observer", event.target.value)} required maxLength={120} placeholder="你的姓名或观察者署名" /></ObservationField>
+            <ObservationField label="其他球员姓名"><Textarea rows={2} value={draft.playerAliases} onChange={(event) => updateDraft("playerAliases", event.target.value)} placeholder="每行一个，例如常用拼写" /></ObservationField>
+            <ObservationField label="关联数据来源"><Input value={draft.playerIdentityProvider} onChange={(event) => updateDraft("playerIdentityProvider", event.target.value)} placeholder="例如 Sportmonks" maxLength={80} /></ObservationField>
+            <ObservationField label="来源中的球员 ID"><Input value={draft.externalPlayerId} onChange={(event) => updateDraft("externalPlayerId", event.target.value)} placeholder="与上项同时填写" maxLength={120} /></ObservationField>
+            <ObservationField label="观察时效力球队"><Input value={draft.teamAtObservation} onChange={(event) => updateDraft("teamAtObservation", event.target.value)} placeholder="由观察者记录" maxLength={120} /></ObservationField>
+            <ObservationField label="观察时位置"><select className={selectClassName} value={draft.observedPosition} onChange={(event) => updateDraft("observedPosition", event.target.value)}><option value="">未知 / 未记录</option>{PositionSchema.options.map((position) => <option key={position} value={position}>{position}</option>)}</select></ObservationField>
+            <ObservationField label="观察时职责" wide><Input value={draft.observedRole} onChange={(event) => updateDraft("observedRole", event.target.value)} placeholder="例如右侧中卫、内收边后卫；只记这场比赛中的职责" maxLength={120} /></ObservationField>
+            <ObservationField label="赛事" required={ratingContextRequired}><Input value={draft.competition} onChange={(event) => updateDraft("competition", event.target.value)} placeholder="例如 Bundesliga" maxLength={120} required={ratingContextRequired} /></ObservationField>
+            <ObservationField label="赛季" required={ratingContextRequired}><Input value={draft.season} onChange={(event) => updateDraft("season", event.target.value)} placeholder="例如 2025/26" maxLength={40} required={ratingContextRequired} /></ObservationField>
+            <ObservationField label="比赛" required={ratingContextRequired} wide><Input value={draft.match} onChange={(event) => updateDraft("match", event.target.value)} placeholder="例如 Bayern vs Example FC" maxLength={180} required={ratingContextRequired} /></ObservationField>
+            <ObservationField label="观看范围" required={ratingContextRequired}><select className={selectClassName} value={draft.viewingScope} onChange={(event) => updateDraft("viewingScope", event.target.value)} required={ratingContextRequired}><option value="">未知 / 未记录</option>{Object.entries(PlayerObservationViewingScopeDefinitions).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></ObservationField>
+            <ObservationField label="观看分钟范围"><Input value={draft.viewedMinuteRanges} onChange={(event) => updateDraft("viewedMinuteRanges", event.target.value)} placeholder="例如 1–30、60–90 分钟" maxLength={120} /></ObservationField>
+            <ObservationField label="比赛分钟"><Input type="number" min={0} max={150} value={draft.matchMinute} onChange={(event) => updateDraft("matchMinute", event.target.value)} placeholder="可选" /></ObservationField>
+            <ObservationField label="表现优势" required wide><Textarea rows={3} value={draft.strengths} onChange={(event) => updateDraft("strengths", event.target.value)} placeholder="每行一条，只记录你亲眼观察到的内容" required /></ObservationField>
+            <ObservationField label="待核实风险" wide><Textarea rows={3} value={draft.risks} onChange={(event) => updateDraft("risks", event.target.value)} placeholder="每行一条；没有明确风险时可以留空" /></ObservationField>
+            <ObservationField label="具体比赛观察" required wide><Textarea rows={4} value={draft.evidenceNote} onChange={(event) => updateDraft("evidenceNote", event.target.value)} placeholder="记下比赛场景、动作和结果；至少 20 个字符。它仍是你的主观观察，不等于统计事实。" required /></ObservationField>
+
+            <details className="group rounded-lg border bg-card p-4 sm:col-span-2">
+              <summary className="cursor-pointer list-inside text-sm font-medium">结构化能力观察 <span className="ml-1 text-xs font-normal text-muted-foreground">可选 · 按本场样本记录</span></summary>
+              <p className="mb-0 mt-2 text-xs leading-5 text-muted-foreground">这是尚未校准的项目暂定量表，不代表观察者之间已经一致。填写评分时，请同时补全赛事、赛季、比赛和观看范围；无证据时留空。不同记录不会自动平均或计入适配分。</p>
+              <div className="mt-4 space-y-3">
+                {draft.ratings.map((rating, index) => {
+                  const dimension = PlayerObservationDimensionSchema.safeParse(rating.dimension);
+                  const definition = dimension.success ? PlayerObservationDimensionDefinitions[dimension.data] : undefined;
+                  return <fieldset className="space-y-4 rounded-lg border bg-muted/30 p-3 sm:p-4" key={`${rating.dimension}-${index}`}>
+                    <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(100px,.6fr)_auto]">
+                      <ObservationField label="能力维度" required><select className={selectClassName} value={rating.dimension} onChange={(event) => updateRating(index, "dimension", event.target.value)}>{Object.entries(PlayerObservationDimensionDefinitions).map(([key, value]) => <option key={key} value={key}>{value.label} · {value.phase === "in_possession" ? "有球" : value.phase === "out_of_possession" ? "无球" : "转换"}</option>)}</select></ObservationField>
+                      <ObservationField label="主观档位" required><select className={selectClassName} value={rating.rating} onChange={(event) => updateRating(index, "rating", event.target.value)} required><option value="">选择 1–5</option><option value="1">1 · 明显短板</option><option value="2">2 · 偏弱</option><option value="3">3 · 一般 / 参差</option><option value="4">4 · 经常展现优势</option><option value="5">5 · 多次突出</option></select></ObservationField>
+                      <ObservationField label="比赛分钟"><Input type="number" min={0} max={150} value={rating.matchMinute} onChange={(event) => updateRating(index, "matchMinute", event.target.value)} placeholder="可选" /></ObservationField>
+                      <Button type="button" variant="ghost" size="sm" className="text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => removeRating(index)}><Trash2 aria-hidden="true" />移除此项</Button>
+                    </div>
+                    <ObservationField label={`支持此判断的具体场景${definition ? ` · ${definition.description}` : ""}`} required><Textarea rows={2} value={rating.evidence} onChange={(event) => updateRating(index, "evidence", event.target.value)} placeholder="描述对手压力、球员动作、结果；至少 20 个字符" required /></ObservationField>
+                  </fieldset>;
+                })}
+                <Button type="button" variant="outline" size="sm" onClick={addRating} disabled={draft.ratings.length >= 8}><Plus aria-hidden="true" />添加一个维度</Button>
+              </div>
+            </details>
+            <ObservationField label="参考链接" wide><Input type="url" value={draft.sourceReferenceUrl} onChange={(event) => updateDraft("sourceReferenceUrl", event.target.value)} placeholder="可选，仅作为出处链接；不会自动访问或抓取" /></ObservationField>
+          </div>
+
+          <fieldset className="space-y-3 rounded-lg border p-4">
+            <legend className="px-1 text-sm font-medium">保存与使用权限</legend>
+            <label className="flex items-start gap-3 rounded-md p-2 hover:bg-muted/50">
+              <input className="mt-1 size-4 accent-primary" type="checkbox" checked={draft.allowPersistentStorage} onChange={(event) => changeStoragePermission(event.target.checked)} />
+              <span className="space-y-1"><strong className="block text-sm font-medium">允许保存在这台设备上</strong><small className="block text-xs leading-5 text-muted-foreground">记录写入本机项目数据目录；取消已保存记录的授权会删除该记录。</small></span>
+            </label>
+            <label className="flex items-start gap-3 rounded-md p-2 hover:bg-muted/50">
+              <input className="mt-1 size-4 accent-primary" type="checkbox" checked={draft.allowAiProcessing} onChange={(event) => updateDraft("allowAiProcessing", event.target.checked)} />
+              <span className="space-y-1"><strong className="block text-sm font-medium">允许加入 Agent 检索与模型分析</strong><small className="block text-xs leading-5 text-muted-foreground">若模型或 embedding 配置为远程服务，观察文本可能发送给该服务；关闭后会从当前检索索引移除。</small></span>
+            </label>
+          </fieldset>
+
+          {error && <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertDescription>{error}</AlertDescription></Alert>}
+          {notice && <Alert><AlertDescription>{notice}</AlertDescription></Alert>}
+          <Separator />
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {selectedRecord && <Button type="button" variant="outline" className="text-destructive hover:bg-destructive/5 hover:text-destructive" onClick={() => void removeSelected()} disabled={saving}><Trash2 aria-hidden="true" />删除记录</Button>}
+            <Button type="submit" disabled={saving}><Save aria-hidden="true" />{saving ? "正在保存…" : "保存观察"}</Button>
+          </div>
+        </form>
+      </div>
+    </DialogContent>
+  </Dialog>;
 }
