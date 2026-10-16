@@ -1,8 +1,9 @@
 import { activeReferenceMessages } from "../domain/replacement-reference.js";
 import { requestedCapabilityEvidenceAreas } from "../domain/recruitment-capabilities.js";
-import { positionMatches } from "../domain/positions.js";
+import { playerPositionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import type { CapabilityMetricKey, PlayerProfile, Position } from "../domain/schemas.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { understatCatalogPositionGroupsFor } from "../data/understat-position-evidence.js";
 
 import { replacementTargetNames, replacementTargetMention, isReplacementTarget } from "./replacement-target.js";
 
@@ -239,12 +240,31 @@ export function resolveCandidateSearchIntent(input: {
   };
 }
 
-export function candidateMatchesSearchIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+function matchesNonPositionIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
   if (isReplacementTarget(player.name, intent.replacementTargetNames)) return false;
-  if (intent.position && !positionMatches(player.position, intent.position)) return false;
   if (intent.maxAge !== null && (player.age === null || player.age > intent.maxAge)) return false;
   if (player.minutes < intent.minimumMinutes) return false;
   if (intent.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(intent.competition))) return false;
   if (intent.season && !normalizeSearchText(player.season).includes(normalizeSearchText(intent.season))) return false;
   return true;
+}
+
+export function candidateMatchesSearchIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+  if (!matchesNonPositionIntent(player, intent)) return false;
+  if (intent.position && !playerPositionMatches(player, intent.position)) return false;
+  return true;
+}
+
+/** Includes source-family records only for recall and position-evidence investigation. */
+export function candidateMatchesSearchIntentForPositionRetrieval(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+  if (!matchesNonPositionIntent(player, intent)) return false;
+  if (!intent.position) return true;
+  const isUnderstat = player.sourceIdentity?.provider === "understat";
+  return positionMatchesRetrieval(
+    player.position,
+    intent.position,
+    player.sourceIdentity?.positionGroups,
+    isUnderstat ? understatCatalogPositionGroupsFor(intent.position) : [],
+    isUnderstat,
+  );
 }

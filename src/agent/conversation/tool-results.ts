@@ -2,7 +2,9 @@ import { teamNamesMatch } from "../../domain/team-names.js";
 import { createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../recruitment-comparison.js";
 import { type PlayerRepository } from "../../data/player-repository.js";
 import { describeDatasetScope } from "../../domain/dataset-scope.js";
-import { type PlayerProfile, RecruitmentSearchScopeSchema } from "../../domain/schemas.js";
+import { type PlayerProfile, RecruitmentSearchScopeSchema, type Position } from "../../domain/schemas.js";
+import { isDetailedPosition, playerPositionMatches, positionMatches } from "../../domain/positions.js";
+import { isUnderstatFinePositionSearch, withPendingUnderstatPositionEvidence, withUnderstatPositionEvidence } from "../../data/understat-position-evidence.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { type CandidateIdentityGroup, toCandidateIdentityGroupReferences } from "../../identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../identity/source-player-key.js";
@@ -12,6 +14,33 @@ import { evaluatedPlayersForConstraint, resolvedCandidateSearchIntent } from "./
 import type { RecruitmentTraceEvent } from "./contracts.js";
 import { type CandidateSearchObservation, type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
+
+function withSourcePositionEvidence(player: PlayerProfile, targetPosition: Position): PlayerProfile {
+  const directlyObserved = playerPositionMatches(player, targetPosition);
+  const sourceCodes = [...new Set([
+    ...(player.sourceIdentity?.sourcePositionLabels ?? []),
+    ...(player.sourceIdentity?.positionGroup ? [player.sourceIdentity.positionGroup] : []),
+    ...(player.sourceIdentity?.positionGroups ?? []),
+    ...(player.sourceIdentity?.positionSamples?.map(({ position }) => position) ?? []),
+    ...(player.position !== "UNKNOWN" ? [player.position] : []),
+  ])];
+  const roleSampleMinutes = player.sourceIdentity?.positionSamples
+    ?.filter(({ position }) => positionMatches(position, targetPosition))
+    .reduce((sum, sample) => sum + sample.minutes, 0);
+  return {
+    ...player,
+    positionEvidence: {
+      provider: player.sourceIdentity?.provider ?? player.source,
+      targetPosition,
+      status: directlyObserved ? "direct" : "broad_only",
+      season: player.sourceIdentity?.seasonId ?? player.season,
+      sourceCodes,
+      sampleMinutes: directlyObserved
+        ? roleSampleMinutes ?? (player.sourceIdentity?.positionGroup ? player.minutes : null)
+        : null,
+    },
+  };
+}
 
 function teamHistory(players: PlayerProfile[], teamName: string, repository: PlayerRepository) {
   const key = normalizeSearchText(teamName);
@@ -183,6 +212,10 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
     }
     case "inspect_player": {
       const research = execution.research;
+      const targetPosition = (repository.mode === "understat" || repository.mode === "mosaic") && intent.position && isUnderstatFinePositionSearch(intent.position)
+        ? intent.position
+        : null;
+      const player = state.discoveredPlayers[research.playerId];
       filters = {
         playerId: research.playerId,
         sections: research.requestedSections,
@@ -193,6 +226,9 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           toolUses,
           hasInvestigated: true,
           understatPlayerResearch: { ...state.understatPlayerResearch, [research.playerId]: research },
+          ...(targetPosition && player ? { discoveredPlayers: {
+            [research.playerId]: withUnderstatPositionEvidence(player, research, targetPosition),
+          } } : {}),
           history: [{ role: "tool" as const, toolName: execution.request.action, content: JSON.stringify(research) }],
         },
         filters,
@@ -205,6 +241,15 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
     case "inspect_candidate_group": {
       const research = execution.research;
       const byPlayer = Object.fromEntries(research.map((item) => [item.playerId, item]));
+      const targetPosition = (repository.mode === "understat" || repository.mode === "mosaic") && intent.position && isUnderstatFinePositionSearch(intent.position)
+        ? intent.position
+        : null;
+      const positionAwarePlayers = Object.fromEntries(research.flatMap((item) => {
+        const player = state.discoveredPlayers[item.playerId];
+        return targetPosition && player
+          ? [[item.playerId, withUnderstatPositionEvidence(player, item, targetPosition)] as const]
+          : [];
+      }));
       filters = {
         playerIds: research.map((item) => item.playerId),
         sections: execution.request.sections,
@@ -217,6 +262,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           toolUses,
           hasInvestigated: true,
           understatPlayerResearch: { ...state.understatPlayerResearch, ...byPlayer },
+          ...(Object.keys(positionAwarePlayers).length ? { discoveredPlayers: positionAwarePlayers } : {}),
           history: [{ role: "tool" as const, toolName: execution.request.action, content: JSON.stringify(research) }],
         },
         filters,
@@ -242,6 +288,10 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
     case "search_candidates": {
       const { page: result, request } = execution;
       const requestedOffset = state.candidateSearchCursorAdjustment?.requestedOffset ?? request.offset;
+      const targetPosition = request.position && isDetailedPosition(request.position)
+        && result.appliedFilters.includes("positionFamily")
+        ? request.position
+        : null;
       filters = {
         position: request.position,
         maxAge: request.maxAge,
@@ -254,7 +304,16 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         playerNameFilterUsed: Boolean(request.playerName),
         ...(result.discovery ? { discoveryStrategy: result.discovery.strategy, discoveryMetricKeys: result.discovery.metricKeys } : {}),
       };
-      const additions = Object.fromEntries(result.players.map((player) => [player.playerId, player]));
+      const additions = Object.fromEntries(result.players.map((player) => {
+        if (!targetPosition) return [player.playerId, player];
+        if (player.sourceIdentity?.provider !== "understat") {
+          return [player.playerId, withSourcePositionEvidence(player, targetPosition)];
+        }
+        const existingResearch = state.understatPlayerResearch[player.playerId];
+        return [player.playerId, existingResearch
+          ? withUnderstatPositionEvidence(player, existingResearch, targetPosition)
+          : withPendingUnderstatPositionEvidence(player, targetPosition)];
+      }));
       const discoveredPlayers = { ...state.discoveredPlayers, ...additions };
       const identityGroups = groupCandidateRecords(Object.values(discoveredPlayers));
       const identityGroupReferences = toCandidateIdentityGroupReferences(identityGroups);
@@ -268,6 +327,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           name: player.name,
           team: player.team,
           position: player.position,
+          ...(player.positionEvidence ? { positionEvidence: player.positionEvidence } : {}),
           age: player.age,
           competition: player.competition,
           season: player.season,
@@ -287,6 +347,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         };
       });
       filters.nextOffset = result.nextOffset;
+      if (result.appliedFilters.includes("positionFamily")) filters.positionSearchScope = "family_retrieval";
       filters.candidateIds = candidateSummaries.map((candidate) => candidate.playerId);
 
       const observed = Object.fromEntries(result.players.map((player) => [sourcePlayerKey(player), {
@@ -342,6 +403,11 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
               matchingRecords: result.totalRecords,
               matchingRecordCountKnown: result.totalRecords !== null,
               appliedFilters: result.appliedFilters,
+              ...(targetPosition ? {
+                positionEvidenceNote: repository.mode === "understat" || repository.mode === "mosaic"
+                  ? `Understat 只按${targetPosition}对应的位置族召回；细分位置尚需按 Understat 当前赛季位置记录核实。其他来源只有自身明确返回${targetPosition}细分位置时才可作为目标位置候选。`
+                  : `先按${targetPosition}对应的大类召回。只有来源明确提供${targetPosition}细分位置的记录才能进入目标位置名单；宽位置记录会作为待核实线索单独展示。`,
+              } : {}),
               ...(result.discovery ? { discovery: result.discovery, discoveryNote: "按用户明确可测的表现维度，在各来源、赛事、赛季和位置组内分别选取线索后交错发现；每90分钟指标按其实际样本还原累计观测量作发现依据，其他口径优先有明确分母的样本。没有相关指标时按出场样本发现。不是综合能力或跨联赛实力排名；低分钟和缺字段记录仍保留。" } : {}),
               offset: result.offset,
               nextOffset: result.nextOffset,

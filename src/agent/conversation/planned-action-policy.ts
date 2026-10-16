@@ -1,4 +1,5 @@
-import { positionMatches } from "../../domain/positions.js";
+import { playerPositionMatches } from "../../domain/positions.js";
+import { isUnderstatFinePositionSearch } from "../../data/understat-position-evidence.js";
 import { buildDecisionConstraints, conclusionPlannerOutputFallback, type RecruitmentExpansionConstraints } from "../conclusion-policy.js";
 import { emptyDecision, isToolAction, RecruitmentActionSchema, toolBudgets, type ParsedRecruitmentAction } from "../recruitment-actions.js";
 import { applyRecruitmentCandidatePolicy } from "../recruitment-candidate-policy.js";
@@ -159,10 +160,21 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
     candidateSearchExhausted = cursor.exhausted;
   }
   if (action.action === "inspect_candidate_group") {
-    const availableIds = new Set(discoveredPlayersForConstraint(state).map((player) => player.playerId));
+    const eligibleIds = discoveredPlayersForConstraint(state).map((player) => player.playerId);
+    const pendingPositionIds = action.sections.includes("positions")
+      && intent.position && isUnderstatFinePositionSearch(intent.position)
+      ? Object.values(state.discoveredPlayers)
+        .filter((player) => player.sourceIdentity?.provider === "understat"
+          && player.positionEvidence?.targetPosition === intent.position
+          && player.positionEvidence.status === "pending")
+        .map((player) => player.playerId)
+      : [];
+    const availableIds = new Set([...eligibleIds, ...pendingPositionIds]);
     const playerIds = [...new Set(action.playerIds)].filter((playerId) => availableIds.has(playerId)).slice(0, 12);
     action = playerIds.length >= 2
       ? RecruitmentActionSchema.parse({ ...action, playerIds })
+      : playerIds.length === 1 && pendingPositionIds.includes(playerIds[0]!)
+        ? RecruitmentActionSchema.parse({ action: "inspect_player", targetTeam: state.targetTeam, playerId: playerIds[0]!, sections: action.sections })
       : RecruitmentActionSchema.parse({
         action: "evaluate_candidates",
         targetTeam: state.targetTeam,
@@ -269,7 +281,7 @@ export function investigationActionFeedback(state: State, proposedAction: Parsed
     ...(action.action === "evaluate_candidates" && state.confirmedPosition
       && !action.playerIds.some((playerId) => {
         const player = state.discoveredPlayers[playerId];
-        return Boolean(player && positionMatches(player.position, state.confirmedPosition!));
+        return Boolean(player && playerPositionMatches(player, state.confirmedPosition!));
       })
       ? [`用户已确认位置为 ${positionLabels[state.confirmedPosition]}；先按该位置搜索候选人，不能评估其他位置的球员。`] : []),
     ...(proposedAction.action === "finish" && proposedAction.recommendations.length > 0

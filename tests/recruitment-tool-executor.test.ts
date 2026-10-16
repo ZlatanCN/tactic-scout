@@ -172,6 +172,7 @@ test("candidate search forwards the planner filters and preserves the provider p
     season: "2025/26",
     offset: 20,
     limit: 10,
+    positionMatchMode: "family",
   }]);
   if (result.action === "search_candidates") assert.equal(result.page.nextOffset, null);
 });

@@ -65,3 +65,10 @@ test("high-minute candidates do not get a percentile from fewer than five stable
   assert.equal(result.peerGroupSize, 4);
   assert.equal(result.peerPercentileUnavailableReason, "insufficient_peer_group");
 });
+
+test("an unreported competition scope blocks percentile comparison even with sufficient minutes", () => {
+  assert.equal(getPeerPercentileUnavailableReason({
+    minutes: 1800,
+    recordedReason: "competition_scope_unreported",
+  }), "competition_scope_unreported");
+});

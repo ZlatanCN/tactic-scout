@@ -23,6 +23,7 @@ function sourceRecord(playerId: string, name: string, source: string, provider: 
     team: "Harbor City",
     age: 23,
     position: "ST",
+    ...(provider === "understat" ? { externalPlayerId: sourcePlayerId } : {}),
     competition: "Open League",
     season: "2025/26",
     minutes: 1200,
@@ -170,14 +171,21 @@ test("the full LangGraph Reviewer blocks duplicate recommendations only when exa
   const understatProfile = sourceRecord("understat:league-a:17", "Alex Example", "Understat", "understat", "league-a:17");
   const understatRecord: PlayerProfile = {
     ...understatProfile,
+    externalPlayerId: "17",
     sourceIdentity: {
       ...understatProfile.sourceIdentity!,
       providerIdentifiers: [{ provider: "understat", namespace: "player", externalId: "17", sourceField: "id" }],
     },
   };
   const asaRecord = sourceRecord("asa:player-92", "Different Display Name", "ASA", "american-soccer-analysis", "92");
-  const firstUnmappedRecord = sourceRecord("understat:league:17", "Sam Example", "Understat", "understat", "league:17");
-  const secondUnmappedRecord = sourceRecord("understat:league:17:team:17", "Taylor Example", "Understat", "understat", "league");
+  const firstUnmappedRecord = {
+    ...sourceRecord("understat:league:17", "Sam Example", "Understat", "understat", "league:17"),
+    externalPlayerId: "18",
+  };
+  const secondUnmappedRecord = {
+    ...sourceRecord("understat:league:17:team:17", "Taylor Example", "Understat", "understat", "league"),
+    externalPlayerId: "19",
+  };
   const records = [
     understatRecord,
     asaRecord,
@@ -272,8 +280,31 @@ test("the full LangGraph Reviewer blocks duplicate recommendations only when exa
         totalRecords: records.length,
         offset: query.offset,
         nextOffset: null,
-        appliedFilters: query.position ? ["position"] : [],
+        appliedFilters: query.position ? [query.positionMatchMode === "family" ? "positionFamily" : "position"] : [],
       };
+    },
+    async inspectCandidateGroup(playerIds, sections) {
+      assert.deepEqual(sections, ["positions"]);
+      return playerIds.map((playerId) => {
+        const player = records.find((record) => record.playerId === playerId)!;
+        const sourcePlayerId = player.externalPlayerId!;
+        return {
+          playerId,
+          name: player.name,
+          team: player.team,
+          competition: player.competition,
+          season: player.season,
+          sourcePlayerId,
+          sourceUrl: `https://understat.com/player/${sourcePlayerId}`,
+          retrievedAt: "2026-10-10T00:00:00.000Z",
+          player: { id: sourcePlayerId, name: player.name, favoritePosition: "FW" },
+          lastMatch: null,
+          requestedSections: ["positions" as const],
+          availableSections: ["positions" as const],
+          positions: [{ season: player.sourceIdentity?.seasonId ?? "2025/26", code: "FW", minutes: player.minutes, games: 12, goals: 8, shots: 30, xG: 7, assists: 3, xA: 1.2, keyPasses: 12, npxG: 6.5, xGChain: 10, xGBuildup: 4 }],
+          notes: [],
+        };
+      });
     },
     async getPlayersByIds(playerIds) {
       const selected = new Set(playerIds);
@@ -333,6 +364,7 @@ test("the full LangGraph Reviewer blocks duplicate recommendations only when exa
   assert.deepEqual(trace.filter((event) => event.phase === "tool" && event.ok).map((event) => event.phase === "tool" ? event.toolName : null), [
     "search_methodology",
     "search_candidates",
+    "inspect_candidate_group",
     "evaluate_candidates",
     "search_player_reports",
   ]);

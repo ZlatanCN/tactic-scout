@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { configuredRecruitmentConversation, createRecruitmentConversation, type RecruitmentPlanner } from "../src/agent/conversation.js";
 import { createSinglePassInvestigationPlanner } from "../src/evals/fixed-investigation-planner.js";
-import { createReferenceComparisonNotes, createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../src/agent/recruitment-comparison.js";
+import { createCandidateComparison, createReferenceComparisonNotes, createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../src/agent/recruitment-comparison.js";
 import type { PlayerProfile } from "../src/domain/schemas.js";
 
 const player = (id: string, name: string, goals: number): PlayerProfile => ({
@@ -61,6 +61,44 @@ test("reference comparisons require the same observed scope and a shared metric"
   assert.equal(createReferenceComparisonNotes(candidate, [profile], ["goals"]).length, 1);
   assert.deepEqual(createReferenceComparisonNotes(candidate, [{ ...profile, season: "2025/26" }], ["goals"]), []);
   assert.deepEqual(createReferenceComparisonNotes(candidate, [{ ...profile, metrics: { assists: 0 } }], ["goals"]), []);
+});
+
+test("season-position aggregates remain visible but are excluded from reference and candidate ranges", () => {
+  const evidence = {
+    key: "understatExpectedGoalsPer90" as const,
+    label: "Understat xG /90",
+    value: 0.9,
+    unit: "xG/90分钟",
+    peerPercentile: null,
+    peerGroupSize: 0,
+    peerPercentileUnavailableReason: "competition_scope_unreported" as const,
+    minutes: 1500,
+    competition: "德甲",
+    season: "2026/27",
+    source: "Understat",
+    sourceScope: "season_position_aggregate" as const,
+    sourceField: "groups.position[2026][FW].xG",
+  };
+  const first = { player: candidates[0]!, evidence: [evidence] };
+  const second = { player: candidates[1]!, evidence: [{ ...evidence, value: 1.2 }] };
+  const profile = createReferencePlayerProfiles([{ ...reference, supplementaryMetrics: [{
+    key: "understatExpectedGoalsPer90",
+    definition: "fixture",
+    value: 0.7,
+    unit: "xG/90分钟",
+    normalization: "per90",
+    sourceField: "groups.position[2026][FW].xG",
+    sampleMinutes: 1500,
+    sampleMatches: 10,
+  }] }], ["为拜仁寻找凯恩的替代者"])[0]!;
+
+  assert.deepEqual(createReferenceComparisonNotes(first, [profile], [evidence.key]), []);
+  const comparisons = createCandidateComparison([first, second], [evidence.key]);
+  assert.ok(comparisons.every(({ comparisons: rows }) => rows.every((row) => (
+    row.comparedCandidateCount === 0
+      && row.observedMinimum === undefined
+      && row.observedMaximum === undefined
+  ))));
 });
 
 for (const arm of ["enabled", "reference-off", "comparison-off"] as const) {

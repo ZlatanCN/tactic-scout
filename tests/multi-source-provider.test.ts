@@ -3,6 +3,7 @@ import test from "node:test";
 import type { PlayerProfile } from "../src/domain/schemas.js";
 import type { PlayerRepository, PlayerSearchQuery } from "../src/data/provider.js";
 import { MultiSourceCurrentPlayerRepository, MultiSourceProviderError } from "../src/data/multi-source-provider.js";
+import { searchPlayerPage } from "../src/data/player-repository.js";
 
 const retrievedAt = "2026-10-09T10:00:00.000Z";
 
@@ -199,6 +200,44 @@ test("comparison pools never cross provider, competition, season, or position gr
   const repository = repositoryFor(records);
   const peers = await repository.getComparisonPlayers([records[0]!, records[3]!]);
   assert.deepEqual(new Set(peers.map(({ playerId }) => playerId)), new Set(["understat:epl:forward", "asa:mls:forward"]));
+});
+
+test("mosaic detailed-position retrieval uses family recall and delegates Understat role verification", async () => {
+  const understatCandidate = {
+    ...player({ id: "understat:EPL:cm", provider: "understat", competitionId: "EPL", competition: "英超", season: "2026/27", positionGroup: "MID" }),
+    position: "MID" as const,
+    sourceIdentity: {
+      ...player({ id: "understat:EPL:cm", provider: "understat", competitionId: "EPL", competition: "英超", season: "2026/27", positionGroup: "MID" }).sourceIdentity!,
+      positionGroups: ["MID" as const],
+    },
+  };
+  const asaCandidate = {
+    ...player({ id: "asa:mls:cm", provider: "american-soccer-analysis", competitionId: "mls", competition: "MLS", season: "2026", positionGroup: "MID" }),
+    position: "MID" as const,
+  };
+  const inspected: Array<{ playerIds: readonly string[]; sections: readonly string[] }> = [];
+  const understat: PlayerRepository = {
+    mode: "understat",
+    sourceName: "Understat fixture",
+    async loadPlayers() { return [understatCandidate]; },
+    async inspectCandidateGroup(playerIds, sections) {
+      inspected.push({ playerIds, sections });
+      return [];
+    },
+  };
+  const repository = new MultiSourceCurrentPlayerRepository({
+    understat,
+    asa: { mode: "asa", sourceName: "ASA fixture", async loadMenPlayers() { return [asaCandidate]; } },
+  });
+
+  const page = await searchPlayerPage(repository, searchQuery({ position: "CM" }));
+  assert.deepEqual(page.players.map(({ playerId }) => playerId).sort(), ["asa:mls:cm", "understat:EPL:cm"]);
+  assert.ok(page.appliedFilters.includes("positionFamily"));
+  assert.equal(page.players.find(({ playerId }) => playerId === "understat:EPL:cm")?.positionEvidence?.status, "pending");
+  assert.equal(page.players.find(({ playerId }) => playerId === "understat:EPL:cm")?.positionEvidence?.sourceScope, "season_position_aggregate");
+
+  await repository.inspectCandidateGroup?.(["understat:EPL:cm"], ["positions"]);
+  assert.deepEqual(inspected, [{ playerIds: ["understat:EPL:cm"], sections: ["positions"] }]);
 });
 
 test("a source failure remains a coded failure instead of returning a partial pool", async () => {

@@ -66,15 +66,20 @@ async function evaluatePlayers(
   const selectedIds = [...new Set(requestedIds.filter((id) => eligibleIds.has(id)))];
   const requestedPlayers = await loadPlayersByIds(repository, selectedIds, signal);
   throwIfAborted(signal);
+  const eligibleById = new Map(eligiblePlayers.map((player) => [player.playerId, player]));
   const selected = selectedIds.flatMap((id) => {
     const player = requestedPlayers.find((candidate) => candidate.playerId === id);
     if (!player) return [];
+    const searchContext = eligibleById.get(id);
+    const positionAwarePlayer = searchContext?.positionEvidence
+      ? { ...player, positionEvidence: searchContext.positionEvidence }
+      : player;
     const research = understatResearch[id];
-    const positionalMetrics = research ? understatPositionMetricsForPlayer(player, research) : [];
-    if (positionalMetrics.length === 0) return [player];
-    const metrics = new Map(player.supplementaryMetrics?.map((metric) => [metric.key, metric]) ?? []);
+    const positionalMetrics = research ? understatPositionMetricsForPlayer(positionAwarePlayer, research) : [];
+    if (positionalMetrics.length === 0) return [positionAwarePlayer];
+    const metrics = new Map(positionAwarePlayer.supplementaryMetrics?.map((metric) => [metric.key, metric]) ?? []);
     for (const metric of positionalMetrics) metrics.set(metric.key, metric);
-    return [{ ...player, supplementaryMetrics: [...metrics.values()] }];
+    return [{ ...positionAwarePlayer, supplementaryMetrics: [...metrics.values()] }];
   });
   const comparisonPlayers = await loadComparisonPlayers(repository, selected, signal);
   throwIfAborted(signal);
@@ -97,7 +102,13 @@ async function evaluatePlayers(
         if (candidateUsesPositionSplit !== (peerSupplementary?.sourceField.startsWith("groups.position[") === true)) return [];
         return [{ value: peerValue, minutes: peerSupplementary ? peerSupplementary.sampleMinutes : peer.minutes }];
       });
-      const comparison = comparePeerPercentile(value, minutes, peerSamples);
+      const comparison = supplementary?.sourceScope === "season_position_aggregate"
+        ? {
+          peerPercentile: null,
+          peerGroupSize: 0,
+          peerPercentileUnavailableReason: "competition_scope_unreported" as const,
+        }
+        : comparePeerPercentile(value, minutes, peerSamples);
       return [{
         key,
         label,
@@ -113,6 +124,7 @@ async function evaluatePlayers(
         competition: player.competition,
         season: player.season,
         source: player.source,
+        ...(supplementary?.sourceScope ? { sourceScope: supplementary.sourceScope } : {}),
         ...(supplementary ? { sourceField: supplementary.sourceField } : {}),
       } satisfies CapabilityEvidence];
     });
@@ -139,6 +151,8 @@ function describeEvidence(item: CapabilityEvidence): string {
           : `该指标样本 ${Math.round(item.minutes)} 分钟，低于本项目 ${minimumMinutesForPercentileComparison} 分钟比较门槛，未显示百分位`;
       case "insufficient_peer_group":
         return `达到 ${minimumMinutesForPercentileComparison} 分钟门槛的同位置/赛事/赛季同组仅 ${item.peerGroupSize} 人，不足 5 人，未显示百分位`;
+      case "competition_scope_unreported":
+        return "来源的位置分组指标未提供赛事范围，保留单人观测值，不显示同赛事百分位";
       default:
         return item.peerPercentile === null
           ? `同位置/赛事/赛季样本 ${item.peerGroupSize} 人，无法显示百分位`

@@ -2,6 +2,19 @@ import { z } from "zod/v4";
 
 export const PositionSchema = z.enum(["GK", "DEF", "CB", "FB", "LB", "RB", "LWB", "RWB", "MID", "DM", "CM", "AM", "ATT", "WG", "LW", "RW", "ST"]);
 export type Position = z.infer<typeof PositionSchema>;
+export const PlayerPositionSchema = z.union([PositionSchema, z.literal("UNKNOWN")]);
+export type PlayerPosition = z.infer<typeof PlayerPositionSchema>;
+
+export const PlayerPositionEvidenceSchema = z.object({
+  provider: z.string().min(1),
+  targetPosition: PositionSchema,
+  status: z.enum(["pending", "direct", "compatible", "not_observed", "unavailable", "broad_only"]),
+  sourceScope: z.enum(["season_position_aggregate"]).optional(),
+  season: z.string().nullable(),
+  sourceCodes: z.array(z.string()),
+  sampleMinutes: z.number().nonnegative().nullable(),
+});
+export type PlayerPositionEvidence = z.infer<typeof PlayerPositionEvidenceSchema>;
 
 export const DatasetModeSchema = z.enum(["demo", "statsbomb", "sportmonks", "skillcorner", "wyscout", "fbref", "fpl", "premier_league", "asa", "understat", "mosaic", "curated"]);
 export type DatasetMode = z.infer<typeof DatasetModeSchema>;
@@ -100,6 +113,12 @@ export const PlayerDataSourceIdentitySchema = z.object({
   competitionId: z.string().optional(),
   seasonId: z.string().optional(),
   positionGroup: z.string().optional(),
+  positionGroups: z.array(PositionSchema).optional(),
+  positionSamples: z.array(z.object({
+    position: PositionSchema,
+    minutes: z.number().nonnegative(),
+  })).optional(),
+  sourcePositionLabels: z.array(z.string()).optional(),
   retrievedAt: z.string().datetime(),
   isCurrentSeason: z.boolean().optional(),
 });
@@ -173,6 +192,7 @@ export const SupplementaryPerformanceMetricSchema = z.object({
   value: z.number().nullable(),
   unit: z.string(),
   normalization: SupplementaryMetricNormalizationSchema,
+  sourceScope: z.enum(["season_position_aggregate"]).optional(),
   sourceField: z.string().min(1),
   sampleMinutes: z.number().nonnegative().nullable(),
   sampleMatches: z.number().int().nonnegative().nullable(),
@@ -189,7 +209,8 @@ export const PlayerProfileSchema = z.object({
   age: z.number().int().nullable(),
   ageSource: z.string().optional(),
   ageVerifiedAt: z.string().optional(),
-  position: PositionSchema,
+  position: PlayerPositionSchema,
+  positionEvidence: PlayerPositionEvidenceSchema.optional(),
   competition: z.string(),
   season: z.string(),
   minutes: z.number().nonnegative(),
@@ -385,7 +406,7 @@ export const CapabilityEvidenceSchema = z.object({
   unit: z.string(),
   peerPercentile: z.number().min(0).max(100).nullable(),
   peerGroupSize: z.number().int().nonnegative(),
-  peerPercentileUnavailableReason: z.enum(["candidate_low_sample", "candidate_sample_unknown", "insufficient_peer_group"]).optional(),
+  peerPercentileUnavailableReason: z.enum(["candidate_low_sample", "candidate_sample_unknown", "insufficient_peer_group", "competition_scope_unreported"]).optional(),
   minutes: z.number().nonnegative().nullable(),
   sampleMatches: z.number().int().nonnegative().optional(),
   sampleAttempts: z.number().int().nonnegative().optional(),
@@ -393,6 +414,7 @@ export const CapabilityEvidenceSchema = z.object({
   competition: z.string(),
   season: z.string(),
   source: z.string(),
+  sourceScope: z.enum(["season_position_aggregate"]).optional(),
   sourceField: z.string().optional(),
   definition: z.string().optional(),
   normalization: SupplementaryMetricNormalizationSchema.optional(),
@@ -763,6 +785,12 @@ export const RecruitmentSearchScopeSchema = z.object({
 });
 export type RecruitmentSearchScope = z.infer<typeof RecruitmentSearchScopeSchema>;
 
+export const PositionLeadSchema = z.object({
+  player: PlayerProfileSchema,
+  status: z.enum(["broad_only", "pending", "not_observed", "unavailable"]),
+});
+export type PositionLead = z.infer<typeof PositionLeadSchema>;
+
 export const RecruitmentReportSchema = z.object({
   targetTeam: z.string().nullable(),
   needSummary: z.string(),
@@ -792,6 +820,8 @@ export const RecruitmentReportSchema = z.object({
     unresolvedSourceRecordCount: 0,
     resolutionStatusCounts: [],
   }),
+  positionLeads: z.array(PositionLeadSchema).max(12).optional(),
+  positionLeadCount: z.number().int().nonnegative().optional(),
   knowledgeCoverage: KnowledgeCoverageSchema.default({
     methodologyChunksRetrieved: 0,
     methodologySearchFailed: false,

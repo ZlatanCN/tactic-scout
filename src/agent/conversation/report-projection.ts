@@ -2,7 +2,9 @@ import { createCandidateComparison, createReferenceComparisonNotes, reportRefere
 import { type PlayerRepository } from "../../data/player-repository.js";
 import { describeDatasetScope } from "../../domain/dataset-scope.js";
 import { minimumMinutesForPercentileComparison } from "../../domain/evidence-comparison.js";
-import { RecruitmentReportSchema, type CandidateIdentityResolutionStatus, type PlayerProfile } from "../../domain/schemas.js";
+import { playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
+import { isUnderstatFinePositionSearch } from "../../data/understat-position-evidence.js";
+import { RecruitmentReportSchema, type CandidateIdentityResolutionStatus, type PlayerProfile, type Position } from "../../domain/schemas.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { summarizeCandidateIdentityGroupReferences, type CandidateIdentityGroup } from "../../identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../identity/source-player-key.js";
@@ -11,6 +13,7 @@ import { collectMethodologySourceReferences } from "../methodology-sources.js";
 import { emptyDecision, toolBudgets, type FinishRecruitmentAction } from "../recruitment-actions.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
 import { candidateIdentityGroupReferencesFor, candidateSearchScopeKey, confirmedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
+import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { positionLabels } from "./interaction-policy.js";
 import { type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
 
@@ -31,11 +34,13 @@ function candidateSearchSampleCoverage(observations: CandidateSearchObservation[
   matchingRecordCount: number | null;
   discoveredSourceRecordCount: number;
   nextOffset: number | null;
+  positionSearchScope: "exact" | "family";
 }> {
   const scopes = new Map<string, {
     matchingRecordCount: number | null;
     nextOffset: number | null;
     sourceRecordIds: Set<string>;
+    positionSearchScope: "exact" | "family";
   }>();
   for (const observation of observations) {
     const scopeKey = candidateSearchScopeKey(observation.request);
@@ -43,21 +48,91 @@ function candidateSearchSampleCoverage(observations: CandidateSearchObservation[
       matchingRecordCount: null,
       nextOffset: null,
       sourceRecordIds: new Set<string>(),
+      positionSearchScope: "exact",
     };
     if (observation.matchingRecordCount !== null) {
       scope.matchingRecordCount = observation.matchingRecordCount;
     }
     scope.nextOffset = observation.nextOffset;
+    if (observation.appliedFilters.includes("positionFamily")) scope.positionSearchScope = "family";
     for (const sourceRecordId of observation.discoveredSourceRecordIds) {
       scope.sourceRecordIds.add(sourceRecordId);
     }
     scopes.set(scopeKey, scope);
   }
-  return [...scopes.values()].map(({ matchingRecordCount, nextOffset, sourceRecordIds }) => ({
+  return [...scopes.values()].map(({ matchingRecordCount, nextOffset, sourceRecordIds, positionSearchScope }) => ({
     matchingRecordCount,
     discoveredSourceRecordCount: sourceRecordIds.size,
     nextOffset,
+    positionSearchScope,
   }));
+}
+
+function understatPositionEvidenceSummary(state: State, repository: PlayerRepository): string | null {
+  const intent = resolvedCandidateSearchIntent(state);
+  const position = intent.position;
+  if ((repository.mode !== "understat" && repository.mode !== "mosaic") || !position || !isUnderstatFinePositionSearch(position)) return null;
+  const observations = state.candidateSearchObservations.filter((item) => item.request.position === position
+    && item.appliedFilters.includes("positionFamily"));
+  if (observations.length === 0) return null;
+  const candidates = Object.values(state.discoveredPlayers)
+    .filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, intent));
+  const understatCandidates = candidates.filter(({ sourceIdentity }) => sourceIdentity?.provider === "understat");
+  const count = (status: string) => understatCandidates.filter(({ positionEvidence }) => positionEvidence?.targetPosition === position
+    && positionEvidence.status === status).length;
+  const direct = count("direct");
+  const compatible = count("compatible");
+  const notObserved = count("not_observed");
+  const unavailable = count("unavailable") + count("pending");
+  const scanned = understatCandidates.length;
+  const otherSourceCoarseRecords = repository.mode === "mosaic"
+    ? candidates.filter((player) => player.sourceIdentity?.provider !== "understat"
+      && !playerPositionMatches(player, position)).length
+    : 0;
+  const latest = observations.at(-1)!;
+  const coverageNote = latest.nextOffset !== null
+    ? `位置族检索仍有下一页（offset=${latest.nextOffset}），本轮未覆盖全部可检索记录。`
+    : unavailable > 0
+      ? "部分球员的细分位置详情未返回或尚未核实；这不等于不符合该位置。"
+      : otherSourceCoarseRecords > 0
+        ? "部分其他来源只有宽位置标签，无法确认具体职责；这不等于球员不适合该位置。"
+      : "本轮检索范围内的位置详情已完成核实。";
+  return `Understat 位置核实（${positionLabels[position]}）：按${positionLabels[positionFamilyFor(position)]}大类已读取 ${scanned} 条 Understat 来源记录；${direct} 条有直接位置标签，${compatible} 条只有相邻位置标签，${notObserved} 条当前赛季记录未显示对应标签，${unavailable} 条细查未返回或尚未核实。未观察到位置标签不等于球员不会踢该位置。${otherSourceCoarseRecords > 0 ? `另有 ${otherSourceCoarseRecords} 条其他来源记录只有宽位置标签，未计入目标位置候选。` : ""}${coverageNote}`;
+}
+
+function finePositionEvidenceSummary(state: State, position: Position): string | null {
+  const observations = state.candidateSearchObservations.filter((item) => item.request.position === position
+    && item.appliedFilters.includes("positionFamily"));
+  if (observations.length === 0) return null;
+  const candidates = Object.values(state.discoveredPlayers)
+    .filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, resolvedCandidateSearchIntent(state)));
+  const directlyObserved = candidates.filter((player) => playerPositionMatches(player, position)).length;
+  const unverified = candidates.filter((player) => player.positionEvidence?.targetPosition === position
+    && ["broad_only", "pending", "unavailable"].includes(player.positionEvidence.status)).length;
+  if (unverified === 0) return null;
+  const latest = observations.at(-1)!;
+  const coverage = latest.nextOffset !== null
+    ? `来源仍有下一页（offset=${latest.nextOffset}），本轮没有覆盖完位置大类。`
+    : "当前已读取范围内没有更多页面。";
+  return `细分位置核实（${positionLabels[position]}）：按${positionLabels[positionFamilyFor(position)]}大类召回 ${candidates.length} 条记录，其中 ${directlyObserved} 条有来源位置证据，${unverified} 条只有较宽位置标签或尚未核实；后者只列为待核实线索，不进入目标位置名单。${coverage}`;
+}
+
+function positionLeadRecords(state: State): Array<{ player: PlayerProfile; status: "broad_only" | "pending" | "not_observed" | "unavailable" }> {
+  const intent = resolvedCandidateSearchIntent(state);
+  const position = intent.position;
+  if (!position || !isUnderstatFinePositionSearch(position)) return [];
+  if (!state.candidateSearchObservations.some((item) => item.request.position === position
+    && item.appliedFilters.includes("positionFamily"))) return [];
+  return Object.values(state.discoveredPlayers)
+    .filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, intent))
+    .flatMap((player) => {
+      const evidence = player.positionEvidence;
+      if (evidence?.targetPosition !== position
+        || (evidence.status !== "broad_only" && evidence.status !== "pending"
+          && evidence.status !== "not_observed" && evidence.status !== "unavailable")) return [];
+      return [{ player, status: evidence.status }];
+    })
+    .sort((left, right) => left.player.name.localeCompare(right.player.name) || left.player.playerId.localeCompare(right.player.playerId));
 }
 
 function hasLowSampleEvidence({ player, evidence }: EvaluatedPlayer): boolean {
@@ -118,14 +193,24 @@ function limitationsFor(
       && coverage.matchingRecordCount > coverage.discoveredSourceRecordCount;
     if (hasKnownUnobservedRecords || coverage.nextOffset !== null) {
       if (coverage.matchingRecordCount === null) {
-        limitations.push(`当前筛选的匹配总数未知；Agent 已读取 ${coverage.discoveredSourceRecordCount} 条来源记录，来源仍返回下一页（offset=${coverage.nextOffset}），样本尚未读完。`);
+        limitations.push(coverage.positionSearchScope === "family"
+          ? `来源未提供位置大类的精确总数；Agent 已读取 ${coverage.discoveredSourceRecordCount} 条位置族来源记录，来源仍返回下一页（offset=${coverage.nextOffset}），样本尚未读完。`
+          : `当前筛选的匹配总数未知；Agent 已读取 ${coverage.discoveredSourceRecordCount} 条来源记录，来源仍返回下一页（offset=${coverage.nextOffset}），样本尚未读完。`);
         continue;
       }
       limitations.push(state.evidenceEvaluationWithheld
         ? `当前筛选命中 ${coverage.matchingRecordCount} 条候选记录；Agent 读取 ${coverage.discoveredSourceRecordCount} 条来源记录。本实验屏蔽了能力评估，不能据此形成能力比较；本轮也不代表全量市场排名。`
-        : `当前筛选命中 ${coverage.matchingRecordCount} 条候选记录；Agent 读取 ${coverage.discoveredSourceRecordCount} 条来源记录、评估 ${eligibleEvaluatedPlayers.length} 人。本轮是有限样本调查，不代表全量市场排名。`);
+        : coverage.positionSearchScope === "family"
+          ? `位置大类检索命中 ${coverage.matchingRecordCount} 条来源记录；Agent 读取 ${coverage.discoveredSourceRecordCount} 条，细分位置是否匹配按来源提供的位置证据判断。本轮是有限样本调查，不代表全量市场排名。`
+          : `当前筛选命中 ${coverage.matchingRecordCount} 条候选记录；Agent 读取 ${coverage.discoveredSourceRecordCount} 条来源记录、评估 ${eligibleEvaluatedPlayers.length} 人。本轮是有限样本调查，不代表全量市场排名.`);
     }
   }
+  const positionEvidenceSummary = understatPositionEvidenceSummary(state, repository);
+  if (positionEvidenceSummary) limitations.push(positionEvidenceSummary);
+  const genericPositionEvidenceSummary = resolvedCandidateSearchIntent(state).position
+    ? finePositionEvidenceSummary(state, resolvedCandidateSearchIntent(state).position!)
+    : null;
+  if (genericPositionEvidenceSummary && !positionEvidenceSummary) limitations.push(genericPositionEvidenceSummary);
   const eligibleDiscoveredPlayers = discoveredPlayersForConstraint(state);
   const unevaluatedDiscoveredCount = eligibleDiscoveredPlayers.filter(({ playerId }) => !state.evaluatedPlayers[playerId]).length;
   if (unevaluatedDiscoveredCount > 0) {
@@ -158,6 +243,13 @@ function limitationsFor(
   }
   if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some(({ evidence }) => evidence.some((item) => item.peerPercentileUnavailableReason === "candidate_sample_unknown"))) {
     limitations.push("部分指标来源没有提供样本分钟，无法核实比较门槛，因此不显示这些指标的百分位。");
+  }
+  if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some(({ evidence }) => evidence.some((item) => item.peerPercentileUnavailableReason === "competition_scope_unreported"))) {
+    limitations.push("Understat 赛季位置分组指标未提供赛事范围；保留单人观测值，不做同赛事百分位或候选间范围比较。");
+  }
+  if (eligibleEvaluatedPlayers.some(({ player }) => player.positionEvidence?.provider === "understat"
+    && player.positionEvidence.sourceScope === "season_position_aggregate")) {
+    limitations.push("Understat 位置标签按赛季与位置分组，未提供赛事拆分；它表示该球员当季有此位置记录，不能确认标签来自当前候选记录所对应的联赛。");
   }
   if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some(({ player }) => player.eventDataComplete === false)) {
     limitations.push("部分球员缺少一场或多场比赛的事件文件；这些球员只作为候选线索，不提供比赛表现指标或推荐依据。");
@@ -215,12 +307,34 @@ export function createReportProjection(input: {
     const discoveredForConstraint = discoveredPlayersForConstraint(state);
     const discoveredForConstraintIds = new Set(discoveredForConstraint.map(({ playerId }) => playerId));
     const evaluatedForConstraintById = new Map(Object.values(eligibleEvaluatedPlayers).map((candidate) => [candidate.player.playerId, candidate]));
-    const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), resolvedCandidateSearchIntent(state).position);
+    const requestedPosition = resolvedCandidateSearchIntent(state).position;
+    const allPositionLeadRecords = positionLeadRecords(state);
+    const positionLeads = allPositionLeadRecords.slice(0, 12);
+    const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), requestedPosition);
     const backgroundOnly = requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
-    const recommendations = action.recommendations
+    const recommendedIds = new Set(action.recommendations.map(({ playerId }) => playerId));
+    const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && requestedPosition
+      ? Object.values(eligibleEvaluatedPlayers)
+        .filter(({ player, evidence }) => player.positionEvidence?.provider === "understat"
+          && player.positionEvidence.targetPosition === requestedPosition
+          && player.positionEvidence.status === "compatible"
+          && !recommendedIds.has(player.playerId))
+        .slice(0, Math.max(0, 5 - action.recommendations.length))
+        .map(({ player, evidence }) => ({
+          playerId: player.playerId,
+          evidenceKeys: requestedEvidenceAreas.flatMap(({ metricKeys }) => metricKeys)
+            .filter((key) => evidence.some((item) => item.key === key)),
+        }))
+      : [];
+    const reportRecommendationItems = [...action.recommendations, ...adjacentPositionLeadItems];
+    const recommendations = reportRecommendationItems
       .filter((item) => Object.hasOwn(eligibleEvaluatedPlayers, item.playerId))
       .map((item) => {
         const evaluated = eligibleEvaluatedPlayers[item.playerId]!;
+        const adjacentPositionLead = (repository.mode === "understat" || repository.mode === "mosaic")
+          && evaluated.player.positionEvidence?.provider === "understat"
+          && evaluated.player.positionEvidence.targetPosition === requestedPosition
+          && evaluated.player.positionEvidence.status === "compatible";
         const identityGroup = identityGroupForPlayer(item.playerId);
         const sourceRecordIds = identityGroup?.recordPlayerIds ?? [item.playerId];
         const sourceEvidenceRecords = sourceRecordIds
@@ -246,6 +360,15 @@ export function createReportProjection(input: {
         const focusEvidence = evaluated.evidence.filter((evidence) => item.evidenceKeys.includes(evidence.key)
           && (!backgroundOnly || (evaluated.player.position !== "GK" && evidence.value !== 0))).slice(0, backgroundOnly ? 3 : undefined);
         const tradeoffs = [
+          ...(evaluated.player.positionEvidence?.status === "direct"
+            && evaluated.player.positionEvidence.provider !== "understat"
+            && evaluated.player.positionEvidence.sampleMinutes !== null
+            && evaluated.player.positionEvidence.sampleMinutes < evaluated.player.minutes
+            ? [`来源记录其在${positionLabels[evaluated.player.positionEvidence.targetPosition]}位置出场 ${evaluated.player.positionEvidence.sampleMinutes.toLocaleString()} 分钟；其他表现指标按来源整条记录统计，不保证只对应这个位置。`]
+            : []),
+          ...(adjacentPositionLead
+            ? [`当前赛季只观察到相邻位置标签 ${evaluated.player.positionEvidence!.sourceCodes.join(" / ")}；此线索不计入${positionLabels[evaluated.player.positionEvidence!.targetPosition]}名单，也不参与同位置比较。`]
+            : []),
           ...(evaluated.player.minutes < minimumMinutesForPercentileComparison
             || evaluated.evidence.some((evidence) => evidence.minutes !== null
               && evidence.minutes < minimumMinutesForPercentileComparison)
@@ -257,6 +380,9 @@ export function createReportProjection(input: {
           ...(evaluated.evidence.some((evidence) => evidence.peerPercentileUnavailableReason === "candidate_sample_unknown")
             ? ["部分指标的来源样本分钟未知，无法核实百分位比较门槛。"]
             : []),
+          ...(evaluated.evidence.some((evidence) => evidence.peerPercentileUnavailableReason === "competition_scope_unreported")
+            ? ["Understat 位置分组指标没有赛事维度；只保留该球员的观测值，不做同赛事比较。"]
+            : []),
           ...requestedEvidenceAreas.flatMap((area) => evaluated.evidence.some((evidence) => area.metricKeys.includes(evidence.key))
             ? []
             : [`该候选缺少用户要求的“${area.name}”对应指标；当前依据不表示其已具备该项能力。`]),
@@ -265,18 +391,20 @@ export function createReportProjection(input: {
         ];
         return {
           player: evaluated.player,
-          comparisonNotes: input.candidateComparisonEnabled === false || backgroundOnly ? [] : createCandidateComparison(Object.values(eligibleEvaluatedPlayers), item.evidenceKeys)
+          comparisonNotes: input.candidateComparisonEnabled === false || backgroundOnly || adjacentPositionLead ? [] : createCandidateComparison(Object.values(eligibleEvaluatedPlayers), item.evidenceKeys)
             .find(candidate => candidate.playerId === item.playerId)?.comparisons
             .filter(comparison => comparison.comparedCandidateCount > 0).slice(0, 3)
             .map(comparison => `${comparison.label} ${comparison.value} ${comparison.unit}；本轮同来源、位置、赛事和赛季 ${comparison.comparedCandidateCount + 1} 名已评估候选的观测范围为 ${comparison.observedMinimum}–${comparison.observedMaximum}。仅作有限样本比较，不是适配排名。`) ?? [],
-          referenceComparisonNotes: input.referenceProfileEnabled === false || backgroundOnly ? [] : createReferenceComparisonNotes(evaluated, state.referenceProfiles, item.evidenceKeys),
+          referenceComparisonNotes: input.referenceProfileEnabled === false || backgroundOnly || adjacentPositionLead ? [] : createReferenceComparisonNotes(evaluated, state.referenceProfiles, item.evidenceKeys),
           identityResolution: {
             status: identityGroup?.status ?? "missing_source_identity" as const,
             releaseStamp: identityGroup?.releaseStamp ?? null,
             sourceRecordCount: sourceRecordIds.length,
           },
           sourceEvidenceRecords,
-          rationale: backgroundOnly
+          rationale: adjacentPositionLead
+            ? `当前赛季只观察到相邻位置标签 ${evaluated.player.positionEvidence!.sourceCodes.join(" / ")}。${focusEvidence.map((evidence) => evidenceEvaluator.describe(evidence)).join(" ")}这些表现数据只作为相邻位置线索，不能证明符合指定位置。`
+            : backgroundOnly
             ? `该记录的位置与出场样本可供继续考察；目标能力尚未核实。${focusEvidence.map(evidence => evidenceEvaluator.describe(evidence)).join(" ")}这些是背景统计，不能证明所需能力，不代表已验证适合转会。`
             : `本轮重点依据：${focusEvidence.map((evidence) => evidenceEvaluator.describe(evidence)).join(" ")}这表示建议继续研究，不代表已验证适合转会。`,
           strengths: focusEvidence.map((evidence) => evidenceEvaluator.describe(evidence)),
@@ -328,7 +456,8 @@ export function createReportProjection(input: {
       identityGroupForPlayer(player.playerId)?.identityKey ?? `source:${sourcePlayerKey(player)}`
     )));
     const limitedPeerGroupIdentityKeys = new Set(Object.values(eligibleEvaluatedPlayers).filter((candidate) => candidate.evidence.some(
-      (evidence) => evidence.peerPercentileUnavailableReason === "insufficient_peer_group",
+      (evidence) => evidence.peerPercentileUnavailableReason === "insufficient_peer_group"
+        || evidence.peerPercentileUnavailableReason === "competition_scope_unreported",
     )).map(({ player }) => identityGroupForPlayer(player.playerId)?.identityKey ?? `source:${sourcePlayerKey(player)}`));
     const searchScopes = [...new Map(state.candidateSearchObservations.map(({ reportScope }) => (
       [JSON.stringify(reportScope), reportScope] as const
@@ -376,6 +505,8 @@ export function createReportProjection(input: {
         playerReportChunksRetrieved: retrievedDocuments.filter((document) => document.corpus === "player_report").length,
       },
       recommendations,
+      positionLeads,
+      positionLeadCount: allPositionLeadRecords.length,
       limitations: limitationsFor(state, repository, action, evidenceEvaluator),
       dataSource: repository.sourceName,
       datasetMode: repository.mode,
@@ -389,7 +520,9 @@ export function createReportProjection(input: {
         ? `${repository.sourceName} 候选查询最近一次失败，当前无法确认是否有符合条件的球员；这不代表没有匹配球员。`
         : state.responseMessage || (recommendations.length
           ? "已完成一轮调查。名单顺序表示 Agent 建议优先继续考察的顺序，不是经过验证的综合能力排名。"
-          : "已完成一轮调查，但当前证据不足以支持具体候选推荐。");
+          : positionLeads.length > 0
+            ? `发现 ${allPositionLeadRecords.length} 条${positionLabels[requestedPosition!]}所在位置大类的来源线索，但当前来源没有足够的细分位置证据形成名单。`
+            : "已完成一轮调查，但当前证据不足以支持具体候选推荐。");
     return { report, responseMessage, pendingQuestion: null };
   };
 }

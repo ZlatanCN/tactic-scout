@@ -41,6 +41,7 @@ async function writeAggregateFiles(
   options: {
     physicalBom?: boolean;
     duplicatePhysical?: boolean;
+    positionGroup?: string;
     mutatePhysical?: (content: string) => string;
     mutatePassing?: (content: string) => string;
   } = {},
@@ -48,12 +49,13 @@ async function writeAggregateFiles(
   const physicalFile = "aus1league_physicalaggregates_20242025.csv";
   const passingFile = "aus1league_passingaggregates_20242025.csv";
   const offBallFile = "aus1league_obraggregates_20242025.csv";
-  let physical = csv(physicalHeaders, physicalValues, options.physicalBom);
+  const sourceIdentity = { ...identity, ...(options.positionGroup ? { position_group: options.positionGroup } : {}) };
+  let physical = csv(physicalHeaders, { ...physicalValues, ...sourceIdentity }, options.physicalBom);
   if (options.duplicatePhysical) physical += physical.slice(physical.indexOf("\n") + 1);
   await Promise.all([
     writeFile(path.join(aggregatesDirectory, physicalFile), options.mutatePhysical?.(physical) ?? physical),
-    writeFile(path.join(aggregatesDirectory, passingFile), options.mutatePassing?.(csv(passingHeaders, passingValues)) ?? csv(passingHeaders, passingValues)),
-    writeFile(path.join(aggregatesDirectory, offBallFile), csv(offBallHeaders, offBallValues)),
+    writeFile(path.join(aggregatesDirectory, passingFile), options.mutatePassing?.(csv(passingHeaders, { ...passingValues, ...sourceIdentity })) ?? csv(passingHeaders, { ...passingValues, ...sourceIdentity })),
+    writeFile(path.join(aggregatesDirectory, offBallFile), csv(offBallHeaders, { ...offBallValues, ...sourceIdentity })),
   ]);
 }
 
@@ -77,7 +79,7 @@ test("SkillCorner repository reads BOM CSVs, preserves quoted names and normaliz
 
     assert.ok(player);
     assert.equal(player.name, "Mara, Test");
-    assert.equal(player.position, "DEF");
+    assert.equal(player.position, "FB");
     assert.equal(player.age, 22);
     assert.equal(player.minutes, 450);
     assert.equal(player.sourceIdentity?.positionGroup, "Full Back");
@@ -91,6 +93,28 @@ test("SkillCorner repository reads BOM CSVs, preserves quoted names and normaliz
     assert.equal(player.supplementaryMetrics?.find(({ key }) => key === "passesToRunsCompletionPct")?.value, 75);
   } finally {
     await rm(aggregatesDirectory, { recursive: true, force: true });
+  }
+});
+
+test("SkillCorner position groups retain their supported product granularity", async () => {
+  const mappings = [
+    ["Goalkeeper", "GK"],
+    ["Central Defender", "CB"],
+    ["Full Back", "FB"],
+    ["Wing Back", "FB"],
+    ["Midfield", "MID"],
+    ["Wide Attacker", "WG"],
+    ["Center Forward", "ST"],
+  ] as const;
+  for (const [sourceGroup, expectedPosition] of mappings) {
+    const aggregatesDirectory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-skillcorner-position-"));
+    try {
+      await writeAggregateFiles(aggregatesDirectory, { positionGroup: sourceGroup });
+      const [player] = await makeRepository(aggregatesDirectory).loadPlayers();
+      assert.equal(player?.position, expectedPosition, `${sourceGroup} should retain ${expectedPosition} precision`);
+    } finally {
+      await rm(aggregatesDirectory, { recursive: true, force: true });
+    }
   }
 });
 

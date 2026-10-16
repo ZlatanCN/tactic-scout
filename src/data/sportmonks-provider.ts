@@ -124,6 +124,7 @@ function mapPosition(value: unknown): Position | undefined {
   if (name.includes("right wing back")) return "RWB";
   if (name.includes("left back")) return "LB";
   if (name.includes("right back")) return "RB";
+  if (["full back", "fullback", "wing back", "wingback"].includes(name)) return "FB";
   if (name.includes("defensive midfield") || name.includes("holding midfield")) return "DM";
   if (name.includes("attacking midfield")) return "AM";
   if (name.includes("central midfield") || name.includes("centre midfield") || name.includes("center midfield")) return "CM";
@@ -153,6 +154,15 @@ function mapSquadPosition(squad: RecordValue, player: RecordValue): Position | u
     ?? mapPosition(asRecord(player.position)?.name);
   if (direct) return direct;
   return mapBroadPositionId(squad.position_id ?? player.position_id);
+}
+
+function sourcePositionLabels(squad: RecordValue, player: RecordValue): string[] {
+  return [...new Set([
+    nonEmptyString(asRecord(squad.detailedPosition)?.name),
+    nonEmptyString(asRecord(squad.position)?.name),
+    nonEmptyString(asRecord(player.detailedPosition)?.name),
+    nonEmptyString(asRecord(player.position)?.name),
+  ].filter((label): label is string => label !== undefined))];
 }
 
 function parseSeason(payload: SportmonksPayload, requestedId: string): SeasonInfo {
@@ -309,6 +319,7 @@ function parseSquadPlayer(
   const name = nonEmptyString(player.display_name) ?? nonEmptyString(player.name) ?? nonEmptyString(player.common_name);
   const position = mapSquadPosition(squad, player);
   if (!playerId || !name || !position) return undefined;
+  const sourceLabels = sourcePositionLabels(squad, player);
 
   const stats = statisticDetails(statsRow);
   const ageText = nonEmptyString(player.date_of_birth);
@@ -357,6 +368,7 @@ function parseSquadPlayer(
       teamId: team.id,
       competitionId: season.competitionId,
       seasonId: season.id,
+      ...(sourceLabels.length ? { sourcePositionLabels: sourceLabels } : {}),
       retrievedAt,
       isCurrentSeason: season.isCurrent,
     },

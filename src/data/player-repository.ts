@@ -2,6 +2,8 @@ import { teamNamesMatch } from "../domain/team-names.js";
 import { throwIfAborted } from "../domain/abort.js";
 import { type DatasetMode, type DatasetSnapshotStatus, type PlayerProfile } from "../domain/schemas.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { isDetailedPosition } from "../domain/positions.js";
+import { isUnderstatFinePositionSearch, understatCatalogPositionGroupsFor } from "./understat-position-evidence.js";
 import { type PlayerSearchFilter, type PlayerSearchPage, type PlayerSearchQuery, matchesPlayerSearch, searchLoadedPlayers } from "./player-search.js";
 import type { UnderstatMatchInsight, UnderstatPlayerInsight, UnderstatPlayerSection, UnderstatTeamInsight } from "./understat-research.js";
 
@@ -66,16 +68,27 @@ export function withLocalQueries(repository: PlayerRepository): PlayerRepository
 
 export async function searchPlayerPage(repository: PlayerRepository, query: PlayerSearchQuery, signal?: AbortSignal): Promise<PlayerSearchPage> {
   throwIfAborted(signal);
+  const isUnderstatCatalog = repository.mode === "understat" || repository.mode === "mosaic";
+  const effectiveQuery = query.position && isDetailedPosition(query.position)
+    ? {
+      ...query,
+      positionMatchMode: "family" as const,
+      ...(isUnderstatCatalog ? {
+        catalogPositionGroups: understatCatalogPositionGroupsFor(query.position),
+        includeUnknownPosition: true,
+      } : {}),
+    }
+    : query;
   const page = repository.searchCandidates
-    ? repository.searchCandidates(query, signal)
-    : searchLoadedPlayers(await loadAllPlayers(repository, false, signal), query);
+    ? repository.searchCandidates(effectiveQuery, signal)
+    : searchLoadedPlayers(await loadAllPlayers(repository, false, signal), effectiveQuery);
   const result = await page;
   throwIfAborted(signal);
-  if (result.offset !== query.offset) {
-    throw new Error(`Player source returned offset ${result.offset} for requested offset ${query.offset}.`);
+  if (result.offset !== effectiveQuery.offset) {
+    throw new Error(`Player source returned offset ${result.offset} for requested offset ${effectiveQuery.offset}.`);
   }
-  if (result.players.length > query.limit) {
-    throw new Error(`Player source returned ${result.players.length} records for a page limit of ${query.limit}.`);
+  if (result.players.length > effectiveQuery.limit) {
+    throw new Error(`Player source returned ${result.players.length} records for a page limit of ${effectiveQuery.limit}.`);
   }
   if (result.totalRecords !== null && (!Number.isInteger(result.totalRecords) || result.totalRecords < 0)) {
     throw new Error("Player source returned an invalid matching-record count.");
@@ -90,14 +103,16 @@ export async function searchPlayerPage(repository: PlayerRepository, query: Play
   if (query.minimumMinutes > 0) requiredFilters.push("minimumMinutes");
   if (query.competition) requiredFilters.push("competition");
   if (query.season) requiredFilters.push("season");
-  const unapplied = requiredFilters.filter((filter) => !result.appliedFilters.includes(filter));
+  const unapplied = requiredFilters.filter((filter) => !(filter === "position" && effectiveQuery.positionMatchMode === "family"
+    ? result.appliedFilters.includes("position") || result.appliedFilters.includes("positionFamily")
+    : result.appliedFilters.includes(filter)));
   if (unapplied.length) {
     throw new Error(`Player source could not apply requested search filter${unapplied.length === 1 ? "" : "s"}: ${unapplied.join(", ")}.`);
   }
-  if (result.players.some((player) => !matchesPlayerSearch(player, query))) {
+  if (result.players.some((player) => !matchesPlayerSearch(player, effectiveQuery))) {
     throw new Error("Player source returned a candidate that does not satisfy the requested search filters.");
   }
-  const expectedNextOffset = query.offset + result.players.length;
+  const expectedNextOffset = effectiveQuery.offset + result.players.length;
   if (result.nextOffset !== null && (result.players.length === 0 || result.nextOffset !== expectedNextOffset)) {
     throw new Error("Player source returned a non-contiguous candidate-page cursor.");
   }

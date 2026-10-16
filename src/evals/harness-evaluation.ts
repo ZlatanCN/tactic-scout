@@ -63,6 +63,9 @@ function recommendationsUseTheirEvidence(response: ConversationTurnResponse): bo
 function percentilesRespectMetricSamples(response: ConversationTurnResponse): boolean {
   if (!response.report) return true;
   return response.report.recommendations.every((recommendation) => recommendation.evidence.every((evidence) => {
+    if (evidence.peerPercentile === null && evidence.peerPercentileUnavailableReason === "competition_scope_unreported") {
+      return true;
+    }
     if (evidence.minutes === null) {
       return evidence.peerPercentile === null
         && evidence.peerPercentileUnavailableReason === "candidate_sample_unknown";

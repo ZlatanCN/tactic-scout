@@ -1,6 +1,7 @@
 import type { PlayerProfile } from "../domain/schemas.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import type { PlayerRepository } from "./player-repository.js";
+import { withPendingUnderstatPositionEvidence, isUnderstatFinePositionSearch } from "./understat-position-evidence.js";
 import { matchesPlayerSearch, searchLoadedPlayers, type PlayerSearchFilter, type PlayerSearchPage, type PlayerSearchQuery } from "./player-search.js";
 import { throwIfAborted } from "../domain/abort.js";
 
@@ -86,8 +87,17 @@ function isAsaMenScope(competition: string | null): boolean {
 export class MultiSourceCurrentPlayerRepository implements PlayerRepository {
   readonly mode = "mosaic" as const;
   readonly sourceName = "Understat 五大联赛 + ASA 北美三项男足赛事 · 多来源当前赛季表现池";
+  readonly inspectPlayer?: NonNullable<PlayerRepository["inspectPlayer"]>;
+  readonly inspectCandidateGroup?: NonNullable<PlayerRepository["inspectCandidateGroup"]>;
 
-  constructor(private readonly repositories: MultiSourceRepositories) {}
+  constructor(private readonly repositories: MultiSourceRepositories) {
+    this.inspectPlayer = repositories.understat.inspectPlayer
+      ? (playerId, sections, signal) => repositories.understat.inspectPlayer!(playerId, sections, signal)
+      : undefined;
+    this.inspectCandidateGroup = repositories.understat.inspectCandidateGroup
+      ? (playerIds, sections, signal) => repositories.understat.inspectCandidateGroup!(playerIds, sections, signal)
+      : undefined;
+  }
 
   async loadPlayers(refresh = false, signal?: AbortSignal): Promise<PlayerProfile[]> {
     throwIfAborted(signal);
@@ -139,7 +149,12 @@ export class MultiSourceCurrentPlayerRepository implements PlayerRepository {
     const players = await this.loadPlayers(false, signal);
     throwIfAborted(signal);
     const orderedPlayers = interleaveCompetitions(players.filter((player) => matchesPlayerSearch(player, query)));
-    const page = searchLoadedPlayers(orderedPlayers, {
+    const positionAwarePlayers = query.position && query.positionMatchMode === "family" && isUnderstatFinePositionSearch(query.position)
+      ? orderedPlayers.map((player) => player.sourceIdentity?.provider === "understat"
+        ? withPendingUnderstatPositionEvidence(player, query.position!)
+        : player)
+      : orderedPlayers;
+    const page = searchLoadedPlayers(positionAwarePlayers, {
       ...query,
       playerName: null,
       position: null,
@@ -150,7 +165,7 @@ export class MultiSourceCurrentPlayerRepository implements PlayerRepository {
     });
     const appliedFilters: PlayerSearchFilter[] = [];
     if (query.playerName) appliedFilters.push("playerName");
-    if (query.position) appliedFilters.push("position");
+    if (query.position) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
     if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
     if (query.competition) appliedFilters.push("competition");
     if (query.season) appliedFilters.push("season");

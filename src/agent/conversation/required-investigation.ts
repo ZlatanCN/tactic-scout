@@ -1,9 +1,13 @@
 import type { PlayerRepository } from "../../data/player-repository.js";
+import { isUnderstatFinePositionSearch } from "../../data/understat-position-evidence.js";
+import { canProvideDetailedPositionEvidence } from "../../data/position-evidence-capabilities.js";
 import type { Position } from "../../domain/schemas.js";
+import { playerPositionMatches } from "../../domain/positions.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
-import { requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
+import { buildDecisionConstraints, conclusionPlannerOutputFallback, requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import type { ConversationHistoryEntry } from "../planner-context.js";
 import { emptyDecision, FinishActionSchema, RecruitmentActionSchema, toolBudgets, type ParsedRecruitmentAction } from "../recruitment-actions.js";
+import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { constrainedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, sampleUnevaluatedCandidates, userMessages } from "./candidate-context.js";
 import { broadRoleQuestion, emptyPositionQuestion, positionLabels, replacementPositionClarification } from "./interaction-policy.js";
 import { maxDecisionsPerTurn, type State } from "./state.js";
@@ -60,11 +64,20 @@ function policyHistory(action: ParsedRecruitmentAction, content: string): Conver
   return [{ role: "assistant", content: JSON.stringify(action) }, { role: "tool", toolName: "investigation_policy", content }];
 }
 
+function candidatesAwaitingUnderstatPositionEvidence(state: State, position: Position) {
+  return Object.values(state.discoveredPlayers).filter((player) => {
+    if (player.sourceIdentity?.provider !== "understat") return false;
+    if (!candidateMatchesSearchIntentForPositionRetrieval(player, resolvedCandidateSearchIntent(state))) return false;
+    const evidence = player.positionEvidence;
+    return evidence?.targetPosition !== position || evidence.status === "pending";
+  });
+}
+
 // Deterministic prerequisites run before asking the Planner. This module has no model,
 // observer or graph side effects; the node commits the selected directive once.
 export function nextRequiredInvestigation(
   state: State,
-  source: Pick<PlayerRepository, "mode" | "sourceName">,
+  source: PlayerRepository,
   options: { deterministicSearchEnabled?: boolean; retrievalNeeds?: { methodology: boolean; playerReports: boolean }; understatResearchMode?: UnderstatResearchMode } = {},
 ): InvestigationDirective | null {
   const needsReports = options.retrievalNeeds?.playerReports ?? true;
@@ -132,6 +145,92 @@ export function nextRequiredInvestigation(
   }
   const constrainedPosition = state.confirmedPosition ?? (intent.replacementRequest ? state.replacementReferencePosition : null);
   const constrainedPositionSearch = constrainedPositionSearchObservation(state);
+  const understatFinePosition = (source.mode === "understat" || source.mode === "mosaic")
+    && intent.position !== null && isUnderstatFinePositionSearch(intent.position)
+    ? intent.position
+    : null;
+  if (understatFinePosition && constrainedPositionSearch?.appliedFilters.includes("positionFamily")
+    && constrainedPositionSearch.matchingRecordCount === 0) {
+    const sourceLabel = source.mode === "mosaic" ? "当前多来源候选池" : "Understat 当前赛季位置族检索";
+    const userSourceLabel = source.mode === "mosaic" ? "当前多来源候选池" : "Understat 球员池";
+    return terminal(
+    `${sourceLabel}没有返回${positionLabels[understatFinePosition]}所在大类的球员记录。`,
+    `${userSourceLabel}没有返回相关位置大类的记录；这不代表整个市场没有合适球员。`,
+    `${source.mode === "mosaic" ? "多来源候选池" : "Understat"}当前位置大类没有来源记录，正在说明数据范围`,
+  );
+  }
+  if (understatFinePosition && constrainedPositionSearch?.appliedFilters.includes("positionFamily")) {
+    const pendingPositionEvidence = candidatesAwaitingUnderstatPositionEvidence(state, understatFinePosition);
+    const canInspectPositionEvidence = !pendingPositionEvidence.length
+      || Boolean(pendingPositionEvidence.length >= 2 && source.inspectCandidateGroup
+        && state.toolUses.inspect_candidate_group < toolBudgets.inspect_candidate_group)
+      || Boolean(source.inspectPlayer && state.toolUses.inspect_player < toolBudgets.inspect_player);
+    if (pendingPositionEvidence.length > 0) {
+      if (pendingPositionEvidence.length >= 2 && source.inspectCandidateGroup
+        && state.toolUses.inspect_candidate_group < toolBudgets.inspect_candidate_group) {
+        const action = RecruitmentActionSchema.parse({
+          action: "inspect_candidate_group",
+          targetTeam: state.targetTeam,
+          playerIds: pendingPositionEvidence.slice(0, 12).map(({ playerId }) => playerId),
+          sections: ["positions"],
+        });
+        return { action, message: `按当前赛季位置记录核实 ${pendingPositionEvidence.length} 名${positionLabels[understatFinePosition]}候选`, history: policyHistory(action, "位置族召回只用于发现；在读取候选的当前赛季位置标签前，不将大类位置当作细分位置命中。") };
+      }
+      if (source.inspectPlayer && pendingPositionEvidence.length === 1
+        && state.toolUses.inspect_player < toolBudgets.inspect_player) {
+        const candidate = pendingPositionEvidence[0]!;
+        const action = RecruitmentActionSchema.parse({ action: "inspect_player", targetTeam: state.targetTeam, playerId: candidate.playerId, sections: ["positions"] });
+        return { action, message: `按当前赛季位置记录核实${candidate.name}的${positionLabels[understatFinePosition]}出场`, history: policyHistory(action, "细分位置查询需要候选自身的赛季位置记录；单条候选使用单人细查接口。") };
+      }
+      if (source.inspectPlayer && state.toolUses.inspect_player < toolBudgets.inspect_player) {
+        const candidate = pendingPositionEvidence[0]!;
+        const action = RecruitmentActionSchema.parse({ action: "inspect_player", targetTeam: state.targetTeam, playerId: candidate.playerId, sections: ["positions"] });
+        return { action, message: `按当前赛季位置记录核实${candidate.name}的${positionLabels[understatFinePosition]}出场`, history: policyHistory(action, "批量细查不可用或本轮预算已满；改用有界的单人位置细查。") };
+      }
+    }
+
+    const roleLeads = discoveredPlayersForConstraint(state, intent);
+    const verifiedCandidates = roleLeads.filter((player) => player.sourceIdentity?.provider === "understat"
+      ? player.positionEvidence?.targetPosition === understatFinePosition && player.positionEvidence.status === "direct"
+      : playerPositionMatches(player, understatFinePosition));
+    const adjacentRoleLeads = roleLeads.filter((player) => player.positionEvidence?.targetPosition === understatFinePosition
+      && player.positionEvidence.status === "compatible");
+    const hasMorePositionCandidates = constrainedPositionSearch.nextOffset !== null;
+    const positionSearchBudgetAvailable = state.toolUses.search_candidates < toolBudgets.search_candidates;
+    if (pendingPositionEvidence.length === 0 && verifiedCandidates.length < 5
+      && hasMorePositionCandidates && positionSearchBudgetAvailable) {
+      const action = RecruitmentActionSchema.parse({
+        ...constrainedPositionSearch.request,
+        offset: constrainedPositionSearch.nextOffset!,
+        limit: Math.min(12, constrainedPositionSearch.request.limit),
+      });
+      return { action, message: `已核实 ${verifiedCandidates.length} 名${positionLabels[understatFinePosition]}候选；继续读取来源下一页补足比较样本`, history: policyHistory(action, `位置族检索仍有下一页；逐批核实至多 ${toolBudgets.search_candidates * 12} 名来源记录，或先获得 5 名有位置证据的候选。必须使用来源返回的游标 ${constrainedPositionSearch.nextOffset}。`) };
+    }
+
+    const hasUnverifiedTail = pendingPositionEvidence.length > 0 && !canInspectPositionEvidence;
+    const searchFinished = !hasMorePositionCandidates || !positionSearchBudgetAvailable;
+    if (verifiedCandidates.length === 0 && adjacentRoleLeads.length === 0 && pendingPositionEvidence.length > 0
+      && !canInspectPositionEvidence) return terminal(
+      `${source.mode === "mosaic" ? "多来源候选池" : "Understat"}已返回 ${pendingPositionEvidence.length} 条待核实的${positionLabels[understatFinePosition]}候选，但当前仓库没有可用的赛季位置细查接口。`,
+      `当前数据接口无法核验这些候选是否踢${positionLabels[understatFinePosition]}；这不代表市场上没有合适球员。报告会将其列为待核实，不会把大类位置当作命中。`,
+      "当前来源未提供细分位置核验接口，正在说明证据限制",
+    );
+    if (verifiedCandidates.length === 0 && adjacentRoleLeads.length === 0 && pendingPositionEvidence.length === 0 && searchFinished) {
+      const sourceLabel = source.mode === "mosaic" ? "当前多来源候选池" : "Understat";
+      return terminal(
+        `${sourceLabel}本轮已读取 ${Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, intent)).length} 条位置族候选记录，但没有取得支持${positionLabels[understatFinePosition]}的细分位置证据。`,
+        `当前数据没有足够的${positionLabels[understatFinePosition]}位置证据形成推荐；这不代表市场上没有合适球员。报告会列出已调查范围和未核实限制。`,
+        "细分位置证据调查已完成，正在说明覆盖与缺口",
+      );
+    }
+    if (verifiedCandidates.length === 0 && adjacentRoleLeads.length === 0 && hasUnverifiedTail) {
+      return terminal(
+        `Understat 本轮位置细查预算已用尽；已有 ${Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, intent)).length} 条位置族记录，部分位置证据仍未核实。`,
+        `本轮位置细查已达到调查上限，不能据此判断没有${positionLabels[understatFinePosition]}候选。报告会标出待核实数量。`,
+        "位置细查达到本轮预算，正在整理当前证据",
+      );
+    }
+  }
   if (constrainedPosition && constrainedPositionSearch?.matchingRecordCount === 0) {
     if (constrainedPosition === "GK") return terminal(
       "当前来源没有可用的门将候选记录，无法完成门将替代者比较。",
@@ -197,6 +296,49 @@ export function nextRequiredInvestigation(
       message: `已发现 ${count} 名符合当前条件的候选，正在评估其中 ${pendingCandidateIds.length} 名未评估球员`,
       history: policyHistory(action, `在 Planner 决定扩展候选范围或结束调查前，先评估已经发现且符合用户条件的候选；每批最多 10 人。当前已发现且符合条件 ${count} 人，本批评估 ${pendingCandidateIds.length} 人。评估预算耗尽时，最终报告必须说明未评估人数。`),
     };
+  }
+  if (understatFinePosition && constrainedPositionSearch?.appliedFilters.includes("positionFamily")) {
+    const pendingPositionEvidence = candidatesAwaitingUnderstatPositionEvidence(state, understatFinePosition);
+    const canInspectPositionEvidence = !pendingPositionEvidence.length
+      || Boolean(source.inspectCandidateGroup && state.toolUses.inspect_candidate_group < toolBudgets.inspect_candidate_group)
+      || Boolean(source.inspectPlayer && state.toolUses.inspect_player < toolBudgets.inspect_player);
+    const hasUnevaluatedReports = needsReports && Object.keys(eligibleEvaluatedPlayers).length > 0
+      && unsearchedReportCandidates.length > 0
+      && state.toolUses.search_player_reports < toolBudgets.search_player_reports;
+    if (pendingPositionEvidence.length > 0 && !canInspectPositionEvidence && pendingCandidateIds.length === 0 && !hasUnevaluatedReports) {
+      const action = conclusionPlannerOutputFallback(buildDecisionConstraints({
+        targetTeam: state.targetTeam,
+        confirmedPosition: state.confirmedPosition ?? understatFinePosition,
+        userMessages: userMessages(state.history),
+        evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),
+        retrievedKnowledge: Object.values(state.retrievedKnowledge),
+        candidateIdentityGroups: state.candidateIdentityGroups,
+      }));
+      return {
+        action,
+        message: "细分位置核验达到本轮上限，正在依据已核实候选形成有限结论",
+        history: policyHistory(action, "位置细查预算已耗尽；只允许使用已经核实目标位置且完成评估的候选。报告必须说明仍有位置证据待核实，不能继续扩页或用未核实记录凑名单。"),
+      };
+    }
+  }
+  const finePosition = intent.position && isUnderstatFinePositionSearch(intent.position) ? intent.position : null;
+  if (finePosition && !understatFinePosition && constrainedPositionSearch?.appliedFilters.includes("positionFamily")
+    && canProvideDetailedPositionEvidence(source.mode, finePosition)) {
+    const verifiedCandidates = discoveredPlayersForConstraint(state, intent).filter((player) => playerPositionMatches(player, finePosition));
+    const hasMorePositionCandidates = constrainedPositionSearch.nextOffset !== null;
+    const positionSearchBudgetAvailable = state.toolUses.search_candidates < toolBudgets.search_candidates;
+    if (verifiedCandidates.length < 5 && hasMorePositionCandidates && positionSearchBudgetAvailable) {
+      const action = RecruitmentActionSchema.parse({
+        ...constrainedPositionSearch.request,
+        offset: constrainedPositionSearch.nextOffset!,
+        limit: Math.min(12, constrainedPositionSearch.request.limit),
+      });
+      return {
+        action,
+        message: `已找到 ${verifiedCandidates.length} 名有来源位置证据的${positionLabels[finePosition]}球员；继续读取位置族下一页`,
+        history: policyHistory(action, `来源具备细分位置字段，继续按服务端游标 ${constrainedPositionSearch.nextOffset} 有界读取位置族记录；只有${positionLabels[finePosition]}的来源位置证据才能进入候选评估。宽位置记录只保留为未核实线索。最多读取 ${toolBudgets.search_candidates} 页，或先获得 5 名位置证据明确的球员。`),
+      };
+    }
   }
   if (state.decisionSteps >= maxDecisionsPerTurn) {
     const responseMessage = "已完成本轮有限调查。报告会说明当前证据和仍需核实的部分。";

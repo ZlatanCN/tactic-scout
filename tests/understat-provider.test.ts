@@ -148,7 +148,9 @@ test("maps only observed native fields and records definitions, denominator and 
   const { repository } = repositoryFor({ rowsByLeague: Object.fromEntries(leagueSlugs.map((slug) => [slug, [row({ position: "D M" })]])) });
   const player = (await repository.loadPlayers())[0]!;
   const metrics = new Map(player.supplementaryMetrics?.map((metric) => [metric.key, metric]));
-  assert.equal(player.position, "DEF");
+  assert.equal(player.position, "UNKNOWN", "multi-group catalog labels must not be reduced to a single asserted position");
+  assert.deepEqual(player.sourceIdentity?.positionGroups, ["DEF", "MID"]);
+  assert.deepEqual(player.sourceIdentity?.sourcePositionLabels, ["D", "M"]);
   assert.equal(player.stats.goals, 8);
   assert.equal(player.stats.assists, 2);
   assert.equal(player.stats.keyPasses, 20);
@@ -214,7 +216,83 @@ test("supports exact filtering and contiguous local paging without crossing leag
   assert.equal(secondPage.players[0]?.playerId, "understat:La_liga:1:season:2026");
   assert.equal(secondPage.nextOffset, 2);
   const unclassifiedSubstitute = (await repository.loadPlayers()).find((player) => player.sourceIdentity?.playerId === "EPL:3");
-  assert.equal(unclassifiedSubstitute?.position, undefined);
+  assert.equal(unclassifiedSubstitute?.position, "UNKNOWN");
+  assert.deepEqual(unclassifiedSubstitute?.sourceIdentity?.sourcePositionLabels, ["S"]);
+});
+
+test("keeps multi-group and unclassified Understat rows available to position-family discovery", async () => {
+  const rows = [
+    row({ id: "1", player_name: "Forward Midfielder", position: "F M" }),
+    row({ id: "2", player_name: "Defensive Midfielder", position: "D M" }),
+    row({ id: "3", player_name: "Substitute Position Unknown", position: "S" }),
+  ];
+  const repository = repositoryFor({ rowsByLeague: Object.fromEntries(leagueSlugs.map((slug) => [slug, rows])) }).repository;
+
+  const broadForward = await searchPlayerPage(repository, { ...emptyQuery, position: "ATT", limit: 20 });
+  assert.equal(broadForward.totalRecords, 5, "a multi-group F M record belongs in the broad forward search");
+  assert.ok(broadForward.players.every(({ position }) => position === "UNKNOWN"), "multiple catalog groups must not be collapsed into one asserted role");
+  assert.deepEqual(broadForward.players[0]?.sourceIdentity?.positionGroups, ["ATT", "MID"]);
+
+  const centralMidfieldDiscovery = await searchPlayerPage(repository, { ...emptyQuery, position: "CM", limit: 20 });
+  assert.equal(centralMidfieldDiscovery.totalRecords, 15, "CM role verification must receive both multi-group rows and rows without a catalog position");
+  assert.ok(centralMidfieldDiscovery.players.every(({ positionEvidence }) => positionEvidence?.status === "pending"));
+  assert.deepEqual(centralMidfieldDiscovery.appliedFilters, ["positionFamily"]);
+});
+
+test("retrieves a detailed-position Understat search from its family and marks role evidence pending", async () => {
+  const { repository } = repositoryFor({
+    rowsByLeague: Object.fromEntries(leagueSlugs.map((slug) => [slug, [row({
+      id: "1",
+      position: "M",
+      player_name: `${slug} Midfielder`,
+    })]])),
+  });
+
+  const page = await searchPlayerPage(repository, { ...emptyQuery, position: "CM", limit: 10 });
+
+  assert.equal(page.totalRecords, leagueSlugs.length, "the broad MID retrieval pool must not be misreported as an exact CM count");
+  assert.equal(page.players.length, leagueSlugs.length);
+  assert.ok(page.players.every((player) => player.position === "MID"), "the provider's broad position remains intact");
+  assert.ok(page.players.every((player) => player.positionEvidence?.status === "pending"));
+  assert.ok(page.players.every((player) => player.positionEvidence?.targetPosition === "CM"));
+  assert.deepEqual(page.appliedFilters, ["positionFamily"], "the search observation must disclose family-level retrieval");
+});
+
+test("all 17 product positions retrieve from the matching Understat source family", async () => {
+  const cases = [
+    ["GK", ["GK"], "position"],
+    ["DEF", ["DEF"], "position"],
+    ["CB", ["DEF"], "positionFamily"],
+    ["FB", ["DEF"], "positionFamily"],
+    ["LB", ["DEF"], "positionFamily"],
+    ["RB", ["DEF"], "positionFamily"],
+    ["LWB", ["DEF", "MID"], "positionFamily"],
+    ["RWB", ["DEF", "MID"], "positionFamily"],
+    ["MID", ["MID"], "position"],
+    ["DM", ["DEF", "MID"], "positionFamily"],
+    ["CM", ["DEF", "MID"], "positionFamily"],
+    ["AM", ["MID", "ATT"], "positionFamily"],
+    ["ATT", ["ATT"], "position"],
+    ["WG", ["MID", "ATT"], "positionFamily"],
+    ["LW", ["MID", "ATT"], "positionFamily"],
+    ["RW", ["MID", "ATT"], "positionFamily"],
+    ["ST", ["MID", "ATT"], "positionFamily"],
+  ] as const;
+  const rows = [
+    row({ id: "1", player_name: "Keeper", position: "GK" }),
+    row({ id: "2", player_name: "Defender", position: "D" }),
+    row({ id: "3", player_name: "Midfielder", position: "M" }),
+    row({ id: "4", player_name: "Forward", position: "F" }),
+  ];
+  const repository = repositoryFor({ rowsByLeague: Object.fromEntries(leagueSlugs.map((slug) => [slug, rows])) }).repository;
+
+  for (const [requested, expectedFamilies, expectedFilter] of cases) {
+    const page = await searchPlayerPage(repository, { ...emptyQuery, position: requested, limit: 10 });
+    assert.equal(page.totalRecords, leagueSlugs.length * expectedFamilies.length, `${requested} should search ${expectedFamilies.join("/")} source families`);
+    assert.equal(page.players.length, Math.min(10, page.totalRecords), requested);
+    assert.ok(page.players.every((player) => player.sourceIdentity?.positionGroups?.some((group) => expectedFamilies.includes(group as never))), `${requested} must retain all source groups`);
+    assert.deepEqual(page.appliedFilters, [expectedFilter], requested);
+  }
 });
 
 test("fails an explicit age filter because Understat has no birth dates", async () => {

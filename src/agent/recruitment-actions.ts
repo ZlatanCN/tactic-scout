@@ -109,7 +109,7 @@ export type FinishRecruitmentAction = z.output<typeof FinishActionSchema>;
 export const toolBudgets = {
   inspect_team: 2,
   inspect_player: 3,
-  inspect_candidate_group: 1,
+  inspect_candidate_group: 4,
   inspect_match: 2,
   search_methodology: 2,
   search_candidates: 4,

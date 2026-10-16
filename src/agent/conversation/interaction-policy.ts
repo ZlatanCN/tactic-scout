@@ -142,11 +142,12 @@ export function emptyPositionQuestion(
   sourceMode?: DatasetMode,
 ): Extract<ParsedRecruitmentAction, { action: "ask_user" }> {
   const label = positionLabels[position];
-  const broadPositionsOnly = sourceMode === "understat" && !["GK", "DEF", "MID", "ATT"].includes(position);
   return {
     action: "ask_user",
     targetTeam,
-    question: broadPositionsOnly ? `Understat 只提供前锋、中场、后卫和门将等大类位置，不能确认${label}细分位置。你愿意按对应的大类继续找，并把具体位置标为待核实，还是保留${label}要求并先结束本轮？` : `当前数据源中没有找到符合${label}位置范围的候选样本。你希望扩大到其他位置继续找，还是保留${label}范围并先结束本轮？如只愿意放宽到其他前锋位置，也可以直接说明。`,
-    reason: broadPositionsOnly ? `这是数据位置粒度的限制，不代表当前市场没有${label}。扩大范围后的具体职责仍需核实，先由你确认再继续。` : "你确认的位置范围是硬约束；没有得到同意前，我不会用其他位置的球员替代。",
+    question: `当前数据源中没有找到符合${label}位置范围的候选样本。你希望扩大到其他位置继续找，还是保留${label}范围并先结束本轮？如只愿意放宽到其他前锋位置，也可以直接说明。`,
+    reason: sourceMode === "understat"
+      ? `Understat 已按${label}对应的大类位置检索，并核实可用的当前赛季细分位置记录；没有得到你的同意前，不会用不符合位置证据的球员替代。`
+      : "你确认的位置范围是硬约束；没有得到同意前，我不会用其他位置的球员替代。",
   };
 }

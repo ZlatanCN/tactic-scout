@@ -176,9 +176,9 @@ function mapPositionGroup(value: string): Position {
     case "goalkeeper": return "GK";
     case "central defender": return "CB";
     case "full back":
-    case "wing back": return "DEF";
+    case "wing back": return "FB";
     case "midfield": return "MID";
-    case "wide attacker": return "ATT";
+    case "wide attacker": return "WG";
     case "center forward":
     case "centre forward": return "ST";
     default: throw new SkillCornerProviderError("invalid_csv", `Unsupported SkillCorner position group: ${value}.`);

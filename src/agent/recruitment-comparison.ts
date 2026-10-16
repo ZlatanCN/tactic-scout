@@ -109,7 +109,9 @@ export function createReferenceComparisonNotes(
       && profile.competition === candidate.player.competition
       && profile.season === candidate.player.season)
     .flatMap(profile => candidate.evidence
-      .filter(evidence => metricKeys.includes(evidence.key) && typeof profile.metrics[evidence.key] === "number")
+      .filter(evidence => metricKeys.includes(evidence.key)
+        && evidence.sourceScope !== "season_position_aggregate"
+        && typeof profile.metrics[evidence.key] === "number")
       .slice(0, 4)
       .map(evidence => {
         const referenceValue = profile.metrics[evidence.key]!;
@@ -124,7 +126,7 @@ export function createCandidateComparison(candidates: readonly EvaluatedCandidat
     playerId: candidate.player.playerId,
     minutes: candidate.player.minutes,
     comparisons: candidate.evidence.filter(item => metricKeys.includes(item.key)).map(item => {
-      const peers = candidates.filter(peer => peer.player.playerId !== candidate.player.playerId
+      const peers = item.sourceScope === "season_position_aggregate" ? [] : candidates.filter(peer => peer.player.playerId !== candidate.player.playerId
         && peer.player.position === candidate.player.position
         && peer.player.competition === candidate.player.competition
         && peer.player.season === candidate.player.season

@@ -6,10 +6,11 @@ import {
   ASAProviderError,
 } from "../src/data/asa-provider.js";
 import { describeDatasetScope } from "../src/domain/dataset-scope.js";
+import { playerPositionMatches } from "../src/domain/positions.js";
 
 const retrievedAt = new Date("2026-10-06T10:00:00.000Z");
 
-function statsRows() {
+function statsRows(includeExtraWinger = false) {
   const base = {
     player_id: "101",
     team_id: "1",
@@ -18,12 +19,13 @@ function statsRows() {
     minutes_played: 1800,
   };
   const second = { ...base, player_id: "102", team_id: "2", general_position: "CB", minutes_played: 1200 };
+  const rows = [base, second, ...(includeExtraWinger ? [{ ...base, player_id: "103", minutes_played: 900 }] : [])];
   const actions = [
     ["Dribbling", 0.1, 30], ["Fouling", -0.02, 4], ["Interrupting", 0.03, 42],
     ["Passing", 0.2, 850], ["Receiving", 0.05, 900], ["Shooting", 0.15, 50],
   ] as const;
   return {
-    "goals-added": [base, second].map((row, index) => ({
+    "goals-added": rows.map((row, index) => ({
       ...row,
       data: actions.map(([action_type, goals_added_above_avg, count_actions]) => ({
         action_type,
@@ -31,7 +33,7 @@ function statsRows() {
         count_actions,
       })),
     })),
-    xgoals: [base, second].map((row, index) => ({
+    xgoals: rows.map((row, index) => ({
       ...row,
       goals: index === 0 ? 8 : 1,
       primary_assists: index === 0 ? 3 : 0,
@@ -41,7 +43,7 @@ function statsRows() {
       xassists: index === 0 ? 5 : 0.3,
       xgoals_plus_xassists: index === 0 ? 12 : 1.1,
     })),
-    xpass: [base, second].map((row, index) => ({
+    xpass: rows.map((row, index) => ({
       ...row,
       attempted_passes: index === 0 ? 600 : 300,
       pass_completion_percentage: index === 0 ? 82 : 88,
@@ -57,9 +59,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-function mockFetch(options: { seasonOverride?: string; missingPlayer?: boolean; duplicatePlayer?: boolean; networkFailureOnceAt?: string; httpFailureAt?: string; httpFailureOnceAt?: string; emptyStatEndpoint?: "goals-added" | "xgoals" | "xpass" } = {}) {
+function mockFetch(options: { seasonOverride?: string; missingPlayer?: boolean; duplicatePlayer?: boolean; extraWinger?: boolean; networkFailureOnceAt?: string; httpFailureAt?: string; httpFailureOnceAt?: string; emptyStatEndpoint?: "goals-added" | "xgoals" | "xpass" } = {}) {
   const urls: URL[] = [];
-  const rows = statsRows();
+  const rows = statsRows(options.extraWinger);
   let transientFailureUsed = false;
   let transientHttpFailureUsed = false;
   const fetchImpl: typeof fetch = async (input, init) => {
@@ -89,6 +91,7 @@ function mockFetch(options: { seasonOverride?: string; missingPlayer?: boolean; 
       return jsonResponse(options.missingPlayer ? [] : [
         { player_id: "101", player_name: "Sample Winger", birth_date: "2001-04-02", primary_general_position: "W", season_name: null },
         { player_id: "102", player_name: "Sample Centre Back", birth_date: "2000-01-02", primary_general_position: "CB", season_name: "2026" },
+        ...(options.extraWinger ? [{ player_id: "103", player_name: "Second Sample Winger", birth_date: "2002-01-02", primary_general_position: "W", season_name: "2026" }] : []),
       ]);
     }
     if (url.pathname.endsWith("/teams")) return jsonResponse([
@@ -191,7 +194,7 @@ test("ASA repository filters and paginates exact competition-scoped current-seas
   });
   assert.equal(page.totalRecords, 1);
   assert.equal(page.nextOffset, null);
-  assert.deepEqual(page.appliedFilters, ["position", "maxAge", "minimumMinutes", "competition", "season"]);
+  assert.deepEqual(page.appliedFilters, ["positionFamily", "maxAge", "minimumMinutes", "competition", "season"]);
   assert.equal(fixture.urls.length, 5, "an explicit league query loads only that league");
   assert.ok(fixture.urls.every((url) => url.pathname.startsWith("/api/v1/mls/")));
   const firstPage = await searchPlayerPage(repo, {
@@ -236,6 +239,31 @@ test("ASA repository filters and paginates exact competition-scoped current-seas
     playerName: null, position: null, maxAge: null, minimumMinutes: 0,
     competition: null, season: "2025", offset: 0, limit: 10,
   }), (error: unknown) => error instanceof ASAProviderError && error.code === "unsupported_scope");
+});
+
+test("ASA family retrieval preserves broad winger leads across pages without qualifying them as a specific wing", async () => {
+  const fixture = mockFetch({ extraWinger: true });
+  const repo = repository(fixture.fetchImpl);
+  const query = {
+    playerName: null,
+    position: "LW" as const,
+    maxAge: null,
+    minimumMinutes: 0,
+    competition: "MLS",
+    season: "2026",
+    limit: 1,
+  };
+
+  const first = await searchPlayerPage(repo, { ...query, offset: 0 });
+  assert.equal(first.totalRecords, 2, "both ASA W records should be recalled for a fine left-wing query");
+  assert.deepEqual(first.players.map(({ playerId }) => playerId), ["asa:mls:101:team:1:season:2026"]);
+  assert.ok(first.appliedFilters.includes("positionFamily"));
+  assert.equal(first.nextOffset, 1);
+  assert.equal(playerPositionMatches(first.players[0]!, "LW"), false, "ASA W is broad evidence, not proof of LW eligibility");
+
+  const second = await searchPlayerPage(repo, { ...query, offset: first.nextOffset! });
+  assert.deepEqual(second.players.map(({ playerId }) => playerId), ["asa:mls:103:team:1:season:2026"]);
+  assert.equal(second.nextOffset, null);
 });
 
 test("ASA candidate catalog is limited to its three supported men's competitions", async () => {

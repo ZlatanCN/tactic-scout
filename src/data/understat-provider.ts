@@ -1,14 +1,13 @@
-import { searchLoadedPlayers } from "./player-search.js";
+import { matchesPlayerSearch, searchLoadedPlayers } from "./player-search.js";
 import {
   PlayerProfileSchema,
   SupplementaryCapabilityMetricDefinitions,
+  type PlayerPosition,
   type PlayerProfile,
   type Position,
   type SupplementaryMetricKey,
   type SupplementaryPerformanceMetric,
 } from "../domain/schemas.js";
-import { positionMatches } from "../domain/positions.js";
-import { normalizeSearchText } from "../domain/text-matching.js";
 import type { PlayerRepository, PlayerSearchPage, PlayerSearchQuery } from "./player-repository.js";
 import { throwIfAborted } from "../domain/abort.js";
 import { SharedCancellableLoad } from "./shared-cancellable-load.js";
@@ -18,6 +17,7 @@ import {
 } from "./understat-data-gateway.js";
 import { UnderstatProviderError } from "./understat-data-gateway.js";
 export { UnderstatProviderError } from "./understat-data-gateway.js";
+import { isUnderstatFinePositionSearch, understatCatalogPositionGroupsFor } from "./understat-position-evidence.js";
 import {
   inspectUnderstatMatch,
   inspectUnderstatTeam,
@@ -129,14 +129,19 @@ function displaySeason(startYear: number): string {
   return `${startYear}/${String(startYear + 1).slice(-2)}`;
 }
 
-function broadPosition(value: unknown): Position | undefined {
-  if (typeof value !== "string") return undefined;
-  const parts = value.trim().toUpperCase().split(/\s+/);
-  if (parts.includes("GK")) return "GK";
-  if (parts.includes("D")) return "DEF";
-  if (parts.includes("M")) return "MID";
-  if (parts.includes("F")) return "ATT";
-  return undefined;
+function sourcePositionLabels(value: unknown): string[] {
+  return typeof value === "string"
+    ? [...new Set(value.trim().toUpperCase().split(/\s+/).filter(Boolean))]
+    : [];
+}
+
+function sourcePositionGroups(labels: readonly string[]): Position[] {
+  const groupByLabel: Record<string, Position> = { GK: "GK", D: "DEF", M: "MID", F: "ATT" };
+  return [...new Set(labels.flatMap((label) => groupByLabel[label] ? [groupByLabel[label]!] : []))];
+}
+
+function broadPosition(groups: readonly Position[]): PlayerPosition {
+  return groups.length === 1 ? groups[0]! : "UNKNOWN";
 }
 
 function rounded(value: number): number {
@@ -171,8 +176,10 @@ function mapCompetitionPlayers(
     const id = typeof row.id === "string" && /^[1-9]\d{0,14}$/.test(row.id) ? row.id : undefined;
     const name = typeof row.player_name === "string" ? row.player_name.trim() : "";
     const team = typeof row.team_title === "string" ? row.team_title.trim() : "";
-    const position = broadPosition(row.position);
-    if (!id || !name || !team || !position) continue;
+    const sourcePositionLabelsForPlayer = sourcePositionLabels(row.position);
+    const sourcePositionGroupsForPlayer = sourcePositionGroups(sourcePositionLabelsForPlayer);
+    const position = broadPosition(sourcePositionGroupsForPlayer);
+    if (!id || !name || !team) continue;
     if (seenIds.has(id)) {
       throw new UnderstatProviderError("invalid_response", `Understat ${competition.label} 返回重复球员 ID，无法安全区分该记录。`);
     }
@@ -245,6 +252,8 @@ function mapCompetitionPlayers(
         competitionId: competition.slug,
         seasonId: String(seasonStartYear),
         positionGroup: position,
+        positionGroups: sourcePositionGroupsForPlayer,
+        sourcePositionLabels: sourcePositionLabelsForPlayer,
         retrievedAt: retrievedAtText,
         isCurrentSeason: true,
       },
@@ -326,19 +335,20 @@ export class UnderstatPlayerRepository implements PlayerRepository, UnderstatRes
 
   async searchCandidates(query: PlayerSearchQuery, signal?: AbortSignal): Promise<PlayerSearchPage> {
     throwIfAborted(signal);
+    const effectiveQuery = query.position && isUnderstatFinePositionSearch(query.position)
+      ? {
+        ...query,
+        positionMatchMode: "family" as const,
+        catalogPositionGroups: understatCatalogPositionGroupsFor(query.position),
+        includeUnknownPosition: true,
+      }
+      : query;
     if (query.maxAge !== null) {
       throw new UnderstatProviderError("unsupported_scope", "Understat 未提供出生日期或年龄，无法执行年龄上限筛选；请先确认是否移除年龄条件，或改用可核验年龄的数据源。");
     }
     const players = await this.loadPlayers(false, signal);
     throwIfAborted(signal);
-    const matching = players.filter((player) => {
-      if (query.playerName && !normalizeSearchText(player.name).includes(normalizeSearchText(query.playerName))) return false;
-      if (query.position && !positionMatches(player.position, query.position)) return false;
-      if (player.minutes < query.minimumMinutes) return false;
-      if (query.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(query.competition))) return false;
-      if (query.season && !normalizeSearchText(player.season).includes(normalizeSearchText(query.season))) return false;
-      return true;
-    });
+    const matching = players.filter((player) => matchesPlayerSearch(player, effectiveQuery));
     const byCompetition = new Map<string, PlayerProfile[]>();
     for (const player of matching) {
       const group = byCompetition.get(player.competition) ?? [];
@@ -351,22 +361,35 @@ export class UnderstatPlayerRepository implements PlayerRepository, UnderstatRes
     for (let index = 0; index < longestLeague; index += 1) {
       for (const group of leagueGroups) {
         const player = group[index];
-        if (player) interleaved.push(player);
+        if (player) interleaved.push(effectiveQuery.positionMatchMode === "family"
+          && effectiveQuery.position && isUnderstatFinePositionSearch(effectiveQuery.position)
+          ? { ...player, positionEvidence: {
+            provider: "understat",
+            targetPosition: effectiveQuery.position,
+            status: "pending",
+            sourceScope: "season_position_aggregate",
+            season: player.sourceIdentity?.seasonId ?? player.season.split("/", 1)[0] ?? null,
+            sourceCodes: [],
+            sampleMinutes: null,
+          } }
+          : player);
       }
     }
-    if (query.discoveryMetricGroups !== undefined) return searchLoadedPlayers(interleaved, query);
-    const playersOnPage = interleaved.slice(query.offset, query.offset + query.limit);
+    if (effectiveQuery.discoveryMetricGroups !== undefined) return searchLoadedPlayers(interleaved, effectiveQuery);
+    const playersOnPage = interleaved.slice(effectiveQuery.offset, effectiveQuery.offset + effectiveQuery.limit);
     const appliedFilters: PlayerSearchPage["appliedFilters"] = [];
-    if (query.playerName) appliedFilters.push("playerName");
-    if (query.position) appliedFilters.push("position");
-    if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
-    if (query.competition) appliedFilters.push("competition");
-    if (query.season) appliedFilters.push("season");
+    if (effectiveQuery.playerName) appliedFilters.push("playerName");
+    if (effectiveQuery.position) appliedFilters.push(effectiveQuery.positionMatchMode === "family" && isUnderstatFinePositionSearch(effectiveQuery.position)
+      ? "positionFamily"
+      : "position");
+    if (effectiveQuery.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
+    if (effectiveQuery.competition) appliedFilters.push("competition");
+    if (effectiveQuery.season) appliedFilters.push("season");
     return {
       players: playersOnPage,
       totalRecords: interleaved.length,
-      offset: query.offset,
-      nextOffset: query.offset + playersOnPage.length < interleaved.length ? query.offset + playersOnPage.length : null,
+      offset: effectiveQuery.offset,
+      nextOffset: effectiveQuery.offset + playersOnPage.length < interleaved.length ? effectiveQuery.offset + playersOnPage.length : null,
       appliedFilters,
     };
   }

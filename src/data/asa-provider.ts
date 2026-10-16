@@ -7,7 +7,7 @@ import {
   type SupplementaryMetricNormalization,
   type SupplementaryPerformanceMetric,
 } from "../domain/schemas.js";
-import { positionMatches } from "../domain/positions.js";
+import { positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import type { PlayerRepository, PlayerSearchFilter, PlayerSearchPage, PlayerSearchQuery } from "./player-repository.js";
 import { throwIfAborted } from "../domain/abort.js";
@@ -328,7 +328,9 @@ function searchPlayers(players: readonly PlayerProfile[], query: PlayerSearchQue
   const normalizedSeason = query.season ? normalizeSearchText(query.season) : null;
   const matching = players.filter((player) => {
     if (normalizedName && !normalizeSearchText(player.name).includes(normalizedName)) return false;
-    if (query.position && !positionMatches(player.position, query.position)) return false;
+    if (query.position && !(query.positionMatchMode === "family"
+      ? positionMatchesRetrieval(player.position, query.position, player.sourceIdentity?.positionGroups)
+      : positionMatches(player.position, query.position))) return false;
     if (player.minutes < query.minimumMinutes) return false;
     if (query.maxAge !== null && (player.age === null || player.age > query.maxAge)) return false;
     if (query.competition && !matchesCompetition(player, query.competition)) return false;
@@ -338,7 +340,7 @@ function searchPlayers(players: readonly PlayerProfile[], query: PlayerSearchQue
   const page = matching.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");
-  if (query.position) appliedFilters.push("position");
+  if (query.position) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
   if (query.maxAge !== null) appliedFilters.push("maxAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
   if (query.competition) appliedFilters.push("competition");

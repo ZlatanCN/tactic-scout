@@ -23,6 +23,7 @@ export interface UnderstatPlayerInsight {
   lastMatch: { league: string | null; team: string | null; season: string | null } | null;
   requestedSections: UnderstatPlayerSection[];
   availableSections: UnderstatPlayerSection[];
+  // Understat groups these by season and position code; the rows do not carry competition scope.
   positions?: Array<{
     season: string; code: string; minutes: number | null; games: number | null; goals: number | null; shots: number | null;
     xG: number | null; assists: number | null; xA: number | null; keyPasses: number | null; npxG: number | null;
@@ -444,6 +445,7 @@ function positionCodeMatches(code: string, position: PlayerProfile["position"]):
   const normalized = code.toUpperCase().replace(/[^A-Z]/g, "");
   if (!normalized || normalized === "SUB") return false;
   switch (position) {
+    case "UNKNOWN": return false;
     case "GK": return normalized.startsWith("GK");
     case "DEF": case "CB": case "FB": case "LB": case "RB": case "LWB": case "RWB":
       return /^(D|CB|FB|WB)/.test(normalized);
@@ -466,7 +468,12 @@ export function understatPositionMetricsForPlayer(
     || !insight.availableSections.includes("positions")) return [];
 
   const season = profile.sourceIdentity.seasonId ?? profile.season.split("/", 1)[0];
-  const rows = (insight.positions ?? []).filter((row) => row.season === season && positionCodeMatches(row.code, profile.position));
+  const verifiedPositionCodes = profile.positionEvidence?.provider === "understat"
+    && (profile.positionEvidence.status === "direct" || profile.positionEvidence.status === "compatible")
+    ? new Set(profile.positionEvidence.sourceCodes)
+    : null;
+  const rows = (insight.positions ?? []).filter((row) => row.season === season
+    && (verifiedPositionCodes ? verifiedPositionCodes.has(row.code) : positionCodeMatches(row.code, profile.position)));
   if (rows.length === 0) return [];
 
   const sum = (field: "xG" | "npxG" | "xA" | "shots" | "keyPasses" | "xGChain" | "xGBuildup"): number | undefined => {
@@ -503,6 +510,7 @@ export function understatPositionMetricsForPlayer(
       value,
       unit,
       normalization,
+      sourceScope: "season_position_aggregate",
       sourceField: `groups.position[${season}][${sourceCodes}].${field}`,
       sampleMinutes: minutes || null,
       sampleMatches: null,

@@ -104,3 +104,51 @@ test("StatsBomb player loading excludes female and unclassified competitions eve
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test("StatsBomb preserves observed multi-position evidence and does not invent a position from an event", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "tactiscout-statsbomb-position-evidence-"));
+  const dataRoot = path.join(tempRoot, "data");
+  const previousRoot = process.env.TACTISCOUT_STATSBOMB_DIR;
+  try {
+    await mkdir(path.join(dataRoot, "matches", "11", "90"), { recursive: true });
+    await mkdir(path.join(dataRoot, "lineups"), { recursive: true });
+    await mkdir(path.join(dataRoot, "events"), { recursive: true });
+    await writeFile(path.join(dataRoot, "competitions.json"), JSON.stringify([
+      { competition_id: 11, season_id: 90, competition_name: "Open League", competition_gender: "male" },
+    ]));
+    await writeFile(path.join(dataRoot, "matches", "11", "90", "100.json"), JSON.stringify([
+      { match_id: 100, competition: { competition_id: 11 }, season: { season_id: 90, season_name: "2025/26" } },
+      { match_id: 101, competition: { competition_id: 11 }, season: { season_id: 90, season_name: "2025/26" } },
+    ]));
+    await writeFile(path.join(dataRoot, "events", "100.json"), JSON.stringify([
+      { type: { name: "Pass" }, player: { id: 4, name: "Versatile Player" }, team: { name: "Harbor City" }, pass: {} },
+    ]));
+    await writeFile(path.join(dataRoot, "events", "101.json"), JSON.stringify([{ type: { name: "Half Start" } }]));
+    await writeFile(path.join(dataRoot, "lineups", "101.json"), JSON.stringify([{
+      team_name: "Harbor City",
+      lineup: [{
+        player_id: 4,
+        player_name: "Versatile Player",
+        positions: [
+          { position: { name: "Left Back" }, from: "00:00", to: "45:00" },
+          { position: { name: "Centre Back" }, from: "45:00", to: "90:00" },
+        ],
+      }],
+    }]));
+    process.env.TACTISCOUT_STATSBOMB_DIR = tempRoot;
+
+    const player = (await new StatsBombRepository().loadPlayers()).find(({ externalPlayerId }) => externalPlayerId === "4");
+
+    assert.equal(player?.position, "LB");
+    assert.deepEqual(player?.sourceIdentity?.positionGroups, ["LB", "CB"]);
+    assert.deepEqual(player?.sourceIdentity?.positionSamples, [
+      { position: "LB", minutes: 45 },
+      { position: "CB", minutes: 45 },
+    ]);
+    assert.equal(player?.minutes, 90);
+  } finally {
+    if (previousRoot === undefined) delete process.env.TACTISCOUT_STATSBOMB_DIR;
+    else process.env.TACTISCOUT_STATSBOMB_DIR = previousRoot;
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

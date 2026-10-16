@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type PlayerProfile, type Position, type SupplementaryPerformanceMetric, PlayerProfileSchema, SupplementaryCapabilityMetricDefinitions } from "../domain/schemas.js";
+import { type PlayerPosition, type PlayerProfile, type Position, type SupplementaryPerformanceMetric, PlayerProfileSchema, SupplementaryCapabilityMetricDefinitions } from "../domain/schemas.js";
 import { type PlayerRepository } from "./player-repository.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -14,7 +14,9 @@ interface MutablePlayer {
   seasonId: string;
   name: string;
   team: string;
-  position: Position;
+  position: PlayerPosition;
+  observedPositions: Set<Position>;
+  positionMinutes: Map<Position, number>;
   competition: string;
   season: string;
   minutes: number;
@@ -128,14 +130,30 @@ function mapPosition(value: unknown): Position | undefined {
   return undefined;
 }
 
-function choosePosition(positions: unknown[]): Position | undefined {
-  const counts = new Map<Position, number>();
+function positionMinutesByRole(positions: unknown[], matchEndMinute: number): Map<Position, number> {
+  const minutesByRole = new Map<Position, number>();
   for (const raw of positions) {
     const entry = asRecord(raw);
     const position = mapPosition(asRecord(entry.position).name ?? entry.position);
-    if (position) counts.set(position, (counts.get(position) ?? 0) + 1);
+    const from = clockMinutes(entry.from);
+    let to = clockMinutes(entry.to);
+    if (to === undefined && entry.end_reason === "Final Whistle" && matchEndMinute > 0) to = matchEndMinute;
+    if (position && from !== undefined && to !== undefined && to > from) {
+      minutesByRole.set(position, (minutesByRole.get(position) ?? 0) + to - from);
+    }
   }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  return minutesByRole;
+}
+
+function choosePosition(positions: unknown[], positionMinutes: Map<Position, number>): Position | undefined {
+  const byMinutes = [...positionMinutes.entries()].sort((left, right) => right[1] - left[1])[0]?.[0];
+  if (byMinutes) return byMinutes;
+  for (const raw of positions) {
+    const entry = asRecord(raw);
+    const position = mapPosition(asRecord(entry.position).name ?? entry.position);
+    if (position) return position;
+  }
+  return undefined;
 }
 
 function fileIndex(files: string[]): Map<string, string> {
@@ -172,11 +190,11 @@ function matchRows(value: unknown): any[] {
   return Array.isArray(record.matches) ? record.matches : [];
 }
 
-function getMutable(players: Map<string, MutablePlayer>, key: string, seed: Omit<MutablePlayer, "appearances" | "goals" | "assists" | "passesAttempted" | "passesCompleted" | "longPasses" | "carries" | "pressures" | "tackles" | "interceptions" | "shotAssists" | "keyPasses" | "nonPenaltyXg" | "nonPenaltyShots">): MutablePlayer {
+function getMutable(players: Map<string, MutablePlayer>, key: string, seed: Omit<MutablePlayer, "observedPositions" | "positionMinutes" | "appearances" | "goals" | "assists" | "passesAttempted" | "passesCompleted" | "longPasses" | "carries" | "pressures" | "tackles" | "interceptions" | "shotAssists" | "keyPasses" | "nonPenaltyXg" | "nonPenaltyShots">): MutablePlayer {
   const existing = players.get(key);
   if (existing) return existing;
   const created: MutablePlayer = {
-    ...seed, appearances: new Set(), goals: 0, assists: 0, passesAttempted: 0,
+    ...seed, observedPositions: new Set(), positionMinutes: new Map(), appearances: new Set(), goals: 0, assists: 0, passesAttempted: 0,
     passesCompleted: 0, longPasses: 0, carries: 0, pressures: 0, tackles: 0,
     interceptions: 0, shotAssists: 0, keyPasses: 0, nonPenaltyXg: 0, nonPenaltyShots: 0,
   };
@@ -285,7 +303,8 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
             const playerName = String(player.player_name ?? "Unknown player");
             const positions = asList(player.positions);
             if (id) lineupPlayerKeys.add(`${id}:${team}`);
-            const position = choosePosition(positions);
+            const roleMinutes = positionMinutesByRole(positions, matchEndMinute);
+            const position = choosePosition(positions, roleMinutes);
             if (!id || !position) continue;
             const { minutes, complete: minuteDataComplete } = calculateLineupMinutes(positions, matchEndMinute);
             const teamId = teamData.team_id ?? asRecord(teamData.team).id;
@@ -298,6 +317,14 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
             item.eventDataComplete &&= eventDataAvailable;
             item.shotMetricsComplete &&= shotMetricsComplete && minuteDataComplete;
             item.minutes += minutes;
+            for (const rawPosition of positions) {
+              const entry = asRecord(rawPosition);
+              const observedPosition = mapPosition(asRecord(entry.position).name ?? entry.position);
+              if (observedPosition) item.observedPositions.add(observedPosition);
+            }
+            for (const [observedPosition, observedMinutes] of roleMinutes) {
+              item.positionMinutes.set(observedPosition, (item.positionMinutes.get(observedPosition) ?? 0) + observedMinutes);
+            }
             item.appearances.add(matchId);
             if (minuteDataComplete) playersWithCompleteMinutes.add(`${id}:${team}`);
           }
@@ -312,7 +339,7 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
         const id = String(playerId);
         const team = String(event.team?.name ?? "Unknown team");
         const playerName = String(event.player?.name ?? "Unknown player");
-        const position = mapPosition(event.position?.name) ?? "CM";
+        const position = mapPosition(event.position?.name) ?? "UNKNOWN";
         const recordId = [id, compId, season, team].join(":");
         const item = getMutable(players, recordId, {
           playerId: recordId, sourcePlayerId: id, competitionId: compId, seasonId, name: playerName, team, position, competition, season, minutes: 0, eventDataComplete: true,
@@ -370,8 +397,16 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
         };
       })
       : [];
+    const position = [...item.positionMinutes.entries()].sort((left, right) => right[1] - left[1])[0]?.[0]
+      ?? [...item.observedPositions][0]
+      ?? item.position;
+    const positionSamples = [...item.positionMinutes.entries()].map(([observedPosition, minutes]) => ({
+      position: observedPosition,
+      minutes,
+    }));
     return [PlayerProfileSchema.parse({
       ...item,
+      position,
       externalPlayerId: item.sourcePlayerId,
       age: demographics.get(item.sourcePlayerId)?.age ?? null,
       ageSource: demographics.get(item.sourcePlayerId)?.source,
@@ -382,6 +417,8 @@ async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
         ...(item.sourceTeamId ? { teamId: item.sourceTeamId } : {}),
         competitionId: item.competitionId,
         seasonId: item.seasonId,
+        ...(item.observedPositions.size ? { positionGroups: [...item.observedPositions] } : {}),
+        ...(positionSamples.length ? { positionSamples } : {}),
         retrievedAt,
       },
       stats: {

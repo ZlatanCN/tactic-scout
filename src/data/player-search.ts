@@ -1,6 +1,6 @@
-import type { CapabilityMetricKey, PlayerProfile, Position } from "../domain/schemas.js";
+import type { CapabilityMetricKey, PlayerPosition, PlayerProfile, Position } from "../domain/schemas.js";
 import { observableMetricValue } from "../domain/performance-metrics.js";
-import { positionMatches } from "../domain/positions.js";
+import { positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 
 export interface PlayerSearchQuery {
@@ -12,6 +12,9 @@ export interface PlayerSearchQuery {
   season: string | null;
   offset: number;
   limit: number;
+  positionMatchMode?: "exact" | "family";
+  catalogPositionGroups?: readonly Position[];
+  includeUnknownPosition?: boolean;
   discoveryMetricGroups?: readonly (readonly CapabilityMetricKey[])[];
 }
 
@@ -24,16 +27,24 @@ export interface PlayerSearchPage {
   discovery?: { strategy: "metric_cohort_round_robin" | "cohort_sample"; metricKeys: CapabilityMetricKey[]; populationRecords: number };
 }
 
-export type PlayerSearchFilter = "playerName" | "position" | "maxAge" | "minimumMinutes" | "competition" | "season";
+export type PlayerSearchFilter = "playerName" | "position" | "positionFamily" | "maxAge" | "minimumMinutes" | "competition" | "season";
 
 export function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQuery): boolean {
   if (query.playerName && !normalizeSearchText(player.name).includes(normalizeSearchText(query.playerName))) return false;
-  if (query.position && !positionMatches(player.position, query.position)) return false;
+  if (query.position && !(query.positionMatchMode === "family"
+    ? positionMatchesRetrieval(player.position, query.position, player.sourceIdentity?.positionGroups,
+      query.catalogPositionGroups, query.includeUnknownPosition)
+    : matchesPositionFromCatalog(player.position, query.position, player.sourceIdentity?.positionGroups))) return false;
   if (player.minutes < query.minimumMinutes) return false;
   if (query.maxAge !== null && (player.age === null || player.age > query.maxAge)) return false;
   if (query.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(query.competition))) return false;
   if (query.season && !normalizeSearchText(player.season).includes(normalizeSearchText(query.season))) return false;
   return true;
+}
+
+function matchesPositionFromCatalog(actual: PlayerPosition, requested: Position, catalogGroups: readonly Position[] = []): boolean {
+  if (actual !== "UNKNOWN" && positionMatches(actual, requested)) return true;
+  return catalogGroups.some((group) => positionMatches(group, requested));
 }
 
 export function searchLoadedPlayers(players: readonly PlayerProfile[], query: PlayerSearchQuery): PlayerSearchPage {
@@ -44,7 +55,7 @@ export function searchLoadedPlayers(players: readonly PlayerProfile[], query: Pl
   const page = ordered.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");
-  if (query.position) appliedFilters.push("position");
+  if (query.position) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
   if (query.maxAge !== null) appliedFilters.push("maxAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
   if (query.competition) appliedFilters.push("competition");

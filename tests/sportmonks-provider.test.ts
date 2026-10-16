@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { toPer90 } from "../src/agent/performance-metrics.js";
+import { searchPlayerPage } from "../src/data/player-repository.js";
 import { SportmonksPlayerRepository, SportmonksProviderError } from "../src/data/sportmonks-provider.js";
-import { positionMatches } from "../src/domain/positions.js";
+import { playerPositionMatches, positionMatches } from "../src/domain/positions.js";
 import type { PlayerProfile } from "../src/domain/schemas.js";
 
 const fixedNow = new Date("2026-10-04T12:00:00.000Z");
@@ -117,6 +118,7 @@ test("Sportmonks adapter paginates teams, merges current roster with season stat
     teamId: "101",
     competitionId: "8",
     seasonId: "10",
+    sourcePositionLabels: ["Centre Forward"],
     retrievedAt: fixedNow.toISOString(),
     isCurrentSeason: true,
   });
@@ -133,6 +135,42 @@ test("Sportmonks adapter paginates teams, merges current roster with season stat
   assert.ok(requests.some(({ url }) => url.pathname.endsWith("/teams/seasons/10") && url.searchParams.get("page") === "2"));
   assert.ok(requests.every(({ authorization }) => authorization === "test-token"));
   assert.ok(requests.every(({ url }) => !url.searchParams.has("api_token")), "credentials must not enter request URLs");
+});
+
+test("Sportmonks generic full-back labels are retrievable for side-specific search but remain unqualified", async () => {
+  const { fetchImpl: baseFetch } = fixtureFetch();
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const response = await baseFetch(input, init);
+    const url = input instanceof URL ? input : new URL(String(input));
+    if (url.pathname !== "/v3/football/squads/teams/101") return response;
+    const payload = await response.json() as { data: Array<Record<string, unknown>> };
+    return jsonResponse({ data: [...payload.data, {
+      player_id: 80,
+      position_id: 25,
+      detailedPosition: { name: "Full Back" },
+      start: "2026-07-01",
+      end: null,
+      player: { id: 80, name: "Broad Full Back", date_of_birth: "2002-01-01" },
+    }] });
+  };
+  const provider = repository(fetchImpl);
+
+  const page = await searchPlayerPage(provider, {
+    playerName: null,
+    position: "LB",
+    maxAge: null,
+    minimumMinutes: 0,
+    competition: null,
+    season: null,
+    offset: 0,
+    limit: 10,
+  });
+  const broadFullBack = page.players.find((player) => player.sourceIdentity?.playerId === "80");
+
+  assert.ok(broadFullBack, "a generic full-back should be returned as a position-family lead for an LB query");
+  assert.equal(broadFullBack.position, "FB");
+  assert.deepEqual(broadFullBack.sourceIdentity?.sourcePositionLabels, ["Full Back"]);
+  assert.equal(playerPositionMatches(broadFullBack, "LB"), false, "an unspecified side must not qualify as left back");
 });
 
 test("Sportmonks keeps an explicitly recorded zero available while omitting an unrecorded statistic", async () => {
