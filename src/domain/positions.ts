@@ -70,8 +70,9 @@ export function positionMatchesRetrieval(
 export function hasSpecificPositionEvidence(player: {
   sourceIdentity?: { provider?: string };
   positionEvidence?: { provider: string; targetPosition: Position; status: string };
+  positionEvidenceByPosition?: Partial<Record<Position, { provider: string; targetPosition: Position; status: string }>>;
 }, requested: Position): boolean {
-  const evidence = player.positionEvidence;
+  const evidence = player.positionEvidenceByPosition?.[requested] ?? player.positionEvidence;
   return Boolean(player.sourceIdentity?.provider === evidence?.provider
     && evidence?.targetPosition === requested
     && (evidence.status === "direct" || evidence.status === "compatible"));
@@ -86,6 +87,7 @@ export function playerPositionMatches(player: {
     positionSamples?: Array<{ position: Position; minutes: number }>;
   };
   positionEvidence?: { provider: string; targetPosition: Position; status: string };
+  positionEvidenceByPosition?: Partial<Record<Position, { provider: string; targetPosition: Position; status: string }>>;
 }, requested: Position): boolean {
   if (player.sourceIdentity?.provider === "understat") {
     if (positionFamilyFor(requested) === requested) {

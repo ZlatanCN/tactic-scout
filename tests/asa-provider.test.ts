@@ -385,3 +385,20 @@ test("ASA explicit refresh bypasses the process cache while ordinary loads reuse
   await repo.loadPlayers(true);
   assert.equal(fixture.urls.length, 30);
 });
+
+test("ASA multi-position union shares a page stream without upgrading its broad winger label", async () => {
+  const fixture = mockFetch();
+  const repo = repository(fixture.fetchImpl);
+  const query = { playerName: null, position: null, positions: ["LW", "CB"] as const, maxAge: null, minimumMinutes: 0, competition: "MLS", season: "2026", offset: 0, limit: 1 };
+  const first = await searchPlayerPage(repo, query);
+  assert.equal(first.totalRecords, 2);
+  assert.equal(first.nextOffset, 1);
+  assert.ok(first.appliedFilters.includes("positionFamily"));
+  const second = await searchPlayerPage(repo, { ...query, offset: first.nextOffset! });
+  assert.equal(second.nextOffset, null);
+  const players = [...first.players, ...second.players];
+  assert.equal(new Set(players.map(({ playerId }) => playerId)).size, 2);
+  const winger = players.find(({ position }) => position === "WG")!;
+  assert.equal(playerPositionMatches(winger, "LW"), false);
+  assert.equal(fixture.urls.length, 5, "both positions share the same competition load");
+});

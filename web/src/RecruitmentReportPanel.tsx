@@ -121,14 +121,16 @@ function EmptyReport({ dataset, datasetLabel, connectionStatus, caseStatus = "re
 
 function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, isRefreshing, isUpdating, snapshot, onOpenObservations }: { report: RecruitmentReport; teamRosterContext: TeamRosterContext | null; reportedAt: string | null; isWaiting: boolean; isRefreshing: boolean; isUpdating: boolean; snapshot: DatasetStatus["snapshot"]; onOpenObservations: () => void }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  useEffect(() => setSelectedIds([]), [report]);
+  const [positionFilter, setPositionFilter] = useState<string>("all");
+  useEffect(() => { setSelectedIds([]); setPositionFilter("all"); }, [report]);
   const presentation = createRecommendationPresentation(report.recommendations);
   const emptyShortlist = describeEmptyShortlist(report.searchScopes.length);
   const isAdjacentPositionLead = (item: typeof presentation.recommendations[number]) =>
     item.recommendation.player.positionEvidence?.provider === "understat"
       && item.recommendation.player.positionEvidence.status === "compatible";
   const adjacentPositionLeads = presentation.recommendations.filter(isAdjacentPositionLead);
-  const exactRoleRecommendations = presentation.recommendations.filter((item) => !isAdjacentPositionLead(item));
+  const exactRoleRecommendations = presentation.recommendations.filter((item) => !isAdjacentPositionLead(item)
+    && (positionFilter === "all" || item.recommendation.matchedPositions?.some((position) => position === positionFilter)));
   const evidenceBackedRecommendations = exactRoleRecommendations.filter((item) => item.hasFocusEvidence);
   const backgroundRecommendations = exactRoleRecommendations.filter((item) => !item.hasFocusEvidence);
   const selectedRecommendations = evidenceBackedRecommendations
@@ -168,6 +170,10 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
   const detailSummaryClass = "flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-0 py-4 text-sm font-medium marker:hidden after:text-lg after:font-normal after:text-muted-foreground after:content-['+'] group-open:after:content-['−'] [&::-webkit-details-marker]:hidden";
   const detailBodyClass = "space-y-4 pb-5 [&_p]:text-sm [&_p]:leading-6 [&_p]:text-muted-foreground";
   return <Card className="min-w-0 gap-0 overflow-visible rounded-none bg-transparent py-0 ring-0">
+    {!!report.requestedPositions?.length && <section className="mb-5 space-y-2" aria-label="本次调查位置"><p className="m-0 text-sm font-medium">调查位置：{report.requestedPositions.map((position) => positionLabels[position]).join("、")}</p>
+      {report.requestedPositions.length > 1 && <div className="flex flex-wrap gap-2" aria-label="按位置查看名单"><Button size="sm" variant={positionFilter === "all" ? "default" : "outline"} aria-pressed={positionFilter === "all"} onClick={() => setPositionFilter("all")}>全部</Button>{report.requestedPositions.map((position) => <Button key={position} size="sm" variant={positionFilter === position ? "default" : "outline"} aria-pressed={positionFilter === position} onClick={() => setPositionFilter(position)}>{positionLabels[position]}</Button>)}</div>}
+      {report.positionCoverage?.filter((item) => item.confirmedCandidates === 0).map((item) => <p className="m-0 text-xs text-muted-foreground" key={item.position}>{positionLabels[item.position]}：{!item.searched ? "本轮尚未读取相关候选" : item.hasMore ? "已读范围内暂未核实，来源仍有下一页" : "当前数据尚无已核实的位置候选"}</p>)}
+    </section>}
     <CardHeader className="gap-5 px-0 pb-7">
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>{report.targetTeam || "球员招募"}{reportedAt ? ` / ${formatDate(reportedAt)}` : ""}</span>
@@ -177,6 +183,7 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
         <h2 id="report-outcome-title" className="m-0 text-3xl font-semibold tracking-tight sm:text-4xl">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? `发现 ${positionLeadCount} 条位置线索` : emptyShortlist.title : onlyAdjacentPositionLeads ? "发现相邻位置线索" : backgroundOnly ? "找到球员，尚待核实能力" : <>值得关注的 {evidenceBackedRecommendations.length} 位球员</>}</h2>
         <p className="m-0 max-w-3xl text-sm leading-7 text-muted-foreground">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? "数据源找到了目标位置大类的球员，但没有提供足够细的场上位置信息。这些线索不会混入候选名单或参与比较。" : emptyShortlist.summary : onlyAdjacentPositionLeads ? "当前赛季只观察到这些球员出现在相邻位置，不能据此说他们符合你指定的位置。以下作为后续人工核验线索，不计入目标位置候选名单。" : backgroundOnly ? `现有记录缺少${missingCapabilityDescription}${referenceName ? `，还不能判断谁适合接替${referenceName}` : ""}。以下仅供补查。` : "按建议考察顺序展示。选择球员，可并排比较本轮重点指标。"}</p>
       </div>
+      {report.referenceNameSource?.resolvedName && <p className="m-0 rounded-lg border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">参考对象按 <strong className="text-foreground">{report.referenceNameSource.resolvedName}</strong> 处理{report.referenceNameSource.mention ? `（原始提及：“${report.referenceNameSource.mention}”）` : ""}。若对应有误，可在对话中纠正。 <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">核对身份来源</a></p>}
       {reportBusy && <p role="status" className="m-0 border-l-2 border-primary pl-4 text-sm text-muted-foreground">{isWaiting ? "回答对话中的问题后继续；这里保留上一份报告。" : "正在调查，完成后将更新这份报告。"}</p>}
       {unverifiedCapabilities.length > 0 && !backgroundOnly && <p className="m-0 text-xs leading-6 text-muted-foreground"><span className="font-semibold text-foreground">待核实</span>　{unverifiedCapabilities.join("、")}缺少充分的直接证据。</p>}
     </CardHeader>
@@ -213,9 +220,13 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
         <Button type="button" variant="outline" onClick={onOpenObservations}>记录比赛观察</Button>
       </CardContent></Card>}
 
-      {report.referenceProfiles.length > 0 && <details className={detailClass}>
-        <summary className={detailSummaryClass}>参考球员资料：{report.referenceProfiles.map((profile) => profile.name).join("、")}（已从候选中排除）</summary>
-        <div className={detailBodyClass}><ReferenceProfilesPanel profiles={report.referenceProfiles} />{report.referenceNameSource && <p>姓名来源：<a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">查看 Wikidata 条目</a></p>}</div>
+      {(report.referenceProfiles.length > 0 || report.referenceNameSource) && <details className={detailClass}>
+        <summary className={detailSummaryClass}>参考球员：{report.referenceNameSource?.resolvedName ?? report.referenceProfiles.map((profile) => profile.name).join("、")}{report.referenceProfiles.length > 0 ? "（样本内已排除）" : "（身份已确认，表现数据待补）"}</summary>
+        <div className={detailBodyClass}>{report.referenceProfiles.length > 0
+          ? <ReferenceProfilesPanel profiles={report.referenceProfiles} />
+          : <p>本轮读取的目标球队来源样本里没有找到可确认对应的表现记录。这只说明当前数据覆盖不足，不表示球员不存在；当前无法用这份样本与候选做统计对比。</p>}
+          {report.referenceNameSource && <p>身份依据：<a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">查看 Wikidata 条目</a></p>}
+        </div>
       </details>}
       <details className={detailClass}><summary className={detailSummaryClass}>需求与证据覆盖</summary><div className={detailBodyClass}><RequestedCapabilityCoverage report={report} /></div></details>
       <details className={detailClass}>
@@ -223,7 +234,7 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
         <div className={detailBodyClass}>
           <DatasetScopeCard scope={report.datasetScope ?? describeDatasetScope(report.datasetMode)} showCoverageState snapshot={snapshot} showLimitations={false} />
           {report.searchScopes.length > 0 && <section className="space-y-2"><h3 className="m-0 text-sm font-semibold">候选检索范围</h3><p className="m-0">以下是 Agent 实际使用的条件；可继续在对话中补充或纠正。</p><ul className="m-0 list-disc space-y-1 pl-5 text-xs leading-5 text-muted-foreground">{report.searchScopes.map((scope, index) => <li key={`${scope.source}-${index}`}><strong className="text-foreground">{scope.source === "user_confirmed" ? "用户确认" : scope.source === "mixed" ? "包含用户确认条件" : "Agent 根据对话解释"}</strong>{" · "}{[
-            scope.position ? `位置 ${positionLabels[scope.position]}` : null,
+            scope.positions?.length ? `位置 ${scope.positions.map((position) => positionLabels[position]).join("、")}` : scope.position ? `位置 ${positionLabels[scope.position]}` : null,
             scope.maxAge !== null ? `${scope.maxAge} 岁及以下` : null,
             scope.minimumMinutes > 0 ? `至少 ${scope.minimumMinutes} 分钟` : null,
             scope.competition ? `赛事 ${scope.competition}` : null,
@@ -432,7 +443,7 @@ function RecommendationCard({ recommendation, backgroundOnly, rank, selected, se
       </div>
       {comparisonAvailable && <label className={`inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border px-3 text-xs font-medium has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${selected ? "border-primary bg-secondary text-primary" : "border-input bg-card"}`}><input className="size-4 accent-primary" type="checkbox" aria-label={`${selected ? "已加入比较" : "加入比较"}：${player.name}`} checked={selected} disabled={selectionDisabled} onChange={onToggle} /><span>{selected ? "已加入比较" : "加入比较"}</span></label>}
     </div>
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{positionLabels[player.position]}</span>{player.age !== null && <span>{player.age} 岁</span>}<span>{player.minutes.toLocaleString()} 分钟出场</span>{positionEvidenceLabel && <Badge variant={positionEvidenceIsDirect ? "secondary" : "outline"} className="font-normal">{positionEvidenceLabel}</Badge>}{lowSample && <span className="rounded bg-muted px-2 py-0.5 font-medium text-foreground">小样本 · 无百分位</span>}{backgroundOnly && <span>目标能力未核实</span>}</div>
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{recommendation.matchedPositions?.length ? `符合位置：${recommendation.matchedPositions.map((position) => positionLabels[position]).join("、")}` : positionLabels[player.position]}</span>{player.age !== null && <span>{player.age} 岁</span>}<span>{player.minutes.toLocaleString()} 分钟出场</span>{positionEvidenceLabel && <Badge variant={positionEvidenceIsDirect ? "secondary" : "outline"} className="font-normal">{positionEvidenceLabel}</Badge>}{lowSample && <span className="rounded bg-muted px-2 py-0.5 font-medium text-foreground">小样本 · 无百分位</span>}{backgroundOnly && <span>目标能力未核实</span>}</div>
     {!backgroundOnly && focusEvidence.length > 0 && <dl className="mb-0 mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t pt-4 sm:grid-cols-3 lg:grid-cols-4">{focusEvidence.slice(0, 4).map(evidence => <div key={evidence.key}><dt className="text-xs leading-5 text-muted-foreground">{evidence.label}</dt><dd className="m-0 mt-1 text-[28px] font-medium leading-tight tracking-tight tabular-nums">{formatMetric(evidence.value)}<span className="mt-1 block whitespace-nowrap text-xs font-normal tracking-normal text-muted-foreground sm:ml-1.5 sm:mt-0 sm:inline">{evidence.unit}</span></dd></div>)}</dl>}
 
     <details className="group mt-5 border-t pt-4"><summary className="flex min-h-8 cursor-pointer list-none items-center justify-between text-sm font-medium marker:hidden [&::-webkit-details-marker]:hidden"><span>考察详情与数据依据</span><span className="text-lg text-muted-foreground group-open:rotate-45" aria-hidden="true">＋</span></summary>

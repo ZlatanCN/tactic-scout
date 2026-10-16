@@ -1,7 +1,11 @@
+import type { PlayerIdentityAnswer, PositionSelectionAnswer, SelectablePosition } from "../../src/domain/schemas";
 export interface PendingTurnRequest {
   requestId: string;
   caseId: string;
   message: string;
+  positionAnswer?: PositionSelectionAnswer;
+  playerIdentityAnswer?: PlayerIdentityAnswer;
+  positionUpdate?: SelectablePosition[];
   expectsExistingState: boolean;
   isReanalysis: boolean;
   outcomeUnknown: boolean;
@@ -12,6 +16,9 @@ export interface PendingTurnRequest {
 export interface RequestedTurn {
   caseId: string;
   message: string;
+  positionAnswer?: PositionSelectionAnswer;
+  playerIdentityAnswer?: PlayerIdentityAnswer;
+  positionUpdate?: SelectablePosition[];
   expectsExistingState: boolean;
   isReanalysis: boolean;
   displayText: string;
@@ -30,6 +37,9 @@ export function resolveTurnRequest(input: {
   const { requested, pending } = input;
   if (pending?.outcomeUnknown) {
     const isSameTurn = pending.message === requested.message
+      && JSON.stringify(pending.positionAnswer) === JSON.stringify(requested.positionAnswer)
+      && JSON.stringify(pending.playerIdentityAnswer) === JSON.stringify(requested.playerIdentityAnswer)
+      && JSON.stringify(pending.positionUpdate) === JSON.stringify(requested.positionUpdate)
       && pending.expectsExistingState === requested.expectsExistingState
       && pending.isReanalysis === requested.isReanalysis;
     return isSameTurn

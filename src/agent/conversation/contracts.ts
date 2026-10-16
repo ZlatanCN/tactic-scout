@@ -1,4 +1,4 @@
-import { type ConversationTurnResponse } from "../../domain/schemas.js";
+import { type PlayerIdentityQuestion, type PositionSelectionQuestion, type ConversationTurnResponse } from "../../domain/schemas.js";
 import { type RecruitmentTurnInput } from "../conversation-turn-runtime.js";
 import { type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentPlannerUsageObservation } from "../recruitment-planner.js";
@@ -62,6 +62,7 @@ export interface RecruitmentConversation {
 }
 
 export interface PendingQuestion {
+  input?: PositionSelectionQuestion | PlayerIdentityQuestion;
   question: string;
   reason: string;
 }

@@ -1,3 +1,4 @@
+import { understatCatalogPositionGroupsFor } from "./understat-position-evidence.js";
 import type { CapabilityMetricKey, PlayerPosition, PlayerProfile, Position } from "../domain/schemas.js";
 import { observableMetricValue } from "../domain/performance-metrics.js";
 import { positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
@@ -6,6 +7,7 @@ import { normalizeSearchText } from "../domain/text-matching.js";
 export interface PlayerSearchQuery {
   playerName: string | null;
   position: Position | null;
+  positions?: readonly Position[];
   maxAge: number | null;
   minimumMinutes: number;
   competition: string | null;
@@ -31,7 +33,12 @@ export type PlayerSearchFilter = "playerName" | "position" | "positionFamily" | 
 
 export function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQuery): boolean {
   if (query.playerName && !normalizeSearchText(player.name).includes(normalizeSearchText(query.playerName))) return false;
-  if (query.position && !(query.positionMatchMode === "family"
+  if (query.positions?.length && !query.positions.some((position) => positionMatchesRetrieval(
+    player.position, position, player.sourceIdentity?.positionGroups,
+    player.sourceIdentity?.provider === "understat" ? understatCatalogPositionGroupsFor(position) : [],
+    player.sourceIdentity?.provider === "understat",
+  ))) return false;
+  if (!query.positions?.length && query.position && !(query.positionMatchMode === "family"
     ? positionMatchesRetrieval(player.position, query.position, player.sourceIdentity?.positionGroups,
       query.catalogPositionGroups, query.includeUnknownPosition)
     : matchesPositionFromCatalog(player.position, query.position, player.sourceIdentity?.positionGroups))) return false;
@@ -51,11 +58,11 @@ export function searchLoadedPlayers(players: readonly PlayerProfile[], query: Pl
   const matching = players.filter((player) => matchesPlayerSearch(player, query));
   const metricKeys = [...new Set((query.discoveryMetricGroups ?? []).flat())].sort()
     .filter(key => matching.some(player => observableMetricValue(player, key) !== undefined));
-  const ordered = query.discoveryMetricGroups !== undefined ? orderDiscoveryCandidates(matching, query.discoveryMetricGroups) : matching;
+  const ordered = query.discoveryMetricGroups !== undefined || query.positions?.length ? orderDiscoveryCandidates(matching, query.discoveryMetricGroups ?? []) : matching;
   const page = ordered.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");
-  if (query.position) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
+  if (query.position || query.positions?.length) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
   if (query.maxAge !== null) appliedFilters.push("maxAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
   if (query.competition) appliedFilters.push("competition");

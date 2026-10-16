@@ -12,7 +12,7 @@ import { requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage 
 import { collectMethodologySourceReferences } from "../methodology-sources.js";
 import { emptyDecision, toolBudgets, type FinishRecruitmentAction } from "../recruitment-actions.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
-import { candidateIdentityGroupReferencesFor, candidateSearchScopeKey, confirmedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
+import { candidateIdentityGroupReferencesFor, candidateSearchScopeKey, constrainedPositionSearchObservation, confirmedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { positionLabels } from "./interaction-policy.js";
 import { type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
@@ -119,6 +119,11 @@ function finePositionEvidenceSummary(state: State, position: Position): string |
 
 function positionLeadRecords(state: State): Array<{ player: PlayerProfile; status: "broad_only" | "pending" | "not_observed" | "unavailable" }> {
   const intent = resolvedCandidateSearchIntent(state);
+  if (state.confirmedPositions.length > 1) {
+    return Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, intent)
+      && !state.confirmedPositions.some((position) => playerPositionMatches(player, position)))
+      .map((player) => ({ player, status: player.positionEvidence?.status === "not_observed" ? "not_observed" as const : player.positionEvidence?.status === "unavailable" ? "unavailable" as const : "broad_only" as const }));
+  }
   const position = intent.position;
   if (!position || !isUnderstatFinePositionSearch(position)) return [];
   if (!state.candidateSearchObservations.some((item) => item.request.position === position
@@ -227,16 +232,17 @@ function limitationsFor(
     limitations.push(`${repository.sourceName} 最近一次候选查询失败${code ? `（${code}）` : ""}：${message} 该失败不能解释为零匹配，不代表没有符合条件的球员。`);
   }
   limitations.push(...describeDatasetScope(repository.mode).limitations);
-  const confirmedPositionSearch = confirmedPositionSearchObservation(state);
+  const confirmedPositionSearch = state.confirmedPositions.length > 1 ? constrainedPositionSearchObservation(state) : confirmedPositionSearchObservation(state);
+  const confirmedPositionLabel = state.confirmedPositions.length ? state.confirmedPositions.map((position) => positionLabels[position]).join("、") : state.confirmedPosition ? positionLabels[state.confirmedPosition] : "";
   if (state.confirmedPosition && confirmedPositionSearch?.matchingRecordCount === 0) {
-    limitations.push(`本轮按用户确认的位置（${positionLabels[state.confirmedPosition]}）完成候选检索后，没有找到符合当前筛选条件的球员；没有放宽位置范围。`);
+    limitations.push(`本轮按用户确认的位置（${confirmedPositionLabel}）完成候选检索后，没有找到符合当前筛选条件的球员；没有放宽位置范围。`);
   } else if (state.confirmedPosition && !confirmedPositionSearch && !discoveredPlayersForConstraint(state).length) {
-    limitations.push(`本轮尚未完成用户确认位置（${positionLabels[state.confirmedPosition]}）的候选检索；报告没有用其他位置的球员代替。`);
+    limitations.push(`本轮尚未完成用户确认位置（${confirmedPositionLabel}）的候选检索；报告没有用其他位置的球员代替。`);
   } else if (state.confirmedPosition && confirmedPositionSearch
     && confirmedPositionSearch.matchingRecordCount === null && !discoveredPlayersForConstraint(state).length) {
-    limitations.push(`来源没有提供用户确认位置（${positionLabels[state.confirmedPosition]}）的精确匹配总数；已读取页面未发现候选，不能据此确认没有符合条件的球员。`);
+    limitations.push(`来源没有提供用户确认位置（${confirmedPositionLabel}）的精确匹配总数；已读取页面未发现候选，不能据此确认没有符合条件的球员。`);
   } else if (state.confirmedPosition && !eligibleEvaluatedPlayers.length) {
-    limitations.push(`已找到符合用户确认位置（${positionLabels[state.confirmedPosition]}）的球员，但当前数据不足以完成该位置的可靠评估。`);
+    limitations.push(`已找到符合用户确认位置（${confirmedPositionLabel}）的球员，但当前数据不足以完成该位置的可靠评估。`);
   }
   if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some(hasLowSampleEvidence)) {
     limitations.push(`部分候选人或指标样本少于 ${minimumMinutesForPercentileComparison} 分钟，单赛季每 90 分钟数据波动较大；这些指标不显示百分位。`);
@@ -307,16 +313,16 @@ export function createReportProjection(input: {
     const discoveredForConstraint = discoveredPlayersForConstraint(state);
     const discoveredForConstraintIds = new Set(discoveredForConstraint.map(({ playerId }) => playerId));
     const evaluatedForConstraintById = new Map(Object.values(eligibleEvaluatedPlayers).map((candidate) => [candidate.player.playerId, candidate]));
-    const requestedPosition = resolvedCandidateSearchIntent(state).position;
+    const requestedPosition = state.confirmedPositions.length > 1 ? null : resolvedCandidateSearchIntent(state).position;
     const allPositionLeadRecords = positionLeadRecords(state);
     const positionLeads = allPositionLeadRecords.slice(0, 12);
     const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), requestedPosition);
     const backgroundOnly = requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
     const recommendedIds = new Set(action.recommendations.map(({ playerId }) => playerId));
-    const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && requestedPosition
+    const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && (requestedPosition || state.confirmedPositions.length > 1)
       ? Object.values(eligibleEvaluatedPlayers)
         .filter(({ player, evidence }) => player.positionEvidence?.provider === "understat"
-          && player.positionEvidence.targetPosition === requestedPosition
+          && (player.positionEvidence.targetPosition === requestedPosition || state.confirmedPositions.includes(player.positionEvidence.targetPosition as typeof state.confirmedPositions[number]))
           && player.positionEvidence.status === "compatible"
           && !recommendedIds.has(player.playerId))
         .slice(0, Math.max(0, 5 - action.recommendations.length))
@@ -333,7 +339,7 @@ export function createReportProjection(input: {
         const evaluated = eligibleEvaluatedPlayers[item.playerId]!;
         const adjacentPositionLead = (repository.mode === "understat" || repository.mode === "mosaic")
           && evaluated.player.positionEvidence?.provider === "understat"
-          && evaluated.player.positionEvidence.targetPosition === requestedPosition
+          && (evaluated.player.positionEvidence.targetPosition === requestedPosition || state.confirmedPositions.includes(evaluated.player.positionEvidence.targetPosition as typeof state.confirmedPositions[number]))
           && evaluated.player.positionEvidence.status === "compatible";
         const identityGroup = identityGroupForPlayer(item.playerId);
         const sourceRecordIds = identityGroup?.recordPlayerIds ?? [item.playerId];
@@ -391,6 +397,9 @@ export function createReportProjection(input: {
         ];
         return {
           player: evaluated.player,
+          ...(state.confirmedPositions.length ? { matchedPositions: state.confirmedPositions.filter((position) => evaluated.player.sourceIdentity?.provider === "understat"
+            ? evaluated.player.positionEvidenceByPosition?.[position]?.status === "direct"
+            : playerPositionMatches(evaluated.player, position)) } : {}),
           comparisonNotes: input.candidateComparisonEnabled === false || backgroundOnly || adjacentPositionLead ? [] : createCandidateComparison(Object.values(eligibleEvaluatedPlayers), item.evidenceKeys)
             .find(candidate => candidate.playerId === item.playerId)?.comparisons
             .filter(comparison => comparison.comparedCandidateCount > 0).slice(0, 3)
@@ -463,6 +472,11 @@ export function createReportProjection(input: {
       [JSON.stringify(reportScope), reportScope] as const
     ))).values()];
     const report = RecruitmentReportSchema.parse({
+      ...(state.confirmedPositions.length ? { requestedPositions: state.confirmedPositions, positionCoverage: state.confirmedPositions.map((position) => ({
+        position, confirmedCandidates: Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, resolvedCandidateSearchIntent(state)) && (player.sourceIdentity?.provider === "understat" ? player.positionEvidenceByPosition?.[position]?.status === "direct" : playerPositionMatches(player, position))).length,
+        searched: state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex).some((observation) => observation.request.position === position || observation.request.positions?.includes(position)),
+        hasMore: state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex).at(-1)?.nextOffset !== null && state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex).at(-1)?.nextOffset !== undefined,
+      })) } : {}),
       targetTeam: action.targetTeam ?? state.targetTeam,
       needSummary: state.candidateSearchFailure && state.candidateSearchFailure.code !== "unsupported_scope" && !state.candidateSearchSucceededThisTurn
         ? `${repository.sourceName} 候选查询最近一次失败，当前无法确认匹配结果。`
@@ -474,7 +488,12 @@ export function createReportProjection(input: {
         const rendered = reportReferenceProfile(profile);
         return backgroundOnly ? { ...rendered, metrics: [] } : rendered;
       }),
-      referenceNameSource: state.referenceNameResolution ? { entityId: state.referenceNameResolution.entityId, url: state.referenceNameResolution.sourceUrl } : null,
+      referenceNameSource: state.referenceNameResolution?.status === "resolved"
+        ? { entityId: state.referenceNameResolution.player.entityId, url: state.referenceNameResolution.player.sourceUrl,
+          mention: state.referenceNameResolution.mention, resolvedName: state.referenceNameResolution.player.preferredName,
+          resolutionMethod: state.referenceNameResolution.resolutionMethod,
+          performanceRecordStatus: state.referenceProfiles.length ? "observed_in_team_sample" : "not_observed_in_team_sample" }
+        : null,
       requestedCapabilityCoverage: state.evidenceEvaluationWithheld ? [] : requestedCapabilityCoverage,
       searchScopes,
       evidenceCoverage: (() => {

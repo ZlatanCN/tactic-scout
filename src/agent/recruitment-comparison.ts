@@ -3,9 +3,11 @@ import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
 import { toPer90 } from "./performance-metrics.js";
 import { isReplacementTarget, replacementTargetNames } from "./replacement-target.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { sourcePlayerIdentityKey } from "../identity/source-player-key.js";
 
 export interface ReferencePlayerProfile {
   playerId: string;
+  sourceIdentityKey: string;
   name: string;
   source: string;
   provider: string;
@@ -16,11 +18,19 @@ export interface ReferencePlayerProfile {
   metrics: Record<string, number>;
 }
 
-/** Exact explicit aliases resolve a reference within one source, never merge records. */
+/** Match exact aliases only; if one provider has multiple same-name identities, leave that source unresolved. */
 export function createReferencePlayerProfiles(players: readonly PlayerProfile[], messages: readonly string[], referenceNames: readonly string[] = []): ReferencePlayerProfile[] {
   const names = [...replacementTargetNames(messages), ...referenceNames.map(normalizeSearchText)];
-  return players.filter(player => isReplacementTarget(player.name, names)).map(player => ({
-    playerId: player.playerId, name: player.name, source: player.source,
+  const matches = players.filter(player => isReplacementTarget(player.name, names));
+  const idsByProvider = new Map<string, Set<string>>();
+  for (const player of matches) {
+    const provider = player.sourceIdentity?.provider ?? player.source;
+    const ids = idsByProvider.get(provider) ?? new Set<string>();
+    ids.add(sourcePlayerIdentityKey(player));
+    idsByProvider.set(provider, ids);
+  }
+  return matches.filter(player => (idsByProvider.get(player.sourceIdentity?.provider ?? player.source)?.size ?? 0) === 1).map(player => ({
+    playerId: player.playerId, sourceIdentityKey: sourcePlayerIdentityKey(player), name: player.name, source: player.source,
     provider: player.sourceIdentity?.provider ?? player.source, position: player.position,
     competition: player.competition, season: player.season, minutes: player.minutes,
     metrics: Object.fromEntries([
@@ -63,9 +73,10 @@ export function resolveReplacementReferencePosition(input: {
 
   const positions = [
     ...createReferencePlayerProfiles(input.players, input.userMessages, input.referenceNames).map(({ position }) => position),
-    ...(input.rosterContext?.status === "available" ? input.rosterContext.players
-      .filter(({ name }) => isReplacementTarget(name, names))
-      .map(({ position }) => rosterPosition(position)) : []),
+    ...(input.rosterContext?.status === "available" ? (() => {
+      const matches = input.rosterContext.players.filter(({ name }) => isReplacementTarget(name, names));
+      return matches.length === 1 ? matches.map(({ position }) => rosterPosition(position)) : [];
+    })() : []),
   ].filter((position): position is Position => position !== null);
   const distinctPositions = [...new Set(positions)];
   return distinctPositions.length === 1 ? distinctPositions[0]! : null;

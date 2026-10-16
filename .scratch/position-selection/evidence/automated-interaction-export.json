@@ -1,0 +1,15 @@
+{
+  "task": "LB or LWB",
+  "records": [
+    {
+      "presentation": "list",
+      "width": "390",
+      "positions": [
+        "LWB",
+        "LB"
+      ],
+      "correct": true,
+      "elapsedMs": 16082
+    }
+  ]
+}

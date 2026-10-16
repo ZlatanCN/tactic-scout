@@ -72,7 +72,7 @@ async function evaluatePlayers(
     if (!player) return [];
     const searchContext = eligibleById.get(id);
     const positionAwarePlayer = searchContext?.positionEvidence
-      ? { ...player, positionEvidence: searchContext.positionEvidence }
+      ? { ...player, position: searchContext.position, positionEvidence: searchContext.positionEvidence, positionEvidenceByPosition: searchContext.positionEvidenceByPosition }
       : player;
     const research = understatResearch[id];
     const positionalMetrics = research ? understatPositionMetricsForPlayer(positionAwarePlayer, research) : [];

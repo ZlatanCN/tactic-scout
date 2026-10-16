@@ -1,3 +1,4 @@
+import type { PlayerIdentityAnswer, PositionSelectionAnswer, SelectablePosition } from "../../src/domain/schemas";
 import {
   DatasetStatusSchema,
   ConversationTurnResponseSchema,
@@ -73,11 +74,11 @@ export async function getDatasetStatus(): Promise<DatasetStatus> {
   return parseContract(DatasetStatusSchema, await readResponse(response));
 }
 
-export async function turnRecruitmentCase(caseId: string, message: string, expectsExistingState = false, requestId?: string): Promise<ConversationTurnResponse> {
+export async function turnRecruitmentCase(caseId: string, message: string, expectsExistingState = false, requestId?: string, positionAnswer?: PositionSelectionAnswer, positionUpdate?: SelectablePosition[], playerIdentityAnswer?: PlayerIdentityAnswer): Promise<ConversationTurnResponse> {
   const response = await fetch(`/api/v1/recruitment/cases/${encodeURIComponent(caseId)}/turns`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...(requestId ? { requestId } : {}), message, expectsExistingState }),
+    body: JSON.stringify({ ...(requestId ? { requestId } : {}), message, expectsExistingState, ...(positionAnswer ? { positionAnswer } : {}), ...(positionUpdate ? { positionUpdate } : {}), ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}) }),
   });
   return parseContract(ConversationTurnResponseSchema, await readResponse(response));
 }

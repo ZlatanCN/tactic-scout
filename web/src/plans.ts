@@ -1,6 +1,9 @@
 import { z } from "zod/v4";
 import {
   ConversationTurnResponseSchema,
+  PlayerIdentityQuestionSchema,
+  PositionSelectionQuestionSchema,
+  SelectablePositionSchema,
   ScoutInputSchema,
   ScoutResponseSchema,
   CapabilityMetricDefinitions,
@@ -20,6 +23,8 @@ export const ConversationMessageSchema = z.object({
   content: z.string(),
   teamContext: z.string().optional(),
   questionReason: z.string().optional(),
+  questionInput: z.union([PositionSelectionQuestionSchema, PlayerIdentityQuestionSchema]).optional(),
+  selectedPositions: z.array(SelectablePositionSchema).optional(),
   isReanalysisAction: z.boolean().optional(),
   progressNotice: z.string().optional(),
   progressEvents: z.array(RecruitmentProgressEventSchema).max(24).optional(),
@@ -287,7 +292,7 @@ export function messageFromTurn(response: ConversationTurnResponse, progressNoti
     id: crypto.randomUUID(),
     role: "assistant",
     content: response.message,
-    ...(response.question ? { questionReason: response.question.reason } : {}),
+    ...(response.question ? { questionReason: response.question.reason, ...(response.question.input ? { questionInput: response.question.input } : {}) } : {}),
     ...(progressNotice ? { progressNotice } : {}),
     ...(response.progressEvents ? { progressEvents: response.progressEvents } : {}),
   });

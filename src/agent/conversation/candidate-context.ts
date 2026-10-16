@@ -9,6 +9,7 @@ import { type CandidateSearchAction, type CandidateSearchObservation, type Evalu
 export function candidateSearchScopeKey(action: CandidateSearchAction, discoveryMetricGroups: readonly (readonly string[])[] = []): string {
   return JSON.stringify({
     position: action.position,
+    ...(action.positions?.length ? { positions: [...action.positions].sort() } : {}),
     playerName: action.playerName ? normalizeSearchText(action.playerName) : null,
     maxAge: action.maxAge,
     minimumMinutes: action.minimumMinutes,
@@ -21,7 +22,8 @@ export function candidateSearchScopeKey(action: CandidateSearchAction, discovery
 function candidateSearchScopeKeyForIntent(intent: CandidateSearchIntent): string {
   return candidateSearchScopeKey({
     action: "search_candidates",
-    position: intent.position,
+    position: intent.positions && intent.positions.length > 1 ? null : intent.position,
+    ...(intent.positions && intent.positions.length > 1 ? { positions: [...intent.positions] } : {}),
     playerName: null,
     maxAge: intent.maxAge,
     minimumMinutes: intent.minimumMinutes,
@@ -75,7 +77,7 @@ export function sampleUnevaluatedCandidates(state: State, limit = 10): string[] 
   for (const group of groups) {
     for (const playerId of group.recordPlayerIds) {
       const player = state.discoveredPlayers[playerId];
-      if (!player || state.evaluatedPlayers[playerId] || !candidateMatchesSearchIntent(player, intent)) continue;
+      if (!player || positionEvaluationIsCurrent(player, state.evaluatedPlayers[playerId]) || !candidateMatchesSearchIntent(player, intent)) continue;
       candidates.push(playerId);
       if (candidates.length >= limit) return candidates;
     }
@@ -113,15 +115,18 @@ export function routeCandidateSearch(
   };
 }
 
-type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history"> & Partial<Pick<State, "referenceNameResolution">>;
+type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles"> & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions">>;
 
 export function resolvedCandidateSearchIntent(state: CandidateConstraintState, latestMessage?: string): CandidateSearchIntent {
   const messages = userMessages(state.history);
   return resolveCandidateSearchIntent({
     userMessages: latestMessage === undefined ? messages : [...messages, latestMessage],
     confirmedPosition: state.confirmedPosition,
+    confirmedPositions: state.confirmedPositions,
     replacementReferencePosition: state.replacementReferencePosition,
-    referenceNames: state.referenceNameResolution?.names,
+    referenceNames: state.referenceNameResolution?.status === "resolved" ? state.referenceNameResolution.player.names : undefined,
+    referenceIdentityResolved: state.referenceNameResolution?.status === "resolved",
+    referenceSourceIdentityKeys: state.referenceProfiles.map(profile => profile.sourceIdentityKey),
     ...(latestMessage === undefined ? {} : { latestMessage }),
   });
 }
@@ -152,11 +157,12 @@ export function discoveredPlayersForConstraint(
 }
 
 export function evaluatedPlayersForConstraint(
-  state: CandidateConstraintState & Pick<State, "evaluatedPlayers">,
+  state: CandidateConstraintState & Pick<State, "evaluatedPlayers"> & Partial<Pick<State, "discoveredPlayers">>,
   intent = resolvedCandidateSearchIntent(state),
 ): Record<string, EvaluatedPlayer> {
   return Object.fromEntries(Object.entries(state.evaluatedPlayers).filter(([, evaluated]) =>
-    candidateMatchesSearchIntent(evaluated.player, intent),
+    candidateMatchesSearchIntent(evaluated.player, intent)
+      && positionEvaluationIsCurrent(state.discoveredPlayers?.[evaluated.player.playerId] ?? evaluated.player, evaluated),
   ));
 }
 
@@ -166,4 +172,9 @@ export function userMessages(history: ConversationHistoryEntry[]): string[] {
 
 export function candidateIdentityGroupReferencesFor(state: Pick<State, "candidateIdentityGroups" | "discoveredPlayers">, groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[]): CandidateIdentityGroupReference[] {
   return state.candidateIdentityGroups.length ? state.candidateIdentityGroups : toCandidateIdentityGroupReferences(groupCandidateRecords(Object.values(state.discoveredPlayers)));
+}
+
+export function positionEvaluationIsCurrent(player: PlayerProfile, evaluated: EvaluatedPlayer | undefined): boolean {
+  return Boolean(evaluated && JSON.stringify([player.positionEvidence, player.positionEvidenceByPosition])
+    === JSON.stringify([evaluated.player.positionEvidence, evaluated.player.positionEvidenceByPosition]));
 }

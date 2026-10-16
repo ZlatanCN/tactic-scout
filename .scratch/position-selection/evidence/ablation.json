@@ -1,0 +1,61 @@
+{
+  "fixture": "tests/fixtures/position-selection.ts",
+  "method": "paired frozen whole-graph fixture; scripted Planner, no external model calls",
+  "interpretation": "tests selection fidelity; elapsed time is not real model latency or human usability evidence",
+  "results": [
+    {
+      "text_reinterpretation": {
+        "selectedPositions": [
+          "LB",
+          "LWB"
+        ],
+        "recommendedPlayers": [
+          "wing-back"
+        ],
+        "plannerCalls": 4,
+        "toolCalls": 6,
+        "elapsedMs": 168
+      },
+      "structured_confirmation": {
+        "selectedPositions": [
+          "LB",
+          "LWB"
+        ],
+        "recommendedPlayers": [
+          "left-back",
+          "wing-back"
+        ],
+        "plannerCalls": 3,
+        "toolCalls": 6,
+        "elapsedMs": 67
+      }
+    },
+    {
+      "text_reinterpretation": {
+        "selectedPositions": [
+          "LB",
+          "RW"
+        ],
+        "recommendedPlayers": [
+          "right-wing"
+        ],
+        "plannerCalls": 4,
+        "toolCalls": 6,
+        "elapsedMs": 57
+      },
+      "structured_confirmation": {
+        "selectedPositions": [
+          "LB",
+          "RW"
+        ],
+        "recommendedPlayers": [
+          "left-back",
+          "right-wing"
+        ],
+        "plannerCalls": 3,
+        "toolCalls": 6,
+        "elapsedMs": 44
+      }
+    }
+  ]
+}

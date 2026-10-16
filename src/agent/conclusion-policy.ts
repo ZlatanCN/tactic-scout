@@ -26,6 +26,7 @@ export interface RecruitmentDecisionConstraints {
 }
 
 export interface RecruitmentExpansionConstraints {
+  positions?: Position[];
   targetTeam: string | null;
   nextOffset: number;
   position: Position | null;
@@ -193,6 +194,7 @@ export function expansionPlannerFallback(input: {
       action: "search_candidates",
       targetTeam: expansionConstraints.targetTeam,
       position: expansionConstraints.position,
+      ...(expansionConstraints.positions ? { positions: expansionConstraints.positions } : {}),
       playerName: expansionConstraints.playerName,
       maxAge: expansionConstraints.maxAge,
       minimumMinutes: expansionConstraints.minimumMinutes,
@@ -307,13 +309,14 @@ function reportMatchesCandidate(
 export function buildDecisionConstraints(input: {
   targetTeam: string | null;
   confirmedPosition?: Position | null;
+  confirmedPositions?: readonly Position[];
   userMessages?: readonly string[];
   evaluatedPlayers: EvaluatedCandidate[];
   retrievedKnowledge: KnowledgeSearchResult[];
   candidateIdentityGroups?: readonly CandidateIdentityGroupReference[];
 }): RecruitmentDecisionConstraints {
   const eligiblePlayers = input.evaluatedPlayers.filter(({ player }) =>
-    !input.confirmedPosition || playerPositionMatches(player, input.confirmedPosition),
+    matchesConfirmedPosition(player, input),
   );
   const playerReportDocuments = input.retrievedKnowledge.filter((document) =>
     document.corpus === "player_report" && document.displayAllowed,
@@ -381,6 +384,7 @@ export function alignRecommendationEvidenceToRequestedCapabilities(input: {
 export function validateConclusion(input: {
   action: ParsedRecruitmentAction | undefined;
   confirmedPosition?: Position | null;
+  confirmedPositions?: readonly Position[];
   userMessages?: readonly string[];
   evaluatedPlayers: Record<string, EvaluatedCandidate>;
   retrievedKnowledge: Record<string, KnowledgeSearchResult>;
@@ -410,7 +414,7 @@ export function validateConclusion(input: {
       problems.push(`球员 ${recommendation.playerId} 没有能力评估证据。`);
       continue;
     }
-    if (input.confirmedPosition && !playerPositionMatches(evaluated.player, input.confirmedPosition)) {
+    if (!matchesConfirmedPosition(evaluated.player, input)) {
       problems.push(`球员 ${recommendation.playerId} 不符合用户确认的位置 ${input.confirmedPosition}。`);
       continue;
     }
@@ -437,7 +441,7 @@ export function validateConclusion(input: {
       problems.push(`球员 ${observation.playerId} 没有比赛数据评估，不能附加球员定性观察。`);
       continue;
     }
-    if (input.confirmedPosition && !playerPositionMatches(evaluated.player, input.confirmedPosition)) {
+    if (!matchesConfirmedPosition(evaluated.player, input)) {
       problems.push(`球员 ${observation.playerId} 不符合用户确认的位置 ${input.confirmedPosition}，不能附加球员定性观察。`);
       continue;
     }
@@ -447,7 +451,7 @@ export function validateConclusion(input: {
     }
     if (!document.displayAllowed) problems.push(`来源 ${document.sourceName} 不允许在报告中展示。`);
     const eligiblePlayers = Object.values(input.evaluatedPlayers).filter(({ player }) =>
-      !input.confirmedPosition || playerPositionMatches(player, input.confirmedPosition),
+      matchesConfirmedPosition(player, input),
     );
     if (!reportMatchesCandidate(document, evaluated.player, eligiblePlayers)) {
       problems.push(`报告文档 ${observation.documentId} 的实体元数据不匹配球员 ${evaluated.player.name}。`);
@@ -457,4 +461,9 @@ export function validateConclusion(input: {
     if (invalidKeys.length) problems.push(`球员定性观察引用了不存在的比赛指标：${invalidKeys.join(", ")}`);
   }
   return problems;
+}
+
+function matchesConfirmedPosition(player: EvaluatedCandidate["player"], input: { confirmedPosition?: Position | null; confirmedPositions?: readonly Position[] }): boolean {
+  const positions = input.confirmedPositions?.length ? input.confirmedPositions : input.confirmedPosition ? [input.confirmedPosition] : [];
+  return !positions.length || positions.some((position) => playerPositionMatches(player, position));
 }

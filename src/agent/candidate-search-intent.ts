@@ -4,6 +4,7 @@ import { playerPositionMatches, positionMatchesRetrieval } from "../domain/posit
 import type { CapabilityMetricKey, PlayerProfile, Position } from "../domain/schemas.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import { understatCatalogPositionGroupsFor } from "../data/understat-position-evidence.js";
+import { sourcePlayerIdentityKey } from "../identity/source-player-key.js";
 
 import { replacementTargetNames, replacementTargetMention, isReplacementTarget } from "./replacement-target.js";
 
@@ -12,6 +13,7 @@ export type PositionConstraintChange = { changed: true; position: Position | nul
 export interface CandidateSearchIntent {
   discoveryMetricGroups: CapabilityMetricKey[][];
   position: Position | null;
+  positions?: readonly Position[];
   positionBasis: "user" | "reference" | null;
   maxAge: number | null;
   minimumMinutes: number;
@@ -20,6 +22,8 @@ export interface CandidateSearchIntent {
   allowsAnyPosition: boolean;
   replacementRequest: boolean;
   replacementTargetNames: string[];
+  referenceIdentityResolved?: boolean;
+  referenceSourceIdentityKeys?: readonly string[];
   declinedPositionBroadening: boolean;
   competitionMentioned: boolean;
   latestPositionChange: PositionConstraintChange;
@@ -204,8 +208,11 @@ function explicitMinimumMinutes(userMessages: readonly string[]): number {
 export function resolveCandidateSearchIntent(input: {
   userMessages: readonly string[];
   confirmedPosition: Position | null;
+  confirmedPositions?: readonly Position[];
   replacementReferencePosition?: Position | null;
   referenceNames?: readonly string[];
+  referenceIdentityResolved?: boolean;
+  referenceSourceIdentityKeys?: readonly string[];
   latestMessage?: string;
 }): CandidateSearchIntent {
   const { userMessages, confirmedPosition, replacementReferencePosition = null, latestMessage } = input;
@@ -221,10 +228,12 @@ export function resolveCandidateSearchIntent(input: {
   const allowsAnyPosition = positionMessages.some((message) => broadAnyPositionPattern.test(message)
     || (broadenPositionPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
       && !declinePositionBroadeningPattern.test(message)));
-  const position = allowsAnyPosition ? null : effectiveConfirmedPosition ?? explicitPosition
+  const selectedPositions = latestPositionChange.changed ? [] : input.confirmedPositions ?? [];
+  const position = selectedPositions.length ? selectedPositions[0]! : allowsAnyPosition ? null : effectiveConfirmedPosition ?? explicitPosition
     ?? (replacementRequest ? replacementReferencePosition : null);
   return {
     position,
+    ...(selectedPositions.length ? { positions: selectedPositions } : {}),
     discoveryMetricGroups: requestedCapabilityEvidenceAreas(userMessages).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
     positionBasis: position === null ? null : effectiveConfirmedPosition !== null || explicitPosition !== null ? "user" : "reference",
     maxAge: explicitMaxAge(userMessages),
@@ -234,6 +243,7 @@ export function resolveCandidateSearchIntent(input: {
     allowsAnyPosition,
     replacementRequest,
     replacementTargetNames: [...new Set([...replacementTargetNames(userMessages), ...(input.referenceNames ?? []).map(normalizeSearchText)])],
+    ...(input.referenceIdentityResolved ? { referenceIdentityResolved: true, referenceSourceIdentityKeys: input.referenceSourceIdentityKeys ?? [] } : {}),
     declinedPositionBroadening: userMessages.some((message) => declinePositionBroadeningPattern.test(message)),
     competitionMentioned: userMessages.some((message) => explicitCompetitionPattern.test(message)),
     latestPositionChange,
@@ -241,7 +251,9 @@ export function resolveCandidateSearchIntent(input: {
 }
 
 function matchesNonPositionIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
-  if (isReplacementTarget(player.name, intent.replacementTargetNames)) return false;
+  if (intent.referenceIdentityResolved
+    ? intent.referenceSourceIdentityKeys?.includes(sourcePlayerIdentityKey(player))
+    : isReplacementTarget(player.name, intent.replacementTargetNames)) return false;
   if (intent.maxAge !== null && (player.age === null || player.age > intent.maxAge)) return false;
   if (player.minutes < intent.minimumMinutes) return false;
   if (intent.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(intent.competition))) return false;
@@ -251,20 +263,19 @@ function matchesNonPositionIntent(player: PlayerProfile, intent: CandidateSearch
 
 export function candidateMatchesSearchIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
   if (!matchesNonPositionIntent(player, intent)) return false;
-  if (intent.position && !playerPositionMatches(player, intent.position)) return false;
+  const positions = intent.positions?.length ? intent.positions : intent.position ? [intent.position] : [];
+  if (positions.length && !positions.some((position) => playerPositionMatches(player, position))) return false;
   return true;
 }
 
 /** Includes source-family records only for recall and position-evidence investigation. */
 export function candidateMatchesSearchIntentForPositionRetrieval(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
   if (!matchesNonPositionIntent(player, intent)) return false;
-  if (!intent.position) return true;
+  const positions = intent.positions?.length ? intent.positions : intent.position ? [intent.position] : [];
+  if (!positions.length) return true;
   const isUnderstat = player.sourceIdentity?.provider === "understat";
-  return positionMatchesRetrieval(
-    player.position,
-    intent.position,
-    player.sourceIdentity?.positionGroups,
-    isUnderstat ? understatCatalogPositionGroupsFor(intent.position) : [],
-    isUnderstat,
-  );
+  return positions.some((position) => positionMatchesRetrieval(
+    player.position, position, player.sourceIdentity?.positionGroups,
+    isUnderstat ? understatCatalogPositionGroupsFor(position) : [], isUnderstat,
+  ));
 }

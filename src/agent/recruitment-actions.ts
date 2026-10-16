@@ -34,6 +34,7 @@ export const AskUserActionSchema = z.object({
   action: z.literal("ask_user"),
   question: z.string().min(1),
   reason: z.string().min(1),
+  positionSelection: z.object({ highlight: PositionSchema.nullable(), current: PositionSchema.optional() }).optional(),
 });
 
 const targetTeamContextField = { targetTeam: z.string().trim().min(1).nullable().optional() };
@@ -42,6 +43,7 @@ export const SearchCandidatesActionSchema = z.object({
   ...targetTeamContextField,
   action: z.literal("search_candidates"),
   position: PositionSchema.nullable().default(null),
+  positions: z.array(PositionSchema).min(1).max(12).optional(),
   playerName: z.string().trim().min(1).nullable().default(null),
   maxAge: z.number().int().min(15).max(45).nullable().default(null),
   minimumMinutes: z.number().int().min(0).max(5000).default(0),

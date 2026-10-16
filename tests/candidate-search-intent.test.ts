@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveCandidateSearchIntent } from "../src/agent/candidate-search-intent.js";
+import { candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../src/agent/candidate-search-intent.js";
 
 test("accepted broad source positions take precedence over the specific role left for verification", () => {
   const answer = "同意按前锋大类继续检索，中锋职责标为待核实。保持五大联赛、年龄不限，继续生成候选名单。";
@@ -39,6 +39,26 @@ test("replacement requests inherit the reference player's observed position by d
 
   assert.equal(intent.position, "GK");
   assert.equal(intent.replacementRequest, true);
+});
+
+test("a confirmed Wikidata identity excludes only its uniquely matched provider record, never same-name records from other providers", () => {
+  const intent = resolveCandidateSearchIntent({
+    userMessages: ["为拜仁寻找基米希的替代者，限定中前卫"],
+    confirmedPosition: "CM",
+    referenceNames: ["Joshua Kimmich", "基米希"],
+    referenceIdentityResolved: true,
+    referenceSourceIdentityKeys: [JSON.stringify(["source_identity", "understat", "kimmich-1"])],
+  });
+  const sourceRecord = (provider: string, playerId: string) => ({
+    playerId, name: "Joshua Kimmich", team: "Bayern Munich", age: 31, position: "CM" as const,
+    competition: "Bundesliga", season: "2025/26", minutes: 1000, source: provider,
+    sourceIdentity: { provider, playerId, retrievedAt: "2026-10-16T00:00:00.000Z" },
+    stats: { goals: 1, assists: 1, passesAttempted: 1, passesCompleted: 1, longPasses: 0, carries: 0,
+      pressures: 0, tackles: 0, interceptions: 0, shotAssists: 0, keyPasses: 0 },
+  });
+  assert.equal(candidateMatchesSearchIntent(sourceRecord("understat", "kimmich-1"), intent), false);
+  assert.equal(candidateMatchesSearchIntent(sourceRecord("fbref", "kimmich-9"), intent), true,
+    "without a provider ID crosswalk, a name match in another source stays an independent record");
 });
 
 test("explicit filters accumulate across clarification turns", () => {

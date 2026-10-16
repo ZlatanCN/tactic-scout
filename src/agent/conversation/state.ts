@@ -33,6 +33,7 @@ export interface CandidateSearchObservation {
 
 export const RecruitmentState = Annotation.Root({
   userMessage: Annotation<string>(),
+  incomingPositions: replaceable<import("../../domain/schemas.js").SelectablePosition[] | null>(() => null),
   history: Annotation<ConversationHistoryEntry[]>({
     reducer: (previous, update) => previous.concat(update),
     default: () => [],
@@ -68,10 +69,12 @@ export const RecruitmentState = Annotation.Root({
   understatPlayerResearch: replaceable<Record<string, UnderstatPlayerResearch>>(() => ({})),
   understatTeamResearch: replaceable<UnderstatTeamResearch | null>(() => null),
   understatMatchResearch: replaceable<Record<string, UnderstatMatchResearch>>(() => ({})),
-  referenceNameResolution: replaceable<import("../../data/player-name-resolver.js").ResolvedPlayerName | null>(() => null),
+  referenceNameResolution: replaceable<import("../../data/player-name-resolver.js").PlayerNameResolution | null>(() => null),
+  referenceResolutionQuery: replaceable<string | null>(() => null),
   inspectedReferenceMention: replaceable<string | null>(() => null),
   replacementReferencePosition: replaceable<Position | null>(() => null),
   confirmedPosition: replaceable<Position | null>(() => null),
+  confirmedPositions: replaceable<import("../../domain/schemas.js").SelectablePosition[]>(() => []),
   confirmedPositionSearchObservationIndex: replaceable<number | null>(() => null),
   candidateSearchScopeChanged: replaceable<boolean>(() => false),
   confirmedPositionNoMatchQuestionAsked: replaceable<boolean>(() => false),

@@ -50,6 +50,20 @@ test("reference position resolution uses exact player identity and the roster's 
   assert.equal(rosterPosition, "GK");
 });
 
+test("same-name records are linked only within a uniquely identified provider record", () => {
+  const record = (playerId: string): PlayerProfile => ({
+    ...player("kimmich", "Joshua Kimmich", 0),
+    playerId,
+    sourceIdentity: { provider: "understat", playerId, retrievedAt: "2026-10-16T00:00:00.000Z" },
+  });
+  const unique = createReferencePlayerProfiles([record("u-1")], ["为拜仁寻找基米希的替代者"], ["Joshua Kimmich"]);
+  assert.equal(unique.length, 1);
+  assert.equal(unique[0]?.sourceIdentityKey, JSON.stringify(["source_identity", "understat", "u-1"]));
+
+  const homonyms = createReferencePlayerProfiles([record("u-1"), record("u-2")], ["为拜仁寻找基米希的替代者"], ["Joshua Kimmich"]);
+  assert.deepEqual(homonyms, [], "two distinct same-name records in one provider are not guessed to be the reference");
+});
+
 test("reference comparisons require the same observed scope and a shared metric", () => {
   const profile = createReferencePlayerProfiles([reference], ["为拜仁寻找凯恩的替代者"])[0]!;
   const candidate = {

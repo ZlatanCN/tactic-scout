@@ -27,6 +27,7 @@ export interface RecruitmentPlanner {
     targetTeam: string | null;
     decisionMode?: RecruitmentDecisionMode;
     confirmedPosition: Position | null;
+    confirmedPositions?: readonly Position[];
     positionBroadeningApproved?: boolean;
     signal?: AbortSignal;
     constraints?: RecruitmentDecisionConstraints;
@@ -120,6 +121,7 @@ const agentInstructions = [
   "缺少接应、终结技术等直接能力指标不等于球员不符合要求。若已有符合用户硬约束的球员及表现证据，可提供多名待考察候选并逐项列出未核实能力；不要因缺少录像或不可测量项而淘汰所有人，也不要将进球或 xG 描述成已证实终结技术。候选较多时优先给出 3 名有依据且各有取舍的线索；不为凑数编造球员或证据。",
   "如果候选搜索工具返回错误或提示某个明确条件未被来源应用，不能把错误当成空名单，也不能推荐不满足该条件的球员；应说明数据源无法核实/执行该条件，再判断是否有其他可用查询或需要用户调整需求。",
   "FBref 返回 errorCode=blocked 或 rate_limit 时，本轮停止 FBref 查询，不重复尝试、不把错误解释成没有符合条件的球员；明确告诉用户来源拒绝了请求，当前无法用该来源生成候选名单。",
+  "位置类追问必须提供 positionSelection={highlight:相关大类或null}，前端会展示足球场供用户选择；其他问题不设置此字段。confirmedPositions 非空代表用户已明确选择多个任一匹配位置，搜索必须保留完整 positions 列表并设置 position=null；不能只查其中一个、重复确认位置或解释成必须全部兼任。",
   "位置约束必须忠实保留用户原话。用户只说泛称‘中场’、‘后卫’、‘前锋’时，分别用宽泛位置组 MID、DEF、ATT 搜索；不得自行缩成 CM、AM、CB、LW 等单一子位置。普通补强请求若没有位置，才用 position=null 做有界首轮发现后追问。替代者请求应优先继承参考球员可核实的位置；若用户明确提出其他位置，则遵从用户新要求。只有用户明确说后腰、中前卫、前腰等具体角色时，才用单一细分位置作为硬筛选。最终推荐必须符合已确认的位置范围。",
   "当用户要求寻找某名球员的‘替代者/接班人/替补’时，将该球员作为参考画像，不把他当作候选过滤条件。search_candidates.playerName 只用于核验球员报告新发现的候选人；绝不能用参考球员姓名筛选候选池。参考球员的典型位置/主要角色是替代需求默认值：先从 inspect_team 的表现样本或 currentRosterContext 中匹配身份和位置；若名单没有该球员，对足球界常见且位置明确的球员（例如哈里·凯恩是中锋、曼努埃尔·诺伊尔是门将），依据稳定的足球位置知识给 search_candidates 填具体 position 并立即按该位置搜索。该位置搜索是 Agent 的默认解释，不要求用户确认。可用的多个角色若有明确主要位置，先按主要位置；只有身份本身无法识别，或多个常见角色同样合理且会实质改变候选池时，才问一个具体的身份/位置问题。不要先搜混合位置候选，也绝不能把‘延续参考球员角色还是考虑不同位置’作为默认问题。不要据记忆断言现役球队、联赛、年龄、合同或详细表现。同位置候选搜索确实没有结果时，才根据真实空结果询问是否扩大位置范围。",
   "参考球员在本地数据中查不到，不等于用户需求不清楚，也不得因此要求用户确认球员身份或是否跨联赛搜索。用户已明确说‘前锋’等宽泛位置时，先按这个位置广泛发现候选人；只有用户自己提出年龄、预算、联赛或赛季偏好时，才将它们作为限制或追问。数据源可能提供历史样本或限定范围的当前赛季记录；以案件中的数据来源和工具结果为准，不扩大解释成完整名单或市场覆盖。禁止凭模型记忆断言球员现役事实，也不要把目标球队所属联赛当作候选球员的搜索范围。",
@@ -252,6 +254,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       targetTeam: input.targetTeam,
       decisionMode: input.decisionMode ?? "investigate",
       confirmedPosition: input.confirmedPosition,
+      confirmedPositions: input.confirmedPositions,
       positionBroadeningApproved: input.positionBroadeningApproved ?? false,
       ...(input.constraints ? { requestedCapabilityCoverage: input.constraints.requestedCapabilityCoverage } : {}),
       ...((input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints ? {

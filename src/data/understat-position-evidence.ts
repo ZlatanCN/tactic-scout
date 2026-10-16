@@ -112,6 +112,7 @@ export function withUnderstatPositionEvidence(
     ...profile,
     ...(positionEvidence.status === "direct" ? { position: targetPosition } : {}),
     positionEvidence,
+    positionEvidenceByPosition: { ...profile.positionEvidenceByPosition, [targetPosition]: positionEvidence },
   };
 }
 
@@ -136,4 +137,12 @@ export function isUnderstatFinePositionSearch(position: Position): boolean {
 
 export function understatPositionSourceCodesFor(position: Position): string[] {
   return Object.entries(understatPositionMappings[position] ?? {}).map(([code]) => code).sort();
+}
+
+/** One source read can verify every selected role without overwriting another role's evidence. */
+export function withUnderstatPositionEvidenceForTargets(profile: PlayerProfile, insight: UnderstatPlayerInsight | undefined, targets: readonly Position[]): PlayerProfile {
+  const result = targets.reduce((player, target) => withUnderstatPositionEvidence(player, insight, target), profile);
+  const evidence = targets.map((target) => result.positionEvidenceByPosition?.[target]);
+  const primary = evidence.find((item) => item?.status === "direct") ?? evidence.find((item) => item?.status === "compatible") ?? evidence[0];
+  return { ...result, ...(primary ? { positionEvidence: primary, ...(primary.status === "direct" ? { position: primary.targetPosition } : {}) } : {}) };
 }

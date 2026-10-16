@@ -1,3 +1,4 @@
+import { matchesPlayerSearch, searchLoadedPlayers } from "./player-search.js";
 import {
   PlayerProfileSchema,
   SupplementaryCapabilityMetricDefinitions,
@@ -328,7 +329,8 @@ function searchPlayers(players: readonly PlayerProfile[], query: PlayerSearchQue
   const normalizedSeason = query.season ? normalizeSearchText(query.season) : null;
   const matching = players.filter((player) => {
     if (normalizedName && !normalizeSearchText(player.name).includes(normalizedName)) return false;
-    if (query.position && !(query.positionMatchMode === "family"
+    if (query.positions?.length && !matchesPlayerSearch(player, { ...query, competition: null })) return false;
+    if (!query.positions?.length && query.position && !(query.positionMatchMode === "family"
       ? positionMatchesRetrieval(player.position, query.position, player.sourceIdentity?.positionGroups)
       : positionMatches(player.position, query.position))) return false;
     if (player.minutes < query.minimumMinutes) return false;
@@ -337,6 +339,11 @@ function searchPlayers(players: readonly PlayerProfile[], query: PlayerSearchQue
     if (normalizedSeason && normalizeSearchText(player.season) !== normalizedSeason) return false;
     return true;
   });
+  if (query.positions?.length) {
+    const result = searchLoadedPlayers(matching, { ...query, competition: null });
+    if (query.competition) result.appliedFilters.push("competition");
+    return result;
+  }
   const page = matching.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");

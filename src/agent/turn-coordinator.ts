@@ -1,3 +1,4 @@
+import type { PlayerIdentityAnswer, PositionSelectionAnswer, SelectablePosition } from "../domain/schemas.js";
 import { RecruitmentTurnCancelledError } from "./turn-cancellation.js";
 export { RecruitmentTurnCancelledError } from "./turn-cancellation.js";
 
@@ -5,6 +6,9 @@ type TurnInput = {
   caseId: string;
   requestId: string;
   message: string;
+  positionAnswer?: PositionSelectionAnswer;
+  playerIdentityAnswer?: PlayerIdentityAnswer;
+  positionUpdate?: SelectablePosition[];
   expectsExistingState: boolean;
 };
 
@@ -48,7 +52,11 @@ export class RecruitmentTurnCoordinator<Response> {
   ): Promise<Response> {
     this.pruneExpired();
     const key = JSON.stringify([input.caseId, input.requestId]);
-    const fingerprint = JSON.stringify({ message: input.message, expectsExistingState: input.expectsExistingState });
+    const fingerprint = JSON.stringify({ message: input.positionAnswer || input.playerIdentityAnswer ? null : input.message,
+      expectsExistingState: input.expectsExistingState,
+      positionUpdate: input.positionUpdate ? [...input.positionUpdate].sort() : undefined,
+      positionAnswer: input.positionAnswer ? { questionId: input.positionAnswer.questionId, keepCurrent: input.positionAnswer.keepCurrent ?? false, positions: [...input.positionAnswer.positions].sort() } : undefined,
+      playerIdentityAnswer: input.playerIdentityAnswer ? { questionId: input.playerIdentityAnswer.questionId, entityId: input.playerIdentityAnswer.entityId } : undefined });
     const existing = this.entries.get(key);
     if (existing) {
       if (existing.fingerprint !== fingerprint) return Promise.reject(new RecruitmentTurnIdConflictError());

@@ -35,6 +35,7 @@ export function createReviewNode(input: {
     const problems = validateConclusion({
       action: alignment.action,
       confirmedPosition: state.confirmedPosition,
+      confirmedPositions: state.confirmedPositions,
       userMessages: userMessages(state.history),
       evaluatedPlayers: state.evaluatedPlayers,
       retrievedKnowledge: state.retrievedKnowledge,
@@ -98,6 +99,7 @@ export function createReviewNode(input: {
     for (const recommendation of finish.recommendations) {
       const candidateAction = { ...finish, recommendations: [...retained, recommendation], reportObservations: [] };
       if (validateConclusion({ action: candidateAction, confirmedPosition: state.confirmedPosition,
+      confirmedPositions: state.confirmedPositions,
         userMessages: userMessages(state.history), evaluatedPlayers: state.evaluatedPlayers,
         retrievedKnowledge: state.retrievedKnowledge, candidateIdentityGroups: state.candidateIdentityGroups }).length === 0) retained.push(recommendation);
     }

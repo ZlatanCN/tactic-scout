@@ -1,3 +1,6 @@
+import { loadActiveRecruitmentSession, saveActiveRecruitmentSession } from "./active-session";
+import { positionSelectionLabel } from "../../src/domain/position-selection";
+import type { PlayerIdentityAnswer, PositionSelectionAnswer, SelectablePosition } from "../../src/domain/schemas";
 import { useEffect, useState } from "react";
 import { cancelRecruitmentTurn, turnRecruitmentCase } from "./api";
 import { formatDate } from "./format-date";
@@ -35,25 +38,30 @@ function describeTurnError(error: unknown): string {
 
 /** Owns one recruitment conversation, its turn lifecycle, and its saved snapshot. */
 export function useRecruitmentSession() {
-  const [threadId, setThreadId] = useState<string>(() => crypto.randomUUID());
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [report, setReport] = useState<RecruitmentReport | null>(null);
+  const [restoredSession] = useState(loadActiveRecruitmentSession);
+  const [threadId, setThreadId] = useState<string>(() => restoredSession?.threadId ?? crypto.randomUUID());
+  const [messages, setMessages] = useState<ConversationMessage[]>(restoredSession?.messages ?? []);
+  const [report, setReport] = useState<RecruitmentReport | null>(restoredSession?.report ?? null);
   const [teamRosterContext, setTeamRosterContext] = useState<TeamRosterContext | null>(null);
-  const [reportAt, setReportAt] = useState<string | null>(null);
-  const [status, setStatus] = useState<"ready" | "needs_input" | "completed">("ready");
+  const [reportAt, setReportAt] = useState<string | null>(restoredSession?.reportAt ?? null);
+  const [status, setStatus] = useState<"ready" | "needs_input" | "completed">(restoredSession?.status ?? "ready");
   const [draft, setDraft] = useState("");
   const [workspaceView, setWorkspaceView] = useState<"conversation" | "report">("conversation");
   const [teamContext, setTeamContext] = useState("");
-  const [planName, setPlanName] = useState("");
-  const [originalBrief, setOriginalBrief] = useState("");
+  const [planName, setPlanName] = useState(restoredSession?.planName ?? "");
+  const [originalBrief, setOriginalBrief] = useState(restoredSession?.originalBrief ?? "");
   const [plans, setPlans] = useState<SavedRecruitmentPlan[]>([]);
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
-  const [hasConversationState, setHasConversationState] = useState(false);
+  const [activePlanId, setActivePlanId] = useState<string | null>(restoredSession?.activePlanId ?? null);
+  const [hasConversationState, setHasConversationState] = useState(restoredSession?.hasConversationState ?? false);
   const [loading, setLoading] = useState(false);
   const [cancellingRequestId, setCancellingRequestId] = useState<string | null>(null);
-  const [pendingTurnRequest, setPendingTurnRequest] = useState<PendingTurnRequest | null>(null);
+  const [pendingTurnRequest, setPendingTurnRequest] = useState<PendingTurnRequest | null>(restoredSession?.pendingTurnRequest ?? null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    try { saveActiveRecruitmentSession({ threadId, messages, report, reportAt, status, originalBrief, planName, activePlanId, hasConversationState, pendingTurnRequest }); }
+    catch { setNotice("浏览器暂时无法保存当前调查，刷新前请保留重要结果。"); }
+  }, [threadId, messages, report, reportAt, status, originalBrief, planName, activePlanId, hasConversationState, pendingTurnRequest]);
   const progressRuntime = useRecruitmentProgress(pendingTurnRequest, loading);
   const { progress, progressConnection, elapsedSeconds } = progressRuntime;
 
@@ -134,19 +142,24 @@ export function useRecruitmentSession() {
     }
   }
 
-  async function sendMessage(messageText = draft, mode: "normal" | "reanalysis" = "normal") {
+  async function sendMessage(messageText = draft, mode: "normal" | "reanalysis" = "normal", positionAnswer?: PositionSelectionAnswer, positionUpdate?: SelectablePosition[], playerIdentityAnswer?: PlayerIdentityAnswer) {
     const text = messageText.trim();
     if (!text || loading) return;
+    positionAnswer ??= pendingTurnRequest?.outcomeUnknown && pendingTurnRequest.displayText === text ? pendingTurnRequest.positionAnswer : undefined;
     const isReanalysis = mode === "reanalysis";
     const canRecoverReanalysis = isReanalysis && pendingTurnRequest?.outcomeUnknown && pendingTurnRequest.isReanalysis;
     if (isReanalysis && (!activePlanId || !report || (status !== "completed" && !canRecoverReanalysis))) return;
+    positionUpdate ??= pendingTurnRequest?.outcomeUnknown && pendingTurnRequest.displayText === text ? pendingTurnRequest.positionUpdate : undefined;
+    playerIdentityAnswer ??= pendingTurnRequest?.outcomeUnknown && pendingTurnRequest.displayText === text ? pendingTurnRequest.playerIdentityAnswer : undefined;
+    if (isReanalysis) positionUpdate ??= messages.slice().reverse().find((message) => message.selectedPositions?.length)?.selectedPositions;
     const displayText = isReanalysis
       ? "重新分析当前招募需求，并按最新可用数据重新搜索候选人。"
-      : text;
+      : positionUpdate ? `已选择：${positionSelectionLabel(positionUpdate)}` : text;
     const userMessage: ConversationMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: displayText,
+      ...((positionAnswer?.positions ?? positionUpdate) ? { selectedPositions: positionAnswer?.positions ?? positionUpdate } : {}),
       ...(isReanalysis ? { isReanalysisAction: true } : {}),
       ...(!isReanalysis && teamContext.trim() ? { teamContext: teamContext.trim() } : {}),
     };
@@ -176,6 +189,9 @@ export function useRecruitmentSession() {
     const resolution = resolveTurnRequest({
       requested: {
         ...turn,
+        ...(positionAnswer ? { positionAnswer } : {}),
+        ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}),
+        ...(positionUpdate ? { positionUpdate } : {}),
         isReanalysis,
         displayText,
         ...(!isReanalysis && teamContext.trim() ? { displayTeamContext: teamContext.trim() } : {}),
@@ -198,7 +214,7 @@ export function useRecruitmentSession() {
     setNotice(null);
 
     try {
-      const response = await turnRecruitmentCase(request.caseId, request.message, request.expectsExistingState, request.requestId);
+      const response = await turnRecruitmentCase(request.caseId, request.message, request.expectsExistingState, request.requestId, request.positionAnswer, request.positionUpdate, request.playerIdentityAnswer);
       if (response.status === "cancelled") {
         const assistantMessage = messageFromTurn(response);
         const updatedMessages = [...nextMessages, userMessage, assistantMessage];

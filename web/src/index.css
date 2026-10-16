@@ -25,6 +25,15 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-pitch: #234e3c;
+  --color-pitch-line: #a9c0b2;
+  --color-pitch-subtle: #3d6955;
+  --color-pitch-marker: #f1f5ee;
+  --color-pitch-marker-foreground: #203c2e;
+  --color-pitch-label: #173b2c;
+  --color-pitch-label-foreground: #f4f7f1;
+  --color-pitch-selected: #f1cc69;
+  --color-pitch-selected-foreground: #263526;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

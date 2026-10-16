@@ -2,7 +2,7 @@
 
 Type: task
 Status: open
-Labels: needs-info
+Labels: needs-triage
 Blocked by: none
 
 ## Goal
@@ -33,3 +33,4 @@ Allow the registered adaptive-vs-single-pass LangGraph comparison to write a sta
 ## Comments
 
 - 2026-10-13: Proposed after identifying manual drift between safe aggregates, project documentation, and the showcase. TDD requires agreement on public test seams before writing tests; implementation has not started.
+- 2026-10-13: Parked for product-priority review. The TDD seam is confirmed, but a repeatable engineering summary does not directly improve shortlist usefulness; prioritize the scouting decision journey and evidence quality before resuming this work.

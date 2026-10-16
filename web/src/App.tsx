@@ -134,7 +134,8 @@ function App() {
                 teamContext: state.teamContext, planName: state.planName, userCount: state.userCount, error: state.error, notice: state.notice,
               }}
               actions={{
-                onSendMessage: (messageText, mode) => { void actions.sendMessage(messageText ?? state.draft, mode ?? "normal"); },
+                onSendMessage: (messageText, mode, positionAnswer, playerIdentityAnswer) => { void actions.sendMessage(messageText ?? state.draft, mode ?? "normal", positionAnswer, undefined, playerIdentityAnswer); },
+                onUpdatePositions: (positions) => { void actions.sendMessage("修改招募位置，按新选择重新调查", "normal", undefined, positions); },
                 onCancelTurn: () => { void actions.cancelCurrentTurn(); }, onDraftChange: actions.setDraft,
                 onTeamContextChange: actions.setTeamContext, onPlanNameChange: actions.setPlanName,
               }}

@@ -9,7 +9,7 @@ import type { KnowledgePlayerContext, KnowledgeSearchResult } from "../knowledge
 import { inspectTeamPlayers, searchPlayerPage, type PlayerRepository, type PlayerSearchPage } from "../data/player-repository.js";
 import type { ParsedRecruitmentAction, ToolActionName } from "./recruitment-actions.js";
 import { throwIfAborted } from "../domain/abort.js";
-import type { PlayerNameResolver, ResolvedPlayerName } from "../data/player-name-resolver.js";
+import type { PlayerIdentityCandidate, PlayerNameResolution, PlayerNameResolver } from "../data/player-name-resolver.js";
 import type { UnderstatMatchInsight, UnderstatPlayerInsight, UnderstatTeamInsight } from "../data/understat-research.js";
 
 type ToolAction<Action extends ToolActionName> = Extract<ParsedRecruitmentAction, { action: Action }>;
@@ -29,7 +29,7 @@ export type RecruitmentToolExecutionRequest =
     capabilityGaps?: string[];
     playerContexts?: KnowledgePlayerContext[];
   })
-  | (ToolAction<"inspect_team"> & { referenceMention?: string })
+  | (ToolAction<"inspect_team"> & { referenceMention?: string; referenceResolutionOverride?: PlayerIdentityCandidate })
   | ToolAction<"inspect_player">
   | ToolAction<"inspect_candidate_group">
   | ToolAction<"inspect_match">
@@ -49,7 +49,7 @@ export type RecruitmentToolExecutionResult =
     };
     results: KnowledgeSearchResult[];
   }
-  | { action: "inspect_team"; request: ToolAction<"inspect_team">; players: PlayerProfile[]; rosterContext?: TeamRosterContext; referenceNameResolution?: ResolvedPlayerName | null; understatResearch?: UnderstatTeamInsight | null }
+  | { action: "inspect_team"; request: ToolAction<"inspect_team">; players: PlayerProfile[]; rosterContext?: TeamRosterContext; referenceNameResolution?: PlayerNameResolution | null; understatResearch?: UnderstatTeamInsight | null }
   | { action: "inspect_player"; request: ToolAction<"inspect_player">; research: UnderstatPlayerInsight }
   | { action: "inspect_candidate_group"; request: ToolAction<"inspect_candidate_group">; research: UnderstatPlayerInsight[] }
   | { action: "inspect_match"; request: ToolAction<"inspect_match">; research: UnderstatMatchInsight }
@@ -99,10 +99,13 @@ export async function executeRecruitmentToolAction(
         }, { signal })),
       };
     case "inspect_team": {
-      const [players, rosterContext, referenceNameResolution] = await Promise.all([
+      const [players, rosterContext, resolvedReference] = await Promise.all([
         observeCancellation(signal, () => inspectTeamPlayers(dependencies.repository, request.teamName, signal)),
         dependencies.teamRosterEnrichment?.lookupTeamRosterSample(request.teamName, signal),
-        request.referenceMention && dependencies.referenceNameResolver ? dependencies.referenceNameResolver(request.referenceMention, signal) : null,
+        request.referenceResolutionOverride
+          ? Promise.resolve({ status: "resolved" as const, mention: request.referenceMention ?? request.referenceResolutionOverride.preferredName,
+            player: request.referenceResolutionOverride, resolutionMethod: "user_confirmed" as const })
+          : request.referenceMention && dependencies.referenceNameResolver ? dependencies.referenceNameResolver(request.referenceMention, signal) : null,
       ]);
       const understatResearch = dependencies.repository.inspectTeamDetails
         ? await observeCancellation(signal, () => dependencies.repository.inspectTeamDetails!(request.teamName, signal))
@@ -113,7 +116,7 @@ export async function executeRecruitmentToolAction(
         request,
         players,
         ...(rosterContext ? { rosterContext } : {}),
-        referenceNameResolution,
+        referenceNameResolution: resolvedReference,
         ...(understatResearch === undefined ? {} : { understatResearch }),
       };
     }
@@ -145,6 +148,7 @@ export async function executeRecruitmentToolAction(
         page: await observeCancellation(signal, () => searchPlayerPage(dependencies.repository, {
           playerName: request.playerName,
           position: request.position,
+          ...(request.positions?.length ? { positions: request.positions } : {}),
           maxAge: request.maxAge,
           minimumMinutes: request.minimumMinutes,
           competition: request.competition,

@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { selectablePositionsFor } from "../../domain/position-selection.js";
 import type { DatasetMode } from "../../domain/schemas.js";
 import { type Position } from "../../domain/schemas.js";
+import type { PlayerNameResolution } from "../../data/player-name-resolver.js";
 import { resolveCandidateSearchIntent } from "../candidate-search-intent.js";
 import { type ConversationHistoryEntry } from "../planner-context.js";
 import { type ParsedRecruitmentAction } from "../recruitment-actions.js";
@@ -15,7 +18,50 @@ export function questionForAskPolicy(
   action: Extract<ParsedRecruitmentAction, { action: "ask_user" }>,
   mode: RecruitmentAskUserMode,
 ): PendingQuestion {
-  return mode === "disabled" ? askPolicyDisabledPause : { question: action.question, reason: action.reason };
+  if (mode === "disabled") return askPolicyDisabledPause;
+  const selection = action.positionSelection;
+  return {
+    question: action.question,
+    reason: action.reason,
+    ...(selection ? { input: {
+      kind: "positions" as const,
+      questionId: randomUUID(),
+      highlightedPositions: selectablePositionsFor(selection.highlight),
+      selectedPositions: selection.current ? selectablePositionsFor(selection.current) : [],
+      ...(selection.current ? { allowKeepCurrent: true } : {}),
+    } } : {}),
+  };
+}
+
+export function playerIdentityClarification(resolution: Exclude<PlayerNameResolution, { status: "resolved" }>, rawMention: string) {
+  const mention = rawMention.trim() || resolution.mention;
+  const reason = resolution.status === "unavailable"
+    ? "身份查询服务没有返回结果；服务故障不代表球员不存在。为了避免把相似姓名误认成同一人，需要补充线索或稍后重试。"
+    : resolution.status === "unresolved"
+      ? "当前别名与实体来源没有提供足够证据确认这个名字；不能仅凭模型记忆或姓名相似度猜测球员。"
+    : "身份线索尚未与用户提及建立足够可靠的唯一对应。确认前不会把任何候选当作参考球员，也不会据此排除候选名单中的球员。";
+  const question = resolution.status === "unavailable"
+    ? `我暂时无法核实“${mention}”指哪位球员。请补充他的外文全名、球队/位置/年代等线索，或稍后重试。`
+    : resolution.status === "unresolved"
+      ? `我还不能可靠对应“${mention}”。请补充外文全名、球队、位置或大致年代；我不会按相似名字替你猜。`
+      : resolution.status === "needs_confirmation"
+        ? `“${mention}”可能指 ${resolution.candidates[0]?.preferredName}。请确认这是否是你说的球员。`
+        : `“${mention}”对应多个球员。请选择你指的对象，或补充球队、位置或年代。`;
+  return {
+    question,
+    reason,
+    ...(resolution.status === "ambiguous" || resolution.status === "needs_confirmation" ? { input: {
+      kind: "player_identity" as const,
+      questionId: randomUUID(),
+      mention,
+      candidates: resolution.candidates.slice(0, 5).map(candidate => ({
+        entityId: candidate.entityId,
+        name: candidate.preferredName,
+        ...(candidate.description ? { description: candidate.description } : {}),
+        sourceUrl: candidate.sourceUrl,
+      })),
+    } } : {}),
+  };
 }
 
 export function actionForAskPolicy(
@@ -96,7 +142,8 @@ export function replacementPositionClarification(targetTeam: string | null): Ext
   return {
     action: "ask_user",
     targetTeam,
-    question: "我检查了当前可用的阵容和球员数据，但没能可靠确认参考球员的位置。把他的位置告诉我，我就按同位置寻找接班人。",
+    question: "参考球员的位置是什么？在球场上选择，可以多选。",
+    positionSelection: { highlight: null },
     reason: "替代者默认延续参考球员的位置；当前资料无法可靠匹配该球员与位置，不能先用混合位置候选代替。",
   };
 }
@@ -127,11 +174,12 @@ export function asksForSpecificMissingReplacementPosition(
   return /(?:参考球员|他|这名球员).{0,18}(?:具体)?位置.{0,12}(?:是什么|是哪|告诉我|确认)|(?:告诉我|补充|确认).{0,12}(?:球员)?位置|which position|what position/i.test(text);
 }
 
-export function broadRoleQuestion(targetTeam: string | null): Extract<ParsedRecruitmentAction, { action: "ask_user" }> {
+export function broadRoleQuestion(targetTeam: string | null, highlight: Position | null = null): Extract<ParsedRecruitmentAction, { action: "ask_user" }> {
   return {
     action: "ask_user",
     targetTeam,
-    question: "我先做了首轮宽范围调查。你希望补强哪个场上位置？可以说前锋、中场、后卫、门将，也可以指定中锋、边锋或边后卫。",
+    question: "你想补强哪个场上位置？在球场上选择，可以多选。",
+    positionSelection: { highlight },
     reason: "位置会改变候选池和可比较的球员组。我已先检索并评估初步表现样本；你回答后，我会在同一案件按确认的位置继续调查。",
   };
 }
@@ -145,7 +193,8 @@ export function emptyPositionQuestion(
   return {
     action: "ask_user",
     targetTeam,
-    question: `当前数据源中没有找到符合${label}位置范围的候选样本。你希望扩大到其他位置继续找，还是保留${label}范围并先结束本轮？如只愿意放宽到其他前锋位置，也可以直接说明。`,
+    question: `当前数据源中没有找到符合${label}位置范围的候选样本。你想扩大到其他位置继续找吗？可以在球场上选择，或保留${label}范围并结束本轮。`,
+    positionSelection: { highlight: position, current: position },
     reason: sourceMode === "understat"
       ? `Understat 已按${label}对应的大类位置检索，并核实可用的当前赛季细分位置记录；没有得到你的同意前，不会用不符合位置证据的球员替代。`
       : "你确认的位置范围是硬约束；没有得到同意前，我不会用其他位置的球员替代。",

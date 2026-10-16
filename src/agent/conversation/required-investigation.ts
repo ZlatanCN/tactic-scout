@@ -1,23 +1,25 @@
+import { nextSelectedPositionInvestigation } from "./selected-position-investigation.js";
 import type { PlayerRepository } from "../../data/player-repository.js";
 import { isUnderstatFinePositionSearch } from "../../data/understat-position-evidence.js";
 import { canProvideDetailedPositionEvidence } from "../../data/position-evidence-capabilities.js";
 import type { Position } from "../../domain/schemas.js";
-import { playerPositionMatches } from "../../domain/positions.js";
+import { playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { buildDecisionConstraints, conclusionPlannerOutputFallback, requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import type { ConversationHistoryEntry } from "../planner-context.js";
 import { emptyDecision, FinishActionSchema, RecruitmentActionSchema, toolBudgets, type ParsedRecruitmentAction } from "../recruitment-actions.js";
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { constrainedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, sampleUnevaluatedCandidates, userMessages } from "./candidate-context.js";
-import { broadRoleQuestion, emptyPositionQuestion, positionLabels, replacementPositionClarification } from "./interaction-policy.js";
+import { broadRoleQuestion, emptyPositionQuestion, playerIdentityClarification, positionLabels, replacementPositionClarification } from "./interaction-policy.js";
 import { maxDecisionsPerTurn, type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
-import type { UnderstatResearchMode } from "./contracts.js";
+import type { PendingQuestion, UnderstatResearchMode } from "./contracts.js";
 
 interface InvestigationDirective {
   action: ParsedRecruitmentAction;
   message: string;
   suppressedMessage?: string;
+  pendingQuestion?: PendingQuestion;
   update?: Partial<State>;
   history?: ConversationHistoryEntry[];
 }
@@ -129,6 +131,19 @@ export function nextRequiredInvestigation(
     const action = RecruitmentActionSchema.parse({ action: "inspect_team", targetTeam: state.targetTeam, teamName: state.targetTeam });
     return { action, message: "正在读取目标球队和参考球员的已有表现，建立替代需求背景", history: policyHistory(action, "替代者任务先读取参考背景；缺失数据不得由模型臆造。") };
   }
+  const identityResolution = state.referenceNameResolution;
+  if (intent.replacementRequest && identityResolution && identityResolution.status !== "resolved") {
+    const rawMention = replacementTargetMention(userMessages(state.history)) ?? identityResolution.mention;
+    const pendingQuestion = playerIdentityClarification(identityResolution, rawMention);
+    const action = RecruitmentActionSchema.parse({ action: "ask_user", targetTeam: state.targetTeam,
+      question: pendingQuestion.question, reason: pendingQuestion.reason });
+    return {
+      action,
+      pendingQuestion,
+      message: "需要先确认参考球员身份，避免错误排除本人或套用错误位置",
+      history: policyHistory(action, "参考身份不确定；暂停候选搜索。只允许用户确认已验证候选或补充线索，不按搜索排名自行选择。"),
+    };
+  }
   const replacementDiscoveryRecoveryActive = state.policyBlocked && state.policyBlockedRepeatCount >= 2;
   if (replacementDiscoveryRecoveryActive && intent.replacementRequest && state.targetTeam
     && intent.position === null && state.confirmedPosition === null
@@ -143,9 +158,18 @@ export function nextRequiredInvestigation(
       update: { replacementPositionClarificationAsked: true },
     };
   }
+  if (!state.confirmedPositions.length && intent.position && ["DEF", "MID", "ATT", "FB", "WG"].includes(intent.position)
+    && state.confirmedPosition === null && !intent.replacementRequest
+    && new Set(Object.values(eligibleEvaluatedPlayers).map(({ player }) => player.position)
+      .filter((position) => position !== "UNKNOWN" && position !== intent.position && positionFamilyFor(position) === intent.position)).size > 1
+    && !state.roleClarificationAsked) {
+    return { action: broadRoleQuestion(state.targetTeam, intent.position), message: "需要确认具体补强区域", update: { roleClarificationAsked: true } };
+  }
+  const selectedPositionStep = nextSelectedPositionInvestigation(state, source);
+  if (selectedPositionStep) return selectedPositionStep;
   const constrainedPosition = state.confirmedPosition ?? (intent.replacementRequest ? state.replacementReferencePosition : null);
   const constrainedPositionSearch = constrainedPositionSearchObservation(state);
-  const understatFinePosition = (source.mode === "understat" || source.mode === "mosaic")
+  const understatFinePosition = state.confirmedPositions.length < 2 && (source.mode === "understat" || source.mode === "mosaic")
     && intent.position !== null && isUnderstatFinePositionSearch(intent.position)
     ? intent.position
     : null;
@@ -231,7 +255,7 @@ export function nextRequiredInvestigation(
       );
     }
   }
-  if (constrainedPosition && constrainedPositionSearch?.matchingRecordCount === 0) {
+  if (state.confirmedPositions.length < 2 && constrainedPosition && constrainedPositionSearch?.matchingRecordCount === 0) {
     if (constrainedPosition === "GK") return terminal(
       "当前来源没有可用的门将候选记录，无法完成门将替代者比较。",
       "当前数据没有返回可评估的门将记录。这不代表市场上没有合适门将；需要补充门将数据后继续。",
@@ -321,7 +345,7 @@ export function nextRequiredInvestigation(
       };
     }
   }
-  const finePosition = intent.position && isUnderstatFinePositionSearch(intent.position) ? intent.position : null;
+  const finePosition = state.confirmedPositions.length < 2 && intent.position && isUnderstatFinePositionSearch(intent.position) ? intent.position : null;
   if (finePosition && !understatFinePosition && constrainedPositionSearch?.appliedFilters.includes("positionFamily")
     && canProvideDetailedPositionEvidence(source.mode, finePosition)) {
     const verifiedCandidates = discoveredPlayersForConstraint(state, intent).filter((player) => playerPositionMatches(player, finePosition));

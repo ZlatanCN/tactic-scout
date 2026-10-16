@@ -1,5 +1,5 @@
 import type { RecruitmentRetrievalMode } from "./conversation/retrieval-policy.js";
-import { createWikidataPlayerNameResolver, type PlayerNameResolver } from "../data/player-name-resolver.js";
+import { createConfiguredPlayerNameResolver, type PlayerNameResolver } from "../data/player-name-resolver.js";
 import type { TeamRosterEnrichmentProvider } from "../data/thesportsdb-roster.js";
 import { type BaseCheckpointSaver, Command, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { createConfiguredHistoricalArchive } from "../data/historical-archive-enrichment.js";
@@ -97,7 +97,9 @@ export function createRecruitmentConversation(input: {
             state.replacementReferencePosition,
           )
           && state.history.some((entry) => entry.role === "tool" && entry.toolName === "inspect_team");
-        if (!state.hasInvestigated && !unresolvedReplacementPosition) return "replan";
+        const unresolvedReferenceIdentity = state.action.action === "ask_user"
+          && state.pendingQuestion?.input?.kind === "player_identity";
+        if (!state.hasInvestigated && !unresolvedReplacementPosition && !unresolvedReferenceIdentity) return "replan";
         return state.action.action === "ask_user" ? "ask" : "review";
       }
       return "tool";
@@ -142,7 +144,7 @@ export function createRecruitmentConversation(input: {
           tasks: snapshot.tasks.map((task) => ({ interrupts: task.interrupts })),
         };
       },
-      async run({ threadId, message, resume, signal }) {
+      async run({ threadId, message, positionAnswer, playerIdentityAnswer, positionUpdate, resume, signal }) {
         const streamOptions = {
           configurable: { thread_id: threadId },
           recursionLimit,
@@ -152,10 +154,10 @@ export function createRecruitmentConversation(input: {
           ...(signal ? { signal } : {}),
         };
         if (resume) {
-          const graphStream = await workflow.streamEvents(new Command({ resume: message }), streamOptions);
+          const graphStream = await workflow.streamEvents(new Command({ resume: positionAnswer ?? playerIdentityAnswer ?? message }), streamOptions);
           return graphStream;
         }
-        const graphStream = await workflow.streamEvents({ userMessage: message }, streamOptions);
+        const graphStream = await workflow.streamEvents({ userMessage: message, incomingPositions: positionUpdate ?? null }, streamOptions);
         return graphStream;
       },
     },
@@ -198,7 +200,7 @@ export function configuredRecruitmentConversation(
     return createRecruitmentConversation({
       repository,
       planner: plannerFactory(),
-      referenceNameResolver: options.referenceNameResolver ?? createWikidataPlayerNameResolver(),
+      referenceNameResolver: options.referenceNameResolver ?? createConfiguredPlayerNameResolver(),
       experimentalDeterministicSearchMode: options.experimentalDeterministicSearchMode ?? "enabled",
       experimentalRetrievalMode: options.experimentalRetrievalMode ?? "on_demand",
       experimentalReferenceProfileMode: options.experimentalReferenceProfileMode,

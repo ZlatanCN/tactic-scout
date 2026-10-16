@@ -137,7 +137,16 @@ export function createToolNode(input: {
         : action.action === "search_candidates"
           ? { ...action, discoveryMetricGroups: requestedCapabilityEvidenceAreas(currentUserMessages).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
           : action.action === "inspect_team"
-            ? { ...action, referenceMention: replacementTargetMention(currentUserMessages) }
+            ? {
+              ...action,
+              ...(replacementTargetMention(currentUserMessages) ? {
+                referenceMention: [replacementTargetMention(currentUserMessages), state.referenceResolutionQuery]
+                  .filter((value): value is string => Boolean(value?.trim())).join(" "),
+              } : {}),
+              ...(state.referenceNameResolution?.status === "resolved"
+                ? { referenceResolutionOverride: state.referenceNameResolution.player }
+                : {}),
+            }
             : action;
     try {
       const execution = await executeRecruitmentToolAction(toolRequest, {

@@ -5,6 +5,12 @@ import {
 import { RecruitmentTurnCancelledError } from "./turn-cancellation.js";
 import {
   ConversationTurnResponseSchema,
+  PlayerIdentityAnswerSchema,
+  PositionSelectionAnswerSchema,
+  type PlayerIdentityAnswer,
+  type PositionSelectionAnswer,
+  type SelectablePosition,
+  type PositionSelectionQuestion,
   RecruitmentGraphProgressUpdateSchema,
   type ConversationTurnResponse,
   type RecruitmentGraphProgressUpdate,
@@ -20,13 +26,16 @@ export type RecruitmentTurnProgress = Pick<RecruitmentProgress, "stage" | "messa
 export type RecruitmentTurnInput = {
   threadId: string;
   message: string;
+  positionAnswer?: PositionSelectionAnswer;
+  playerIdentityAnswer?: PlayerIdentityAnswer;
+  positionUpdate?: SelectablePosition[];
   expectsExistingState?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: RecruitmentTurnProgress) => void;
 };
 
 export interface RecruitmentTurnState {
-  pendingQuestion: { question: string; reason: string } | null;
+  pendingQuestion: { question: string; reason: string; input?: PositionSelectionQuestion | import("../domain/schemas.js").PlayerIdentityQuestion } | null;
   responseMessage: string;
   report: RecruitmentReport | null;
 }
@@ -43,7 +52,7 @@ export interface RecruitmentTurnGraphRun {
 
 export interface RecruitmentTurnGraph {
   getCheckpoint(threadId: string): Promise<RecruitmentTurnCheckpoint>;
-  run(input: { threadId: string; message: string; resume: boolean; signal?: AbortSignal }): Promise<RecruitmentTurnGraphRun>;
+  run(input: { threadId: string; message: string; positionAnswer?: PositionSelectionAnswer; playerIdentityAnswer?: PlayerIdentityAnswer; positionUpdate?: SelectablePosition[]; resume: boolean; signal?: AbortSignal }): Promise<RecruitmentTurnGraphRun>;
 }
 
 const threadTurnTails = new Map<string, Promise<void>>();
@@ -114,8 +123,13 @@ export function createRecruitmentTurnRuntime(input: {
   assertTurnAllowed: () => void;
   createExpiredStateError: () => Error;
 }): (turn: RecruitmentTurnInput) => Promise<ConversationTurnResponse> {
-  return async ({ threadId, message, expectsExistingState = false, signal, onProgress }) => {
+  return async ({ threadId, message, positionAnswer, playerIdentityAnswer, positionUpdate, expectsExistingState = false, signal, onProgress }) => {
     if (signal?.aborted) throw new RecruitmentTurnCancelledError();
+    if ((positionAnswer && !PositionSelectionAnswerSchema.safeParse(positionAnswer).success)
+      || (playerIdentityAnswer && !PlayerIdentityAnswerSchema.safeParse(playerIdentityAnswer).success)
+      || (positionUpdate && !PositionSelectionAnswerSchema.shape.positions.safeParse(positionUpdate).success)
+      || (positionAnswer && positionUpdate)
+      || ((positionAnswer || positionUpdate) && playerIdentityAnswer)) throw new RecruitmentPositionAnswerError("选择无效，请重新选择后确认。");
     input.assertTurnAllowed();
     return withThreadTurnLock(threadId, signal, async () => {
       if (signal?.aborted) throw new RecruitmentTurnCancelledError();
@@ -126,6 +140,19 @@ export function createRecruitmentTurnRuntime(input: {
       if (expectsExistingState && !hasCheckpoint) {
         throw input.createExpiredStateError();
       }
+
+      if (positionAnswer && (!isWaitingForAnswer || before.values?.pendingQuestion?.input?.kind !== "positions" || before.values.pendingQuestion.input.questionId !== positionAnswer.questionId
+        || (positionAnswer.keepCurrent && !before.values?.pendingQuestion?.input?.allowKeepCurrent))) {
+        throw new RecruitmentPositionAnswerError();
+      }
+
+      if (playerIdentityAnswer) {
+        const question = before.values?.pendingQuestion?.input;
+        if (!isWaitingForAnswer || question?.kind !== "player_identity" || question.questionId !== playerIdentityAnswer.questionId
+          || !question.candidates.some(candidate => candidate.entityId === playerIdentityAnswer.entityId)) throw new RecruitmentPositionAnswerError("球员身份选项已更新，请重新选择。");
+      }
+
+      if (positionUpdate && isWaitingForAnswer) throw new RecruitmentPositionAnswerError();
 
       let lastCompletedSteps = 0;
       const publishProgress = (progress: RecruitmentTurnProgress) => {
@@ -148,6 +175,9 @@ export function createRecruitmentTurnRuntime(input: {
         const graphStream = await input.graph.run({
           threadId,
           message,
+          ...(positionAnswer ? { positionAnswer } : {}),
+          ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}),
+          ...(positionUpdate ? { positionUpdate } : {}),
           resume: isWaitingForAnswer,
           ...(signal ? { signal } : {}),
         });
@@ -161,7 +191,7 @@ export function createRecruitmentTurnRuntime(input: {
             threadId,
             status: "needs_input",
             message: state.pendingQuestion.question,
-            question: { reason: state.pendingQuestion.reason },
+            question: { reason: state.pendingQuestion.reason, ...(state.pendingQuestion.input ? { input: state.pendingQuestion.input } : {}) },
             report: null,
           });
           publishProgress({
@@ -206,4 +236,8 @@ export function createRecruitmentTurnRuntime(input: {
       }
     });
   };
+}
+
+export class RecruitmentPositionAnswerError extends Error {
+  constructor(message = "这个位置问题已经更新，请刷新当前调查后重新选择。") { super(message); this.name = "RecruitmentPositionAnswerError"; }
 }

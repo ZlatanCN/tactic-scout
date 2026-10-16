@@ -249,3 +249,13 @@ test("a source failure remains a coded failure instead of returning a partial po
     error instanceof MultiSourceProviderError && error.code === "blocked" && error.message.includes("候选池不完整")
   ));
 });
+
+test("mosaic multi-position union declares family filtering and retains provider-specific position evidence", async () => {
+  const understat = { ...player({ id: "union-understat", provider: "understat", competitionId: "EPL", competition: "英超", season: "2026" }), position: "MID" as const };
+  const asa = { ...player({ id: "union-asa", provider: "american-soccer-analysis", competitionId: "mls", competition: "MLS", season: "2026" }), position: "CB" as const };
+  const repo = repositoryFor([understat, asa]);
+  const page = await searchPlayerPage(repo, searchQuery({ positions: ["CM", "CB"] }));
+  assert.deepEqual(page.players.map(({ playerId }) => playerId).sort(), ["union-asa", "union-understat"]);
+  assert.ok(page.appliedFilters.includes("positionFamily"));
+  assert.equal(page.players.find(({ playerId }) => playerId === "union-understat")?.positionEvidence?.status, undefined);
+});

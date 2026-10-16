@@ -47,6 +47,24 @@ test("conversation API preserves the existing checkpoint for a follow-up turn", 
   });
 });
 
+test("conversation API posts a question-bound player identity choice", async (t) => {
+  let requestInit: RequestInit | undefined;
+  const identityAnswer = { questionId: "00000000-0000-4000-8000-000000000123", entityId: "Q25369" };
+  t.mock.method(globalThis, "fetch", async (_input: string | URL | Request, init?: RequestInit) => {
+    requestInit = init;
+    return new Response(JSON.stringify({ ...responseBody, question: null, status: "completed", message: "已确认并继续。" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+
+  await turnRecruitmentCase("identity-case", "选择 Joshua Kimmich", true, "request-identity", undefined, undefined, identityAnswer);
+
+  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+    requestId: "request-identity", message: "选择 Joshua Kimmich", expectsExistingState: true, playerIdentityAnswer: identityAnswer,
+  });
+});
+
 test("conversation API rejects a response that violates the case contract", async (t) => {
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ ...responseBody, status: "done" }), {
     status: 200,

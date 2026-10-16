@@ -3725,3 +3725,53 @@ test("Understat age limitations ask once and preserve the user's keep or remove 
     else assert.equal(resumed.report?.evidenceCoverage.evaluatedCandidateCount, 1);
   }
 });
+
+test("pitch multi-position confirmation shares Understat research and retains independent role evidence", async () => {
+  const flexible = understatRoleCandidate(801);
+  const defensive = understatRoleCandidate(802);
+  const unrelated = understatRoleCandidate(803);
+  const unknown = understatRoleCandidate(804);
+  const players = [flexible, defensive, unrelated, unknown];
+  let detailReads = 0;
+  const conversation = createRecruitmentConversation({
+    repository: {
+      mode: "understat", sourceName: "Frozen Understat position fixture", async loadPlayers() { return players; },
+      async inspectCandidateGroup(ids) {
+        detailReads++;
+        return ids.map((id) => {
+          const player = players.find((item) => item.playerId === id)!;
+          if (id === unknown.playerId) return { ...understatRoleResearch(player, "MC"), positions: [], availableSections: [] };
+          if (id === flexible.playerId) {
+            const research = understatRoleResearch(player, "MC", 900);
+            return { ...research, positions: [...research.positions, ...understatRoleResearch(player, "DMC", 450).positions] };
+          }
+          return understatRoleResearch(player, id === defensive.playerId ? "DMC" : "AMC");
+        });
+      },
+    },
+    planner: { async decide(input) {
+      if (input.constraints) return {
+        action: "finish", targetTeam: input.targetTeam, needSummary: "按所选位置寻找进球表现线索", capabilityProfile: ["进球"],
+        recommendations: input.constraints.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })), limitationKeys: [],
+      };
+      if (!input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_methodology")) return { action: "search_methodology", query: "进球表现" };
+      if (input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_candidates")
+        && !input.history.some((entry) => entry.role === "tool" && entry.toolName === "inspect_candidate_group")) return { action: "inspect_candidate_group", playerIds: players.map(({ playerId }) => playerId), sections: ["positions"] };
+      return { action: "search_candidates", position: null, minimumMinutes: 0, limit: 12 };
+    } },
+    knowledgeBase: { async search() { return []; } },
+  });
+  const first = await conversation.turn({ threadId: "pitch-understat-union", message: "为巴萨寻找能够增加进球的球员" });
+  assert.equal(first.status, "needs_input");
+  assert.ok(first.question?.input);
+  const response = await conversation.turn({ threadId: "pitch-understat-union", message: "", expectsExistingState: true,
+    positionAnswer: { questionId: first.question.input.questionId, positions: ["CM", "DM"] } });
+  assert.equal(response.status, "completed");
+  assert.deepEqual(response.report?.recommendations.map(({ player }) => player.playerId).sort(), [flexible.playerId, defensive.playerId].sort());
+  const candidate = response.report?.recommendations.find(({ player }) => player.playerId === flexible.playerId);
+  assert.deepEqual(candidate?.matchedPositions, ["CM", "DM"]);
+  assert.equal(candidate?.player.positionEvidenceByPosition?.CM?.sampleMinutes, 900);
+  assert.equal(candidate?.player.positionEvidenceByPosition?.DM?.sampleMinutes, 450);
+  assert.equal(detailReads, 1, "one source detail read verifies both selected roles");
+  assert.ok(response.report?.positionLeads?.some(({ player }) => player.playerId === unknown.playerId));
+});

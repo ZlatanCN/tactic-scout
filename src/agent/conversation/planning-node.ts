@@ -46,7 +46,8 @@ export function createPlanningNode(input: {
       const { action } = required;
       const isQuestion = action.action === "ask_user";
       const suppressed = isQuestion && askUserMode === "disabled";
-      const pendingQuestion = isQuestion ? questionForAskPolicy(action, askUserMode) : null;
+      const pendingQuestion = isQuestion ? required.pendingQuestion ?? questionForAskPolicy(action, askUserMode) : null;
+      const effectivePendingQuestion = suppressed ? askPolicyDisabledPause : pendingQuestion;
       observer?.({
         phase: "decision", action: action.action, decisionSource: "policy", elapsedMs: 0, ok: true, policyBlocked: false,
         ...(isQuestion ? { askPolicyOutcome: suppressed ? "suppressed" : "allowed" } : {}), targetTeam: action.targetTeam
@@ -57,7 +58,7 @@ export function createPlanningNode(input: {
         decisionSteps: state.decisionSteps + 1,
         policyBlocked: false,
         policyBlockedRepeatCount: 0,
-        ...(pendingQuestion ? { pendingQuestion, responseMessage: pendingQuestion.question } : {}),
+        ...(effectivePendingQuestion ? { pendingQuestion: effectivePendingQuestion, responseMessage: effectivePendingQuestion.question } : {}),
         history: required.history ?? [{ role: "assistant", content: suppressed ? JSON.stringify({ action: "ask_user", suppressed: true }) : JSON.stringify(action) }],
         ...required.update,
       };
@@ -90,6 +91,7 @@ export function createPlanningNode(input: {
     const decisionConstraints = decisionMode === "investigate" ? undefined : buildDecisionConstraints({
       targetTeam: state.targetTeam,
       confirmedPosition: state.confirmedPosition,
+      confirmedPositions: state.confirmedPositions,
       userMessages: userMessages(state.history),
       evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),
       retrievedKnowledge: Object.values(state.retrievedKnowledge),
@@ -101,7 +103,8 @@ export function createPlanningNode(input: {
       ? {
         targetTeam: state.targetTeam,
         nextOffset: candidatePageNextOffset,
-        position: state.confirmedPosition ?? candidatePageAction.position,
+        position: state.confirmedPositions.length > 1 ? null : state.confirmedPosition ?? candidatePageAction.position,
+        ...(state.confirmedPositions.length > 1 ? { positions: state.confirmedPositions } : {}),
         playerName: candidatePageAction.playerName,
         maxAge: candidatePageAction.maxAge,
         minimumMinutes: candidatePageAction.minimumMinutes,
@@ -141,6 +144,7 @@ export function createPlanningNode(input: {
           targetTeam: state.targetTeam,
           decisionMode,
           confirmedPosition: state.confirmedPosition,
+          confirmedPositions: state.confirmedPositions,
           positionBroadeningApproved: state.positionBroadeningApproved,
           ...(config.signal ? { signal: config.signal } : {}),
           ...(decisionConstraints ? { constraints: decisionConstraints } : {}),
@@ -214,6 +218,7 @@ export function createPlanningNode(input: {
         action: "search_candidates",
         targetTeam: expansionConstraints.targetTeam,
         position: expansionConstraints.position,
+        ...(expansionConstraints.positions ? { positions: expansionConstraints.positions } : {}),
         playerName: expansionConstraints.playerName,
         maxAge: expansionConstraints.maxAge,
         minimumMinutes: expansionConstraints.minimumMinutes,

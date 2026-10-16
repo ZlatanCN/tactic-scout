@@ -1,3 +1,5 @@
+import { positionSelectionLabel } from "./domain/position-selection.js";
+import { RecruitmentPositionAnswerError } from "./agent/conversation-turn-runtime.js";
 import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
 import { z } from "zod/v4";
@@ -181,9 +183,11 @@ export function createApp(options: {
     const caseId = request.params.caseId.trim();
     const parsed = ConversationTurnRequestSchema.safeParse(request.body);
     if (!caseId || caseId.length > 128 || !parsed.success) {
-      return reply.code(400).send({ error: "请提供有效的案件编号和 1–4000 字的消息。" });
+      return reply.code(400).send({ error: "请提供有效的案件编号，以及消息或位置选择。" });
     }
 
+    const turnPositions = parsed.data.positionAnswer?.positions ?? parsed.data.positionUpdate;
+    const turnMessage = parsed.data.message || (turnPositions ? `已选择：${positionSelectionLabel(turnPositions)}` : parsed.data.playerIdentityAnswer ? "确认参考球员身份" : "");
     const progressEvents: RecruitmentProgress["events"] = [];
     const stageOccurrences = new Map<RecruitmentProgress["stage"], number>();
     let progressSequence = 0;
@@ -225,7 +229,10 @@ export function createApp(options: {
       let response = await recruitmentTurnCoordinator.run({
         caseId,
         requestId,
-        message: parsed.data.message,
+        message: turnMessage,
+        ...(parsed.data.positionAnswer ? { positionAnswer: parsed.data.positionAnswer } : {}),
+        ...(parsed.data.playerIdentityAnswer ? { playerIdentityAnswer: parsed.data.playerIdentityAnswer } : {}),
+        ...(parsed.data.positionUpdate ? { positionUpdate: parsed.data.positionUpdate } : {}),
         expectsExistingState: parsed.data.expectsExistingState,
       }, async (signal) => {
         for (const [knownCaseId, progress] of recruitmentProgressByCase) {
@@ -241,7 +248,10 @@ export function createApp(options: {
         try {
           const result = await recruitmentConversation.turn({
             threadId: caseId,
-            message: parsed.data.message,
+            message: turnMessage,
+            ...(parsed.data.positionAnswer ? { positionAnswer: parsed.data.positionAnswer } : {}),
+            ...(parsed.data.playerIdentityAnswer ? { playerIdentityAnswer: parsed.data.playerIdentityAnswer } : {}),
+            ...(parsed.data.positionUpdate ? { positionUpdate: parsed.data.positionUpdate } : {}),
             expectsExistingState: parsed.data.expectsExistingState,
             signal,
             onProgress: (update) => updateProgress(update, !["waiting_for_user", "completed", "cancelled", "failed"].includes(update.status)),
@@ -389,6 +399,7 @@ export function createApp(options: {
           ...(parsed.data.requestId && progress?.requestId === requestId ? { progressEvents: progress.events } : {}),
         });
       }
+      if (error instanceof RecruitmentPositionAnswerError) return reply.code(409).send({ error: error.message });
       if (error instanceof RecruitmentTurnIdConflictError) return reply.code(409).send({ error: error.message });
       if (error instanceof RecruitmentTurnCapacityError) return reply.code(503).send({ error: error.message });
       const message = error instanceof Error ? error.message : "招募对话暂时无法继续。";

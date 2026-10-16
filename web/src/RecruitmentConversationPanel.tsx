@@ -1,4 +1,7 @@
-import { useLayoutEffect, useRef, type FormEvent } from "react";
+import { PositionPitchSelector } from "./PositionPitchSelector";
+import { positionSelectionLabel } from "../../src/domain/position-selection";
+import type { PlayerIdentityAnswer, PlayerIdentityQuestion, PositionSelectionAnswer, PositionSelectionQuestion, SelectablePosition } from "../../src/domain/schemas";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Radar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +39,8 @@ export interface RecruitmentConversationView {
 }
 
 export interface RecruitmentConversationActions {
-  onSendMessage: (messageText?: string, mode?: "normal" | "reanalysis") => void;
+  onSendMessage: (messageText?: string, mode?: "normal" | "reanalysis", positionAnswer?: PositionSelectionAnswer, playerIdentityAnswer?: PlayerIdentityAnswer) => void;
+  onUpdatePositions: (positions: SelectablePosition[]) => void;
   onCancelTurn: () => void;
   onDraftChange: (value: string) => void;
   onTeamContextChange: (value: string) => void;
@@ -53,6 +57,16 @@ export function RecruitmentConversationPanel({ view, actions }: {
   view: RecruitmentConversationView;
   actions: RecruitmentConversationActions;
 }) {
+  const [editingQuestion, setEditingQuestion] = useState<PositionSelectionQuestion | null>(null);
+  const [editSubmitted, setEditSubmitted] = useState(false);
+  const confirmedPositions = view.messages.slice().reverse().find((message) => message.selectedPositions?.length)?.selectedPositions ?? view.report?.requestedPositions;
+  const latestQuestionInput = view.waitingForAnswer ? view.messages.at(-1)?.questionInput : undefined;
+  const positionQuestion = editingQuestion ?? (latestQuestionInput?.kind === "positions" ? latestQuestionInput : null);
+  const identityQuestion = latestQuestionInput?.kind === "player_identity" ? latestQuestionInput as PlayerIdentityQuestion : null;
+  useEffect(() => { setEditingQuestion(null); setEditSubmitted(false); }, [view.threadId, view.activePlanId]);
+  useEffect(() => {
+    if (editSubmitted && !view.turnUnresolved && !view.error) { setEditingQuestion(null); setEditSubmitted(false); }
+  }, [editSubmitted, view.turnUnresolved, view.error]);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const conversationThreadRef = useRef<HTMLDivElement>(null);
   const shouldFollowConversationRef = useRef(true);
@@ -68,9 +82,9 @@ export function RecruitmentConversationPanel({ view, actions }: {
     conversationThreadRef.current.scrollTop = conversationThreadRef.current.scrollHeight;
   }, [view.activePlanId, view.isActive, view.messages.length, view.pendingTurnRequest?.requestId, view.progress?.updatedAt, view.threadId]);
 
-  function sendMessage(messageText?: string, mode?: "normal" | "reanalysis") {
+  function sendMessage(messageText?: string, mode?: "normal" | "reanalysis", positionAnswer?: PositionSelectionAnswer, playerIdentityAnswer?: PlayerIdentityAnswer) {
     shouldFollowConversationRef.current = true;
-    actions.onSendMessage(messageText, mode);
+    actions.onSendMessage(messageText, mode, positionAnswer, playerIdentityAnswer);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -124,6 +138,15 @@ export function RecruitmentConversationPanel({ view, actions }: {
             </div>
           </article>}
         </div>
+        {view.waitingForAnswer && identityQuestion && !view.loading && <section className="mx-4 space-y-3 rounded-xl border bg-card p-4 sm:mx-6" aria-labelledby="identity-question-title">
+          <div><h3 id="identity-question-title" className="m-0 text-sm font-semibold">确认参考球员</h3><p className="mb-0 mt-1 text-xs leading-5 text-muted-foreground">原始提及：“{identityQuestion.mention}”。身份确认后才会据此排除本人和继承位置。</p></div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {identityQuestion.candidates.map((candidate, index) => <Button key={candidate.entityId} type="button" variant="outline" className="h-auto min-h-16 justify-between whitespace-normal px-3 py-2 text-left" disabled={view.turnUnresolved} onClick={() => sendMessage(`选择参考球员：${candidate.name}`, "normal", undefined, { questionId: identityQuestion.questionId, entityId: candidate.entityId })}>
+              <span className="min-w-0"><span className="block text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")}</span><span className="block font-medium">{candidate.name}</span>{candidate.description && <span className="block text-xs font-normal text-muted-foreground">{candidate.description}</span>}</span><ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+            </Button>)}
+          </div>
+          <p className="m-0 text-xs leading-5 text-muted-foreground">都不是？在下方补充外文名、球队、位置或年代。</p>
+        </section>}
         {(view.loading || view.pendingTurnRequest?.outcomeUnknown) && view.pendingTurnRequest && <RecruitmentProgressCard
           progress={view.progress}
           progressConnection={view.progressConnection}
@@ -133,10 +156,16 @@ export function RecruitmentConversationPanel({ view, actions }: {
           onCancel={() => { shouldFollowConversationRef.current = true; actions.onCancelTurn(); }}
           onResumeReanalysis={() => sendMessage("重新分析招募需求", "reanalysis")}
         />}
-        {view.waitingForAnswer && !view.loading && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">补充信息后，球探会在同一项引援调查中继续。</p>}
+        {view.waitingForAnswer && !positionQuestion && !view.loading && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">补充信息后，球探会在同一项引援调查中继续。</p>}
       </div>}
 
-      <form className={`space-y-4 p-5 sm:p-7 ${view.isFreshCase ? "bg-card" : "border-t bg-muted/30"}`} onSubmit={handleSubmit}>
+      {!!confirmedPositions?.length && !view.waitingForAnswer && !editingQuestion && <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-4 sm:px-6"><p className="m-0 text-sm">已选：{positionSelectionLabel(confirmedPositions)}</p><Button variant="outline" size="sm" disabled={view.turnUnresolved} onClick={() => setEditingQuestion({ kind: "positions", questionId: crypto.randomUUID(), highlightedPositions: confirmedPositions, selectedPositions: confirmedPositions })}>修改位置</Button></div>}
+      {positionQuestion && <div className="px-4 pb-6 sm:px-6"><PositionPitchSelector key={positionQuestion.questionId} question={positionQuestion} confirmLabel={editingQuestion ? "按新位置重新查找" : undefined} disabled={view.turnUnresolved} onKeepCurrent={positionQuestion.allowKeepCurrent ? () => actions.onSendMessage("保留原位置范围并结束本轮", "normal", { questionId: positionQuestion.questionId, positions: positionQuestion.selectedPositions, keepCurrent: true }) : undefined} onConfirm={(positions) => {
+        shouldFollowConversationRef.current = true;
+        if (editingQuestion) { setEditSubmitted(true); actions.onUpdatePositions(positions); }
+        else actions.onSendMessage(`已选择：${positionSelectionLabel(positions)}`, "normal", { questionId: positionQuestion.questionId, positions });
+      }} />{editingQuestion && <Button variant="ghost" className="mt-3 w-full" disabled={view.turnUnresolved} onClick={() => { setEditingQuestion(null); setEditSubmitted(false); }}>取消修改</Button>}{view.pendingTurnRequest?.outcomeUnknown && <Button variant="outline" className="mt-3 w-full" onClick={() => actions.onSendMessage(view.pendingTurnRequest!.displayText, "normal", view.pendingTurnRequest!.positionAnswer)}>恢复本轮结果</Button>}{view.error && <p role="alert" className="mt-3 text-sm text-destructive">{view.error}</p>}</div>}
+      {!positionQuestion && <form className={`space-y-4 p-5 sm:p-7 ${view.isFreshCase ? "bg-card" : "border-t bg-muted/30"}`} onSubmit={handleSubmit}>
         <label className="sr-only" htmlFor="message-composer">描述招募需求或回答球探问题</label>
         <Textarea ref={composerRef} id="message-composer" rows={3} className={`resize-y bg-card text-base leading-7 placeholder:text-muted-foreground ${view.isFreshCase ? "min-h-40 border-0 p-0 shadow-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring focus-visible:ring-0" : "min-h-28"}`} value={view.draft} onChange={(event) => actions.onDraftChange(event.target.value)} onKeyDown={(event) => {
           const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
@@ -157,7 +186,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
         {view.error && <p className="m-0 text-sm text-destructive" role="alert">{view.error}</p>}
         {view.notice && <p className="m-0 text-sm text-primary" role="status">{view.notice}</p>}
         <p className="m-0 text-xs leading-5 text-muted-foreground">{view.isFreshCase ? "建议基于可获取的数据；缺失的信息会明确标注。" : `已进行 ${view.userCount} 轮对话，当前结果可保存为计划。`}</p>
-      </form>
+      </form>}
       {view.isFreshCase && <section className="border-t px-5 pb-6 pt-5 sm:px-7" aria-label="试试这样描述"><h2 className="mb-3 mt-0 text-xs font-medium text-muted-foreground">从这些方向开始</h2><div className="space-y-1">{suggestedBriefs.map((brief) => <button type="button" key={brief} onClick={() => { actions.onDraftChange(brief); composerRef.current?.focus(); }} className="flex w-full items-start justify-between gap-4 rounded-lg px-3 py-3 text-left text-sm leading-6 text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><span>{brief}</span><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></button>)}</div></section>}
 
     </CardContent>

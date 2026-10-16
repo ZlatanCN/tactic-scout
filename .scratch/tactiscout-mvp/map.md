@@ -8,7 +8,12 @@ Labels: wayfinder:map
 
 ## Notes
 
-- 2026-10-13: [issue 195](issues/195-export-identity-free-planning-ablation-summary.md) is proposed and awaits confirmation of the public validation seams: a pure identity-free projector plus local Harness CLI preflight and one registered output review. The intended outcome is a safe, repeatable source for the dynamic-planning showcase; no implementation or test has started.
+- 2026-10-16：[issue 213](issues/213-source-aware-fine-position-search.md) 将细分位置的父/子层级、召回与资格分离、来源证据矩阵及“未核实位置线索”报告收敛为统一规则。Understat 用本源赛季标签，StatsBomb 汇总实际 lineup 位置分钟；细节不足的来源只提供线索，不能冒充匹配。决策记录在 [ADR 0012](../../docs/adr/0012-source-aware-position-qualification.md)。
+
+- 2026-10-15：[足球招募工作流对抗性审查](research/football-workflow-adversarial-audit-2026-10-15.md) 完成只读生产代码审查、20 项机制消融/相关回归和合成整图顺序干预。确认来源顺序影响候选发现、终结措辞映射不一致及中文参考身份覆盖缺口；优先验证快照候选发现与统一需求解释。角色画像参与选择和真实球探排序收益尚未验证。
+
+- 2026-10-14: [issue 207](issues/207-search-qualitative-capability-gaps.md) adds an optional, domain-scoped Tavily adapter behind `search_player_reports`. A paired full-graph source-on/off fixture confirmed that a linked qualitative observation can appear while missing statistical capability coverage and candidate metrics remain unchanged. Live retrieval is not configured; the mechanism test does not establish source coverage, shortlist quality, or a ranking improvement.
+- 2026-10-13: [issue 195](issues/195-export-identity-free-planning-ablation-summary.md) proposes a safe, repeatable source for dynamic-planning showcase metrics. Its TDD seams are confirmed, but it is parked as `needs-triage` while product value is re-prioritized; no implementation or tests have started.
 - 2026-10-13：[issue 194](issues/194-resume-approved-broader-search-cursor.md) 与 [issue 193](issues/193-refresh-dynamic-planning-ablation.md) 已解决：Harness 按获用户确认的 `evaluateLocalAgentScenario` seam 接受改意图后的新 `offset: 0` 搜索轮，同时仍要求同一轮分页使用来源返回的 exact `nextOffset`；LangGraph 搜索行为未改。Qwen 3.5 9B / 同一 Wyscout 快照的巴萨与拜仁动态/固定对照各三组全通过（巴萨 31/31、拜仁 29/29），全部 36 个 Planner 请求用量完整。推荐条数与 Harness 通过不作为名单质量结论；详见[评估记录](../../docs/evaluation.md#动态调查规划消融)。完整本地 trace 在 Git 忽略的 `.data/evaluations/`。
 - 2026-10-13：[issue 192](issues/192-record-langgraph-workflow-fit.md) 已解决：ADR 0010 记录 `StateGraph` 对可暂停/恢复招募案件、策略路由与 Reviewer 回环的项目级适配，并承认 `createAgent` 和 Vercel AI SDK 的能力；官方资料、代码证据与未验证范围见[研究报告](research/langgraph-framework-fit-2026-10-13.md)。未做跨框架性能/质量对照，也不声称名单质量已验证。
 - 2026-10-13：[issue 191](issues/191-show-cross-lingual-rag-evidence.md) 已解决：`/showcase` 方法 RAG 折叠卡先展示 v5 留出结果（可回答覆盖 1/3→3/3、候选论文 0/2→2/2、召回 1/3→3/3、precision 1.0 不变），并分开展示早期整图报告传递与 10 月 13 日两臂 27/29 的复跑。页面说明样本小、译文未独立双语审校、不启用线上翻译且不验证推荐质量；README 同步。Web build 与预览无障碍树核对通过；CSS 经 390px 几何复核，未声称实际窄屏预览，issue 144 仍等用户验收。
@@ -209,6 +214,10 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- [issue 213](issues/213-source-aware-fine-position-search.md) 已解决：所有细分位置按位置族召回、按球员自身来源证据决定候选资格；13 种细分/中间角色的三臂固定 fixture 对照验证了“严格筛选漏召回、扩召回找回线索、来源门阻止宽位置冒充”。ASA 宽 winger 与 Sportmonks 无方向边后卫记录均可作为线索召回但不能冒充目标细分位置；Sportmonks 保留原始标签，StatsBomb 多位置样本按实际位置分钟保留。位置专项测试 113/113、API/Web build 和 diff check 通过；全套测试 540/542，另两项 loopback HTTP 测试受沙箱 `listen EPERM` 限制。未评估真实市场覆盖或推荐质量。
+- [issue 210](issues/210-understat-detailed-position-search.md) 已解决：Understat 细分位置采用“位置族召回 → 当前赛季原生位置核验 → 直接证据入目标名单、相邻证据独立展示”。默认 Understat 与 mosaic 的 Understat 子集均走同一核验；ASA 粗位置记录保持未确认。33 条代码映射、单人/批量核验、空缺和预算路径均有测试；固定三人样本的整图消融验证了召回与证据门控，不声称真实推荐质量。详见[评测及边界](research/understat-fine-position-search-2026-10-16.md)。
+- [issue 212](issues/212-understat-position-evidence-scope.md) 已解决：Understat 球员页位置汇总没有赛事维度，仍可展示单人值与赛季位置线索，但不用于同赛事百分位、候选值域或参考球员比较。报告会标明“赛季位置汇总，赛事未拆分”；Understat 与 mosaic 路径都遵守此范围。
+- [issue 203](issues/203-agent-decision-optimization.md) 已解决：同一冻结招募请求的本机 Qwen 配对消融支持保留确定性调查步骤与 Reviewer；两者分别避免冗余 Planner 回合和重复候选。参考画像与候选比较保留为可追溯报告证据，不宣称改善排序；按需 RAG 只验证了跳过无命中检索，名单质量仍未评估。459/459 测试与 API/Web 构建通过。
 - [issue 192](issues/192-record-langgraph-workflow-fit.md) 已解决：在框架选择上采用 LangGraph.js `StateGraph` 显式建模动态调查、条件路由、用户中断/同案恢复和 Reviewer 回环；`createAgent` 仍是可行的更高层方案，Vercel 与手写循环也能构建替代工作流。该决策依据是当前案件控制流需求，不是跨框架优越性结论；性能、质量和维护成本对比尚未测量。
 - [issue 191](issues/191-show-cross-lingual-rag-evidence.md) 已解决：在招聘方可见的 RAG 实验摘要中并列来源级跨语言诊断与整图机制证据，但分清它们回答不同问题；把 10 月 13 日共同失败的 27/29 重跑和译文未审校限制放在卡片中，避免把小样本检索结果包装成线上翻译或排序质量结论。
 - [issue 190](issues/190-evaluate-cross-lingual-methodology-retrieval.md) 已解决：冻结的 12 家族 v5 对照中，英文译问使留出相关证据覆盖从 1/3 升至 3/3，候选来源覆盖从 0/2 升至 2/2；模糊/范围外误接收未增，固定生产门槛不变。译文尚无独立双语审校，不把结果推广为线上翻译或一般跨语言检索能力。
@@ -362,6 +371,14 @@ Labels: wayfinder:map
 - [issue 111](issues/111-current-player-source-expansion-research.md) 已解决：本轮没有可立即准入的新球员源；Liga Portugal 条款禁止复制、下载、衍生和保留内容。既有候选 foot.io 仍需邀请及逐项确认上游许可、留存、本地模型/RAG 和公开报告权限；页面球员总数口径也不一致。后续人工申请与书面授权问题见 [issue 112](issues/112-footio-invite-and-rights-clarification.md) 及[研究报告](research/current-player-source-expansion-2026-10-09.md)。
 - [issue 163](issues/163-block-fbref-model-processing.md) 已解决：FBref 的 LangGraph turn 在 checkpoint/球员读取/Planner 之前被硬性拒绝（HTTP 503）；假设的“许可”环境变量和本地 Ollama 地址不能覆盖源站许可要求。修复先以 HTTP 测试复现 Planner 被调用，再验证拒绝无任何数据或模型访问；全套 393 项测试及双端构建通过。issue 36 现在等待来源许可或替代获准路线。
 
+- 2026-10-14：[204 — Agent 可靠性原则内化](issues/204-internalize-agent-reliability-principles.md) 已完成：复用固定案例、证据状态和 checkpoint；补足本轮成功方法查询复用，修复不同受拒请求误停。整图消融索引访问 2→1 且报告一致，核心 80/80、全量 465/465 与 API/Web 构建通过；不宣称模型速度或候选排序质量提升。
+
+- 2026-10-14：[205 — 真实浏览器手动验收](issues/205-manual-conversation-verification.md)：完成需求→两次追问→20 人评估→3 人报告→比较→保存刷新→取消保留旧报告。修复“同意前锋大类、中锋待核实”误判拒绝扩围的空名单问题；467/467 回归通过。模型仍慢、后续扩围未完成，不声称候选质量验收通过。
+
+- 2026-10-14：[206 — 扩围规划延迟诊断](issues/206-planner-latency-truncated-expansion.md)：真实 checkpoint 重放发现无界 limitationKeys 重复生成直到 4096 上下文耗尽。仅加10项上限，固定原输入由截断失败改为21–23秒有效动作；暖缓存反向对照仍44秒截断。原规划节点无兜底，468/468回归及构建通过；不推断一般延迟或推荐质量。
+
+- 2026-10-14：[208 — 替代者调查在重复检查球队后空报告完成](issues/208-recover-replacement-search-stall.md)：整图复现确认受约束动作循环会在未搜索候选时直接收束；现改为恢复方法检索/宽范围候选发现，再追问角色，并禁止无成功候选查询的替代任务直接完成。对话图 64/64 与服务端构建通过；未用真实 Ollama/Understat 复验。
+
 ## Fog
 
 - [issue 144](issues/144-showcase-dynamic-planning-ablation.md)：Planner 对照卡已加入 `/showcase`；生产构建、桌面浏览器显示和响应式 CSS 断点检查通过。按用户明确选择，精确 390 CSS px 以及方法说明收起/展开的目视检查仍待用户完成。浏览器临时视口能力已在 issue 172 的 400px 检查中使用并重置；这不替代此项 390px 人工验收。
@@ -404,12 +421,21 @@ Labels: wayfinder:map
 - 近期开放数据来源复核见[研究报告](research/recent-open-player-performance-data-2026-10.md)：SkillCorner 真实 CSV 的数据许可范围仍需确认；IDSSE 仅作七场历史方法基准，不扩大默认球员排名池；OpenLigaDB 不提供能力评分所需的比赛分钟和细粒度表现指标。
 - SkillCorner 2024/25 A-League 三份聚合 CSV 已由 `pnpm dataset:refresh:skillcorner` 从固定官方 commit 校验并获取到 Git 忽略的本机 `.data/`，没有进入 Git；应用权限 gate 仍关闭。来源边界与后续步骤见[来源特定的可追溯表现指标](issues/24-supplementary-performance-evidence.md)。
 
+- 2026-10-14：[199 — 招募工作台 UI/UX 改版](issues/199-recruitment-workbench-uiux.md) 已落地主工作台首版：侧边计划、首屏输入、状态视图切换、成果优先、证据折叠及控件规范。默认首屏、已有空结果报告、1440px/390px 布局已浏览器观察，Web 构建通过；非空候选比较、真实新对话、读屏和实体手机未完成验收，其他研究页面未全面重设计。
+
+- 2026-10-15：[209 — 足球需求、候选发现与跨语言参考](issues/209-football-discovery-semantics-identity.md) 已完成；489项回归与API/Web构建通过，原始凯恩/诺伊尔工作台验收完成。公平配对中同20人预算统计突出记录覆盖9/20→18/20；无增益的额外角色摘要不加入生产。见[实验与失败复盘](research/football-workflow-implementation-results-2026-10-15.md)，不代表真实适配准确率。
+
 - 2026-10-15：[210 — 前端工作台重构](issues/210-frontend-workbench-refactor.md) 已解决：全站 Tailwind/shadcn 收敛，桌面实机、320/390px、保存/追问/取消/断线恢复与 21 项针对性回归通过；提交快照独立构建通过。真实手机触摸和读屏未验，模型截断及比较追问空名单另记 [211](issues/211-local-model-investigation-reliability.md)。
 
 ## Out of scope
+
 
 - 登录、多用户云端同步和服务端保存用户的招募计划。
 - 自动定时刷新或无人值守引援流程。
 - 非欧身份、工作许可、联赛/欧战注册细则与财务合规推断。
 - 首版预测薪资、合同谈判、伤病史、转会可行性、未来表现或转会成功率。
 - 复制 Football Manager 的官方职责目录、界面或专有评分权重。
+
+- 2026-10-13：[196 — 收敛招募主链与评测职责](issues/196-simplify-recruitment-workflow.md) 已完成。主图组合、确定性调查/动作策略、工具 IO/投影、报告分开；通用仓库解除对来源工厂的依赖；七种实验统一交错配对。445/445 回归、API/Web 与严格未使用代码检查通过，46 个 checkpoint 字段/八个节点兼容且运行时无循环依赖；本机三组动态/固定消融及最终真实整链通过。结果只说明行为契约与资源差异，按用户要求在结构整理处停止。
+- 2026-10-14：[197 — 真实对话体验验收与修复](issues/197-browser-recruitment-experience.md) 已完成首轮检查：修复等待/旧报告更新状态、候选卡展开、Understat 细分位置与年龄说明，以及大类位置和明确能力重点变更。浏览器验证模糊需求、明确条件和改需求/停止；449/449 全量及最后报告修复的 80 项相关回归通过。后卫复跑最后规划超过八分钟后停止，没有新报告；真实模型延迟仍需后续处理，不声称完整报告或推荐质量验收通过。
+- 2026-10-14：[198 — 来源提示词收敛实验](issues/198-scope-planner-source-instructions.md) 已结束且撤回生产改动。冻结 Understat 20 条中场记录的单配对中，基线 100.624 秒完成、4 次模型规划占几乎全部时间；收敛版未完成。不能用更短的提示词推断提速或同等质量。公开 Planner 的三次短取消探针正常，不认定框架取消失效；长运行收束及模型延迟仍待定位。

@@ -12,9 +12,11 @@ import {
 import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
 
 export interface RecruitmentCandidatePolicyState {
-  referenceNameResolution?: import("../data/player-name-resolver.js").ResolvedPlayerName | null;
+  referenceNameResolution?: import("../data/player-name-resolver.js").PlayerNameResolution | null;
+  referenceProfiles?: Array<{ sourceIdentityKey: string }>;
   targetTeam: string | null;
   confirmedPosition: Position | null;
+  confirmedPositions?: readonly Position[];
   history: ConversationHistoryEntry[];
   discoveredPlayers: Record<string, PlayerProfile>;
   evaluatedPlayers: Record<string, EvaluatedCandidate>;
@@ -29,7 +31,10 @@ function currentIntent(state: RecruitmentCandidatePolicyState): CandidateSearchI
   return resolveCandidateSearchIntent({
     userMessages: userMessages(state.history),
     confirmedPosition: state.confirmedPosition,
-    referenceNames: state.referenceNameResolution?.names,
+    confirmedPositions: state.confirmedPositions,
+    referenceNames: state.referenceNameResolution?.status === "resolved" ? state.referenceNameResolution.player.names : undefined,
+    referenceIdentityResolved: state.referenceNameResolution?.status === "resolved",
+    referenceSourceIdentityKeys: state.referenceProfiles?.map(profile => profile.sourceIdentityKey),
   });
 }
 
@@ -72,7 +77,8 @@ function constrainCandidateSearchToUserIntent(
     && isReplacementTarget(action.playerName, intent.replacementTargetNames));
   return RecruitmentActionSchema.parse({
     ...action,
-    ...(intent.position ? { position: intent.position } : {}),
+    positions: intent.positions && intent.positions.length > 1 ? [...intent.positions] : undefined,
+    ...(intent.positions && intent.positions.length > 1 ? { position: null } : intent.position ? { position: intent.position } : {}),
     playerName: playerNameWasObservedInReport && !playerNameIsAlreadyDiscovered && !playerNameIsReference
       ? action.playerName
       : null,
@@ -92,7 +98,8 @@ function enforceUserConstraints(
   if (action.action === "search_candidates") {
     return RecruitmentActionSchema.parse({
       ...action,
-      ...(intent.position ? { position: intent.position } : {}),
+      positions: intent.positions && intent.positions.length > 1 ? [...intent.positions] : undefined,
+      ...(intent.positions && intent.positions.length > 1 ? { position: null } : intent.position ? { position: intent.position } : {}),
       maxAge: intent.maxAge,
     });
   }

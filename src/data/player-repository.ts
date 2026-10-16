@@ -69,12 +69,12 @@ export function withLocalQueries(repository: PlayerRepository): PlayerRepository
 export async function searchPlayerPage(repository: PlayerRepository, query: PlayerSearchQuery, signal?: AbortSignal): Promise<PlayerSearchPage> {
   throwIfAborted(signal);
   const isUnderstatCatalog = repository.mode === "understat" || repository.mode === "mosaic";
-  const effectiveQuery = query.position && isDetailedPosition(query.position)
+  const effectiveQuery = query.positions?.length || (query.position && isDetailedPosition(query.position))
     ? {
       ...query,
       positionMatchMode: "family" as const,
       ...(isUnderstatCatalog ? {
-        catalogPositionGroups: understatCatalogPositionGroupsFor(query.position),
+        catalogPositionGroups: query.position ? understatCatalogPositionGroupsFor(query.position) : [],
         includeUnknownPosition: true,
       } : {}),
     }
@@ -98,7 +98,7 @@ export async function searchPlayerPage(repository: PlayerRepository, query: Play
   }
   const requiredFilters: PlayerSearchFilter[] = [];
   if (query.playerName) requiredFilters.push("playerName");
-  if (query.position) requiredFilters.push("position");
+  if (query.position || query.positions?.length) requiredFilters.push("position");
   if (query.maxAge !== null) requiredFilters.push("maxAge");
   if (query.minimumMinutes > 0) requiredFilters.push("minimumMinutes");
   if (query.competition) requiredFilters.push("competition");

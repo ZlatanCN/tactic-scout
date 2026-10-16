@@ -4,7 +4,7 @@ import { buildDecisionConstraints, conclusionPlannerOutputFallback, type Recruit
 import { emptyDecision, isToolAction, RecruitmentActionSchema, toolBudgets, type ParsedRecruitmentAction } from "../recruitment-actions.js";
 import { applyRecruitmentCandidatePolicy } from "../recruitment-candidate-policy.js";
 import type { RecruitmentPlanner } from "../recruitment-planner.js";
-import { candidateSearchObservationIndexForIntent, discoveredPlayersForConstraint, routeCandidateSearch, userMessages } from "./candidate-context.js";
+import { candidateSearchObservationIndexForIntent, positionEvaluationIsCurrent, discoveredPlayersForConstraint, routeCandidateSearch, userMessages } from "./candidate-context.js";
 import type { RecruitmentCandidatePolicyMode, UnderstatResearchMode } from "./contracts.js";
 import { asksToRepeatPositionBroadeningQuestion, claimsUnavailablePlayerReports, positionLabels, redundantReplacementRoleQuestion, replacementPositionClarification, unsupportedCurrentAffiliationFeedback } from "./interaction-policy.js";
 import { investigationCandidates } from "./required-investigation.js";
@@ -67,6 +67,7 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
         : conclusionPlannerOutputFallback(buildDecisionConstraints({
           targetTeam: state.targetTeam,
           confirmedPosition: state.confirmedPosition,
+          confirmedPositions: state.confirmedPositions,
           userMessages: userMessages(state.history),
           evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),
           retrievedKnowledge: Object.values(state.retrievedKnowledge),
@@ -86,6 +87,10 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
       policyOverrodePlanner = true;
     }
   }
+  if (action.action === "search_candidates" && state.confirmedPositions.length > 1) {
+    action = RecruitmentActionSchema.parse({ ...action, position: null, positions: state.confirmedPositions,
+      maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes, competition: intent.competition, season: intent.season });
+  }
   if (action.action === "search_candidates"
     && intent.replacementRequest
     && intent.position === null
@@ -102,6 +107,7 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
       action: "search_candidates",
       targetTeam: expansionConstraints.targetTeam,
       position: expansionConstraints.position,
+      ...(expansionConstraints.positions ? { positions: expansionConstraints.positions } : {}),
       playerName: expansionConstraints.playerName,
       maxAge: expansionConstraints.maxAge,
       minimumMinutes: expansionConstraints.minimumMinutes,
@@ -199,7 +205,7 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
   }
   if (action.action === "evaluate_candidates"
     && action.playerIds.length > 0
-    && action.playerIds.every((playerId) => Boolean(state.evaluatedPlayers[playerId]))
+    && action.playerIds.every((playerId) => Boolean(state.discoveredPlayers[playerId] && positionEvaluationIsCurrent(state.discoveredPlayers[playerId]!, state.evaluatedPlayers[playerId])))
     && (settings.retrievalNeeds?.playerReports ?? true) && unsearchedReportCandidates.length > 0) {
     action = RecruitmentActionSchema.parse({
       action: "search_player_reports",
@@ -241,6 +247,7 @@ export function investigationActionFeedback(state: State, proposedAction: Parsed
   const affiliationFeedback = unsupportedCurrentAffiliationFeedback(action, state.history);
   const replacementRoleFeedback = redundantReplacementRoleQuestion(action, intent.replacementRequest, state.replacementReferencePosition);
   const policyFeedback = [
+    ...(action.action === "ask_user" && action.positionSelection && state.confirmedPositions.length ? ["用户已经在球场上确认位置，继续调查所选位置；不要重复询问位置。"] : []),
     ...(isToolAction(action) && state.toolUses[action.action] >= toolBudgets[action.action]
       ? [action.action === "search_candidates" && Object.keys(state.discoveredPlayers).length > 0
         ? `候选发现已达到本轮上限 ${toolBudgets.search_candidates} 次；已经找到 ${Object.keys(state.discoveredPlayers).length} 名候选。现在必须调用 evaluate_candidates，从已发现的候选 ID 中选择要分析的人；评估完成后检索报告并给出有证据的结论。不要继续搜索候选，也不要在未评估任何人的情况下 finish。`
@@ -250,7 +257,7 @@ export function investigationActionFeedback(state: State, proposedAction: Parsed
         ? "当前这组候选筛选已到最后一页。请从已发现的候选中调用 evaluate_candidates；不要重复搜索此范围，也不要未评估就 finish。"
         : "当前这组候选筛选已到最后一页且没有候选结果。请改用用户允许的其他调查范围，或说明数据覆盖不足；不要重复搜索此范围。"] : []),
     ...(action.action === "evaluate_candidates" && action.playerIds.length > 0
-      && action.playerIds.every((playerId) => Boolean(state.evaluatedPlayers[playerId]))
+      && action.playerIds.every((playerId) => Boolean(state.discoveredPlayers[playerId] && positionEvaluationIsCurrent(state.discoveredPlayers[playerId]!, state.evaluatedPlayers[playerId])))
       ? [`这些候选人已经完成比赛表现评估；evaluate_candidates 不会重复计算。请调用 search_player_reports 检索定性补充，再完成结论。`] : []),
     ...(action.action === "search_candidates" && retrievalNeeds.methodology && !state.hasSearchedMethodology
       ? ["先调用 search_methodology 检索角色或战术方法资料，再执行结构化候选筛选。"] : []),
@@ -281,7 +288,7 @@ export function investigationActionFeedback(state: State, proposedAction: Parsed
     ...(action.action === "evaluate_candidates" && state.confirmedPosition
       && !action.playerIds.some((playerId) => {
         const player = state.discoveredPlayers[playerId];
-        return Boolean(player && playerPositionMatches(player, state.confirmedPosition!));
+        return Boolean(player && (state.confirmedPositions.length ? state.confirmedPositions : [state.confirmedPosition!]).some((position) => playerPositionMatches(player, position)));
       })
       ? [`用户已确认位置为 ${positionLabels[state.confirmedPosition]}；先按该位置搜索候选人，不能评估其他位置的球员。`] : []),
     ...(proposedAction.action === "finish" && proposedAction.recommendations.length > 0

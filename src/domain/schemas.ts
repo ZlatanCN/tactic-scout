@@ -2,6 +2,42 @@ import { z } from "zod/v4";
 
 export const PositionSchema = z.enum(["GK", "DEF", "CB", "FB", "LB", "RB", "LWB", "RWB", "MID", "DM", "CM", "AM", "ATT", "WG", "LW", "RW", "ST"]);
 export type Position = z.infer<typeof PositionSchema>;
+export const SelectablePositionSchema = z.enum(["GK", "CB", "LB", "RB", "LWB", "RWB", "DM", "CM", "AM", "LW", "RW", "ST"]);
+export type SelectablePosition = z.infer<typeof SelectablePositionSchema>;
+export const PositionSelectionQuestionSchema = z.object({
+  kind: z.literal("positions"),
+  allowKeepCurrent: z.boolean().optional(),
+  questionId: z.string().uuid(),
+  highlightedPositions: z.array(SelectablePositionSchema),
+  selectedPositions: z.array(SelectablePositionSchema),
+});
+export type PositionSelectionQuestion = z.infer<typeof PositionSelectionQuestionSchema>;
+export const PlayerIdentityOptionSchema = z.object({
+  entityId: z.string().regex(/^Q\d+$/),
+  name: z.string().min(1),
+  description: z.string().min(1).optional(),
+  sourceUrl: z.string().regex(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/),
+});
+export type PlayerIdentityOption = z.infer<typeof PlayerIdentityOptionSchema>;
+export const PlayerIdentityQuestionSchema = z.object({
+  kind: z.literal("player_identity"),
+  questionId: z.string().uuid(),
+  mention: z.string().min(1),
+  candidates: z.array(PlayerIdentityOptionSchema).min(1).max(5),
+});
+export type PlayerIdentityQuestion = z.infer<typeof PlayerIdentityQuestionSchema>;
+export const PlayerIdentityAnswerSchema = z.object({
+  questionId: z.string().uuid(),
+  entityId: z.string().regex(/^Q\d+$/),
+});
+export type PlayerIdentityAnswer = z.infer<typeof PlayerIdentityAnswerSchema>;
+export const PositionSelectionAnswerSchema = z.object({
+  keepCurrent: z.literal(true).optional(),
+  questionId: z.string().uuid(),
+  positions: z.array(SelectablePositionSchema).min(1).max(12)
+    .refine((positions) => new Set(positions).size === positions.length, "位置不能重复"),
+});
+export type PositionSelectionAnswer = z.infer<typeof PositionSelectionAnswerSchema>;
 export const PlayerPositionSchema = z.union([PositionSchema, z.literal("UNKNOWN")]);
 export type PlayerPosition = z.infer<typeof PlayerPositionSchema>;
 
@@ -211,6 +247,7 @@ export const PlayerProfileSchema = z.object({
   ageVerifiedAt: z.string().optional(),
   position: PlayerPositionSchema,
   positionEvidence: PlayerPositionEvidenceSchema.optional(),
+  positionEvidenceByPosition: z.partialRecord(PositionSchema, PlayerPositionEvidenceSchema).optional(),
   competition: z.string(),
   season: z.string(),
   minutes: z.number().nonnegative(),
@@ -310,9 +347,12 @@ export type DatasetStatus = z.infer<typeof DatasetStatusSchema>;
 
 export const ConversationTurnRequestSchema = z.object({
   requestId: z.string().uuid().optional(),
-  message: z.string().trim().min(1).max(4000),
+  message: z.string().trim().max(4000).default(""),
+  positionAnswer: PositionSelectionAnswerSchema.optional(),
+  positionUpdate: PositionSelectionAnswerSchema.shape.positions.optional(),
+  playerIdentityAnswer: PlayerIdentityAnswerSchema.optional(),
   expectsExistingState: z.boolean().default(false),
-});
+}).refine((value) => value.message.length > 0 || value.positionAnswer !== undefined || value.positionUpdate !== undefined || value.playerIdentityAnswer !== undefined, "请提供消息或选择").refine((value) => !(value.positionAnswer && value.positionUpdate), "不能同时回答位置问题和修改位置").refine((value) => !(value.playerIdentityAnswer && (value.positionAnswer || value.positionUpdate)), "不能同时回答球员身份问题和位置问题");
 export type ConversationTurnRequest = z.infer<typeof ConversationTurnRequestSchema>;
 
 export const CapabilityMetricKeySchema = z.enum([
@@ -682,6 +722,7 @@ export const UnderstatMatchResearchSchema = z.object({
 export type UnderstatMatchResearch = z.infer<typeof UnderstatMatchResearchSchema>;
 
 export const PlayerRecommendationSchema = z.object({
+  matchedPositions: z.array(SelectablePositionSchema).optional(),
   player: PlayerProfileSchema,
   identityResolution: z.object({
     status: CandidateIdentityResolutionStatusSchema,
@@ -776,6 +817,7 @@ export const KnowledgeCoverageSchema = z.object({
 export type KnowledgeCoverage = z.infer<typeof KnowledgeCoverageSchema>;
 
 export const RecruitmentSearchScopeSchema = z.object({
+  positions: z.array(PositionSchema).optional(),
   position: PositionSchema.nullable(),
   maxAge: z.number().int().min(15).max(45).nullable(),
   minimumMinutes: z.number().int().nonnegative(),
@@ -792,11 +834,20 @@ export const PositionLeadSchema = z.object({
 export type PositionLead = z.infer<typeof PositionLeadSchema>;
 
 export const RecruitmentReportSchema = z.object({
+  requestedPositions: z.array(SelectablePositionSchema).optional(),
+  positionCoverage: z.array(z.object({ position: SelectablePositionSchema, confirmedCandidates: z.number().int().nonnegative(), searched: z.boolean(), hasMore: z.boolean() })).optional(),
   targetTeam: z.string().nullable(),
   needSummary: z.string(),
   capabilityProfile: z.array(z.string()),
   referenceProfiles: z.array(ReportReferenceProfileSchema).max(5).default([]),
-  referenceNameSource: z.object({ entityId: z.string().regex(/^Q\d+$/), url: z.string().regex(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/) }).nullable().default(null),
+  referenceNameSource: z.object({
+    entityId: z.string().regex(/^Q\d+$/),
+    url: z.string().regex(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/),
+    mention: z.string().min(1).optional(),
+    resolvedName: z.string().min(1).optional(),
+    resolutionMethod: z.enum(["wikidata_exact", "tavily_wikidata", "user_confirmed"]).optional(),
+    performanceRecordStatus: z.enum(["observed_in_team_sample", "not_observed_in_team_sample"]).optional(),
+  }).nullable().default(null),
   requestedCapabilityCoverage: z.array(RequestedCapabilityCoverageSchema).default([]),
   evidenceCoverage: EvidenceCoverageSummarySchema,
   externalSignalCoverage: ExternalSignalCoverageSchema.default(() => createEmptyExternalSignalCoverage()),
@@ -950,7 +1001,7 @@ export const ConversationTurnResponseSchema = z.object({
   threadId: z.string().min(1),
   status: z.enum(["needs_input", "completed", "cancelled"]),
   message: z.string().min(1),
-  question: z.object({ reason: z.string().min(1) }).nullable(),
+  question: z.object({ reason: z.string().min(1), input: z.union([PositionSelectionQuestionSchema, PlayerIdentityQuestionSchema]).optional() }).nullable(),
   report: RecruitmentReportSchema.nullable(),
   teamRosterContext: TeamRosterContextSchema.optional(),
   progressEvents: z.array(RecruitmentProgressEventSchema).max(24).optional(),
