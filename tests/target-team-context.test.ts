@@ -6,6 +6,7 @@ test("target-club extraction reads an explicit club recruitment phrase, not the 
   assert.equal(extractExplicitTargetTeam("为拜仁寻找凯恩的替代者。"), "拜仁");
   assert.equal(extractExplicitTargetTeam("我想为巴萨找一个新的后卫。"), "巴萨");
   assert.equal(extractExplicitTargetTeam("At Bayern Munich, find a replacement for Kane."), "Bayern Munich");
+  assert.equal(extractExplicitTargetTeam("为拜仁寻找一名前锋，候选范围是当前赛季五大联赛，按前锋大类检索。"), "拜仁");
 });
 
 test("target-club extraction stays empty when the request does not clearly name one target club", () => {

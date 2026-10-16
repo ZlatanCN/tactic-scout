@@ -25,6 +25,7 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /--compare-ask-policy/);
   assert.match(result.stdout, /--compare-methodology-rag/);
   assert.match(result.stdout, /--compare-investigation-planning/);
+  assert.match(result.stdout, /--compare-understat-research/);
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
   assert.match(result.stdout, /--summary-output <path>/);
@@ -351,4 +352,55 @@ test("the local evaluation CLI requires curated data for investigation-planning 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /需要 TACTISCOUT_DATA_MODE=curated/);
   assert.doesNotMatch(result.stderr, /ECONNREFUSED|fetch failed/i);
+});
+
+test("Understat research comparison requires its registered Understat scenario and three paired repetitions", () => {
+  const understatEnv = { ...process.env, TACTISCOUT_DATA_MODE: "understat" };
+  const noScenario = runCli(["--compare-understat-research", "--runs", "3"], understatEnv);
+  assert.equal(noScenario.status, 2);
+  assert.match(noScenario.stderr, /必须与单个 --scenario understat-five-league-xg-creation 一起使用/);
+  assert.doesNotMatch(noScenario.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const allScenarios = runCli(["--scenario", "all", "--compare-understat-research", "--runs", "3"], understatEnv);
+  assert.equal(allScenarios.status, 2);
+  assert.match(allScenarios.stderr, /必须与单个 --scenario understat-five-league-xg-creation 一起使用/);
+  assert.doesNotMatch(allScenarios.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const wrongScenario = runCli(["--scenario", "bayern-kane-replacement", "--compare-understat-research", "--runs", "3"], understatEnv);
+  assert.equal(wrongScenario.status, 2);
+  assert.match(wrongScenario.stderr, /未知场景/);
+  assert.doesNotMatch(wrongScenario.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const tooFew = runCli(["--scenario", "understat-five-league-xg-creation", "--compare-understat-research", "--runs", "2"], understatEnv);
+  assert.equal(tooFew.status, 2);
+  assert.match(tooFew.stderr, /至少需要 --runs 3/);
+  assert.doesNotMatch(tooFew.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const wrongDataMode = runCli(["--scenario", "bayern-kane-replacement", "--compare-understat-research", "--runs", "3"], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "mosaic",
+  });
+  assert.equal(wrongDataMode.status, 2);
+  assert.match(wrongDataMode.stderr, /需要 TACTISCOUT_DATA_MODE=understat/);
+  assert.doesNotMatch(wrongDataMode.stderr, /ECONNREFUSED|fetch failed/i);
+});
+
+test("Understat research comparison rejects custom input, summary output, and another experiment before model calls", async () => {
+  const env = { ...process.env, TACTISCOUT_DATA_MODE: "understat" };
+  const custom = runCli(["--scenario", "understat-five-league-xg-creation", "--compare-understat-research", "--message", "custom", "--runs", "3"], env);
+  assert.equal(custom.status, 2);
+  assert.match(custom.stderr, /--scenario 不能与 --message 或 --expected-position 一起使用/);
+  assert.doesNotMatch(custom.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const conflicting = runCli(["--scenario", "understat-five-league-xg-creation", "--compare-understat-research", "--compare-investigation-planning", "--runs", "3"], env);
+  assert.equal(conflicting.status, 2);
+  assert.match(conflicting.stderr, /一次只能使用一个/);
+  assert.doesNotMatch(conflicting.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const outputPath = path.join(os.tmpdir(), `tactiscout-understat-ablation-${process.pid}.json`);
+  const summary = runCli(["--scenario", "understat-five-league-xg-creation", "--compare-understat-research", "--summary-output", outputPath, "--runs", "3"], env);
+  assert.equal(summary.status, 2);
+  assert.match(summary.stderr, /--summary-output 目前只支持普通 Harness 运行/);
+  assert.doesNotMatch(summary.stderr, /ECONNREFUSED|fetch failed/i);
+  await assert.rejects(access(outputPath), { code: "ENOENT" });
 });

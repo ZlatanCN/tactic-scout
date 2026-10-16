@@ -57,7 +57,7 @@ function fixtureRepository(player: PlayerProfile): PlayerRepository {
   };
 }
 
-async function runFullGraph(evidenceWithheld: boolean) {
+async function runFullGraph(evidenceWithheld: boolean, reviewerMode: "enabled" | "bypassed" = "enabled", misalignedEvidence = false) {
   const player = fixturePlayer();
   const repository = fixtureRepository(player);
   const events: RecruitmentTraceEvent[] = [];
@@ -81,7 +81,7 @@ async function runFullGraph(evidenceWithheld: boolean) {
           recommendations: evidenceWithheld
             ? [{ playerId: player.playerId, evidenceKeys: [requestedMetricKey] }]
             : observedCandidate
-            ? [{ playerId: player.playerId, evidenceKeys: [requestedMetricKey] }]
+            ? [{ playerId: player.playerId, evidenceKeys: [misalignedEvidence ? "goals" : requestedMetricKey] }]
             : [],
           limitationKeys: ["other"],
         };
@@ -96,6 +96,7 @@ async function runFullGraph(evidenceWithheld: boolean) {
   const conversation = createRecruitmentConversation({
     repository,
     planner,
+    experimentalReviewerMode: reviewerMode,
     evidenceEvaluator: evidenceWithheld
       ? createWithheldRecruitmentEvidenceEvaluator(baseEvaluator)
       : baseEvaluator,
@@ -146,4 +147,20 @@ test("the full LangGraph report distinguishes observed evaluator evidence from a
   assert.equal(withheldEvaluation?.phase === "tool" ? withheldEvaluation.filters.evidenceAvailability : undefined, "experimentally_withheld");
   assert.equal(withheldEvaluation?.phase === "tool" ? withheldEvaluation.filters.evaluatedMetricKeys?.length : undefined, 0);
   assert.equal(withheldEvaluation?.phase === "tool" ? withheldEvaluation.filters.evaluatedMetricValueCount : undefined, 0);
+});
+
+
+test("Reviewer ablation repairs an unrelated citation without changing candidate discovery or observed metrics", async () => {
+  const enabled = await runFullGraph(false, "enabled", true);
+  const bypassed = await runFullGraph(false, "bypassed", true);
+  assert.deepEqual(enabled.report.recommendations.map(({ player }) => player.playerId), bypassed.report.recommendations.map(({ player }) => player.playerId));
+  assert.deepEqual(enabled.report.evidenceCoverage, bypassed.report.evidenceCoverage);
+  const tools = (events: RecruitmentTraceEvent[]) => events.flatMap((event) => event.phase === "tool"
+    ? [{ toolName: event.toolName, filters: event.filters, resultCount: event.resultCount }]
+    : []);
+  assert.deepEqual(tools(enabled.events), tools(bypassed.events));
+  assert.deepEqual(enabled.report.recommendations[0]?.focusEvidenceKeys, [requestedMetricKey]);
+  assert.deepEqual(bypassed.report.recommendations[0]?.focusEvidenceKeys, ["goals"]);
+  assert.ok(enabled.events.some((event) => event.phase === "review" && event.outcome === "passed" && (event.repairedEvidenceReferenceCount ?? 0) > 0));
+  assert.ok(bypassed.events.some((event) => event.phase === "review" && event.outcome === "bypassed"));
 });

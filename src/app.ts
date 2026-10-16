@@ -15,9 +15,11 @@ import {
 import { createTheSportsDbRosterEnrichment, THESPORTSDB_SOURCE_URL, type TeamRosterEnrichmentProvider } from "./data/thesportsdb-roster.js";
 import { createRecruitmentCheckpointStore } from "./agent/checkpoint-store.js";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
-import { createRepository, type PlayerRepository } from "./data/provider.js";
+import { createRepository } from "./data/provider.js";
+import { type PlayerRepository } from "./data/player-repository.js";
 import { RecruitmentCaseStateExpiredError, RecruitmentModelTimeoutError, RecruitmentModelUnavailableError, configuredRecruitmentConversation, createRecruitmentConversation, type RecruitmentConversation, type RecruitmentPlanner } from "./agent/conversation.js";
 import { createLocalKnowledgeBase, type KnowledgeBase, type KnowledgeRepository } from "./knowledge/index.js";
+import { createWebSearchKnowledgeRepository } from "./knowledge/web-player-report-search.js";
 import { KnowledgeStatusSchema } from "./knowledge/schemas.js";
 import { createPlayerObservationLibrary, PlayerObservationNotFoundError, type PlayerObservationLibrary } from "./observations/library.js";
 import { PlayerObservationInputSchema, PlayerObservationListSchema, PlayerObservationSchema } from "./observations/schemas.js";
@@ -66,6 +68,7 @@ export function createApp(options: {
   const app = Fastify({ logger: true });
   const playerRepository = options.playerRepository ?? createRepository();
   const knowledgeBase = options.knowledgeBase ?? createLocalKnowledgeBase();
+  const recruitmentKnowledge = createWebSearchKnowledgeRepository(knowledgeBase);
   const playerObservationLibrary = options.playerObservationLibrary ?? createPlayerObservationLibrary({
     index: knowledgeBase,
     storagePath: options.playerObservationsPath,
@@ -84,13 +87,15 @@ export function createApp(options: {
   const recruitmentConversation = options.recruitmentConversation ?? (options.recruitmentPlanner
     ? createRecruitmentConversation({
       repository: playerRepository,
+      ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       planner: options.recruitmentPlanner,
-      knowledgeBase,
+      knowledgeBase: recruitmentKnowledge,
       checkpointer,
     })
     : configuredRecruitmentConversation({
       repository: playerRepository,
-      knowledgeBase,
+      ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
+      knowledgeBase: recruitmentKnowledge,
       ...(checkpointer ? { checkpointer } : {}),
     }));
   app.addHook("onRequest", async (request, reply) => {
@@ -162,7 +167,7 @@ export function createApp(options: {
     return RecruitmentProgressSchema.parse(progress);
   });
 
-  app.post("/api/v1/requirements/parse", async (request, reply) => {
+  app.post("/api/v1/requirements/parse", async (_request, reply) => {
     return reply.code(410).send({
       error: "独立需求解析接口已停用，请直接通过自然语言招募案件开始调查。",
       replacement: {
@@ -424,7 +429,7 @@ export function createApp(options: {
     return RecruitmentTurnCancellationResponseSchema.parse({ status: "requested" });
   });
 
-  app.post("/api/v1/scout", async (request, reply) => {
+  app.post("/api/v1/scout", async (_request, reply) => {
     return reply.code(410).send({
       error: "旧版一次性球探接口已停用，请改用自然语言招募案件。",
       replacement: {

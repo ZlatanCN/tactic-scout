@@ -43,10 +43,20 @@ export const KnowledgeDocumentInputSchema = z.object({
 });
 export type KnowledgeDocumentInput = z.infer<typeof KnowledgeDocumentInputSchema>;
 
+export const KnowledgePlayerContextSchema = z.object({
+  playerName: z.string().trim().min(1),
+  team: z.string().trim().min(1),
+  competition: z.string().trim().min(1),
+  season: z.string().trim().min(1),
+});
+export type KnowledgePlayerContext = z.infer<typeof KnowledgePlayerContextSchema>;
+
 export const KnowledgeSearchRequestSchema = z.object({
   corpus: KnowledgeCorpusSchema,
   query: z.string().trim().min(2).max(2000),
   playerNames: z.array(z.string().min(1)).max(20).default([]),
+  capabilityGaps: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
+  playerContexts: z.array(KnowledgePlayerContextSchema).max(10).optional(),
   limit: z.number().int().min(1).max(12).default(6),
 }).refine((request) => request.corpus !== "player_report" || request.playerNames.length > 0, {
   message: "球员报告检索必须提供至少一个球员实体名称。",
@@ -72,6 +82,7 @@ export const KnowledgeSearchResultSchema = z.object({
   entityNames: z.array(z.string()),
   competition: z.string().nullable(),
   season: z.string().nullable(),
+  matchedCapabilityGaps: z.array(z.string()).optional(),
   displayAllowed: z.boolean(),
 });
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>;

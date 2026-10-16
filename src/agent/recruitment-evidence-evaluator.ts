@@ -6,10 +6,11 @@ import {
   type PlayerProfile,
 } from "../domain/schemas.js";
 import { comparePeerPercentile, minimumMinutesForPercentileComparison } from "../domain/evidence-comparison.js";
-import { loadComparisonPlayers, loadPlayersByIds, type PlayerRepository } from "../data/provider.js";
+import { loadComparisonPlayers, loadPlayersByIds, type PlayerRepository } from "../data/player-repository.js";
 import { sourcePlayerKey } from "../identity/source-player-key.js";
-import { toPer90 } from "./performance-metrics.js";
+import { observableMetricValue as metricValue } from "../domain/performance-metrics.js";
 import { throwIfAborted } from "../domain/abort.js";
+import { understatPositionMetricsForPlayer, type UnderstatPlayerInsight } from "../data/understat-research.js";
 
 export interface EvaluatedCandidate {
   player: PlayerProfile;
@@ -25,16 +26,14 @@ export type RecruitmentEvidenceAvailability = "available" | "experimentally_with
 
 export interface RecruitmentEvidenceEvaluator {
   availability: RecruitmentEvidenceAvailability;
-  evaluate(eligiblePlayers: PlayerProfile[], requestedIds: string[], signal?: AbortSignal): Promise<RecruitmentEvaluationBatch>;
+  evaluate(
+    eligiblePlayers: PlayerProfile[],
+    requestedIds: string[],
+    signal?: AbortSignal,
+    options?: { understatResearch?: Readonly<Record<string, UnderstatPlayerInsight>> },
+  ): Promise<RecruitmentEvaluationBatch>;
   describe(evidence: CapabilityEvidence): string;
   coverage(candidate: EvaluatedCandidate): { expectedMetricCount: number; hasMissingMetrics: boolean };
-}
-
-function metricValue(player: PlayerProfile, key: CapabilityMetricKey): number | undefined {
-  const supplementary = player.supplementaryMetrics?.find((metric) => metric.key === key);
-  if (supplementary) return supplementary.value ?? undefined;
-  if (player.eventDataComplete === false || (key === "passCompletionPct" && player.stats.passesAttempted === 0)) return undefined;
-  return (toPer90(player) as unknown as Record<CapabilityMetricKey, number | null>)[key] ?? undefined;
 }
 
 function metricDefinitionsFor(player: PlayerProfile): Array<{ key: CapabilityMetricKey; label: string; unit: string }> {
@@ -60,6 +59,7 @@ async function evaluatePlayers(
   eligiblePlayers: PlayerProfile[],
   requestedIds: string[],
   signal?: AbortSignal,
+  understatResearch: Readonly<Record<string, UnderstatPlayerInsight>> = {},
 ): Promise<RecruitmentEvaluationBatch> {
   throwIfAborted(signal);
   const eligibleIds = new Set(eligiblePlayers.map((player) => player.playerId));
@@ -68,7 +68,13 @@ async function evaluatePlayers(
   throwIfAborted(signal);
   const selected = selectedIds.flatMap((id) => {
     const player = requestedPlayers.find((candidate) => candidate.playerId === id);
-    return player ? [player] : [];
+    if (!player) return [];
+    const research = understatResearch[id];
+    const positionalMetrics = research ? understatPositionMetricsForPlayer(player, research) : [];
+    if (positionalMetrics.length === 0) return [player];
+    const metrics = new Map(player.supplementaryMetrics?.map((metric) => [metric.key, metric]) ?? []);
+    for (const metric of positionalMetrics) metrics.set(metric.key, metric);
+    return [{ ...player, supplementaryMetrics: [...metrics.values()] }];
   });
   const comparisonPlayers = await loadComparisonPlayers(repository, selected, signal);
   throwIfAborted(signal);
@@ -87,6 +93,8 @@ async function evaluatePlayers(
         const peerValue = metricValue(peer, key);
         if (peerValue === undefined) return [];
         const peerSupplementary = peer.supplementaryMetrics?.find((metric) => metric.key === key);
+        const candidateUsesPositionSplit = supplementary?.sourceField.startsWith("groups.position[") === true;
+        if (candidateUsesPositionSplit !== (peerSupplementary?.sourceField.startsWith("groups.position[") === true)) return [];
         return [{ value: peerValue, minutes: peerSupplementary ? peerSupplementary.sampleMinutes : peer.minutes }];
       });
       const comparison = comparePeerPercentile(value, minutes, peerSamples);
@@ -149,7 +157,7 @@ function describeEvidence(item: CapabilityEvidence): string {
 export function createRecruitmentEvidenceEvaluator(repository: PlayerRepository): RecruitmentEvidenceEvaluator {
   return {
     availability: "available",
-    evaluate: (eligiblePlayers, requestedIds, signal) => evaluatePlayers(repository, eligiblePlayers, requestedIds, signal),
+    evaluate: (eligiblePlayers, requestedIds, signal, options) => evaluatePlayers(repository, eligiblePlayers, requestedIds, signal, options?.understatResearch),
     describe: describeEvidence,
     coverage: (candidate) => {
       const expectedMetricCount = metricDefinitionsFor(candidate.player).length;

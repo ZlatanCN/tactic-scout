@@ -1,3 +1,4 @@
+import { searchLoadedPlayers } from "./player-search.js";
 import {
   PlayerProfileSchema,
   SupplementaryCapabilityMetricDefinitions,
@@ -8,11 +9,28 @@ import {
 } from "../domain/schemas.js";
 import { positionMatches } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
-import type { PlayerRepository, PlayerSearchPage, PlayerSearchQuery } from "./provider.js";
-import { throwIfAborted, signalWithTimeout } from "../domain/abort.js";
+import type { PlayerRepository, PlayerSearchPage, PlayerSearchQuery } from "./player-repository.js";
+import { throwIfAborted } from "../domain/abort.js";
 import { SharedCancellableLoad } from "./shared-cancellable-load.js";
+import {
+  UnderstatDataGateway,
+  type UnderstatSnapshotStore,
+} from "./understat-data-gateway.js";
+import { UnderstatProviderError } from "./understat-data-gateway.js";
+export { UnderstatProviderError } from "./understat-data-gateway.js";
+import {
+  inspectUnderstatMatch,
+  inspectUnderstatTeam,
+  compactUnderstatPlayerInsightForCohort,
+  projectUnderstatPlayerInsight,
+  type UnderstatMatchInsight,
+  type UnderstatPlayerInsight,
+  type UnderstatPlayerSection,
+  type UnderstatTeamInsight,
+} from "./understat-research.js";
 
 const ORIGIN = "https://understat.com";
+
 const COMPETITIONS = [
   { slug: "EPL", label: "英超" },
   { slug: "La_liga", label: "西甲" },
@@ -23,8 +41,6 @@ const COMPETITIONS = [
 const DEFAULT_CACHE_TTL_MS = 30 * 60 * 1000;
 const FAILURE_COOLDOWN_MS = 60 * 1000;
 const ACCESS_FAILURE_COOLDOWN_MS = 15 * 60 * 1000;
-const REQUEST_TIMEOUT_MS = 15_000;
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_PLAYERS_PER_COMPETITION = 2_000;
 
 interface CacheEntry {
@@ -58,29 +74,18 @@ interface UnderstatPlayerRow extends Record<string, unknown> {
   xGBuildup: string;
 }
 
-export type UnderstatProviderErrorCode =
-  | "invalid_configuration"
-  | "network"
-  | "timeout"
-  | "blocked"
-  | "rate_limit"
-  | "request_failed"
-  | "redirect_rejected"
-  | "unsupported_scope"
-  | "response_too_large"
-  | "invalid_response";
-
-export class UnderstatProviderError extends Error {
-  constructor(readonly code: UnderstatProviderErrorCode, message: string) {
-    super(message);
-    this.name = "UnderstatProviderError";
-  }
-}
-
 export interface UnderstatRepositoryOptions {
   fetchImpl?: typeof fetch;
+  snapshotStore?: UnderstatSnapshotStore;
   cacheTtlMs?: number;
   now?: () => Date;
+}
+
+export interface UnderstatResearchRepository {
+  inspectPlayer(playerId: string, sections: readonly UnderstatPlayerSection[], signal?: AbortSignal): Promise<UnderstatPlayerInsight>;
+  inspectCandidateGroup(playerIds: readonly string[], sections: readonly UnderstatPlayerSection[], signal?: AbortSignal): Promise<UnderstatPlayerInsight[]>;
+  inspectTeamDetails(teamName: string, signal?: AbortSignal): Promise<UnderstatTeamInsight | null>;
+  inspectMatch(matchId: string, signal?: AbortSignal): Promise<UnderstatMatchInsight>;
 }
 
 const metricFields: readonly MetricField[] = [
@@ -130,7 +135,7 @@ function broadPosition(value: unknown): Position | undefined {
   if (parts.includes("GK")) return "GK";
   if (parts.includes("D")) return "DEF";
   if (parts.includes("M")) return "MID";
-  if (parts.includes("F") || parts.includes("S")) return "ATT";
+  if (parts.includes("F")) return "ATT";
   return undefined;
 }
 
@@ -144,43 +149,6 @@ function metricValue(field: MetricField, row: UnderstatPlayerRow, minutes: numbe
   if (field.normalization === "perShot") return shots > 0 ? rounded(raw / shots) : null;
   if (minutes <= 0) return null;
   return rounded(raw * 90 / minutes);
-}
-
-async function boundedResponseText(response: Response, competitionLabel: string, signal?: AbortSignal): Promise<string> {
-  if (!response.body) {
-    throw new UnderstatProviderError("invalid_response", `Understat ${competitionLabel} 接口没有返回响应内容。`);
-  }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let byteLength = 0;
-  try {
-    while (true) {
-      throwIfAborted(signal);
-      const result = await reader.read();
-      throwIfAborted(signal);
-      if (result.done) break;
-      byteLength += result.value.byteLength;
-      if (byteLength > MAX_RESPONSE_BYTES) {
-        void reader.cancel().catch(() => undefined);
-        throw new UnderstatProviderError("response_too_large", `Understat ${competitionLabel} 响应超过大小上限。`);
-      }
-      chunks.push(result.value);
-    }
-  } catch (error) {
-    if (error instanceof UnderstatProviderError) throw error;
-    if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : error;
-    const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    throw new UnderstatProviderError(timeout ? "timeout" : "network", `Understat ${competitionLabel} 响应读取${timeout ? "超时" : "失败"}。`);
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(byteLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
 }
 
 function mapCompetitionPlayers(
@@ -291,96 +259,56 @@ function mapCompetitionPlayers(
 }
 
 async function requestCompetition(
-  fetchImpl: typeof fetch,
+  gateway: UnderstatDataGateway,
   competition: typeof COMPETITIONS[number],
   seasonStartYear: number,
-  retrievedAt: Date,
   signal?: AbortSignal,
+  refresh = false,
 ): Promise<PlayerProfile[]> {
-  const pageUrl = `${ORIGIN}/league/${competition.slug}/${seasonStartYear}`;
-  const endpoint = `${ORIGIN}/getLeagueData/${competition.slug}/${seasonStartYear}`;
-  let response: Response;
-  try {
-    response = await fetchImpl(endpoint, {
-      headers: {
-        accept: "application/json",
-        "x-requested-with": "XMLHttpRequest",
-        referer: pageUrl,
-      },
-      signal: signalWithTimeout(signal, REQUEST_TIMEOUT_MS),
-      redirect: "manual",
-    });
-  } catch (error) {
-    if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : error;
-    const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    throw new UnderstatProviderError(timeout ? "timeout" : "network", `Understat ${competition.label} 请求${timeout ? "超时" : "失败"}；没有尝试备用域名或代理。`);
-  }
-  if (response.status >= 300 && response.status < 400) {
-    throw new UnderstatProviderError("redirect_rejected", `Understat ${competition.label} 接口返回重定向，已停止请求。`);
-  }
-  if (response.status === 401 || response.status === 403) {
-    throw new UnderstatProviderError("blocked", `Understat ${competition.label} 接口拒绝访问（HTTP ${response.status}）。`);
-  }
-  if (response.status === 429) {
-    throw new UnderstatProviderError("rate_limit", `Understat ${competition.label} 接口触发限流（HTTP 429）；本次未重试。`);
-  }
-  if (!response.ok) {
-    throw new UnderstatProviderError("request_failed", `Understat ${competition.label} 接口返回 HTTP ${response.status}。`);
-  }
-  const contentType = (response.headers.get("content-type") ?? "").split(";", 1)[0]!.trim().toLowerCase();
-  if (!new Set(["application/json", "text/javascript", "application/javascript"]).has(contentType)) {
-    throw new UnderstatProviderError("invalid_response", `Understat ${competition.label} 接口没有返回 JSON。`);
-  }
-  const contentLength = Number(response.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
-    throw new UnderstatProviderError("response_too_large", `Understat ${competition.label} 响应超过大小上限。`);
-  }
-  const text = await boundedResponseText(response, competition.label, signal);
-  let payload: unknown;
-  try {
-    payload = JSON.parse(text) as unknown;
-  } catch {
-    throw new UnderstatProviderError("invalid_response", `Understat ${competition.label} 返回了无法解析的 JSON。`);
-  }
-  return mapCompetitionPlayers(payload, competition, seasonStartYear, retrievedAt);
+  const snapshot = await gateway.get("league", competition.slug, seasonStartYear, { signal, refresh });
+  return mapCompetitionPlayers(snapshot.payload, competition, seasonStartYear, new Date(snapshot.retrievedAt));
 }
 
-async function requestPlayers(fetchImpl: typeof fetch, now: () => Date, signal?: AbortSignal): Promise<PlayerProfile[]> {
+async function requestPlayers(gateway: UnderstatDataGateway, now: () => Date, signal?: AbortSignal, refresh = false): Promise<PlayerProfile[]> {
   const retrievedAt = now();
   const seasonStartYear = currentSeasonStartYear(retrievedAt);
   const output: PlayerProfile[] = [];
   // Keep the five public page reads sequential and bounded to avoid a burst against the source.
   for (const competition of COMPETITIONS) {
     throwIfAborted(signal);
-    output.push(...await requestCompetition(fetchImpl, competition, seasonStartYear, retrievedAt, signal));
+    output.push(...await requestCompetition(gateway, competition, seasonStartYear, signal, refresh));
   }
   return output;
 }
 
-export class UnderstatPlayerRepository implements PlayerRepository {
+export class UnderstatPlayerRepository implements PlayerRepository, UnderstatResearchRepository {
   readonly mode = "understat" as const;
   readonly sourceName = "Understat · 五大联赛当前赛季表现池";
   private cached?: CacheEntry;
-  private readonly fetchImpl: typeof fetch;
+  private readonly gateway: UnderstatDataGateway;
   private readonly cacheTtlMs: number;
   private readonly now: () => Date;
 
   constructor(options: UnderstatRepositoryOptions = {}) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
     this.cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
     this.now = options.now ?? (() => new Date());
     if (!Number.isFinite(this.cacheTtlMs) || this.cacheTtlMs < 0) {
       throw new UnderstatProviderError("invalid_configuration", "Understat 缓存时间必须是非负毫秒数。");
     }
+    this.gateway = new UnderstatDataGateway({
+      ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      ...(options.snapshotStore ? { snapshotStore: options.snapshotStore } : {}),
+      cacheTtlMs: this.cacheTtlMs,
+      now: this.now,
+    });
   }
 
   loadPlayers(refresh = false, signal?: AbortSignal): Promise<PlayerProfile[]> {
     throwIfAborted(signal);
     const nowMs = this.now().getTime();
     // LangGraph may revisit the provider while reviewing the same case; keep a stable snapshot per process.
-    void refresh;
-    if (this.cached && this.cached.expiresAt > nowMs) return this.cached.load.subscribe(signal);
-    const entry: CacheEntry = { expiresAt: nowMs + this.cacheTtlMs, load: new SharedCancellableLoad((requestSignal) => requestPlayers(this.fetchImpl, this.now, requestSignal)) };
+    if (!refresh && this.cached && this.cached.expiresAt > nowMs) return this.cached.load.subscribe(signal);
+    const entry: CacheEntry = { expiresAt: nowMs + this.cacheTtlMs, load: new SharedCancellableLoad((requestSignal) => requestPlayers(this.gateway, this.now, requestSignal, refresh)) };
     void entry.load.promise.catch((error: unknown) => {
       if (this.cached === entry) {
         if (entry.load.signal.aborted) {
@@ -426,6 +354,7 @@ export class UnderstatPlayerRepository implements PlayerRepository {
         if (player) interleaved.push(player);
       }
     }
+    if (query.discoveryMetricGroups !== undefined) return searchLoadedPlayers(interleaved, query);
     const playersOnPage = interleaved.slice(query.offset, query.offset + query.limit);
     const appliedFilters: PlayerSearchPage["appliedFilters"] = [];
     if (query.playerName) appliedFilters.push("playerName");
@@ -440,5 +369,59 @@ export class UnderstatPlayerRepository implements PlayerRepository {
       nextOffset: query.offset + playersOnPage.length < interleaved.length ? query.offset + playersOnPage.length : null,
       appliedFilters,
     };
+  }
+
+  async inspectPlayer(playerId: string, sections: readonly UnderstatPlayerSection[], signal?: AbortSignal): Promise<UnderstatPlayerInsight> {
+    throwIfAborted(signal);
+    const players = await this.loadPlayers(false, signal);
+    const profile = players.find((candidate) => candidate.playerId === playerId);
+    if (!profile || !profile.externalPlayerId) {
+      throw new UnderstatProviderError("unsupported_scope", "只能查询本轮 Understat 数据目录中已发现的球员来源 ID。");
+    }
+    const snapshot = await this.gateway.get("player", profile.externalPlayerId, null, { signal });
+    throwIfAborted(signal);
+    return projectUnderstatPlayerInsight({ profile, snapshot, sections });
+  }
+
+  async inspectCandidateGroup(playerIds: readonly string[], sections: readonly UnderstatPlayerSection[], signal?: AbortSignal): Promise<UnderstatPlayerInsight[]> {
+    throwIfAborted(signal);
+    if (playerIds.length < 2 || playerIds.length > 12 || new Set(playerIds).size !== playerIds.length) {
+      throw new UnderstatProviderError("unsupported_scope", "候选组细查需要 2–12 名互不重复的已发现球员。");
+    }
+    const players = await this.loadPlayers(false, signal);
+    throwIfAborted(signal);
+    const profiles = playerIds.map((playerId) => {
+      const profile = players.find((candidate) => candidate.playerId === playerId);
+      if (!profile || !profile.externalPlayerId) {
+        throw new UnderstatProviderError("unsupported_scope", "候选组只能包含已发现的 Understat 球员来源 ID。");
+      }
+      return profile;
+    });
+    const insights: UnderstatPlayerInsight[] = [];
+    for (let start = 0; start < profiles.length; start += 4) {
+      throwIfAborted(signal);
+      const batch = profiles.slice(start, start + 4);
+      const results = await Promise.all(batch.map(async (profile) => {
+        const snapshot = await this.gateway.get("player", profile.externalPlayerId!, null, { signal });
+        throwIfAborted(signal);
+        return compactUnderstatPlayerInsightForCohort(projectUnderstatPlayerInsight({ profile, snapshot, sections }));
+      }));
+      insights.push(...results);
+    }
+    return insights;
+  }
+
+  async inspectTeamDetails(teamName: string, signal?: AbortSignal): Promise<UnderstatTeamInsight | null> {
+    throwIfAborted(signal);
+    const players = await this.loadPlayers(false, signal);
+    throwIfAborted(signal);
+    return inspectUnderstatTeam(this.gateway, players, teamName, signal);
+  }
+
+  async inspectMatch(matchId: string, signal?: AbortSignal): Promise<UnderstatMatchInsight> {
+    throwIfAborted(signal);
+    const result = await inspectUnderstatMatch(this.gateway, matchId, signal);
+    throwIfAborted(signal);
+    return result;
   }
 }

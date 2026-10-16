@@ -7,7 +7,7 @@ import {
   type Position,
   type SupplementaryMetricKey,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 
 const aggregateFiles = {
   physical: "aus1league_physicalaggregates_20242025.csv",

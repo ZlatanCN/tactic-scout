@@ -57,7 +57,7 @@ American Soccer Analysis（ASA）是当前赛季表现数据 provider。在 `.en
 
 ASA adapter、默认搜索和通用 `USL` 组均只读取本产品支持的 MLS、USL Championship 与 USL League One；其它 ASA 赛事会在候选入口之外排除。跨赛事百分位只在同赛事、同赛季与同位置组内计算；不能将不同赛事的原始表现值直接当作同水平比较。Goals Added 按来源动作价值定义展示，不进入 TactiScout 职责评分；平均纵向传球距离不等同于渐进传球。这个表现池不是完整注册名单或全球转会市场，也没有合同、身价、预算、伤病或转会可行性字段。ASA 要求为公开数据提供署名和链接；目前未找到明确覆盖公开逐球员展示、任意留存或 LLM/RAG 使用的数据许可，本 provider 不把此数据打包进仓库。接口没有记录级更新时间 SLA，因此本机读取时间不表示来源实时性保证。
 
-Understat 是当前赛季五大联赛表现源。在 `.env` 设置 `TACTISCOUT_DATA_MODE=understat` 启用；适配器按顺序读取英超、西甲、德甲、意甲和法甲公开联赛页使用的 JSON 路由，进程内缓存默认 30 分钟，可通过 `TACTISCOUT_UNDERSTAT_CACHE_TTL_MS` 调整。实测映射进球、助攻、关键传球、xG、npxG、xA、射门、xGChain 与 xGBuildup；每 90 分钟指标按来源分钟计算，平均射门 xG 按来源射门数派生，并保留来源字段、联赛、赛季、分钟/场次、来源页和本机抓取时间。2026-10-11 一次顺序读取观察到 2,164 条 2026/27 球员赛季记录，覆盖五项配置赛事；这是当日表现样本，不代表完整注册名单。未指定联赛时，候选页按联赛轮转，避免分页顺序固定偏向单一联赛。位置只映射到门将/后卫/中场/前锋宽组；来源没有出生日期，因此年龄上限条件会明确中止查询并请用户决定是否移除，绝不静默把未知年龄当作满足。跨联赛比较仅在同联赛、赛季和位置组内计算。它不是完整注册阵容或全球转会市场，也没有身价、预算、合同、伤病、压迫、推进或转会可行性数据。xG/npxG 是机会估计，不是终结能力；xA、xGChain 与 xGBuildup 不等同于完整创造力。底层 JSON 路由没有公开稳定的开发者 schema 或更新时间 SLA，访问、字段和覆盖可能变化；本机读取时间不代表来源实时更新保证。自动采集、本地留存、模型/RAG 处理、公开展示和再分发权限尚未核实；用户授权的是本地研究原型抓取，不是来源方授权。此次 smoke 仅输出汇总，不落盘原始响应或调用模型；适配器也不将原始响应写入仓库。
+Understat 是当前赛季五大联赛表现源。在 `.env` 设置 `TACTISCOUT_DATA_MODE=understat` 启用；适配器按顺序读取英超、西甲、德甲、意甲和法甲公开联赛页使用的 JSON 路由，原始响应写入本机 SQLite（默认 `.data/understat/understat.sqlite`，可用 `TACTISCOUT_UNDERSTAT_DB_PATH` 指定）；成功快照默认 30 分钟后重新验证，可通过 `TACTISCOUT_UNDERSTAT_CACHE_TTL_MS` 调整。实测映射进球、助攻、关键传球、xG、npxG、xA、射门、xGChain 与 xGBuildup；每 90 分钟指标按来源分钟计算，平均射门 xG 按来源射门数派生，并保留来源字段、联赛、赛季、分钟/场次、来源页和本机抓取时间。2026-10-11 一次顺序读取观察到 2,164 条 2026/27 球员赛季记录，覆盖五项配置赛事；这是当日表现样本，不代表完整注册名单。候选组阶段可一次对照最多 12 名已发现球员，按需求读取位置拆分、历史与近期表现、进攻参与或射门分布，底层个人快照按来源 ID 缓存；逐场射门和球队比赛背景仍按需深查。未指定联赛时，候选页按联赛轮转，避免分页顺序固定偏向单一联赛。位置只映射到门将/后卫/中场/前锋宽组；来源没有出生日期，因此年龄上限条件会明确中止查询并请用户决定是否移除，绝不静默把未知年龄当作满足。跨联赛比较仅在同联赛、赛季和位置组内计算。它不是完整注册阵容或全球转会市场，也没有身价、预算、合同、伤病、压迫、推进或转会可行性数据。xG/npxG 是机会估计，不是终结能力；xA、xGChain 与 xGBuildup 不等同于完整创造力。底层 JSON 路由没有公开稳定的开发者 schema 或更新时间 SLA，访问、字段和覆盖可能变化；本机读取时间不代表来源实时更新保证。自动采集、本地留存、模型/RAG 处理、公开展示和再分发权限尚未核实；用户授权的是本地研究原型抓取，不是来源方授权。此次 smoke 仅输出汇总，不落盘原始响应或调用模型；适配器也不将原始响应写入仓库。
 
 ```dotenv
 TACTISCOUT_DATA_MODE=understat
@@ -140,3 +140,11 @@ FPL 记录携带的 `opta_code` 目前只按实时 payload 观察到的 `p<数�
 可选的 PlayerElo report-only 信号也只在证据审查后运行：API-Football 来源按原始 ID 直连，其他来源必须经本地 Reep registry 的唯一跨来源映射取得 API-Football ID，再调用 `getPlayer(id)` 并校验响应 ID；不会按姓名猜测。报告保存 Reep release、canonical ID 和 bridge rung。该信号不进入模型、战术评分或推荐排序。启用前必须配置 `PLAYER_ELO_API_KEY`，并将 `TACTISCOUT_PLAYER_ELO_REPORT_DISPLAY_ALLOWED` 与 `TACTISCOUT_PLAYER_ELO_LOCAL_RETENTION_ALLOWED` 显式设为 `true`；默认关闭。本机目前没有完成真实 PlayerElo API smoke，因此该路径的 live 命中率尚未验证。
 
 </details>
+
+## football-data.org 球队背景
+
+配置服务端 `TACTISCOUT_FOOTBALL_DATA_API_KEY` 后，启动入口优先启用 football-data.org 阵容查询。`inspect_team` 的工具结果附带独立 `currentRosterContext`，报告结束后的球队背景展示复用同一 provider。读取 BL1、PL、PD、SA、FL1 的球队名单，精确匹配球队名称；拜仁和巴萨有显式中英文别名。无法唯一匹配时不猜测球队。
+
+联赛响应存储在 Git 忽略的 `.data/football-data/`，缓存有效期 24 小时，展示实际缓存抓取时间。服务端请求串行执行，默认至少间隔 6.5 秒，并根据 `X-Requests-Available-Minute` 与 `X-RequestCounter-Reset` 在额度耗尽时延后请求。请求超时、取消、HTTP 错误和限流不会被解释为没有球员。
+
+阵容的出生日期和国籍是独立背景字段；尚未通过精确跨来源身份映射补全 Understat 年龄。不会根据同名合并表现记录。Token 仅存在本机 `.env`，示例文件只保留空配置。

@@ -123,14 +123,7 @@ test("a Planner cannot re-ask permission to broaden a position or cite unreturne
   const threadId = "approved-position-expansion-question";
   let response = await conversation.turn({
     threadId,
-    message: "为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋。",
-  });
-  assert.equal(response.status, "needs_input");
-
-  response = await conversation.turn({
-    threadId,
-    message: "延续凯恩的中锋角色，暂不增加年龄或预算限制。",
-    expectsExistingState: true,
+    message: "为拜仁寻找凯恩的中锋替代者，重点看能接应、做球和终结的前锋。",
   });
   assert.equal(response.status, "needs_input");
 
@@ -154,13 +147,7 @@ test("a Planner cannot re-ask permission to broaden a position or cite unreturne
   const secondThreadId = "material-expansion-question-remains-available";
   response = await conversation.turn({
     threadId: secondThreadId,
-    message: "为阿森纳寻找凯恩的替代者，重点看能接应、做球和终结的前锋。",
-  });
-  assert.equal(response.status, "needs_input");
-  response = await conversation.turn({
-    threadId: secondThreadId,
-    message: "延续凯恩的中锋角色，暂不增加年龄或预算限制。",
-    expectsExistingState: true,
+    message: "为阿森纳寻找凯恩的中锋替代者，重点看能接应、做球和终结的前锋。",
   });
   assert.equal(response.status, "needs_input");
   response = await conversation.turn({

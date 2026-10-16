@@ -242,7 +242,7 @@ test("the compiled recruitment graph forwards turn cancellation to active team i
   controller.abort(new RecruitmentTurnCancelledError());
   await withTimeout(aborted, "team inspection to observe cancellation");
   await assert.rejects(pendingTurn, RecruitmentTurnCancelledError);
-  assert.equal(plannerCalls, 1, "cancelled team inspection must not restart Planner");
+  assert.equal(plannerCalls, 0, "automatic reference inspection must cancel without calling or restarting Planner");
 });
 
 test("the signal-on/off adapter ablation separates stopped source work from post-terminal work", async () => {

@@ -4,3 +4,9 @@ export class RecruitmentTurnCancelledError extends Error {
     this.name = "RecruitmentTurnCancelledError";
   }
 }
+
+export function throwIfTurnCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new RecruitmentTurnCancelledError();
+  }
+}

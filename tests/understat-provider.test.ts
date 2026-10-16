@@ -204,15 +204,17 @@ test("supports exact filtering and contiguous local paging without crossing leag
   const { repository } = repositoryFor({ rowsByLeague: Object.fromEntries(leagueSlugs.map((slug) => [slug, rows])) });
   const query = { ...emptyQuery, position: "ATT" as const, limit: 1 };
   const firstPage = await searchPlayerPage(repository, query);
-  assert.equal(firstPage.totalRecords, 10);
+  assert.equal(firstPage.totalRecords, 5, "substitute-only records must not be categorized as forwards");
   assert.equal(firstPage.players[0]?.position, "ATT");
   assert.equal(firstPage.nextOffset, 1);
   const fiveLeaguePage = await searchPlayerPage(repository, { ...query, limit: 5 });
   assert.deepEqual(new Set(fiveLeaguePage.players.map(({ competition }) => competition)), new Set(["英超", "西甲", "德甲", "意甲", "法甲"]));
-  assert.equal(fiveLeaguePage.nextOffset, 5);
+  assert.equal(fiveLeaguePage.nextOffset, null);
   const secondPage = await searchPlayerPage(repository, { ...query, offset: 1 });
   assert.equal(secondPage.players[0]?.playerId, "understat:La_liga:1:season:2026");
   assert.equal(secondPage.nextOffset, 2);
+  const unclassifiedSubstitute = (await repository.loadPlayers()).find((player) => player.sourceIdentity?.playerId === "EPL:3");
+  assert.equal(unclassifiedSubstitute?.position, undefined);
 });
 
 test("fails an explicit age filter because Understat has no birth dates", async () => {
@@ -224,6 +226,135 @@ test("fails an explicit age filter because Understat has no birth dates", async 
       && error.message.includes("未提供出生日期或年龄"),
   );
   assert.equal(calls.length, 0);
+});
+
+test("investigates a bounded candidate group with at most four concurrent player requests", async () => {
+  const playerRows = Object.fromEntries(leagueSlugs.map((slug, leagueIndex) => [
+    slug,
+    [0, 1, 2].map((playerIndex) => row({
+      id: String(leagueIndex * 10 + playerIndex + 1),
+      player_name: `${slug} Player ${playerIndex + 1}`,
+    })),
+  ]));
+  let active = 0;
+  let maxActive = 0;
+  let playerRequests = 0;
+  const repository = new UnderstatPlayerRepository({
+    now: () => now,
+    fetchImpl: async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.startsWith("/getLeagueData/")) {
+        const slug = url.pathname.split("/").at(-2)!;
+        return jsonResponse({ players: playerRows[slug] });
+      }
+      const sourcePlayerId = url.pathname.split("/").at(-1)!;
+      playerRequests += 1;
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+      const seasons = Array.from({ length: 10 }, (_, index) => 2026 - index);
+      const rowStats = { time: "900", games: "10", goals: "8", shots: "50", xG: "10", assists: "2", xA: "3", key_passes: "20", npxG: "9", xGChain: "18", xGBuildup: "7" };
+      const categoryRows = Object.fromEntries(Array.from({ length: 8 }, (_, index) => [`Zone ${index}`, rowStats]));
+      return jsonResponse({
+        player: { id: sourcePlayerId, name: `Player ${sourcePlayerId}` },
+        groups: {
+          position: Object.fromEntries(seasons.map((season) => [String(season), { FW: rowStats }])),
+          season: seasons.map((season) => ({ season, team: "Sample Club", position: "FW", ...rowStats })),
+          situation: { "2026": { OpenPlay: rowStats, SetPiece: rowStats, Penalty: rowStats } },
+          shotZones: { "2026": categoryRows },
+          shotTypes: { "2026": categoryRows },
+        },
+        matches: Array.from({ length: 8 }, (_, index) => ({ id: String(10_000 + index), date: `2026-10-${String(15 - index).padStart(2, "0")}`, h_team: "Home", a_team: "Away", time: "90", ...rowStats })),
+      });
+    },
+  });
+  const candidates = (await repository.loadPlayers()).slice(0, 12);
+  const requestedIds = candidates.map(({ playerId }) => playerId);
+  const insights = await repository.inspectCandidateGroup(requestedIds, ["positions", "recent", "history", "shotProfile"]);
+
+  assert.deepEqual(insights.map(({ playerId }) => playerId), requestedIds);
+  assert.equal(insights.length, 12);
+  assert.equal(playerRequests, 12);
+  assert.ok(maxActive > 1 && maxActive <= 4);
+  assert.ok(insights.every((insight) => insight.availableSections.includes("shotProfile")));
+  assert.deepEqual(insights[0]?.positions?.length, 8, "cohort position rows are capped without discarding the full raw snapshot");
+  assert.equal(insights[0]?.history?.length, 6);
+  assert.equal(insights[0]?.recent?.length, 5);
+  assert.equal(insights[0]?.shotProfile?.length, 15);
+  assert.ok(insights[0]?.notes.some((note) => note.includes("仅展示部分")));
+});
+
+test("keeps season and position performance distinct and preserves missing values", async () => {
+  const detail = {
+    player: { id: "1", name: "Sample Forward", favorite_position: "FW" },
+    groups: {
+      position: {
+        "2025": { FW: { time: "700", games: "9", goals: "3", shots: "18", xG: "4.2", assists: "1", xA: "0.8", key_passes: "7", npxG: "3.4", xGChain: "5", xGBuildup: "1" } },
+        "2026": { FW: { time: "500", games: "7", goals: "4", shots: "20", xG: "5.1", assists: "0", xA: null, key_passes: "5", npxG: "4.8", xGChain: "6", xGBuildup: "2" } },
+      },
+      season: [
+        { season: 2026, team: "Sample Club", position: "FW", games: "7", time: "500", goals: "4", shots: "20", xG: "5.1", assists: "0", xA: null, key_passes: "5", npxG: "4.8", xGChain: "6", xGBuildup: "2" },
+      ],
+    },
+  };
+  const repository = new UnderstatPlayerRepository({
+    now: () => now,
+    fetchImpl: async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.startsWith("/getLeagueData/")) return jsonResponse({ players: [row()] });
+      return jsonResponse(detail);
+    },
+  });
+  const player = (await repository.loadPlayers())[0]!;
+  const insight = await repository.inspectPlayer(player.playerId, ["positions", "history"]);
+
+  assert.deepEqual(insight.positions?.map(({ season, code }) => [season, code]), [["2026", "FW"], ["2025", "FW"]]);
+  assert.equal(insight.positions?.[0]?.xG, 5.1);
+  assert.equal(insight.positions?.[0]?.xA, null);
+  assert.equal(insight.history?.[0]?.goals, 4);
+  assert.equal(insight.history?.[0]?.assists, 0);
+  assert.equal(insight.history?.[0]?.xA, null);
+});
+
+test("distinguishes requested Understat sections from sections with returned evidence", async () => {
+  const repository = new UnderstatPlayerRepository({
+    now: () => now,
+    fetchImpl: async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.startsWith("/getLeagueData/")) return jsonResponse({ players: [row()] });
+      return jsonResponse({ player: { id: "1", name: "Sample Forward" } });
+    },
+  });
+  const player = (await repository.loadPlayers())[0]!;
+  const insight = await repository.inspectPlayer(player.playerId, ["positions", "history", "recent", "shotProfile"]);
+
+  assert.deepEqual(insight.requestedSections, ["positions", "history", "recent", "shotProfile"]);
+  assert.deepEqual(insight.availableSections, [], "an empty source payload must not be presented as evidence");
+  assert.equal(insight.positions, undefined);
+  assert.equal(insight.history, undefined);
+  assert.equal(insight.recent, undefined);
+  assert.equal(insight.shotProfile, undefined);
+});
+
+test("uses Understat's canonical team slug for detail requests and source links", async () => {
+  const paths: string[] = [];
+  const repository = new UnderstatPlayerRepository({
+    now: () => now,
+    fetchImpl: async (input) => {
+      const url = new URL(String(input));
+      paths.push(url.pathname);
+      if (url.pathname.startsWith("/getLeagueData/")) {
+        return jsonResponse({ players: [row({ team_title: url.pathname.includes("/Serie_A/") ? "AC Milan" : "Sample Club" })] });
+      }
+      return jsonResponse({ dates: [], statistics: {}, players: [] });
+    },
+  });
+
+  const insight = await repository.inspectTeamDetails("AC Milan");
+
+  assert.equal(paths.at(-1), "/getTeamData/AC_Milan/2026");
+  assert.equal(insight?.sourceUrl, "https://understat.com/team/AC_Milan/2026");
 });
 
 test("stops on a blocked or rate-limited league page without retrying or continuing", async (context) => {

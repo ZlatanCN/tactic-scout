@@ -1,17 +1,24 @@
+import { activeReferenceMessages } from "../domain/replacement-reference.js";
+import { requestedCapabilityEvidenceAreas } from "../domain/recruitment-capabilities.js";
 import { positionMatches } from "../domain/positions.js";
-import type { PlayerProfile, Position } from "../domain/schemas.js";
+import type { CapabilityMetricKey, PlayerProfile, Position } from "../domain/schemas.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+
+import { replacementTargetNames, replacementTargetMention, isReplacementTarget } from "./replacement-target.js";
 
 export type PositionConstraintChange = { changed: true; position: Position | null } | { changed: false };
 
 export interface CandidateSearchIntent {
+  discoveryMetricGroups: CapabilityMetricKey[][];
   position: Position | null;
+  positionBasis: "user" | "reference" | null;
   maxAge: number | null;
   minimumMinutes: number;
   competition: string | null;
   season: string | null;
   allowsAnyPosition: boolean;
   replacementRequest: boolean;
+  replacementTargetNames: string[];
   declinedPositionBroadening: boolean;
   competitionMentioned: boolean;
   latestPositionChange: PositionConstraintChange;
@@ -35,9 +42,9 @@ const specificPositionPatterns: Array<{ position: Position; pattern: RegExp }> =
 ];
 
 const broadenAttackingPositionsPattern = /(?:扩大|扩展|放宽).{0,10}(?:其他|更多|不同)?(?:前锋|锋线)(?:位置|角色)?|(?:其他|别的)(?:前锋|锋线)(?:位置|角色)?/;
-const broadenPositionPattern = /位置不限|不限.{0,8}位置|不限定.{0,8}(?:位置|中锋|中后卫|后腰|中前卫|前腰)|放宽.{0,10}(?:位置|范围|其他位置|任意位置)|(?:扩大|扩展).{0,10}(?:其他|别的|任意)?位置|(?:其他|任何|所有|别的)位置(?:都)?(?:可以|行|继续)?|(?:前锋|后卫|中场)都(?:可以|行)|不必局限.{0,10}(?:位置|中锋|后卫)|改(?:为|成)(?:前锋|后卫|中场|任何位置)/;
+const broadenPositionPattern = /位置不限|不限.{0,8}位置|不限定.{0,8}(?:位置|中锋|中后卫|后腰|中前卫|前腰)|放宽.{0,10}(?:位置|范围|其他位置|任意位置)|(?:扩大|扩展).{0,10}(?:其他|别的|任意)?位置|(?:其他|任何|所有|别的)位置(?:都)?(?:可以|行|继续)?|(?:前锋|后卫|中场)都(?:可以|行)|不必局限.{0,10}(?:位置|中锋|后卫)|改(?:为|成)(?:任何位置)/;
 const positionNegationPattern = /(?:不|别|不要|不找|不考虑|排除|而非|不是).{0,4}$/;
-const declinePositionBroadeningPattern = /(?:不考虑|不要|不想|不愿|无需|不需要).{0,8}(?:扩大|放宽|其他位置|其他前锋|不同位置)|(?:只|仍然|还是|继续).{0,8}(?:找|要|限定|保留)?.{0,6}(?:中锋|位置)|(?:保留|坚持).{0,8}(?:中锋|位置)/;
+const declinePositionBroadeningPattern = /(?:不考虑|不要|不想|不愿|无需|不需要).{0,8}(?:扩大|放宽|其他位置|其他前锋|不同位置)|(?:只|仍然|还是|继续)[^，。；！？\n]{0,8}(?:找|要|限定|保留)?[^，。；！？\n]{0,6}(?:中锋|位置)|(?:保留|坚持).{0,8}(?:中锋|位置)/;
 const broadAnyPositionPattern = /位置不限|不限(?:球员)?位置|不限定位置|任何位置都可以|位置都可以/i;
 const explicitCompetitionPattern = /(英超|英冠|德甲|德乙|西甲|意甲|法甲|荷甲|葡超|苏超|MLS|Major League Soccer|Premier League|Bundesliga|La Liga|Serie A|Ligue 1)/i;
 const constraintRemovalActionPattern = /(?:取消|移除|删除|清除|解除|不再限制|remove|clear|drop)/gi;
@@ -54,6 +61,12 @@ function explicitlyRemovesConstraint(message: string, constraintPattern: RegExp)
 
 function positionConstraintChange(message: string, currentPosition: Position | null): PositionConstraintChange {
   const declinesBroadening = declinePositionBroadeningPattern.test(message);
+  const explicitGroup = /(?:按|以|用)(前锋|锋线|中场|后卫)大类/.exec(message);
+  if (explicitGroup && !declinesBroadening
+    && !/(?:不|不要|不同意|不接受|不愿意|不愿|拒绝)\s*$/.test(message.slice(Math.max(0, explicitGroup.index - 8), explicitGroup.index))) {
+    const position: Position = explicitGroup[1] === "中场" ? "MID" : explicitGroup[1] === "后卫" ? "DEF" : "ATT";
+    return position === currentPosition ? { changed: false } : { changed: true, position };
+  }
   if (currentPosition !== null && broadenAttackingPositionsPattern.test(message) && !declinesBroadening) {
     return currentPosition === "ATT" ? { changed: false } : { changed: true, position: "ATT" };
   }
@@ -70,6 +83,10 @@ function positionConstraintChange(message: string, currentPosition: Position | n
     }
   }
   const lastMatch = matches.sort((left, right) => left.index - right.index).at(-1);
+  if (!lastMatch && currentPosition !== null) {
+    const broadPosition = explicitBroadPositionGroup([message]);
+    if (broadPosition && broadPosition !== currentPosition) return { changed: true, position: broadPosition };
+  }
   if (!lastMatch || lastMatch.position === currentPosition) return { changed: false };
   return { changed: true, position: lastMatch.position };
 }
@@ -92,7 +109,7 @@ function explicitBroadPositionGroup(userMessages: readonly string[]): Position |
       return [...message.matchAll(matcher)].flatMap((match) => {
         const index = match.index ?? 0;
         const prefix = message.slice(Math.max(0, index - 8), index);
-        if (/(?:不|别|不要|不找|排除|而非|不是|not)\s*$/i.test(prefix)) {
+        if (/(?:不|别|不要|不找|排除|而非|不是|not|(?:不同意|不接受|不愿意|不愿|拒绝)(?:按|以|用))\s*$/i.test(prefix)) {
           hadNegatedPositionMention = true;
           return [];
         }
@@ -186,22 +203,36 @@ function explicitMinimumMinutes(userMessages: readonly string[]): number {
 export function resolveCandidateSearchIntent(input: {
   userMessages: readonly string[];
   confirmedPosition: Position | null;
+  replacementReferencePosition?: Position | null;
+  referenceNames?: readonly string[];
   latestMessage?: string;
 }): CandidateSearchIntent {
-  const { userMessages, confirmedPosition, latestMessage } = input;
+  const { userMessages, confirmedPosition, replacementReferencePosition = null, latestMessage } = input;
   const originalRequest = userMessages[0] ?? "";
+  const replacementRequest = Boolean(replacementTargetMention(userMessages)) || /替代者|替代|接班人|接班|替补|replacement|successor|backup/i.test(originalRequest);
+  const currentPosition = confirmedPosition ?? (replacementRequest ? replacementReferencePosition : null);
   const latestPositionChange = latestMessage === undefined
     ? { changed: false } as const
-    : positionConstraintChange(latestMessage, confirmedPosition);
+    : positionConstraintChange(latestMessage, currentPosition);
   const effectiveConfirmedPosition = latestPositionChange.changed ? latestPositionChange.position : confirmedPosition;
+  const positionMessages = activeReferenceMessages(userMessages);
+  const explicitPosition = explicitBroadPositionGroup(positionMessages);
+  const allowsAnyPosition = positionMessages.some((message) => broadAnyPositionPattern.test(message)
+    || (broadenPositionPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
+      && !declinePositionBroadeningPattern.test(message)));
+  const position = allowsAnyPosition ? null : effectiveConfirmedPosition ?? explicitPosition
+    ?? (replacementRequest ? replacementReferencePosition : null);
   return {
-    position: effectiveConfirmedPosition ?? explicitBroadPositionGroup(userMessages),
+    position,
+    discoveryMetricGroups: requestedCapabilityEvidenceAreas(userMessages).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
+    positionBasis: position === null ? null : effectiveConfirmedPosition !== null || explicitPosition !== null ? "user" : "reference",
     maxAge: explicitMaxAge(userMessages),
     minimumMinutes: explicitMinimumMinutes(userMessages),
     competition: explicitCompetition(userMessages),
     season: explicitSeason(userMessages),
-    allowsAnyPosition: userMessages.some((message) => broadAnyPositionPattern.test(message)),
-    replacementRequest: /替代者|替代|接班人|接班|替补|replacement|successor|backup/i.test(originalRequest),
+    allowsAnyPosition,
+    replacementRequest,
+    replacementTargetNames: [...new Set([...replacementTargetNames(userMessages), ...(input.referenceNames ?? []).map(normalizeSearchText)])],
     declinedPositionBroadening: userMessages.some((message) => declinePositionBroadeningPattern.test(message)),
     competitionMentioned: userMessages.some((message) => explicitCompetitionPattern.test(message)),
     latestPositionChange,
@@ -209,6 +240,7 @@ export function resolveCandidateSearchIntent(input: {
 }
 
 export function candidateMatchesSearchIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+  if (isReplacementTarget(player.name, intent.replacementTargetNames)) return false;
   if (intent.position && !positionMatches(player.position, intent.position)) return false;
   if (intent.maxAge !== null && (player.age === null || player.age > intent.maxAge)) return false;
   if (player.minutes < intent.minimumMinutes) return false;

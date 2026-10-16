@@ -1,14 +1,14 @@
 import type { RecruitmentTraceEvent } from "../agent/conversation.js";
-import { toolBudgets, type ToolActionName } from "../agent/recruitment-actions.js";
+import { type ToolActionName } from "../agent/recruitment-actions.js";
+import { minimumMinutesForPercentileComparison } from "../domain/evidence-comparison.js";
+import { positionMatches } from "../domain/positions.js";
 import type {
-  CapabilityMetricKey,
   ConversationTurnResponse,
   Position,
   RecruitmentProgressEventStatus,
-  RecruitmentProgressStage,
+  RecruitmentProgressStage
 } from "../domain/schemas.js";
-import { positionMatches } from "../domain/positions.js";
-import { minimumMinutesForPercentileComparison } from "../domain/evidence-comparison.js";
+import type { ClarificationIntent, EvaluationScenario, ExpectedCapabilityCoverage, RequestedCapabilityExpectation } from "./harness-scenarios.js";
 
 export type EvaluationProgressEvent = {
   sequence: number;
@@ -17,174 +17,6 @@ export type EvaluationProgressEvent = {
   status: RecruitmentProgressEventStatus;
   message: string;
   completedSteps: number;
-};
-
-type RequestedCapabilityExpectation = {
-  name: string;
-  metricKeys: readonly CapabilityMetricKey[];
-  limitationTerms: readonly string[];
-};
-
-type ExpectedCapabilityCoverage = {
-  name: string;
-  requestedMetricKeys: readonly CapabilityMetricKey[];
-};
-
-export type ClarificationIntent = "role_preference" | "position_expansion";
-
-export type EvaluationScenario = {
-  id: string;
-  message: string;
-  answers: string[];
-  kind: "shortlist";
-  targetTeamAliases: readonly string[];
-  requiredTools: readonly ToolActionName[];
-  requireBroadPositionSearch: boolean;
-  expectedBroadPosition?: Position;
-  expectedMaxAge: number | null;
-    requestedCapabilities?: readonly RequestedCapabilityExpectation[];
-    expectedCapabilityCoverage?: readonly ExpectedCapabilityCoverage[];
-} | {
-  id: string;
-  message: string;
-  answers: string[];
-  kind: "clarification-resume";
-  targetTeamAliases: readonly string[];
-  answerIntents: readonly ClarificationIntent[];
-  expectedPosition: Position;
-  expectedBroadenedPosition?: Position;
-  requestedCapabilities?: readonly RequestedCapabilityExpectation[];
-  expectedCapabilityCoverage?: readonly ExpectedCapabilityCoverage[];
-  requireRecommendationsWhenEvidenceObserved?: boolean;
-} | {
-  id: "custom";
-  message: string;
-  answers: string[];
-  kind: "custom";
-  requireClarificationResume: boolean;
-  expectedPosition?: Position;
-  requireRecommendationsWhenEvidenceObserved?: boolean;
-};
-
-export const localAgentEvaluationScenarios: readonly EvaluationScenario[] = [
-  {
-    id: "barcelona-under-23-midfielder",
-    message: "为巴萨找一名 23 岁以下、能踢中场、推进和前场压迫能力强的球员。",
-    answers: [],
-    kind: "shortlist",
-    targetTeamAliases: ["巴萨", "Barcelona", "FC Barcelona"],
-    requiredTools: ["search_methodology", "search_candidates"],
-    requireBroadPositionSearch: true,
-    expectedBroadPosition: "MID",
-    expectedMaxAge: 23,
-    requestedCapabilities: [
-      {
-        name: "推进",
-        metricKeys: ["wyscoutProgressivePassesPer90", "wyscoutAccurateProgressivePassesPct", "lineBreakPassesCompletedPer30Tip"],
-        limitationTerms: ["推进", "渐进传球"],
-      },
-      {
-        name: "压迫",
-        metricKeys: ["pressures"],
-        limitationTerms: ["施压", "压迫"],
-      },
-    ],
-    expectedCapabilityCoverage: [
-      {
-        name: "推进",
-        requestedMetricKeys: [
-          "wyscoutProgressivePassesPer90",
-          "wyscoutAccurateProgressivePassesPct",
-          "lineBreakPassesCompletedPer30Tip",
-        ],
-      },
-      { name: "压迫", requestedMetricKeys: ["pressures"] },
-    ],
-  },
-  {
-    id: "bayern-kane-replacement",
-    message: "为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋。",
-    answers: [
-      "延续凯恩的中锋角色，暂不增加年龄或预算限制。",
-      "可以扩大到其他前锋位置继续找，重点仍是能接应、做球和终结。",
-    ],
-    kind: "clarification-resume",
-    targetTeamAliases: ["拜仁", "Bayern", "FC Bayern"],
-    answerIntents: ["role_preference", "position_expansion"],
-    expectedPosition: "ST",
-    expectedBroadenedPosition: "ATT",
-    requestedCapabilities: [
-      {
-        name: "创造机会",
-        metricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"],
-        limitationTerms: ["创造机会", "做球"],
-      },
-      { name: "进球产出", metricKeys: ["goals", "premierLeagueGoalsPer90"], limitationTerms: ["进球产出", "终结"] },
-      { name: "射门终结", metricKeys: [], limitationTerms: ["射门终结", "射术", "终结能力"] },
-      { name: "进攻接应", metricKeys: [], limitationTerms: ["进攻接应", "接应"] },
-    ],
-    expectedCapabilityCoverage: [
-      { name: "进球产出", requestedMetricKeys: ["goals", "premierLeagueGoalsPer90"] },
-      { name: "创造机会", requestedMetricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"] },
-      { name: "射门终结", requestedMetricKeys: [] },
-      { name: "进攻接应", requestedMetricKeys: [] },
-    ],
-    requireRecommendationsWhenEvidenceObserved: true,
-  },
-  {
-    id: "barcelona-attacking-one-on-one-forward",
-    message: "为巴萨找一位 23 岁以下的前锋，重点考察进攻一对一对抗。",
-    answers: [],
-    kind: "shortlist",
-    targetTeamAliases: ["巴萨", "Barcelona", "FC Barcelona"],
-    requiredTools: ["search_methodology", "search_candidates"],
-    requireBroadPositionSearch: true,
-    expectedBroadPosition: "ATT",
-    expectedMaxAge: 23,
-    requestedCapabilities: [{
-      name: "进攻一对一对抗",
-      metricKeys: ["wyscoutGroundAttackingDuelsPer90", "wyscoutExplicitlyWonGroundAttackingDuelSharePct"],
-      limitationTerms: ["进攻一对一对抗", "地面进攻对抗"],
-    }],
-    expectedCapabilityCoverage: [{
-      name: "进攻一对一对抗",
-      requestedMetricKeys: ["wyscoutGroundAttackingDuelsPer90", "wyscoutExplicitlyWonGroundAttackingDuelSharePct"],
-    }],
-  },
-];
-
-export const understatLocalAgentEvaluationScenario: EvaluationScenario = {
-  id: "understat-five-league-xg-creation",
-  message: "为拜仁找一名前锋，重点比较创造机会和射门机会质量，尤其是 xA、关键传球与非点球 xG。",
-  answers: [],
-  kind: "shortlist",
-  targetTeamAliases: ["拜仁", "Bayern", "FC Bayern"],
-  requiredTools: ["search_methodology", "search_candidates"],
-  requireBroadPositionSearch: true,
-  expectedBroadPosition: "ATT",
-  expectedMaxAge: null,
-  requestedCapabilities: [
-    {
-      name: "创造机会",
-      metricKeys: ["understatExpectedAssistsPer90", "understatKeyPassesPer90"],
-      limitationTerms: ["创造机会", "机会创造"],
-    },
-    {
-      name: "射门机会质量",
-      metricKeys: ["understatExpectedGoalsPer90", "understatNonPenaltyExpectedGoalsPer90", "understatExpectedGoalsPerShot", "asaExpectedGoalsPer90", "asaExpectedGoalsPerShot"],
-      limitationTerms: ["机会质量"],
-    },
-  ],
-  expectedCapabilityCoverage: [
-    {
-      name: "创造机会",
-      requestedMetricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"],
-    },
-    {
-      name: "射门机会质量",
-      requestedMetricKeys: ["statsbombNonPenaltyXgPer90", "statsbombNonPenaltyXgPerShot", "understatExpectedGoalsPer90", "understatNonPenaltyExpectedGoalsPer90", "understatExpectedGoalsPerShot", "asaExpectedGoalsPer90", "asaExpectedGoalsPerShot"],
-    },
-  ],
 };
 
 export interface ScenarioEvaluationInput {
@@ -443,6 +275,7 @@ export function privacySafeTraceEvent(event: RecruitmentTraceEvent): Record<stri
   }
   if (event.phase === "review") return event;
   if (event.phase === "model_usage") return { ...event };
+  if (event.phase === "tool_reuse") return { ...event };
 
   const filters = { ...event.filters };
   for (const key of redactedKeys) {
@@ -647,6 +480,9 @@ function candidateSearchOutcomeIsExplicit(
 const progressStageByTool: Record<ToolActionName, RecruitmentProgressStage> = {
   search_methodology: "methodology",
   inspect_team: "team_sample",
+  inspect_candidate_group: "player_detail",
+  inspect_player: "player_detail",
+  inspect_match: "match_detail",
   search_candidates: "candidate_search",
   evaluate_candidates: "player_evaluation",
   search_player_reports: "report_search",
@@ -725,7 +561,7 @@ function explicitEmptyPositionLimitation(response: ConversationTurnResponse, exp
 }
 
 export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): ScenarioEvaluation {
-  const { scenario, events, firstTurnResponse, response, threadId } = input;
+  const { scenario, events, response } = input;
   const toolEvents = events.filter(isToolEvent);
   const candidateSearches = toolEvents.filter((event) => event.toolName === "search_candidates");
   const successfulCandidateSearches = candidateSearches.filter((event) => event.ok);
@@ -816,9 +652,11 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
         || requestedCapabilitiesGrounded(response, scenario.requestedCapabilities),
       candidateSearchDoesNotUseAnUnrequestedName,
       candidatePagesFollowCursors,
-      searchedMethodologyCorpus: toolEvents.some((event) => event.toolName === "search_methodology" && event.ok),
+      searchedMethodologyCorpus: scenario.requireMethodologySearch === false
+        || toolEvents.some((event) => event.toolName === "search_methodology" && event.ok),
       evaluatedDiscoveredCandidates: !candidateResultsFound || evaluationReturnedEvidence,
-      searchedReportsAfterEvaluatingEvidence: !evaluationReturnedEvidence
+      searchedReportsAfterEvaluatingEvidence: scenario.requireReportSearchAfterEvaluation === false
+        || !evaluationReturnedEvidence
         || Boolean(report?.knowledgeCoverage.playerReportSearchPerformed && successfulReportSearchAfterEvaluation),
       didNotRecommendWithoutEvaluatedEvidence: Boolean(report && (evaluationReturnedEvidence
         || report.recommendations.length === 0)),
@@ -976,97 +814,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
   return { checks, allPassed: Object.values(checks).every(Boolean) };
 }
 
-export interface EvaluationRunSummaryInput {
-  checks: Record<string, boolean>;
-  elapsedMs: number;
-  operationLatencySamples?: readonly EvaluationOperationLatencySample[];
-}
-
-export type EvaluationOperationLatencySample = {
-  kind: "planner_action" | "policy_decision" | "tool";
-  operation: string;
-  elapsedMs: number;
-};
-
-const knownToolOperations = new Set(Object.keys(toolBudgets));
-const knownPlannerOperations = new Set(["ask_user", "finish", ...knownToolOperations]);
-
-export interface EvaluationRunSummary {
-  runCount: number;
-  passedRunCount: number;
-  passRate: number;
-  failedRunsByCheck: Record<string, number>;
-  latencyMs: { p50: number; p95: number };
-  operationLatencyMs: Array<{
-    kind: "planner_action" | "tool";
-    operation: string;
-    sampleCount: number;
-    p50: number;
-    p95: number;
-  }>;
-}
-
-function nearestRankPercentile(values: number[], percentile: number): number {
-  const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)]!;
-}
-
-export function summarizeEvaluationRuns(runs: readonly EvaluationRunSummaryInput[]): EvaluationRunSummary {
-  if (runs.length === 0) throw new Error("At least one evaluation run is required.");
-  if (runs.some(({ checks }) => Object.keys(checks).length === 0)) {
-    throw new Error("Every evaluation run must include at least one check.");
-  }
-  if (runs.some(({ elapsedMs }) => !Number.isFinite(elapsedMs) || elapsedMs < 0)) {
-    throw new Error("Evaluation elapsed time must be a finite non-negative number.");
-  }
-  const operationLatencySamples = runs.flatMap(({ operationLatencySamples: samples }) => samples ?? []);
-  if (operationLatencySamples.some((sample) => !sample
-    || !["planner_action", "policy_decision", "tool"].includes(sample.kind)
-    || typeof sample.operation !== "string"
-    || (sample.kind === "tool"
-      ? !knownToolOperations.has(sample.operation)
-      : sample.operation !== "unresolved" && !knownPlannerOperations.has(sample.operation))
-    || !Number.isFinite(sample.elapsedMs)
-    || sample.elapsedMs < 0)) {
-    throw new Error("Operation latency samples must have a supported kind and operation name, and a finite non-negative duration.");
-  }
-
-  const checkNames = new Set(runs.flatMap(({ checks }) => Object.keys(checks)));
-  const failedRunsByCheck: Record<string, number> = {};
-  for (const name of checkNames) {
-    const failedCount = runs.filter(({ checks }) => checks[name] !== true).length;
-    if (failedCount > 0) failedRunsByCheck[name] = failedCount;
-  }
-  const passedRunCount = runs.filter(({ checks }) => [...checkNames].every((name) => checks[name] === true)).length;
-  const elapsedTimes = runs.map(({ elapsedMs }) => elapsedMs);
-  const samplesByOperation = new Map<string, { kind: "planner_action" | "tool"; operation: string; elapsedMs: number[] }>();
-  for (const sample of operationLatencySamples) {
-    if (sample.kind === "policy_decision") continue;
-    const key = JSON.stringify([sample.kind, sample.operation]);
-    const group = samplesByOperation.get(key) ?? { kind: sample.kind, operation: sample.operation, elapsedMs: [] };
-    group.elapsedMs.push(sample.elapsedMs);
-    samplesByOperation.set(key, group);
-  }
-  const operationLatencyMs = [...samplesByOperation.values()]
-    .sort((left, right) => left.kind < right.kind ? -1 : left.kind > right.kind ? 1
-      : left.operation < right.operation ? -1 : left.operation > right.operation ? 1 : 0)
-    .map(({ kind, operation, elapsedMs: values }) => ({
-      kind,
-      operation,
-      sampleCount: values.length,
-      p50: nearestRankPercentile(values, 0.5),
-      p95: nearestRankPercentile(values, 0.95),
-    }));
-
-  return {
-    runCount: runs.length,
-    passedRunCount,
-    passRate: passedRunCount / runs.length,
-    failedRunsByCheck,
-    latencyMs: {
-      p50: nearestRankPercentile(elapsedTimes, 0.5),
-      p95: nearestRankPercentile(elapsedTimes, 0.95),
-    },
-    operationLatencyMs,
-  };
-}
+export { summarizeEvaluationRuns } from "./harness-run-summary.js";
+export type { EvaluationOperationLatencySample, EvaluationRunSummary, EvaluationRunSummaryInput } from "./harness-run-summary.js";
+export { localAgentEvaluationScenarios, understatLocalAgentEvaluationScenario } from "./harness-scenarios.js";
+export type { ClarificationIntent, EvaluationScenario } from "./harness-scenarios.js";

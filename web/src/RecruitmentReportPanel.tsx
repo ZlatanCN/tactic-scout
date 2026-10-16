@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CircleHelp, Database, RefreshCw } from "lucide-react";
+import { UnderstatMatchResearchPanel, UnderstatPlayerResearchPanel, UnderstatTeamResearchPanel } from "./UnderstatResearchPanels";
 
 export type DatasetConnectionStatus = "connecting" | "connected" | "disconnected" | "unavailable";
 export type RecruitmentReportPanelAction = "retry_dataset" | "open_observations";
@@ -200,6 +201,8 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
           </></EvidenceNote>
         </div>
       </details>
+      {report.understatTeamResearch && <UnderstatTeamResearchPanel research={report.understatTeamResearch} />}
+      {report.understatMatchResearch.map((research) => <UnderstatMatchResearchPanel key={research.matchId} research={research} />)}
       {teamRosterContext && <TeamRosterContextPanel context={teamRosterContext} />}
       {report.limitations.length > 0 && <details className={detailClass}><summary className={detailSummaryClass}>数据范围与风险</summary><ul className="m-0 list-disc space-y-2 border-t p-4 pl-9 text-sm leading-6 text-muted-foreground">{report.limitations.map((limitation, index) => <li key={`${limitation}-${index}`}>{limitation}</li>)}</ul></details>}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-primary" />{report.dataSource}</span></div>
@@ -409,6 +412,7 @@ function RecommendationCard({ recommendation, backgroundOnly, rank, selected, se
           <a className="text-xs text-primary underline underline-offset-4" href={sample.sourceUrl} target="_blank" rel="noreferrer">打开论文与数据集出处</a>
         </section>)}</div>
       </details>}
+      {recommendation.understatResearch && <UnderstatPlayerResearchPanel research={recommendation.understatResearch} />}
       {recommendation.evidence.length > 0 && <details className="mt-3 rounded-lg border"><summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold">{backgroundOnly ? "查看来源中的其他统计（不代表目标能力）" : "查看完整指标与分析"}</summary><div className="space-y-3 border-t p-3">{!backgroundOnly && <p className="m-0 text-sm leading-6 text-muted-foreground">{rationale}</p>}<div className="max-w-full overflow-x-auto overscroll-x-contain"><Table className="min-w-[680px] text-xs"><TableHeader><TableRow><TableHead>可观测指标</TableHead><TableHead>数值</TableHead><TableHead>对比组</TableHead><TableHead>来源样本</TableHead></TableRow></TableHeader><TableBody>{recommendation.evidence.map((evidence) => <TableRow key={evidence.key}><TableHead className="whitespace-normal" scope="row">{evidence.label}{recommendation.focusEvidenceKeys.includes(evidence.key) && <Badge variant="secondary" className="ml-1.5 align-middle">本轮重点</Badge>}{evidence.definition && <details className="mt-1 max-w-64 font-normal"><summary className="cursor-pointer text-xs text-muted-foreground">指标口径</summary><p className="mb-0 mt-1 whitespace-normal text-xs leading-5 text-muted-foreground">{evidence.definition}</p></details>}</TableHead><TableCell className="whitespace-nowrap tabular-nums">{formatMetric(evidence.value)} {evidence.unit}</TableCell><TableCell className="whitespace-normal">{peerComparisonLabel(evidence)}</TableCell><TableCell className="whitespace-normal">{sourceSampleLabel(evidence)}{evidence.sampleAttempts !== undefined && <small className="mt-1 block text-muted-foreground">{evidence.sampleAttempts} {evidence.sampleAttemptsLabel ?? "次非点球射门"}</small>}{evidence.sourceField && <small className="mt-1 block text-muted-foreground">{evidence.sourceField}</small>}</TableCell></TableRow>)}</TableBody></Table></div></div></details>}
       {recommendation.reportObservations.length > 0 && <details className="mt-3 rounded-lg border"><summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold">球员定性观察 · {recommendation.reportObservations.length}</summary><ul className="m-0 list-none space-y-3 border-t p-3">{recommendation.reportObservations.map((observation, index) => {
         const firstParty = observation.source.sourceId === firstPartyObservationSourceId;

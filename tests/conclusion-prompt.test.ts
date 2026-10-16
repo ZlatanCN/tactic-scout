@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { conclusionInstructions, expansionInstructions } from "../src/agent/conversation.js";
+import { conclusionInstructions, expansionInstructions, investigationInstructions } from "../src/agent/conversation.js";
+
+test("the Understat investigation prompt sends the Agent to internal research tools without asking permission", () => {
+  const prompt = investigationInstructions("understat");
+
+  assert.match(prompt, /inspect_candidate_group/);
+  assert.match(prompt, /inspect_player/);
+  assert.match(prompt, /inspect_match/);
+  assert.match(prompt, /禁止询问用户是否要调用某个工具/);
+  assert.match(prompt, /用户明确要求.*或目录证据缺口.*调用 inspect_candidate_group/);
+  assert.doesNotMatch(prompt, /默认读取 positions\/history\/recent\/shotProfile/);
+});
 
 test("the final decision prompt is short while retaining evidence and historical-data constraints", () => {
   const prompt = conclusionInstructions("wyscout");
@@ -11,6 +22,8 @@ test("the final decision prompt is short while retaining evidence and historical
   assert.match(prompt, /2017\/18 历史样本/);
   assert.match(prompt, /CC BY 4\.0/);
   assert.match(prompt, /现役俱乐部/);
+  assert.match(prompt, /参考球员不可推荐/);
+  assert.doesNotMatch(prompt, /referenceProfiles|candidateComparison/);
   assert.match(prompt, /只输出 schema 要求的一个 JSON action/);
   assert.match(prompt, /字段文字精炼/);
   assert.doesNotMatch(prompt, /search_methodology|最多 10 步/);

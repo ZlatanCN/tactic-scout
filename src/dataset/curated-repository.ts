@@ -13,7 +13,7 @@ import {
   type PlayerProfile,
   type RawStatKey,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "../data/provider.js";
+import type { PlayerRepository } from "../data/player-repository.js";
 
 const CuratedMetricSchema = z.object({
   key: z.string().min(1),

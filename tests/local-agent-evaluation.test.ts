@@ -250,6 +250,11 @@ test("the evaluation dataset fixes known tasks without claiming a correct player
     && requestedMetricKeys.includes("wyscoutExplicitlyWonGroundAttackingDuelSharePct")));
   assert.equal(understatLocalAgentEvaluationScenario.id, "understat-five-league-xg-creation");
   assert.equal(understatLocalAgentEvaluationScenario.kind, "shortlist");
+  assert.match(understatLocalAgentEvaluationScenario.message, /按前锋大类/);
+  assert.equal(understatLocalAgentEvaluationScenario.expectedBroadPosition, "ATT");
+  assert.deepEqual(understatLocalAgentEvaluationScenario.requiredTools, ["search_candidates"]);
+  assert.equal(understatLocalAgentEvaluationScenario.requireMethodologySearch, false);
+  assert.equal(understatLocalAgentEvaluationScenario.requireReportSearchAfterEvaluation, false);
   assert.equal(understatLocalAgentEvaluationScenario.expectedMaxAge, null);
   assert.ok(understatLocalAgentEvaluationScenario.expectedCapabilityCoverage?.some(({ name, requestedMetricKeys }) => (
     name === "创造机会" && requestedMetricKeys.includes("understatExpectedAssistsPer90")
@@ -1478,6 +1483,33 @@ test("player report retrieval must follow a successful match-data evaluation", (
 
   assert.equal(result.checks.evaluatedDiscoveredCandidates, true);
   assert.equal(result.checks.searchedReportsAfterEvaluatingEvidence, false);
+});
+
+test("Understat investigation ablation does not require unrelated methodology or player-report searches", () => {
+  const events: RecruitmentTraceEvent[] = [
+    tool("search_candidates", {
+      position: "ATT",
+      maxAge: null,
+      minimumMinutes: 0,
+      competition: null,
+      season: null,
+      candidateIds: ["player-1"],
+    }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+  ];
+  const result = evaluateLocalAgentScenario({
+    scenario: understatLocalAgentEvaluationScenario,
+    events,
+    firstTurnResponse: response({ threadId: "case-understat-evaluation" }),
+    response: response({ threadId: "case-understat-evaluation" }),
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId: "case-understat-evaluation",
+  });
+
+  assert.equal(result.checks.searchedMethodologyCorpus, true);
+  assert.equal(result.checks.searchedReportsAfterEvaluatingEvidence, true);
 });
 
 test("evidence evaluation must happen after discovery and only evaluate discovered ids", () => {

@@ -10,7 +10,7 @@ import {
   type SupplementaryMetricKey,
   type SupplementaryPerformanceMetric,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 
 const DATA_LICENSE = "CC BY 4.0";
 const PLAYER_STATS: RawStatKey[] = ["goals", "assists", "passesAttempted", "passesCompleted", "keyPasses"];

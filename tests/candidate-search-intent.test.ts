@@ -2,6 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveCandidateSearchIntent } from "../src/agent/candidate-search-intent.js";
 
+test("accepted broad source positions take precedence over the specific role left for verification", () => {
+  const answer = "同意按前锋大类继续检索，中锋职责标为待核实。保持五大联赛、年龄不限，继续生成候选名单。";
+  const intent = resolveCandidateSearchIntent({ userMessages: ["延续凯恩的中锋角色", answer], confirmedPosition: "ST", latestMessage: answer });
+  assert.equal(intent.position, "ATT");
+  assert.deepEqual(intent.latestPositionChange, { changed: true, position: "ATT" });
+  assert.equal(intent.declinedPositionBroadening, false);
+});
+
+test("rejecting a source-position broadening does not silently change the specific position", () => {
+  for (const answer of ["不同意按前锋大类继续", "不愿按前锋大类继续", "按前锋大类继续，但保留中锋要求"]) {
+    const intent = resolveCandidateSearchIntent({ userMessages: ["寻找中锋", answer], confirmedPosition: "ST", latestMessage: answer });
+    assert.equal(intent.position, "ST", answer);
+  }
+});
+
 test("reference clubs and players do not become candidate filters", () => {
   const intent = resolveCandidateSearchIntent({
     userMessages: ["为拜仁寻找凯恩的替代者"],
@@ -12,6 +27,17 @@ test("reference clubs and players do not become candidate filters", () => {
   assert.equal(intent.maxAge, null);
   assert.equal(intent.competition, null);
   assert.equal(intent.season, null);
+  assert.equal(intent.replacementRequest, true);
+});
+
+test("replacement requests inherit the reference player's observed position by default", () => {
+  const intent = resolveCandidateSearchIntent({
+    userMessages: ["Find Bayern a replacement for Alex Keeper"],
+    confirmedPosition: null,
+    replacementReferencePosition: "GK",
+  });
+
+  assert.equal(intent.position, "GK");
   assert.equal(intent.replacementRequest, true);
 });
 
@@ -53,6 +79,17 @@ test("declining a broadened position keeps the current position", () => {
   assert.deepEqual(intent.latestPositionChange, { changed: false });
   assert.equal(intent.position, "ST");
   assert.equal(intent.declinedPositionBroadening, true);
+});
+
+test("a broad replacement role overrides the previously confirmed forward role", () => {
+  for (const message of ["改成帮拜仁找后卫", "改为后卫", "现在找中场"]) {
+    const expected = message.includes("中场") ? "MID" : "DEF";
+    const intent = resolveCandidateSearchIntent({
+      userMessages: ["找前锋", message], confirmedPosition: "ATT", latestMessage: message,
+    });
+    assert.equal(intent.position, expected);
+    assert.deepEqual(intent.latestPositionChange, { changed: true, position: expected });
+  }
 });
 
 test("an explicit any-position answer clears the position filter", () => {

@@ -31,6 +31,7 @@ const originalReport: RecruitmentReport = {
   externalSignalCoverage: createEmptyExternalSignalCoverage(),
   historicalArchiveCoverage: { status: "not_run", disabledReason: null, checkedCandidates: 0, mappedCandidates: 0, matchedCandidates: 0, failedCandidates: 0 },
   historicalArchiveCandidates: [],
+  understatMatchResearch: [],
   knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologySearchFailed: false, methodologySources: [], playerReportSearchPerformed: false, playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
   searchScopes: [],
   recommendations: [],

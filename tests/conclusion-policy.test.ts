@@ -88,7 +88,7 @@ test("requested capability mapping respects positive requests and nearby negatio
   assert.deepEqual(requested.map(({ name }) => name), ["推进"]);
   assert.ok(requested[0]?.metricKeys.includes("wyscoutProgressivePassesPer90"));
   assert.deepEqual(requestedCapabilityEvidenceAreas(["寻找一名中场，不需要压迫能力。"]), []);
-  assert.deepEqual(requestedCapabilityEvidenceAreas(["找一个推进和高位压迫都强的中场。"]).map(({ name }) => name), ["推进", "压迫"]);
+  assert.deepEqual(requestedCapabilityEvidenceAreas(["找一个推进和高位压迫都强的中场。"]).map(({ name }) => name), ["推进", "高位压迫适配"]);
   assert.deepEqual(requestedCapabilityEvidenceAreas(["希望中场能在高位压迫下控球。"]).map(({ name }) => name), ["压力下控球"]);
   assert.deepEqual(requestedCapabilityEvidenceAreas([
     "创造机会和无球跑动要强，也要有防守事件参与、射门机会质量、高强度跑动。",
@@ -111,8 +111,6 @@ test("requested capability mapping respects positive requests and nearby negatio
   assert.deepEqual(requestedCapabilityEvidenceAreas(["Compare xGoals per 90."]), []);
   assert.deepEqual(requestedCapabilityEvidenceAreas(["找一个能接应、做球和终结的前锋。"])
     .map(({ name, metricKeys }) => ({ name, metricKeys })), [
-    { name: "进球产出", metricKeys: ["goals", "premierLeagueGoalsPer90"] },
-    { name: "创造机会", metricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"] },
     { name: "射门终结", metricKeys: [] },
     { name: "进攻接应", metricKeys: [] },
   ]);
@@ -126,7 +124,7 @@ test("requested capability mapping respects positive requests and nearby negatio
   ]);
 });
 
-test("natural forward-role terms separate scoring output, chance creation, and unsupported link-up skill", () => {
+test("natural link-up and finishing requests do not become output-metric coverage", () => {
   const expectedAssists = {
     ...candidate.evidence[0]!,
     key: "fplExpectedAssistsPer90" as const,
@@ -140,8 +138,6 @@ test("natural forward-role terms separate scoring output, chance creation, and u
   assert.deepEqual(coverage.map(({ name, observedMetricKeys, candidatesWithEvidenceCount, status }) => ({
     name, observedMetricKeys, candidatesWithEvidenceCount, status,
   })), [
-    { name: "进球产出", observedMetricKeys: ["goals"], candidatesWithEvidenceCount: 1, status: "observed" },
-    { name: "创造机会", observedMetricKeys: ["fplExpectedAssistsPer90"], candidatesWithEvidenceCount: 1, status: "observed" },
     { name: "射门终结", observedMetricKeys: [], candidatesWithEvidenceCount: 0, status: "missing" },
     { name: "进攻接应", observedMetricKeys: [], candidatesWithEvidenceCount: 0, status: "missing" },
   ]);
@@ -317,7 +313,7 @@ test("conclusion schema stays compact as evaluated candidates grow", () => {
   }));
   const schema = createConstrainedConclusionSchema(buildDecisionConstraints({
     targetTeam: "Bayern",
-    userMessages: ["找一个有进球产出并能做球的前锋。"],
+    userMessages: ["找一个有进球产出并能创造机会的前锋。"],
     evaluatedPlayers: candidates,
     retrievedKnowledge: [],
   }));
@@ -357,7 +353,7 @@ test("deterministic review catches metric references that do not belong to the n
 
   const problems = validateConclusion({
     action,
-    userMessages: ["找一个有进球产出并能做球的前锋。"],
+    userMessages: ["找一个有进球产出并能创造机会的前锋。"],
     evaluatedPlayers: {
       [candidate.player.playerId]: candidate,
       [creator.player.playerId]: creator,
@@ -368,7 +364,7 @@ test("deterministic review catches metric references that do not belong to the n
   assert.ok(problems.some((problem) => problem.includes("引用了不存在的证据")));
 });
 
-test("conclusion schema still permits an empty list when no requested metric is observable", () => {
+test("unobservable capabilities allow evidence-backed investigation leads instead of forcing an empty list", () => {
   const constraints = buildDecisionConstraints({
     targetTeam: "Barcelona",
     userMessages: ["为巴萨找一个射门终结能力好的中锋。"],
@@ -377,7 +373,8 @@ test("conclusion schema still permits an empty list when no requested metric is 
   });
   const schema = createConstrainedConclusionSchema(constraints);
 
-  assert.doesNotThrow(() => schema.parse({ ...validFinish(), recommendations: [] }));
+  assert.doesNotThrow(() => schema.parse(validFinish()));
+  assert.deepEqual(validateConclusion({ action: validFinish(), userMessages: ["找终结和接应好的中锋"], evaluatedPlayers: { [candidate.player.playerId]: candidate }, retrievedKnowledge: { [playerReport.id]: playerReport } }), []);
 });
 
 test("review aligns recommendation references only to observed requested metrics", () => {
@@ -488,6 +485,20 @@ test("expansion schema permits only the next page, a useful question, or a groun
   assert.doesNotThrow(() => recoverySchema.parse(nextPage));
 });
 
+test("an explicit replacement focus supersedes earlier attacking capabilities", () => {
+  const areas = requestedCapabilityEvidenceAreas([
+    "找前锋，重点看终结、接应和做球",
+    "改成帮拜仁找后卫，重点看防守和出球，不设年龄上限。",
+  ]);
+  assert.deepEqual(areas, [
+    { name: "整体防守", metricKeys: [] },
+    { name: "后场出球", metricKeys: [] },
+  ]);
+  assert.deepEqual(requestedCapabilityEvidenceAreas([
+    "找推进强的中场", "改为23岁以下，优先英超。",
+  ]).map(({ name }) => name), ["推进"]);
+});
+
 test("expansion fallback follows the exact next page only for measurable coverage gaps", () => {
   const baseConstraints = buildDecisionConstraints({
     targetTeam: "Barcelona",
@@ -548,6 +559,7 @@ test("expansion fallback follows the exact next page only for measurable coverag
     expansionConstraints,
   });
   assert.equal(finished.action, "finish");
+  assert.match(finished.action === "finish" ? finished.needSummary : "", /Barcelona.*进球产出/);
   assert.deepEqual(finished.action === "finish" ? finished.recommendations : [], [
     { playerId: candidate.player.playerId, evidenceKeys: ["goals"] },
   ]);
@@ -568,7 +580,7 @@ test("expansion fallback follows the exact next page only for measurable coverag
     expansionConstraints,
   });
   assert.equal(unavailable.action, "finish");
-  assert.deepEqual(unavailable.action === "finish" ? unavailable.recommendations : [], []);
+  assert.deepEqual(unavailable.action === "finish" ? unavailable.recommendations : [], [{ playerId: candidate.player.playerId, evidenceKeys: ["goals"] }]);
 
   const outputLimited = conclusionPlannerOutputFallback(completeConstraints);
   assert.equal(outputLimited.action, "finish");
@@ -576,6 +588,7 @@ test("expansion fallback follows the exact next page only for measurable coverag
     { playerId: candidate.player.playerId, evidenceKeys: ["goals"] },
   ]);
   assert.match(outputLimited.action === "finish" ? outputLimited.needSummary : "", /输出达到长度上限/);
+  assert.match(outputLimited.action === "finish" ? outputLimited.needSummary : "", /Barcelona.*进球产出/);
 });
 
 test("reorientation schema allows a new candidate scope without reopening completed report retrieval", () => {

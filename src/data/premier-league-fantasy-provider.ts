@@ -5,7 +5,7 @@ import {
   type SupplementaryMetricKey,
   type SupplementaryPerformanceMetric,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 
 const BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/";
 const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;

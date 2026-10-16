@@ -1,6 +1,6 @@
 import type { PlayerProfile } from "../domain/schemas.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 import { matchesPlayerSearch, searchLoadedPlayers, type PlayerSearchFilter, type PlayerSearchPage, type PlayerSearchQuery } from "./player-search.js";
 import { throwIfAborted } from "../domain/abort.js";
 

@@ -4,7 +4,7 @@ import {
   type Position,
   type RawStatKey,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 
 const FBREF_ORIGIN = "https://fbref.com";
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -128,7 +128,7 @@ function pageTable(html: string, tableId: string): string {
   return match[0];
 }
 
-function tableRows(tableHtml: string, baseUrl: string): Map<string, HtmlCell>[] {
+function tableRows(tableHtml: string, _baseUrl: string): Map<string, HtmlCell>[] {
   const tbody = tableHtml.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i)?.[1];
   if (!tbody) throw new FbrefProviderError("invalid_html", "FBref player table did not contain a body.");
   const rows: Map<string, HtmlCell>[] = [];
@@ -238,7 +238,7 @@ function canonicalStatField(kind: PageKind, row: Map<string, HtmlCell>, profile:
   }
 }
 
-function parseStandardRows(html: string, retrievedAt: Date, now: Date): ParsedStandardRows {
+function parseStandardRows(html: string, _retrievedAt: Date, now: Date): ParsedStandardRows {
   const baseUrl = pages[0].url;
   const rows = tableRows(pageTable(html, "stats_standard"), baseUrl);
   const players = new Map<string, FbrefPlayerRow>();

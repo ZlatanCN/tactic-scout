@@ -46,6 +46,7 @@ const actions: RecruitmentAction[] = mode === "pause"
       { action: "inspect_team", teamName: "Bayern Munich" },
       { action: "search_methodology", query: "中锋接班人的能力画像" },
       { action: "search_candidates", position: "ST", minimumMinutes: 0, limit: 10 },
+      { action: "ask_user", question: "更倾向即战力，还是未来两三年的接班人？", reason: "这会影响样本与培养周期的取舍。" },
   ]
   : [
       { action: "evaluate_candidates", playerIds: [player.playerId] },

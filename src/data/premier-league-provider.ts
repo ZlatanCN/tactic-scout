@@ -5,7 +5,7 @@ import {
   type SupplementaryMetricKey,
   type SupplementaryPerformanceMetric,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 
 const API_ORIGIN = "https://sdp-prem-prod.premier-league-prod.pulselive.com";
 const COMPETITION_ID = "8";

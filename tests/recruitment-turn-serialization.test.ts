@@ -42,7 +42,7 @@ test("turns for one recruitment case are processed one at a time", async () => {
   };
 
   const conversation = createRecruitmentConversation({ repository, planner });
-  const firstTurn = conversation.turn({ threadId: "same-case", message: "为拜仁找凯恩的替代者" });
+  const firstTurn = conversation.turn({ threadId: "same-case", message: "为拜仁寻找新前锋" });
   await firstDecisionStarted;
   const secondTurn = conversation.turn({ threadId: "same-case", message: "更偏向培养接班人", expectsExistingState: true });
   const responses = await Promise.all([firstTurn, secondTurn]);

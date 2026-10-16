@@ -9,7 +9,7 @@ import {
 } from "../domain/schemas.js";
 import { positionMatches } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
-import type { PlayerRepository, PlayerSearchFilter, PlayerSearchPage, PlayerSearchQuery } from "./provider.js";
+import type { PlayerRepository, PlayerSearchFilter, PlayerSearchPage, PlayerSearchQuery } from "./player-repository.js";
 import { throwIfAborted } from "../domain/abort.js";
 import { SharedCancellableLoad } from "./shared-cancellable-load.js";
 
@@ -73,11 +73,6 @@ interface ASAPlayerEntity {
   player_name: string;
   birth_date?: string | null;
   primary_general_position?: string | null;
-}
-
-interface ASATeamEntity {
-  team_id: string;
-  team_name: string;
 }
 
 export type ASAProviderErrorCode =

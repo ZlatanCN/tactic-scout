@@ -5,6 +5,7 @@ import type { PlayerRepository, PlayerSearchPage, PlayerSearchQuery } from "../s
 import type { KnowledgeRepository } from "../src/knowledge/index.js";
 import type { KnowledgeSearchRequest } from "../src/knowledge/schemas.js";
 import type { EvaluatedCandidate, RecruitmentEvaluationBatch } from "../src/agent/recruitment-evidence-evaluator.js";
+import type { UnderstatPlayerInsight, UnderstatPlayerSection } from "../src/data/understat-research.js";
 import {
   executeRecruitmentToolAction,
   type RecruitmentToolExecutionRequest,
@@ -26,6 +27,7 @@ const player = PlayerProfileSchema.parse({
 function dependencies(input: {
   searchCandidates?: (query: PlayerSearchQuery) => Promise<PlayerSearchPage>;
   inspectTeam?: (teamName: string) => Promise<PlayerProfile[]>;
+  inspectCandidateGroup?: (playerIds: readonly string[], sections: readonly UnderstatPlayerSection[]) => Promise<UnderstatPlayerInsight[]>;
   knowledgeSearch?: (request: KnowledgeSearchRequest) => Promise<[]>;
   evaluate?: (players: PlayerProfile[], playerIds: string[]) => Promise<RecruitmentEvaluationBatch>;
 }) {
@@ -34,6 +36,7 @@ function dependencies(input: {
     sourceName: "test repository",
     ...(input.searchCandidates ? { searchCandidates: input.searchCandidates } : {}),
     ...(input.inspectTeam ? { inspectTeam: input.inspectTeam } : {}),
+    ...(input.inspectCandidateGroup ? { inspectCandidateGroup: input.inspectCandidateGroup } : {}),
   };
   const knowledgeBase: KnowledgeRepository = {
     search: input.knowledgeSearch ?? (async () => []),
@@ -94,6 +97,41 @@ test("team inspection delegates the exact club to the injected repository", asyn
   assert.equal(result.action, "inspect_team");
   assert.deepEqual(inspectedTeams, ["拜仁"]);
   if (result.action === "inspect_team") assert.deepEqual(result.players, [player]);
+});
+
+test("candidate group inspection delegates one bounded comparison request", async () => {
+  const calls: Array<{ playerIds: readonly string[]; sections: readonly UnderstatPlayerSection[] }> = [];
+  const insight: UnderstatPlayerInsight = {
+    playerId: player.playerId,
+    name: player.name,
+    team: player.team,
+    competition: player.competition,
+    season: player.season,
+    sourcePlayerId: "1",
+    sourceUrl: "https://understat.com/player/1",
+    retrievedAt: "2026-10-15T00:00:00.000Z",
+    player: { id: "1", name: player.name, favoritePosition: null },
+    lastMatch: null,
+    requestedSections: ["positions", "history"],
+    availableSections: ["positions", "history"],
+    positions: [],
+    history: [],
+    notes: [],
+  };
+  const deps = dependencies({ inspectCandidateGroup: async (playerIds, sections) => {
+    calls.push({ playerIds, sections });
+    return [insight];
+  } });
+
+  const result = await executeRecruitmentToolAction({
+    action: "inspect_candidate_group",
+    playerIds: [player.playerId, "player-2"],
+    sections: ["positions", "history"],
+  }, deps);
+
+  assert.equal(result.action, "inspect_candidate_group");
+  assert.deepEqual(calls, [{ playerIds: [player.playerId, "player-2"], sections: ["positions", "history"] }]);
+  if (result.action === "inspect_candidate_group") assert.deepEqual(result.research, [insight]);
 });
 
 test("candidate search forwards the planner filters and preserves the provider page", async () => {

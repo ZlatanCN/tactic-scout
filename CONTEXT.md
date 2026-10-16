@@ -1,3 +1,11 @@
+---
+title: CONTEXT
+author: Zhu Jiayou
+tags: []
+summary: ""
+createdAt: 2026-09-29 16:28:15
+updatedAt: 2026-10-15 22:55:55
+---
 # TactiScout
 
 TactiScout helps a club describe a recruitment need, discover suitable player candidates from available football data, and judge each recommendation with tactical evidence and limitations.

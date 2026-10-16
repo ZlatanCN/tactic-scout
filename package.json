@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "build:web": "pnpm --filter @tactiscout/web build",
     "test": "node --import tsx --test tests/*.test.ts",
+    "test:recruitment-core": "node --import tsx --test tests/recruitment-conversation.test.ts tests/recruitment-cancellation.test.ts tests/replacement-target.test.ts tests/candidate-search-freshness-ablation.test.ts tests/recruitment-evidence-evaluator-ablation.test.ts tests/recruitment-comparison.test.ts tests/methodology-reuse-ablation.test.ts",
     "eval:local-agent": "node --import tsx src/evals/local-model-agent.ts",
     "eval:methodology-rag": "node --import tsx src/evals/methodology-rag-cli.ts",
     "eval:methodology-rag:v3": "node --import tsx src/evals/methodology-rag-v3-cli.ts",

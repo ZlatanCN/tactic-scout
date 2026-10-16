@@ -4,7 +4,7 @@ import {
   type Position,
   type RawStatKey,
 } from "../domain/schemas.js";
-import type { PlayerRepository } from "./provider.js";
+import type { PlayerRepository } from "./player-repository.js";
 
 const API_ORIGIN = "https://api.sportmonks.com";
 const FOOTBALL_API_PREFIX = "/v3/football";

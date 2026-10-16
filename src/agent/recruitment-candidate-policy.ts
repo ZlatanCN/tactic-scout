@@ -1,3 +1,4 @@
+import { isReplacementTarget } from "./replacement-target.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import type { PlayerProfile, Position } from "../domain/schemas.js";
 import type { KnowledgeSearchResult } from "../knowledge/schemas.js";
@@ -11,6 +12,7 @@ import {
 import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
 
 export interface RecruitmentCandidatePolicyState {
+  referenceNameResolution?: import("../data/player-name-resolver.js").ResolvedPlayerName | null;
   targetTeam: string | null;
   confirmedPosition: Position | null;
   history: ConversationHistoryEntry[];
@@ -27,6 +29,7 @@ function currentIntent(state: RecruitmentCandidatePolicyState): CandidateSearchI
   return resolveCandidateSearchIntent({
     userMessages: userMessages(state.history),
     confirmedPosition: state.confirmedPosition,
+    referenceNames: state.referenceNameResolution?.names,
   });
 }
 
@@ -65,10 +68,8 @@ function constrainCandidateSearchToUserIntent(
   const playerNameIsAlreadyDiscovered = Boolean(normalizedPlayerName && Object.values(state.discoveredPlayers).some(
     (player) => normalizeSearchText(player.name) === normalizedPlayerName,
   ));
-  const originalReplacementRequest = userMessages(state.history)[0] ?? "";
-  const playerNameIsReference = Boolean(intent.replacementRequest
-    && normalizedPlayerName
-    && normalizeSearchText(originalReplacementRequest).includes(normalizedPlayerName));
+  const playerNameIsReference = Boolean(action.playerName
+    && isReplacementTarget(action.playerName, intent.replacementTargetNames));
   return RecruitmentActionSchema.parse({
     ...action,
     ...(intent.position ? { position: intent.position } : {}),

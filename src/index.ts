@@ -1,10 +1,13 @@
+import { createFootballDataRoster } from "./data/football-data-roster.js";
 import "dotenv/config";
 import { createApp } from "./app.js";
 import { createTheSportsDbRosterEnrichment } from "./data/thesportsdb-roster.js";
 
 const thesportsdbEnabled = process.env.TACTISCOUT_THESPORTSDB_ENABLED === "true";
 const app = createApp({
-  ...(thesportsdbEnabled ? {
+  ...(process.env.TACTISCOUT_FOOTBALL_DATA_API_KEY ? {
+    teamRosterEnrichment: createFootballDataRoster({ apiKey: process.env.TACTISCOUT_FOOTBALL_DATA_API_KEY }),
+  } : thesportsdbEnabled ? {
     teamRosterEnrichment: createTheSportsDbRosterEnrichment({
       apiKey: process.env.TACTISCOUT_THESPORTSDB_API_KEY ?? "",
       fetchEnabled: true,

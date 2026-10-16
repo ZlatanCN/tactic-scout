@@ -21,7 +21,7 @@ export const FinishActionSchema = z.object({
     "registration",
     "work_permit",
     "other",
-  ])),
+  ])).max(10),
   reportObservations: z.array(z.object({
     playerId: z.string().min(1),
     documentId: z.string().min(1),
@@ -57,6 +57,25 @@ export const RecruitmentActionSchema = z.discriminatedUnion("action", [
     action: z.literal("inspect_team"),
     teamName: z.string().min(1).describe("The club mentioned by the user; inspect only the dataset sample."),
   }),
+  z.object({
+    ...targetTeamContextField,
+    action: z.literal("inspect_player"),
+    playerId: z.string().min(1),
+    sections: z.array(z.enum(["positions", "history", "recent", "shotProfile", "shots"])).min(1).max(5)
+      .default(["positions", "history", "recent", "shotProfile"]),
+  }),
+  z.object({
+    ...targetTeamContextField,
+    action: z.literal("inspect_candidate_group"),
+    playerIds: z.array(z.string().min(1)).min(2).max(12),
+    sections: z.array(z.enum(["positions", "history", "recent", "shotProfile"])).min(1).max(4)
+      .default(["positions", "history", "recent", "shotProfile"]),
+  }),
+  z.object({
+    ...targetTeamContextField,
+    action: z.literal("inspect_match"),
+    matchId: z.string().regex(/^[1-9]\d{0,14}$/),
+  }),
   SearchCandidatesActionSchema,
   z.object({
     ...targetTeamContextField,
@@ -89,6 +108,9 @@ export type FinishRecruitmentAction = z.output<typeof FinishActionSchema>;
 
 export const toolBudgets = {
   inspect_team: 2,
+  inspect_player: 3,
+  inspect_candidate_group: 1,
+  inspect_match: 2,
   search_methodology: 2,
   search_candidates: 4,
   evaluate_candidates: 3,
@@ -99,9 +121,18 @@ export type ToolActionName = keyof typeof toolBudgets;
 export type ToolUseCounts = Record<ToolActionName, number>;
 
 export function emptyToolUseCounts(): ToolUseCounts {
-  return { inspect_team: 0, search_methodology: 0, search_candidates: 0, evaluate_candidates: 0, search_player_reports: 0 };
+  return { inspect_team: 0, inspect_player: 0, inspect_candidate_group: 0, inspect_match: 0, search_methodology: 0, search_candidates: 0, evaluate_candidates: 0, search_player_reports: 0 };
 }
 
 export function isToolAction(action: ParsedRecruitmentAction): action is Extract<ParsedRecruitmentAction, { action: ToolActionName }> {
   return action.action in toolBudgets;
 }
+
+export const emptyDecision = (targetTeam: string | null): FinishRecruitmentAction => FinishActionSchema.parse({
+  action: "finish",
+  targetTeam,
+  needSummary: "当前案件的目标画像仍需更多调查。",
+  capabilityProfile: [],
+  recommendations: [],
+  limitationKeys: ["other"],
+});
