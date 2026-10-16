@@ -89,6 +89,8 @@ TactiScout 采用单体部署、按产品能力分模块的结构。目录名表
 ```text
 src/
   app.ts, index.ts                 # HTTP 组合根与进程入口
+  app/                             # HTTP 路由、请求安全和应用配置类型
+    routes/                        # system、观察资料、招募进度/回合、退役接口
   recruitment/                     # LangGraph 招募案件、Planner、工具、策略、报告投影
   players/                         # PlayerRepository、搜索、身份解析与位置证据能力
   sources/<provider>/              # provider 适配器、解析器、补充数据与 smoke 入口
@@ -103,16 +105,18 @@ web/src/
   features/showcase/components/
   features/position-selection-lab/
   shared/{ui,lib}/                  # shadcn 组件与跨功能 UI 工具
-tests/<capability>/                 # 按 API、领域、招募、数据源、评测等归组
+tests/<capability>/                 # 按 API、领域、招募、数据源、评测等归组；集成用例按行为拆分
 ```
 
-依赖从组合根向内：`app.ts` 选择来源、模型和 checkpoint 并装配案件；`recruitment/` 依赖领域契约、球员查询接口和知识检索接口；`sources/<provider>/` 实现球员仓库接口，不依赖 LangGraph 或 React；`domain/` 不依赖 Fastify、LangGraph、provider 或 UI。前端功能可以使用 `shared/`，共享层不能反向依赖具体功能。
+依赖从组合根向内：`app.ts` 选择来源、模型和 checkpoint 并装配案件；`app/routes/` 只注册 HTTP 适配器，案件进度表和回合协调器由组合根每个 app 实例创建一次后共享；`recruitment/` 依赖领域契约、球员查询接口和知识检索接口；`sources/<provider>/` 实现球员仓库接口，不依赖 LangGraph 或 React；`domain/` 不依赖 Fastify、LangGraph、provider 或 UI。前端功能可以使用 `shared/`，共享层不能反向依赖具体功能。
 
 领域 Zod 契约按球员、位置、能力、需求、报告、对话等概念拆在 `src/domain/`；`positions.ts` 保留位置族判断规则，`position-contracts.ts` 保存位置及确认流程的 schema。避免再次引入一个容纳所有类型的 `schemas.ts` 或仅为缩短路径的全局 barrel。
 
 招募图组合入口是 `src/recruitment/conversation.ts`：配置依赖、组装节点和条件路由，并接入 checkpoint/stream。`conversation/state.ts` 集中图状态及 reducer；`required-investigation.ts`、`planned-action-policy.ts`、`planning-node.ts`、`tool-node.ts`、`review-node.ts`、`report-projection.ts` 分别负责调查守卫、动作策略、Planner 调用、工具执行、证据复核和报告投影。`src/players/repository.ts` 是数据查询接口；provider 选择位于 `src/sources/registry.ts`，每个 adapter 在 `src/sources/<provider>/` 独立实现。数据集刷新、知识 RAG、第一方观察和 Harness 由各自目录管理，命令行入口由 `package.json` 显式指向，不改变命令名。
 
 前端路由装配留在 `web/src/app/`；招募工作台的组件、hooks 和 API/计划逻辑收在 `features/recruitment/`；展示页和位置选择实验各自拥有 feature；shadcn primitive 统一在 `shared/ui/`。组件生成配置同步指向共享目录。
+
+招募报告页由 `RecruitmentReportPanel` 负责整页编排；独立的 `RecommendationCard` 拥有单个候选人的指标、来源和风险呈现，位置标签与证据格式化放在相邻展示模块。Harness 的整图场景判定仍集中在 `harness-evaluation.ts`；trace 脱敏与脚本追问意图匹配分别归 `trace-privacy.ts` 和 `clarification-intent.ts`，避免 Harness 运行器承担输出隐私规则。
 
 本轮整理依据实际职责和依赖，不按行数拆分每个函数，也不改变 HTTP DTO、LangGraph checkpoint、浏览器 localStorage 数据或产品行为。实验仍以冻结数据、同图对照和真实 trace 检查机制；其结果只支持观察到的行为与资源差异。独立球探质量标签仍缺失，不能据此称名单排序准确或当前引援适配已验证。
 

@@ -4,7 +4,10 @@ import { createRecruitmentEvidenceEvaluator } from "../recruitment/recruitment-e
 import { createRecruitmentPlanner } from "../recruitment/recruitment-planner.js";
 import { type KnowledgeRepository } from "../knowledge/index.js";
 import { createSinglePassInvestigationPlanner } from "./fixed-investigation-planner.js";
-import { type ClarificationIntent, evaluateLocalAgentScenario, evaluateWithheldAnswerArm, type EvaluationOperationLatencySample, type EvaluationProgressEvent, type EvaluationScenario, privacySafeTraceEvent, questionMatchesClarificationIntent } from "./harness-evaluation.js";
+import { evaluateLocalAgentScenario, evaluateWithheldAnswerArm, type EvaluationOperationLatencySample, type EvaluationProgressEvent, type EvaluationScenario } from "./harness-evaluation.js";
+import { questionMatchesClarificationIntent } from "./clarification-intent.js";
+import type { ClarificationIntent } from "./harness-scenarios.js";
+import { privacySafeTraceEvent } from "./trace-privacy.js";
 import { getDataRepository } from "./local-agent-environment.js";
 import { createWithheldRecruitmentEvidenceEvaluator } from "./withheld-recruitment-evidence-evaluator.js";
 

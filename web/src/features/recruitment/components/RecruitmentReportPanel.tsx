@@ -3,16 +3,15 @@ import { buildEvidenceComparison, toggleComparedPlayer } from "../lib/comparison
 import { MethodologyReferences } from "./MethodologyReferences";
 import { shortDatasetId } from "../lib/dataset-label";
 import { formatDate } from "../lib/format-date";
-import { type CapabilityEvidence } from "../../../../../src/domain/capabilities.js";
 import { type TeamRosterContext } from "../../../../../src/domain/conversation.js";
 import { type DatasetStatus } from "../../../../../src/domain/datasets.js";
-import { type PlayerEloSignal } from "../../../../../src/domain/external-evidence.js";
-import { type PlayerPosition } from "../../../../../src/domain/position-contracts.js";
 import { type RecruitmentReport } from "../../../../../src/domain/reports.js";
 import { describeDatasetScope } from "../../../../../src/domain/dataset-scope.js";
-import { getPeerPercentileUnavailableReason, minimumMinutesForPercentileComparison } from "../../../../../src/domain/evidence-comparison.js";
-import { firstPartyObservationSourceId } from "../../../../../src/knowledge/source-ids.js";
+import { getPeerPercentileUnavailableReason } from "../../../../../src/domain/evidence-comparison.js";
 import { createRecommendationPresentation, describeEmptyShortlist } from "../lib/report-presentation";
+import { RecommendationCard } from "./RecommendationCard";
+import { positionLabels } from "./report-labels";
+import { formatMetric } from "./report-evidence-format";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -20,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Separator } from "@/shared/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { CircleHelp, Database, RefreshCw } from "lucide-react";
-import { UnderstatMatchResearchPanel, UnderstatPlayerResearchPanel, UnderstatTeamResearchPanel } from "./UnderstatResearchPanels";
+import { UnderstatMatchResearchPanel, UnderstatTeamResearchPanel } from "./UnderstatResearchPanels";
 
 export type DatasetConnectionStatus = "connecting" | "connected" | "disconnected" | "unavailable";
 export type RecruitmentReportPanelAction = "retry_dataset" | "open_observations";
@@ -33,35 +32,6 @@ export type RecruitmentReportPanelAction = "retry_dataset" | "open_observations"
 export type RecruitmentReportPanelView =
   | { kind: "empty"; dataset: DatasetStatus | null; datasetLabel: string; connectionStatus: DatasetConnectionStatus; caseStatus?: "ready" | "researching" | "waiting" | "unfinished" }
   | { kind: "report"; report: RecruitmentReport; teamRosterContext: TeamRosterContext | null; reportedAt: string | null; status: "waiting" | "refreshing" | "updating" | "complete"; snapshot: DatasetStatus["snapshot"] };
-
-const positionLabels: Record<PlayerPosition, string> = {
-  GK: "门将", DEF: "后卫（细分位置不限）", CB: "中后卫", FB: "边后卫", LB: "左后卫", RB: "右后卫", LWB: "左翼卫", RWB: "右翼卫",
-  MID: "中场（细分位置不限）", DM: "后腰", CM: "中前卫", AM: "前腰", ATT: "前锋（细分位置不限）",
-  WG: "边锋", LW: "左边锋", RW: "右边锋", ST: "中锋", UNKNOWN: "位置未知",
-};
-
-function describePositionEvidenceLabel(player: RecruitmentReport["recommendations"][number]["player"]): string | null {
-  const evidence = player.positionEvidence;
-  if (!evidence) return null;
-  if (evidence.provider !== "understat") {
-    if (evidence.status === "direct") {
-      const minutes = evidence.sampleMinutes === null ? "分钟未知" : `${evidence.sampleMinutes.toLocaleString()} 分钟`;
-      return `位置观测：${evidence.sourceCodes.join(" / ") || positionLabels[evidence.targetPosition]} · ${minutes}`;
-    }
-    if (evidence.status === "broad_only") return `来源位置较宽：${evidence.sourceCodes.join(" / ") || positionLabels[player.position]}`;
-    return evidence.status === "pending" ? "细分位置尚未核实" : "来源未返回可核实的位置明细";
-  }
-  if (evidence.status === "direct" || evidence.status === "compatible") {
-    const prefix = evidence.status === "direct" ? "当前赛季位置" : "相邻位置记录";
-    const codes = evidence.sourceCodes.length ? evidence.sourceCodes.join(" / ") : "代码未知";
-    const minutes = evidence.sampleMinutes === null ? "分钟未知" : `${evidence.sampleMinutes.toLocaleString()} 分钟`;
-    const scope = evidence.sourceScope === "season_position_aggregate" ? " · 赛季位置汇总，赛事未拆分" : "";
-    return `${prefix}：${codes} · ${minutes}${scope}`;
-  }
-  if (evidence.status === "pending") return "Understat 当前赛季位置尚未核实";
-  if (evidence.status === "not_observed") return "当前赛季未观察到对应位置标签";
-  return "Understat 未返回可核实的位置明细";
-}
 
 function requestedCapabilityCoverageText(coverage: RecruitmentReport["requestedCapabilityCoverage"][number]): string {
   const metricNote = coverage.name === "进球产出"
@@ -415,134 +385,6 @@ function CompareRecommendations({ recommendations, backgroundOnly, onClear }: { 
   </Card>;
 }
 
-function RecommendationCard({ recommendation, backgroundOnly, rank, selected, selectionDisabled, comparisonAvailable, onToggle }: {
-  recommendation: RecruitmentReport["recommendations"][number];
-  backgroundOnly: boolean;
-  rank: number;
-  selected: boolean;
-  selectionDisabled: boolean;
-  comparisonAvailable: boolean;
-  onToggle: () => void;
-}) {
-  const { player } = recommendation;
-  const focusEvidence = recommendation.evidence.filter((evidence) => recommendation.focusEvidenceKeys.includes(evidence.key));
-  const staleFocusPercentile = focusEvidence.some((evidence) => evidence.peerPercentile !== null
-    && getPeerPercentileUnavailableReason({
-      minutes: evidence.minutes,
-      recordedReason: evidence.peerPercentileUnavailableReason,
-    }) !== undefined);
-  const evidenceSummary = (evidence: CapabilityEvidence) => (
-    `${evidence.label} ${formatMetric(evidence.value)} ${evidence.unit}；${peerComparisonLabel(evidence)}。`
-  );
-  const rationale = staleFocusPercentile
-    ? `本轮重点依据：${focusEvidence.map(evidenceSummary).join(" ")}这表示建议继续研究，不代表已验证适合转会。`
-    : recommendation.rationale;
-  const lowSample = player.minutes < minimumMinutesForPercentileComparison || focusEvidence.some(evidence => evidence.minutes !== null && evidence.minutes < minimumMinutesForPercentileComparison);
-  const positionEvidenceLabel = describePositionEvidenceLabel(player);
-  const positionEvidenceIsDirect = player.positionEvidence?.status === "direct";
-  return <article className={`min-w-0 rounded-2xl border bg-card p-5 sm:p-6 ${selected ? "border-primary ring-1 ring-primary" : "border-border"}`} aria-label={backgroundOnly ? player.name : `${rank} ${player.name}`}>
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <h3 className="m-0 break-words text-2xl font-semibold tracking-tight sm:text-[28px]">{player.name}</h3>
-        <p className="mb-0 mt-1.5 break-words text-sm text-muted-foreground">{player.team}<span className="mx-2 text-border">/</span>{player.competition} {player.season}</p>
-      </div>
-      {comparisonAvailable && <label className={`inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 self-start rounded-lg border px-3 text-xs font-medium has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${selected ? "border-primary bg-secondary text-primary" : "border-input bg-card"}`}><input className="size-4 accent-primary" type="checkbox" aria-label={`${selected ? "已加入比较" : "加入比较"}：${player.name}`} checked={selected} disabled={selectionDisabled} onChange={onToggle} /><span>{selected ? "已加入比较" : "加入比较"}</span></label>}
-    </div>
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{recommendation.matchedPositions?.length ? `符合位置：${recommendation.matchedPositions.map((position) => positionLabels[position]).join("、")}` : positionLabels[player.position]}</span>{player.age !== null && <span>{player.age} 岁</span>}<span>{player.minutes.toLocaleString()} 分钟出场</span>{positionEvidenceLabel && <Badge variant={positionEvidenceIsDirect ? "secondary" : "outline"} className="font-normal">{positionEvidenceLabel}</Badge>}{lowSample && <span className="rounded bg-muted px-2 py-0.5 font-medium text-foreground">小样本 · 无百分位</span>}{backgroundOnly && <span>目标能力未核实</span>}</div>
-    {!backgroundOnly && focusEvidence.length > 0 && <dl className="mb-0 mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-t pt-4 sm:grid-cols-3 lg:grid-cols-4">{focusEvidence.slice(0, 4).map(evidence => <div key={evidence.key}><dt className="text-xs leading-5 text-muted-foreground">{evidence.label}</dt><dd className="m-0 mt-1 text-[28px] font-medium leading-tight tracking-tight tabular-nums">{formatMetric(evidence.value)}<span className="mt-1 block whitespace-nowrap text-xs font-normal tracking-normal text-muted-foreground sm:ml-1.5 sm:mt-0 sm:inline">{evidence.unit}</span></dd></div>)}</dl>}
-
-    <details className="group mt-5 border-t pt-4"><summary className="flex min-h-8 cursor-pointer list-none items-center justify-between text-sm font-medium marker:hidden [&::-webkit-details-marker]:hidden"><span>考察详情与数据依据</span><span className="text-lg text-muted-foreground group-open:rotate-45" aria-hidden="true">＋</span></summary>
-      <div className="mt-4 space-y-4">
-      <p className="m-0 text-xs leading-6 text-muted-foreground">{player.source}{player.sourceIdentity?.retrievedAt ? `，读取于 ${formatDate(player.sourceIdentity.retrievedAt)}` : ""}{player.sourceUrl && <>。<a className="text-primary underline underline-offset-4" href={player.sourceUrl} target="_blank" rel="noreferrer">查看来源</a></>}{player.age === null && "。年龄未提供。"}</p>
-      {!backgroundOnly && (recommendation.comparisonNotes ?? []).length > 0 && <section className="text-sm" aria-label="本轮候选比较"><h4 className="mb-2 mt-0 font-semibold">与其他候选比较</h4><ul className="m-0 list-disc space-y-2 pl-5 text-muted-foreground">{recommendation.comparisonNotes.map((note, index) => <li key={index}>{note}</li>)}</ul></section>}
-      {!backgroundOnly && recommendation.referenceComparisonNotes.length > 0 && <section className="text-sm" aria-label="与参考球员数据对照"><h4 className="mb-2 mt-0 font-semibold">与参考球员比较</h4><ul className="m-0 list-disc space-y-2 pl-5 text-muted-foreground">{recommendation.referenceComparisonNotes.map((note, index) => <li key={index}>{note}</li>)}</ul></section>}
-      {recommendation.tradeoffs.length > 0 && <section className="text-sm"><h4 className="mb-2 mt-0 font-semibold">取舍与待核实</h4><ul className="m-0 list-disc space-y-2 pl-5 text-muted-foreground">{recommendation.tradeoffs.map((item, index) => <li key={index}>{item}</li>)}</ul></section>}
-      {recommendation.sourceEvidenceRecords.length > 0 && <details className="mt-3 rounded-lg border"><summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold">同一身份的其他来源记录 · {recommendation.sourceEvidenceRecords.length}</summary><div className="space-y-2 border-t p-3"><p className="m-0 text-xs leading-5 text-muted-foreground">以下记录通过精确身份映射关联。每条记录单独列出，未将不同来源的指标合并评分。</p>{recommendation.sourceEvidenceRecords.map((record) => <section className="rounded-md bg-muted/40 p-3" key={`${record.sourceRecordId}:${record.competition}:${record.season}`}>
-        <b className="block text-xs">{record.source} · {record.team}</b><span className="block text-xs text-muted-foreground">{record.competition} {record.season} · {record.minutes.toLocaleString()} 分钟 · ID {record.sourceRecordId}</span>
-        <small className="mt-1 block text-[11px] leading-5 text-muted-foreground">{record.evaluated ? `来源抓取于 ${record.retrievedAt ? formatDate(record.retrievedAt) : "时间未知"}` : "本轮未单独评估此来源记录"}{record.sourceUrl && <> · <a className="text-primary underline underline-offset-4" href={record.sourceUrl} target="_blank" rel="noreferrer">查看来源</a></>}</small>
-        {record.evidence.length > 0 && <ul className="mb-0 mt-2 list-disc pl-5 text-xs leading-5">{record.evidence.map((evidence) => <li key={evidence.key}>{evidence.label} {formatMetric(evidence.value)} {evidence.unit} · {sourceSampleLabel(evidence)}{evidence.sourceField ? ` · ${evidence.sourceField}` : ""}</li>)}</ul>}
-      </section>)}</div></details>}
-      {recommendation.externalSignals.map((signal) => <section className="mt-3 rounded-lg border bg-card p-3 text-xs leading-5" key={`${signal.provider}-${signal.providerPlayerId}`}>
-        <strong className="block font-semibold">独立表现参考 · PlayerElo</strong>
-        <p className="mb-1 mt-2"><b>Elo {formatMetric(signal.elo)}</b>{signal.earLabel ? ` · ${signal.earLabel}` : ""}</p>
-        <small className="block text-muted-foreground">{[signal.currentTeam ? `来源当前球队：${signal.currentTeam}` : null, signal.currentLeague ? `联赛：${signal.currentLeague}` : null, signal.position ? `位置：${signal.position}` : null].filter(Boolean).join(" · ") || "来源未提供球队或位置"}</small>
-        <small className="block text-muted-foreground">{playerEloIdentityText(signal)} 更新于 {formatDate(signal.retrievedAt)}。</small>
-        <a className="text-primary underline underline-offset-4" href="https://playerelo.football/" target="_blank" rel="noreferrer">PlayerElo · 模型说明与来源</a>
-      </section>)}
-      {recommendation.historicalArchiveSamples.length > 0 && <details className="mt-3 rounded-lg border"><summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold">历史表现样本 · Wyscout Open Data</summary>
-        <div className="space-y-3 border-t p-3"><p className="m-0 text-xs leading-5 text-muted-foreground">以下是 Reep release {recommendation.historicalArchiveSamples[0]!.identityLink.reepReleaseStamp} 按来源球员 ID 精确关联到的历史记录。该数据代表对应旧赛季，不表示当前效力或当前能力。</p>
-        {recommendation.historicalArchiveSamples.map((sample) => <section className="space-y-2 rounded-md bg-muted/40 p-3" key={`${sample.providerPlayerId}:${sample.competition}:${sample.season}:${sample.team}`}>
-          <b className="block text-xs">{sample.season} · {sample.competition} · {sample.team} · {sample.minutes.toLocaleString()} 分钟</b>
-          {sample.metrics.length > 0 && <div className="grid gap-2 sm:grid-cols-2">{sample.metrics.map((metric) => <span className="rounded border bg-background p-2 text-xs" key={metric.key}>{metric.label} <b>{formatMetric(metric.value)} {metric.unit}</b><small className="mt-1 block leading-5 text-muted-foreground">{metric.definition}</small></span>)}</div>}
-          <small className="block break-words text-[11px] leading-5 text-muted-foreground">{sample.identityLink.sourceProvider}:{sample.identityLink.sourcePlayerId}{sample.identityLink.sourceBridge ? ` → ${sample.identityLink.sourceBridge.provider}/${sample.identityLink.sourceBridge.namespace}:${sample.identityLink.sourceBridge.externalId}${sample.identityLink.sourceBridge.sourceField ? ` (${sample.identityLink.sourceBridge.sourceField})` : ""}` : ""} → Reep:{sample.identityLink.reepId} → Wyscout:{sample.providerPlayerId} · Reep rung {sample.identityLink.sourceRung ?? "未提供"} → {sample.identityLink.archiveRung ?? "未提供"}</small>
-          <small className="block break-words text-[11px] leading-5 text-muted-foreground">映射状态 {sample.identityLink.sourceUpstreamStatus ?? "未提供"} → {sample.identityLink.archiveUpstreamStatus ?? "未提供"} · release {sample.identityLink.reepReleaseStamp}</small>
-          <small className="block text-[11px] leading-5 text-muted-foreground">{sample.attribution} · 许可：<a className="text-primary underline underline-offset-4" href={sample.licenseUrl} target="_blank" rel="noreferrer">{sample.license}</a></small>
-          <a className="text-xs text-primary underline underline-offset-4" href={sample.sourceUrl} target="_blank" rel="noreferrer">打开论文与数据集出处</a>
-        </section>)}</div>
-      </details>}
-      {recommendation.understatResearch && <UnderstatPlayerResearchPanel research={recommendation.understatResearch} />}
-      {recommendation.evidence.length > 0 && <details className="mt-3 rounded-lg border"><summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold">{backgroundOnly ? "查看来源中的其他统计（不代表目标能力）" : "查看完整指标与分析"}</summary><div className="space-y-3 border-t p-3">{!backgroundOnly && <p className="m-0 text-sm leading-6 text-muted-foreground">{rationale}</p>}<div className="max-w-full overflow-x-auto overscroll-x-contain"><Table className="min-w-[680px] text-xs"><TableHeader><TableRow><TableHead>可观测指标</TableHead><TableHead>数值</TableHead><TableHead>对比组</TableHead><TableHead>来源样本</TableHead></TableRow></TableHeader><TableBody>{recommendation.evidence.map((evidence) => <TableRow key={evidence.key}><TableHead className="whitespace-normal" scope="row">{evidence.label}{recommendation.focusEvidenceKeys.includes(evidence.key) && <Badge variant="secondary" className="ml-1.5 align-middle">本轮重点</Badge>}{evidence.definition && <details className="mt-1 max-w-64 font-normal"><summary className="cursor-pointer text-xs text-muted-foreground">指标口径</summary><p className="mb-0 mt-1 whitespace-normal text-xs leading-5 text-muted-foreground">{evidence.definition}</p></details>}</TableHead><TableCell className="whitespace-nowrap tabular-nums">{formatMetric(evidence.value)} {evidence.unit}</TableCell><TableCell className="whitespace-normal">{peerComparisonLabel(evidence)}</TableCell><TableCell className="whitespace-normal">{sourceSampleLabel(evidence)}{evidence.sampleAttempts !== undefined && <small className="mt-1 block text-muted-foreground">{evidence.sampleAttempts} {evidence.sampleAttemptsLabel ?? "次非点球射门"}</small>}{evidence.sourceField && <small className="mt-1 block text-muted-foreground">{evidence.sourceField}</small>}</TableCell></TableRow>)}</TableBody></Table></div></div></details>}
-      {recommendation.reportObservations.length > 0 && <details className="mt-3 rounded-lg border"><summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold">球员定性观察 · {recommendation.reportObservations.length}</summary><ul className="m-0 list-none space-y-3 border-t p-3">{recommendation.reportObservations.map((observation, index) => {
-        const firstParty = observation.source.sourceId === firstPartyObservationSourceId;
-        const internalObservationUrl = firstParty && new URL(observation.source.url).hostname === "tactiscout.local";
-        return <li className="space-y-1 text-xs leading-5" key={`${observation.source.sourceId}-${index}`}>
-          <p className="m-0 text-sm">{observation.summary}</p>
-          <small className="block text-muted-foreground">{observation.verificationStatus === "linked_to_match_data" ? `关联比赛数据：${observation.linkedMetricKeys.join("、")}；需人工核实完整语义。` : "当前比赛数据未核实，作为单一来源的定性观点。"}</small>
-          {firstParty && <small className="block text-muted-foreground">TactiScout 自录观察 · 作者观点，未经独立核实</small>}
-          {internalObservationUrl
-            ? <small className="block text-muted-foreground">没有提供外部参考链接；此观察只保存在本机。</small>
-            : <a className="text-primary underline underline-offset-4" href={observation.source.url} target="_blank" rel="noreferrer">{firstParty ? "打开观察者提供的参考链接" : `${observation.source.title} · ${observation.source.author} · ${observation.source.license}`}</a>}
-          <small className="block text-muted-foreground">{observation.source.attribution}</small>
-        </li>;
-      })}</ul></details>}
-      </div>
-    </details>
-  </article>;
-}
-
-function formatMetric(value: number): string {
-  if (Number.isInteger(value)) return value.toLocaleString();
-  const formatted = Math.abs(value) < 0.1 ? value.toFixed(4) : value.toFixed(2);
-  return formatted.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, ".00");
-}
-
-function peerComparisonLabel(evidence: CapabilityEvidence | undefined): string {
-  if (!evidence) return "无数据";
-  const unavailableReason = getPeerPercentileUnavailableReason({
-    minutes: evidence.minutes,
-    recordedReason: evidence.peerPercentileUnavailableReason,
-  });
-  if (unavailableReason === "candidate_sample_unknown") {
-    return "指标样本分钟未知，未显示百分位";
-  }
-  if (unavailableReason === "candidate_low_sample") {
-    return evidence.minutes === null
-      ? "指标样本分钟未知，未显示百分位"
-      : `候选样本 ${Math.round(evidence.minutes)} 分钟，低于 ${minimumMinutesForPercentileComparison} 分钟比较门槛`;
-  }
-  if (unavailableReason === "insufficient_peer_group") {
-    return `达标同组 ${evidence.peerGroupSize} 人，不足 5 人`;
-  }
-  if (unavailableReason === "competition_scope_unreported") {
-    return "来源未提供赛事范围，不做同赛事或候选间比较";
-  }
-  return evidence.peerPercentile === null
-    ? `同组 ${evidence.peerGroupSize} 人，未显示百分位`
-    : `同组第 ${evidence.peerPercentile} 百分位 · ${evidence.peerGroupSize} 人`;
-}
-
-function sourceSampleLabel(evidence: CapabilityEvidence): string {
-  if (evidence.sampleMatches === undefined && evidence.sourceScope !== "season_position_aggregate") {
-    return evidence.minutes === null ? "样本分钟未知" : "—";
-  }
-  const parts = [
-    evidence.sampleMatches === undefined ? null : `${evidence.sampleMatches} 场`,
-    evidence.minutes === null ? "分钟未知" : `${Math.round(evidence.minutes)} 分钟`,
-    evidence.sourceScope === "season_position_aggregate" ? "赛季位置汇总，赛事未拆分" : null,
-  ].filter((part): part is string => part !== null);
-  return parts.length ? parts.join(" · ") : "样本未知";
-}
-
 function candidateIdentityStatusText(
   status: NonNullable<RecruitmentReport["recommendations"][number]["identityResolution"]>["status"],
   sourceRecordCount: number,
@@ -598,21 +440,6 @@ function externalSignalCoverageText(coverage: RecruitmentReport["externalSignalC
   if (coverage.status === "complete") return `${summary}；查询完整。未匹配项不会按零分处理。`;
   if (coverage.status === "partial") return `${summary}；${coverage.failedCandidates} 人查询失败。未匹配项不会按零分处理。`;
   return `${summary}；外部查询失败，未匹配项不会按零分处理。`;
-}
-
-function playerEloIdentityText(signal: PlayerEloSignal): string {
-  const crosswalk = signal.identityCrosswalk;
-  if (signal.identityMatch === "reep_crosswalk" && !crosswalk) {
-    return "身份映射出处不完整，无法说明该 PlayerElo 数据对应的来源球员。";
-  }
-  if (signal.identityMatch === "reep_crosswalk" && crosswalk) {
-    const rungDetails = [
-      crosswalk.sourceRungs.length ? `来源 rung：${crosswalk.sourceRungs.join("、")}` : null,
-      crosswalk.apiFootballRungs.length ? `API-Football rung：${crosswalk.apiFootballRungs.join("、")}` : null,
-    ].filter(Boolean).join("；");
-    return `经 Reep ${crosswalk.releaseStamp} 桥接：${signal.identitySourceProvider} ID ${signal.identitySourcePlayerId} → ${crosswalk.canonicalId} → API-Football / PlayerElo ID ${signal.providerPlayerId}${rungDetails ? `（${rungDetails}）` : ""}。`;
-  }
-  return `来源 ${signal.identitySourceProvider} ID ${signal.identitySourcePlayerId} 与 PlayerElo ID ${signal.providerPlayerId} 完全一致。`;
 }
 
 function historicalArchiveCoverageText(coverage: RecruitmentReport["historicalArchiveCoverage"]): string {

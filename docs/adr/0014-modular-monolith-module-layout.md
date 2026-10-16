@@ -11,7 +11,7 @@ TactiScout remains a single deployable application. Organize source code by prod
 - `src/sources/<provider>/` owns provider-specific fetching, parsing, and enrichment. Adapters implement player-facing contracts; they do not import recruitment workflow code.
 - `src/domain/` owns framework-independent concepts and schemas, split by cohesive concept rather than one catch-all schema file.
 - `src/datasets/`, `src/knowledge/`, `src/evaluation/`, and `src/observations/` own their corresponding product capabilities and operational entry points.
-- `src/app.ts` and `src/index.ts` are composition and process entry points; dependency wiring lives at the edge.
+- `src/app.ts` and `src/index.ts` are composition and process entry points; dependency wiring lives at the edge. `src/app/routes/` owns HTTP adapters grouped by capability, while app-scoped progress and coordination state is created once by `createApp()` and shared with those adapters.
 - `web/src/app/`, `web/src/features/<capability>/`, and `web/src/shared/` group UI by route/capability and reusable primitives.
 
 ## Dependency direction

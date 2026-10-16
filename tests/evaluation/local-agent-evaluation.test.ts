@@ -3,11 +3,11 @@ import test from "node:test";
 import {
   evaluateLocalAgentScenario,
   localAgentEvaluationScenarios,
-  privacySafeTraceEvent,
   summarizeEvaluationRuns,
   understatLocalAgentEvaluationScenario,
   type EvaluationProgressEvent,
 } from "../../src/evaluation/harness-evaluation.js";
+import { privacySafeTraceEvent } from "../../src/evaluation/trace-privacy.js";
 import type { RecruitmentTraceEvent } from "../../src/recruitment/conversation.js";
 import { conclusionInstructions } from "../../src/recruitment/conversation.js";
 import { type ConversationTurnResponse } from "../../src/domain/conversation.js";

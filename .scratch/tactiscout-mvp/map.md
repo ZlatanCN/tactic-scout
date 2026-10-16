@@ -216,6 +216,8 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- 2026-10-16: [issue 215](issues/215-deepen-app-and-harness-modules.md) 已解决：`createApp()` 留作组合根，API 路由按能力注册，应用级进度与回合协调仍每实例共享；Harness 保留整图评估器，只拆 trace 脱敏和脚本追问匹配；3,777 行招募集成测试拆成六组并共享 fixture；报告候选卡从主面板抽出。KnowledgeBase 和来源 research 保持高内聚模块。API/Web 构建、561/561 测试和 diff check 通过；对外接口与界面行为不变。
+
 - [issue 214](issues/214-modular-monolith-organization.md) 已解决：API 按招募、球员、数据源、数据集、知识库、评测和观察模块归位；领域 schema 按概念拆分；Web 与测试按 feature/能力分组。API/Web 构建通过，561 项测试通过，结构迁移已提交；不改变对外接口和存储行为。
 
 - [ADR 0014](../../docs/adr/0014-modular-monolith-module-layout.md)：仓库保持单体部署，代码按产品能力与 provider 归属；组合根向内依赖，领域层不依赖框架，provider 不依赖 LangGraph/UI。旧的平铺目录与千行通用 schema 已按职责迁移/拆分；现有 API、checkpoint 和浏览器存储接口保持不变。
