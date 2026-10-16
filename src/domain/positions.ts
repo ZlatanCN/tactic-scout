@@ -1,4 +1,4 @@
-import type { PlayerPosition, Position } from "./schemas.js";
+import { type PlayerPosition, type Position } from "./position-contracts.js";
 
 const positionFamilies: Partial<Record<Position, readonly Position[]>> = {
   DEF: ["DEF", "CB", "FB", "LB", "RB", "LWB", "RWB"],

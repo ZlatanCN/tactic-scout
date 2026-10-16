@@ -1,32 +1,24 @@
 import { positionSelectionLabel } from "./domain/position-selection.js";
-import { RecruitmentPositionAnswerError } from "./agent/conversation-turn-runtime.js";
+import { RecruitmentPositionAnswerError } from "./recruitment/conversation-turn-runtime.js";
 import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
 import { z } from "zod/v4";
-import {
-  ConversationTurnRequestSchema,
-  ConversationTurnResponseSchema,
-  DatasetStatusSchema,
-  RecruitmentProgressSchema,
-  RecruitmentTurnCancellationResponseSchema,
-  TeamRosterContextSchema,
-  type ConversationTurnResponse,
-  type RecruitmentProgress,
-  type RecruitmentProgressEventStatus,
-} from "./domain/schemas.js";
-import { createTheSportsDbRosterEnrichment, THESPORTSDB_SOURCE_URL, type TeamRosterEnrichmentProvider } from "./data/thesportsdb-roster.js";
-import { createRecruitmentCheckpointStore } from "./agent/checkpoint-store.js";
+import { ConversationTurnResponseSchema, RecruitmentProgressSchema, RecruitmentTurnCancellationResponseSchema, TeamRosterContextSchema, type ConversationTurnResponse, type RecruitmentProgress, type RecruitmentProgressEventStatus } from "./domain/conversation.js";
+import { DatasetStatusSchema } from "./domain/datasets.js";
+import { ConversationTurnRequestSchema } from "./domain/requirements.js";
+import { createTheSportsDbRosterEnrichment, THESPORTSDB_SOURCE_URL, type TeamRosterEnrichmentProvider } from "./sources/thesportsdb/roster.js";
+import { createRecruitmentCheckpointStore } from "./recruitment/checkpoint-store.js";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
-import { createRepository } from "./data/provider.js";
-import { type PlayerRepository } from "./data/player-repository.js";
-import { RecruitmentCaseStateExpiredError, RecruitmentModelTimeoutError, RecruitmentModelUnavailableError, configuredRecruitmentConversation, createRecruitmentConversation, type RecruitmentConversation, type RecruitmentPlanner } from "./agent/conversation.js";
+import { createRepository } from "./sources/registry.js";
+import { type PlayerRepository } from "./players/repository.js";
+import { RecruitmentCaseStateExpiredError, RecruitmentModelTimeoutError, RecruitmentModelUnavailableError, configuredRecruitmentConversation, createRecruitmentConversation, type RecruitmentConversation, type RecruitmentPlanner } from "./recruitment/conversation.js";
 import { createLocalKnowledgeBase, type KnowledgeBase, type KnowledgeRepository } from "./knowledge/index.js";
 import { createWebSearchKnowledgeRepository } from "./knowledge/web-player-report-search.js";
 import { KnowledgeStatusSchema } from "./knowledge/schemas.js";
 import { createPlayerObservationLibrary, PlayerObservationNotFoundError, type PlayerObservationLibrary } from "./observations/library.js";
 import { PlayerObservationInputSchema, PlayerObservationListSchema, PlayerObservationSchema } from "./observations/schemas.js";
-import { RecruitmentTurnCancelledError } from "./agent/turn-cancellation.js";
-import { RecruitmentTurnCapacityError, RecruitmentTurnCoordinator, RecruitmentTurnIdConflictError } from "./agent/turn-coordinator.js";
+import { RecruitmentTurnCancelledError } from "./recruitment/turn-cancellation.js";
+import { RecruitmentTurnCapacityError, RecruitmentTurnCoordinator, RecruitmentTurnIdConflictError } from "./recruitment/turn-coordinator.js";
 
 type AppKnowledgeBase = KnowledgeRepository & Pick<KnowledgeBase, "status" | "ingest" | "removeDocument">;
 

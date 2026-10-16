@@ -1,0 +1,450 @@
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { SupplementaryCapabilityMetricDefinitions } from "../../domain/capabilities.js";
+import { type PlayerProfile, type SupplementaryPerformanceMetric, PlayerProfileSchema } from "../../domain/players.js";
+import { type PlayerPosition, type Position } from "../../domain/position-contracts.js";
+import { type PlayerRepository } from "../../players/repository.js";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+interface MutablePlayer {
+  playerId: string;
+  sourcePlayerId: string;
+  sourceTeamId?: string;
+  competitionId: string;
+  seasonId: string;
+  name: string;
+  team: string;
+  position: PlayerPosition;
+  observedPositions: Set<Position>;
+  positionMinutes: Map<Position, number>;
+  competition: string;
+  season: string;
+  minutes: number;
+  eventDataComplete: boolean;
+  shotMetricsComplete: boolean;
+  appearances: Set<string>;
+  goals: number;
+  assists: number;
+  passesAttempted: number;
+  passesCompleted: number;
+  longPasses: number;
+  carries: number;
+  pressures: number;
+  tackles: number;
+  interceptions: number;
+  shotAssists: number;
+  keyPasses: number;
+  nonPenaltyXg: number;
+  nonPenaltyShots: number;
+}
+
+interface DemographicEntry {
+  age?: number;
+  dateOfBirth?: string;
+  source?: string;
+  verifiedAt?: string;
+}
+
+function dataRoot(): string {
+  const configured = process.env.TACTISCOUT_STATSBOMB_DIR;
+  if (!configured) return path.join(projectRoot, "data", "statsbomb-open-data", "data");
+  const resolved = path.resolve(configured);
+  return path.basename(resolved) === "data" ? resolved : path.join(resolved, "data");
+}
+
+async function readJson<T>(filePath: string): Promise<T> {
+  return JSON.parse(await readFile(filePath, "utf8")) as T;
+}
+
+async function walkJsonFiles(directory: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return walkJsonFiles(fullPath);
+    return entry.isFile() && entry.name.endsWith(".json") ? [fullPath] : [];
+  }));
+  return nested.flat();
+}
+
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" ? value as Record<string, any> : {};
+}
+
+function asList(value: unknown): any[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function clockMinutes(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const parts = value.split(":");
+  if (parts.length === 3) {
+    return Number(parts[0]) * 60 + Number(parts[1]) + Number(parts[2]) / 60;
+  }
+  if (parts.length === 2) return Number(parts[0]) + Number(parts[1]) / 60;
+  return undefined;
+}
+
+function calculateLineupMinutes(positions: unknown[], matchEndMinute: number): { minutes: number; complete: boolean } {
+  if (!positions.length) return { minutes: 0, complete: false };
+  let minutes = 0;
+  let previousEnd: number | undefined;
+  let complete = true;
+  for (const rawPosition of positions) {
+    const position = asRecord(rawPosition);
+    const from = clockMinutes(position.from);
+    let to = clockMinutes(position.to);
+    if (to === undefined && position.end_reason === "Final Whistle" && matchEndMinute > 0) to = matchEndMinute;
+    if (from === undefined || to === undefined || to <= from) {
+      complete = false;
+      continue;
+    }
+    if (previousEnd !== undefined && Math.abs(from - previousEnd) > 1 / 60) complete = false;
+    minutes += to - from;
+    previousEnd = to;
+  }
+  return { minutes, complete };
+}
+
+function mapPosition(value: unknown): Position | undefined {
+  const name = typeof value === "string" ? value.toLowerCase() : "";
+  if (name.includes("goalkeeper")) return "GK";
+  if (name.includes("centre back") || name.includes("center back") || name.includes("center centre back") || name.includes("defensive centre back")) return "CB";
+  if (name.includes("left back")) return "LB";
+  if (name.includes("right back")) return "RB";
+  if (name.includes("left wing back")) return "LWB";
+  if (name.includes("right wing back")) return "RWB";
+  if (name.includes("defensive midfield") || name.includes("holding midfield")) return "DM";
+  if (name.includes("attacking midfield")) return "AM";
+  if (name.includes("central midfield") || name.includes("centre midfield") || name.includes("center midfield")) return "CM";
+  if (name.includes("centre forward") || name.includes("center forward") || name.includes("striker")) return "ST";
+  if (name.includes("left wing") || name.includes("left winger")) return "LW";
+  if (name.includes("right wing") || name.includes("right winger")) return "RW";
+  if (name.includes("defender")) return "DEF";
+  if (name.includes("attacker") || name === "forward") return "ATT";
+  if (name.includes("midfield")) return "MID";
+  return undefined;
+}
+
+function positionMinutesByRole(positions: unknown[], matchEndMinute: number): Map<Position, number> {
+  const minutesByRole = new Map<Position, number>();
+  for (const raw of positions) {
+    const entry = asRecord(raw);
+    const position = mapPosition(asRecord(entry.position).name ?? entry.position);
+    const from = clockMinutes(entry.from);
+    let to = clockMinutes(entry.to);
+    if (to === undefined && entry.end_reason === "Final Whistle" && matchEndMinute > 0) to = matchEndMinute;
+    if (position && from !== undefined && to !== undefined && to > from) {
+      minutesByRole.set(position, (minutesByRole.get(position) ?? 0) + to - from);
+    }
+  }
+  return minutesByRole;
+}
+
+function choosePosition(positions: unknown[], positionMinutes: Map<Position, number>): Position | undefined {
+  const byMinutes = [...positionMinutes.entries()].sort((left, right) => right[1] - left[1])[0]?.[0];
+  if (byMinutes) return byMinutes;
+  for (const raw of positions) {
+    const entry = asRecord(raw);
+    const position = mapPosition(asRecord(entry.position).name ?? entry.position);
+    if (position) return position;
+  }
+  return undefined;
+}
+
+function fileIndex(files: string[]): Map<string, string> {
+  return new Map(files.map((file) => [path.basename(file, ".json"), file]));
+}
+
+async function loadDemographics(): Promise<Map<string, { age: number; source?: string; verifiedAt?: string }>> {
+  const file = process.env.TACTISCOUT_DEMOGRAPHICS_FILE;
+  if (!file) return new Map();
+  try {
+    const raw = await readJson<Record<string, DemographicEntry | number>>(path.resolve(file));
+    return new Map(Object.entries(raw).flatMap(([id, value]) => {
+      const entry = typeof value === "number" ? { age: value } : value;
+      let age = entry.age;
+      if (age === undefined && entry.dateOfBirth) {
+        const birth = new Date(entry.dateOfBirth);
+        if (!Number.isNaN(birth.getTime())) {
+          const now = new Date();
+          age = now.getFullYear() - birth.getFullYear();
+          if (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate())) age -= 1;
+        }
+      }
+      return age === undefined ? [] : [[id, { age, source: entry.source, verifiedAt: entry.verifiedAt }] as const];
+    }));
+  } catch {
+    return new Map();
+  }
+}
+
+function matchRows(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  const record = asRecord(value);
+  if (record.match_id !== undefined) return [record];
+  return Array.isArray(record.matches) ? record.matches : [];
+}
+
+function getMutable(players: Map<string, MutablePlayer>, key: string, seed: Omit<MutablePlayer, "observedPositions" | "positionMinutes" | "appearances" | "goals" | "assists" | "passesAttempted" | "passesCompleted" | "longPasses" | "carries" | "pressures" | "tackles" | "interceptions" | "shotAssists" | "keyPasses" | "nonPenaltyXg" | "nonPenaltyShots">): MutablePlayer {
+  const existing = players.get(key);
+  if (existing) return existing;
+  const created: MutablePlayer = {
+    ...seed, observedPositions: new Set(), positionMinutes: new Map(), appearances: new Set(), goals: 0, assists: 0, passesAttempted: 0,
+    passesCompleted: 0, longPasses: 0, carries: 0, pressures: 0, tackles: 0,
+    interceptions: 0, shotAssists: 0, keyPasses: 0, nonPenaltyXg: 0, nonPenaltyShots: 0,
+  };
+  players.set(key, created);
+  return created;
+}
+
+function nonPenaltyShotXg(rawEvent: unknown): number | undefined {
+  const event = asRecord(rawEvent);
+  if (event.type?.name !== "Shot" || !Number.isInteger(event.period) || event.period < 1 || event.period > 4) return undefined;
+  const shot = asRecord(event.shot);
+  const shotType = asRecord(shot.type).name;
+  const xg = shot.statsbomb_xg;
+  if (typeof shotType !== "string" || !shotType.trim() || shotType === "Penalty") return undefined;
+  if (typeof xg !== "number" || !Number.isFinite(xg) || xg < 0 || xg > 1) return undefined;
+  if (event.player?.id === undefined || event.player?.id === null) return undefined;
+  if (typeof event.team?.name !== "string" || !event.team.name.trim()) return undefined;
+  return xg;
+}
+
+function hasCompleteStatsBombShotQuality(events: unknown[]): boolean {
+  return events.every((rawEvent) => {
+    const event = asRecord(rawEvent);
+    if (event.type?.name !== "Shot") return true;
+    const period = event.period;
+    if (!Number.isInteger(period) || period < 1 || period > 5) return false;
+    if (period === 5) return true;
+
+    const shot = asRecord(event.shot);
+    const shotType = asRecord(shot.type).name;
+    if (typeof shotType !== "string" || !shotType.trim()) return false;
+    if (shotType === "Penalty") return true;
+    return nonPenaltyShotXg(rawEvent) !== undefined;
+  });
+}
+
+async function loadStatsBombPlayers(): Promise<PlayerProfile[]> {
+  const root = dataRoot();
+  const retrievedAt = new Date().toISOString();
+  const [matchFiles, eventFiles, lineupFiles, demographics] = await Promise.all([
+    walkJsonFiles(path.join(root, "matches")),
+    walkJsonFiles(path.join(root, "events")),
+    walkJsonFiles(path.join(root, "lineups")),
+    loadDemographics(),
+  ]);
+  const eventsById = fileIndex(eventFiles);
+  const lineupsById = fileIndex(lineupFiles);
+  const competitions = await readJson<any[]>(path.join(root, "competitions.json")).catch(() => []);
+  const competitionNames = new Map(asList(competitions).map((item) => [String(item.competition_id), String(item.competition_name ?? "StatsBomb Open Data")]));
+  const maleCompetitionSeasonScopes = new Set(asList(competitions)
+    .filter((item) => item.competition_gender === "male" && item.competition_id != null && item.season_id != null)
+    .map((item) => `${item.competition_id}:${item.season_id}`));
+  const selectedCompetitions = new Set((process.env.TACTISCOUT_STATSBOMB_COMPETITION_IDS ?? "").split(",").map((value) => value.trim()).filter(Boolean));
+  const selectedSeasons = new Set((process.env.TACTISCOUT_STATSBOMB_SEASON_IDS ?? "").split(",").map((value) => value.trim()).filter(Boolean));
+  const players = new Map<string, MutablePlayer>();
+  const completeLineupCoverageByScope = new Map<string, boolean>();
+
+  for (const matchFile of matchFiles) {
+    const matches = matchRows(await readJson<unknown>(matchFile).catch(() => null));
+    const relativeParts = path.relative(path.join(root, "matches"), matchFile).split(path.sep);
+    for (const match of matches) {
+      const matchId = String(match.match_id ?? path.basename(matchFile, ".json"));
+      const compId = String(match.competition?.competition_id ?? match.competition_id ?? relativeParts[0] ?? "");
+      const seasonFallback = relativeParts.length >= 3 ? relativeParts[1] : path.basename(matchFile, ".json");
+      const seasonId = String(match.season?.season_id ?? match.season_id ?? seasonFallback ?? "");
+      const season = String(match.season?.season_name ?? seasonId ?? "unknown");
+      const competition = String(match.competition?.competition_name ?? competitionNames.get(compId) ?? "StatsBomb Open Data");
+      const scopeKey = `${compId}:${seasonId}`;
+      if (!maleCompetitionSeasonScopes.has(scopeKey)) continue;
+      if (selectedCompetitions.size && !selectedCompetitions.has(compId)) continue;
+      if (selectedSeasons.size && !selectedSeasons.has(seasonId)) continue;
+      completeLineupCoverageByScope.set(scopeKey, completeLineupCoverageByScope.get(scopeKey) ?? true);
+      const eventFile = eventsById.get(matchId);
+      const eventRows = eventFile ? await readJson<unknown>(eventFile).catch(() => undefined) : undefined;
+      const eventDataAvailable = Array.isArray(eventRows) && eventRows.length > 0;
+      const events = asList(eventRows);
+      const shotMetricsComplete = eventDataAvailable && hasCompleteStatsBombShotQuality(events);
+      const matchEndMinute = events.reduce((latest, rawEvent) => {
+        const event = asRecord(rawEvent);
+        const minute = event.minute;
+        const second = event.second ?? 0;
+        if (!Number.isInteger(event.period) || event.period < 1 || event.period > 4
+          || typeof minute !== "number" || typeof second !== "number"
+          || !Number.isFinite(minute) || !Number.isFinite(second)) return latest;
+        return Math.max(latest, minute + second / 60);
+      }, 0);
+      const lineupFile = lineupsById.get(matchId);
+      let lineups: any[] = [];
+      if (lineupFile) lineups = asList(await readJson<unknown>(lineupFile).catch(() => []));
+      const lineupFileComplete = lineups.length === 2 && lineups.every((teamLineup) => {
+        const lineup = asRecord(teamLineup).lineup;
+        return Array.isArray(lineup)
+          && lineup.length > 0
+          && lineup.every((player) => asRecord(player).player_id !== undefined && asRecord(player).player_id !== null);
+      });
+      if (!lineupFileComplete) completeLineupCoverageByScope.set(scopeKey, false);
+      const lineupPlayerKeys = new Set<string>();
+      const playersWithCompleteMinutes = new Set<string>();
+      if (lineupFile) {
+        for (const teamLineup of lineups) {
+          const teamData = asRecord(teamLineup);
+          const team = String(teamData.team_name ?? "Unknown team");
+          for (const rawPlayer of asList(teamData.lineup)) {
+            const player = asRecord(rawPlayer);
+            const id = String(player.player_id ?? "");
+            const playerName = String(player.player_name ?? "Unknown player");
+            const positions = asList(player.positions);
+            if (id) lineupPlayerKeys.add(`${id}:${team}`);
+            const roleMinutes = positionMinutesByRole(positions, matchEndMinute);
+            const position = choosePosition(positions, roleMinutes);
+            if (!id || !position) continue;
+            const { minutes, complete: minuteDataComplete } = calculateLineupMinutes(positions, matchEndMinute);
+            const teamId = teamData.team_id ?? asRecord(teamData.team).id;
+            const recordId = [id, compId, season, team].join(":");
+            const item = getMutable(players, recordId, {
+              playerId: recordId, sourcePlayerId: id, ...(teamId === undefined ? {} : { sourceTeamId: String(teamId) }),
+              competitionId: compId, seasonId, name: playerName, team, position, competition, season, minutes: 0, eventDataComplete: true,
+              shotMetricsComplete: true,
+            });
+            item.eventDataComplete &&= eventDataAvailable;
+            item.shotMetricsComplete &&= shotMetricsComplete && minuteDataComplete;
+            item.minutes += minutes;
+            for (const rawPosition of positions) {
+              const entry = asRecord(rawPosition);
+              const observedPosition = mapPosition(asRecord(entry.position).name ?? entry.position);
+              if (observedPosition) item.observedPositions.add(observedPosition);
+            }
+            for (const [observedPosition, observedMinutes] of roleMinutes) {
+              item.positionMinutes.set(observedPosition, (item.positionMinutes.get(observedPosition) ?? 0) + observedMinutes);
+            }
+            item.appearances.add(matchId);
+            if (minuteDataComplete) playersWithCompleteMinutes.add(`${id}:${team}`);
+          }
+        }
+      }
+
+      if (!eventDataAvailable) continue;
+      for (const rawEvent of events) {
+        const event = asRecord(rawEvent);
+        const playerId = event.player?.id ?? event.player_id;
+        if (playerId === undefined || playerId === null) continue;
+        const id = String(playerId);
+        const team = String(event.team?.name ?? "Unknown team");
+        const playerName = String(event.player?.name ?? "Unknown player");
+        const position = mapPosition(event.position?.name) ?? "UNKNOWN";
+        const recordId = [id, compId, season, team].join(":");
+        const item = getMutable(players, recordId, {
+          playerId: recordId, sourcePlayerId: id, competitionId: compId, seasonId, name: playerName, team, position, competition, season, minutes: 0, eventDataComplete: true,
+          shotMetricsComplete: true,
+        });
+        const lineupKey = `${id}:${team}`;
+        const hasLineupEntry = lineupPlayerKeys.has(lineupKey);
+        item.shotMetricsComplete &&= shotMetricsComplete && hasLineupEntry && playersWithCompleteMinutes.has(lineupKey);
+        const type = String(event.type?.name ?? "");
+        const pass = asRecord(event.pass);
+        if (type === "Pass") {
+          item.passesAttempted += 1;
+          if (!pass.outcome) item.passesCompleted += 1;
+          if (Number(pass.length) >= 30) item.longPasses += 1;
+          if (pass.shot_assist || pass.goal_assist) item.shotAssists += 1;
+          if (pass.goal_assist) item.assists += 1;
+        }
+        if (type === "Carry") item.carries += 1;
+        if (type === "Pressure") item.pressures += 1;
+        if (type === "Duel" && event.duel?.type?.name === "Tackle") item.tackles += 1;
+        if (type === "Interception") item.interceptions += 1;
+        if (type === "Shot") {
+          if (event.shot?.outcome?.name === "Goal") item.goals += 1;
+          const xg = nonPenaltyShotXg(rawEvent);
+          if (xg !== undefined && hasLineupEntry && playersWithCompleteMinutes.has(lineupKey)) {
+            item.nonPenaltyXg += xg;
+            item.nonPenaltyShots += 1;
+          }
+        }
+      }
+    }
+  }
+
+  return [...players.values()].flatMap((item) => {
+    if (!item.playerId || item.minutes <= 0) return [];
+    const completeLineupCoverage = completeLineupCoverageByScope.get(`${item.competitionId}:${item.seasonId}`) ?? false;
+    const supplementaryMetrics: SupplementaryPerformanceMetric[] = item.shotMetricsComplete && completeLineupCoverage
+      ? ([
+        ["statsbombNonPenaltyXgPer90", item.nonPenaltyXg * 90 / item.minutes],
+        ["statsbombNonPenaltyXgPerShot", item.nonPenaltyShots > 0 ? item.nonPenaltyXg / item.nonPenaltyShots : null],
+      ] as const).map(([key, value]) => {
+        const definition = SupplementaryCapabilityMetricDefinitions.find((metric) => metric.key === key);
+        if (!definition) throw new Error(`Missing supplementary metric definition for ${key}.`);
+        return {
+          key,
+          definition: definition.definition,
+          value,
+          unit: definition.unit,
+          normalization: definition.normalization,
+          sourceField: "shot.statsbomb_xg",
+          sampleMinutes: item.minutes,
+          sampleMatches: item.appearances.size,
+          sampleAttempts: item.nonPenaltyShots,
+          sampleAttemptsLabel: "次非点球射门",
+        };
+      })
+      : [];
+    const position = [...item.positionMinutes.entries()].sort((left, right) => right[1] - left[1])[0]?.[0]
+      ?? [...item.observedPositions][0]
+      ?? item.position;
+    const positionSamples = [...item.positionMinutes.entries()].map(([observedPosition, minutes]) => ({
+      position: observedPosition,
+      minutes,
+    }));
+    return [PlayerProfileSchema.parse({
+      ...item,
+      position,
+      externalPlayerId: item.sourcePlayerId,
+      age: demographics.get(item.sourcePlayerId)?.age ?? null,
+      ageSource: demographics.get(item.sourcePlayerId)?.source,
+      ageVerifiedAt: demographics.get(item.sourcePlayerId)?.verifiedAt,
+      sourceIdentity: {
+        provider: "statsbomb-open-data",
+        playerId: item.sourcePlayerId,
+        ...(item.sourceTeamId ? { teamId: item.sourceTeamId } : {}),
+        competitionId: item.competitionId,
+        seasonId: item.seasonId,
+        ...(item.observedPositions.size ? { positionGroups: [...item.observedPositions] } : {}),
+        ...(positionSamples.length ? { positionSamples } : {}),
+        retrievedAt,
+      },
+      stats: {
+        goals: item.goals, assists: item.assists, passesAttempted: item.passesAttempted,
+        passesCompleted: item.passesCompleted, longPasses: item.longPasses, carries: item.carries,
+        pressures: item.pressures, tackles: item.tackles, interceptions: item.interceptions,
+        shotAssists: item.shotAssists, keyPasses: item.keyPasses,
+      },
+      availableStats: ["goals", "assists", "passesAttempted", "passesCompleted", "longPasses", "carries", "pressures", "tackles", "interceptions", "shotAssists"],
+      eventDataComplete: item.eventDataComplete,
+      ...(supplementaryMetrics.length ? { supplementaryMetrics } : {}),
+      source: "StatsBomb Open Data",
+    })];
+  });
+}
+
+export class StatsBombRepository implements PlayerRepository {
+  readonly mode = "statsbomb" as const;
+  readonly sourceName = "StatsBomb Open Data";
+  private cached?: Promise<PlayerProfile[]>;
+
+  loadPlayers(refresh = false): Promise<PlayerProfile[]> {
+    if (refresh) this.cached = undefined;
+    this.cached ??= loadStatsBombPlayers();
+    return this.cached;
+  }
+}

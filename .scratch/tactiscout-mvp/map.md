@@ -8,6 +8,8 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-16：[issue 214](issues/214-modular-monolith-organization.md) 依据实际职责记录模块化单体边界：招募图、球员接口、按 provider 分组的数据源、概念化领域契约、前端 feature 和对应测试目录；没有增加服务或运行时框架。
+
 - 2026-10-16：[issue 213](issues/213-source-aware-fine-position-search.md) 将细分位置的父/子层级、召回与资格分离、来源证据矩阵及“未核实位置线索”报告收敛为统一规则。Understat 用本源赛季标签，StatsBomb 汇总实际 lineup 位置分钟；细节不足的来源只提供线索，不能冒充匹配。决策记录在 [ADR 0012](../../docs/adr/0012-source-aware-position-qualification.md)。
 
 - 2026-10-15：[足球招募工作流对抗性审查](research/football-workflow-adversarial-audit-2026-10-15.md) 完成只读生产代码审查、20 项机制消融/相关回归和合成整图顺序干预。确认来源顺序影响候选发现、终结措辞映射不一致及中文参考身份覆盖缺口；优先验证快照候选发现与统一需求解释。角色画像参与选择和真实球探排序收益尚未验证。
@@ -213,6 +215,10 @@ Labels: wayfinder:map
 - 使用 `.scratch/<feature>/` 保存地图、规格和单独的问题文件；本地 triage 标签沿用项目默认值。
 
 ## Decisions-so-far
+
+- [issue 214](issues/214-modular-monolith-organization.md) 已解决：API 按招募、球员、数据源、数据集、知识库、评测和观察模块归位；领域 schema 按概念拆分；Web 与测试按 feature/能力分组。API/Web 构建通过，561 项测试通过，结构迁移已提交；不改变对外接口和存储行为。
+
+- [ADR 0014](../../docs/adr/0014-modular-monolith-module-layout.md)：仓库保持单体部署，代码按产品能力与 provider 归属；组合根向内依赖，领域层不依赖框架，provider 不依赖 LangGraph/UI。旧的平铺目录与千行通用 schema 已按职责迁移/拆分；现有 API、checkpoint 和浏览器存储接口保持不变。
 
 - [issue 213](issues/213-source-aware-fine-position-search.md) 已解决：所有细分位置按位置族召回、按球员自身来源证据决定候选资格；13 种细分/中间角色的三臂固定 fixture 对照验证了“严格筛选漏召回、扩召回找回线索、来源门阻止宽位置冒充”。ASA 宽 winger 与 Sportmonks 无方向边后卫记录均可作为线索召回但不能冒充目标细分位置；Sportmonks 保留原始标签，StatsBomb 多位置样本按实际位置分钟保留。位置专项测试 113/113、API/Web build 和 diff check 通过；全套测试 540/542，另两项 loopback HTTP 测试受沙箱 `listen EPERM` 限制。未评估真实市场覆盖或推荐质量。
 - [issue 210](issues/210-understat-detailed-position-search.md) 已解决：Understat 细分位置采用“位置族召回 → 当前赛季原生位置核验 → 直接证据入目标名单、相邻证据独立展示”。默认 Understat 与 mosaic 的 Understat 子集均走同一核验；ASA 粗位置记录保持未确认。33 条代码映射、单人/批量核验、空缺和预算路径均有测试；固定三人样本的整图消融验证了召回与证据门控，不声称真实推荐质量。详见[评测及边界](research/understat-fine-position-search-2026-10-16.md)。

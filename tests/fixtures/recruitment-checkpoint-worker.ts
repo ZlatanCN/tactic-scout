@@ -1,7 +1,7 @@
-import { type RecruitmentAction, type RecruitmentPlanner } from "../../src/agent/conversation.js";
+import { type RecruitmentAction, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
 import { createApp } from "../../src/app.js";
-import type { PlayerRepository } from "../../src/data/provider.js";
-import type { PlayerProfile } from "../../src/domain/schemas.js";
+import type { PlayerRepository } from "../../src/sources/registry.js";
+import { type PlayerProfile } from "../../src/domain/players.js";
 
 const mode = process.argv[2];
 const databasePath = process.argv[3];

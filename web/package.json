@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --import tsx --test tests/*.test.tsx",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

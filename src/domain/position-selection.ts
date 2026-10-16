@@ -1,4 +1,4 @@
-import type { Position, SelectablePosition } from "./schemas.js";
+import { type Position, type SelectablePosition } from "./position-contracts.js";
 
 /** Product position labels shared by confirmation history and the pitch. */
 export const selectablePositionLabels: Record<SelectablePosition, string> = {

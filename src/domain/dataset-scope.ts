@@ -1,4 +1,5 @@
-import type { DatasetMode, DatasetScope, DatasetSnapshotStatus, PlayerProfile } from "./schemas.js";
+import { type DatasetMode, type DatasetScope, type DatasetSnapshotStatus } from "./datasets.js";
+import { type PlayerProfile } from "./players.js";
 
 const wyscoutMetricLimitations = [
   "来源事件映射进球（射门事件 + 标签 101）、助攻（标签 301）、传球（传球事件 + 成功标签 1801）和关键传球（旧版标签 302）；关键传球不等于射门助攻，射门助攻保持不可用。",

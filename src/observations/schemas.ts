@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { PositionSchema } from "../domain/schemas.js";
+import { PositionSchema } from "../domain/position-contracts.js";
 
 const observationText = z.string().trim().min(3).max(300);
 

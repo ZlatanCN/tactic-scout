@@ -1,7 +1,7 @@
 import { createApp } from "../../src/app.js";
-import { createRecruitmentConversation, type RecruitmentPlanner, type RecruitmentTraceEvent } from "../../src/agent/conversation.js";
-import { PlayerProfileSchema } from "../../src/domain/schemas.js";
-import { searchLoadedPlayers, type PlayerSearchQuery } from "../../src/data/player-search.js";
+import { createRecruitmentConversation, type RecruitmentPlanner, type RecruitmentTraceEvent } from "../../src/recruitment/conversation.js";
+import { PlayerProfileSchema } from "../../src/domain/players.js";
+import { searchLoadedPlayers, type PlayerSearchQuery } from "../../src/players/search.js";
 
 const players = [
   ["left-back", "LB", 23], ["wing-back", "LWB", 24], ["right-wing", "RW", 22], ["old-back", "LB", 32],

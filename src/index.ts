@@ -1,7 +1,7 @@
-import { createFootballDataRoster } from "./data/football-data-roster.js";
+import { createFootballDataRoster } from "./sources/football-data/roster.js";
 import "dotenv/config";
 import { createApp } from "./app.js";
-import { createTheSportsDbRosterEnrichment } from "./data/thesportsdb-roster.js";
+import { createTheSportsDbRosterEnrichment } from "./sources/thesportsdb/roster.js";
 
 const thesportsdbEnabled = process.env.TACTISCOUT_THESPORTSDB_ENABLED === "true";
 const app = createApp({

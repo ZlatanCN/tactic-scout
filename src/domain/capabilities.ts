@@ -1,0 +1,121 @@
+import { z } from "zod/v4";
+import { type SupplementaryMetricKey, SupplementaryMetricKeySchema, type SupplementaryMetricNormalization, SupplementaryMetricNormalizationSchema } from "./players.js";
+
+export const CapabilityMetricKeySchema = z.enum([
+  "goals",
+  "assists",
+  "shotAssists",
+  "keyPasses",
+  "carries",
+  "longPasses",
+  "passCompletionPct",
+  "pressures",
+  "tacklesInterceptions",
+  ...SupplementaryMetricKeySchema.options,
+]);
+
+export type CapabilityMetricKey = z.infer<typeof CapabilityMetricKeySchema>;
+
+export const CapabilityMetricDefinitions = [
+  { key: "goals", label: "进球", unit: "次/90" },
+  { key: "assists", label: "助攻", unit: "次/90" },
+  { key: "shotAssists", label: "射门助攻", unit: "次/90" },
+  { key: "keyPasses", label: "关键传球", unit: "次/90" },
+  { key: "carries", label: "带球", unit: "次/90" },
+  { key: "longPasses", label: "长传", unit: "次/90" },
+  { key: "passCompletionPct", label: "传球成功率", unit: "%" },
+  { key: "pressures", label: "施压", unit: "次/90" },
+  { key: "tacklesInterceptions", label: "抢断与拦截", unit: "次/90" },
+] as const satisfies readonly { key: CapabilityMetricKey; label: string; unit: string }[];
+
+export const SupplementaryCapabilityMetricDefinitions = [
+  { key: "wyscoutGroundAttackingDuelsPer90", label: "地面进攻对抗 /90", definition: "Wyscout Ground attacking duel 子事件中带 701、702 或 703 之一的记录数，按估算出场分钟归一到每 90 分钟；它是进攻对抗事件频次，不等同于成功盘带或渐进带球。", unit: "次/90分钟", normalization: "per90" },
+  { key: "wyscoutExplicitlyWonGroundAttackingDuelSharePct", label: "进攻对抗明确胜出占比（含中性）", definition: "Wyscout Ground attacking duel 子事件中带 703（明确胜出）的比例；分母包含 701（明确失利）和 702（中性）。这是简化的事件结果分类，不等同于通常意义的过人成功率或盘带成功率。", unit: "%", normalization: "percentage" },
+  { key: "wyscoutGroundDefensiveDuelsPer90", label: "地面防守对抗 /90", definition: "Wyscout Ground defending duel 子事件次数，按估算出场分钟归一到每 90 分钟；这是事件频次，不等同于抢断次数。", unit: "次/90分钟", normalization: "per90" },
+  { key: "wyscoutClearlyWonGroundDefensiveDuelPct", label: "明确胜出占比（含中性结果）", definition: "Wyscout Ground defending duel 子事件中带 703（明确胜出）的比例；分母包括 701（明确失利）和 702（中性）。这是较简单的事件结果分类，不等同于通常意义的对抗成功率或抢断成功率。", unit: "%", normalization: "percentage" },
+  { key: "wyscoutProgressivePassesPer90", label: "渐进传球（推算）", definition: "根据传球起终点 x 坐标的向前距离推算：起终点均在本方半场需前进至少 30 米，跨越中线需至少 15 米，均在对方半场需至少 10 米。假设 100 个坐标点对应 105 米，再按估算出场分钟归一到每 90 分钟；不是来源直接提供的字段。", unit: "次/90分钟", normalization: "per90" },
+  { key: "wyscoutAccurateProgressivePassesPct", label: "渐进传球成功率（推算）", definition: "仅统计按同一分区门槛判定为渐进的传球（本方半场至少前进 30 米、跨越中线至少 15 米、对方半场至少 10 米）；其中带有 Wyscout 成功标签 1801 的比例。假设 100 个坐标点对应 105 米，且依赖坐标、成功/失败标签完整；不是来源直接提供的字段。", unit: "%", normalization: "percentage" },
+  { key: "highIntensityDistancePer90", label: "高强度跑动距离", definition: "来源全场高强度跑动距离按样本分钟归一到每 90 分钟。", unit: "米/90分钟", normalization: "per90" },
+  { key: "sprintDistancePer90", label: "冲刺距离", definition: "来源全场冲刺距离按样本分钟归一到每 90 分钟。", unit: "米/90分钟", normalization: "per90" },
+  { key: "highIntensityActionsPer90", label: "高强度跑动次数", definition: "来源全场高强度跑动次数按样本分钟归一到每 90 分钟。", unit: "次/90分钟", normalization: "per90" },
+  { key: "behindRunsPer30Tip", label: "身后跑动", definition: "来源统计的身后无球跑动次数，按每 30 分钟球队持球时间标准化。", unit: "次/30分钟持球", normalization: "per30Tip" },
+  { key: "overlapRunsPer30Tip", label: "套边跑动", definition: "来源统计的套边无球跑动次数，按每 30 分钟球队持球时间标准化。", unit: "次/30分钟持球", normalization: "per30Tip" },
+  { key: "lineBreakPassesCompletedPer30Tip", label: "完成的穿线传球", definition: "来源统计的完成穿线传球次数，按每 30 分钟球队持球时间标准化。", unit: "次/30分钟持球", normalization: "per30Tip" },
+  { key: "passesToRunsCompletionPct", label: "向跑动传球成功率", definition: "来源统计的向跑动传球完成率。", unit: "%", normalization: "percentage" },
+  { key: "statsbombNonPenaltyXgPer90", label: "非点球 xG /90", definition: "StatsBomb 为每次非点球射门提供的 statsbomb_xg 之和，按样本实际出场分钟归一到每 90 分钟；排除点球和点球大战。它衡量射门机会的数量与质量，不是射门转化率或未来进球预测。", unit: "xG/90分钟", normalization: "per90" },
+  { key: "statsbombNonPenaltyXgPerShot", label: "非点球平均射门 xG", definition: "StatsBomb 非点球射门的 statsbomb_xg 平均值（非点球 xG 总和 ÷ 非点球射门数），排除点球和点球大战。表示平均机会质量，不是球员射门技术或终结能力评分。", unit: "xG/次射门", normalization: "perShot" },
+  { key: "fplExpectedGoalsPer90", label: "FPL xG /90", definition: "Fantasy Premier League 当前赛季 `expected_goals` 总量按来源分钟数归一到每 90 分钟；是来源 xG 模型对已获得射门机会的估计，不代表终结能力或未来进球保证。", unit: "xG/90分钟", normalization: "per90" },
+  { key: "fplExpectedAssistsPer90", label: "FPL xA /90", definition: "Fantasy Premier League 当前赛季 `expected_assists` 总量按来源分钟数归一到每 90 分钟；是来源对传球最终形成助攻机会的估计，不等同于关键传球数。", unit: "xA/90分钟", normalization: "per90" },
+  { key: "fplExpectedGoalInvolvementsPer90", label: "FPL xGI /90", definition: "Fantasy Premier League 当前赛季 `expected_goal_involvements` 总量按来源分钟数归一到每 90 分钟；这是来源提供的 xG 与 xA 综合字段，不代表完整进攻贡献。", unit: "xGI/90分钟", normalization: "per90" },
+  { key: "fplTacklesPer90", label: "FPL 抢断 /90", definition: "Fantasy Premier League 当前赛季 `tackles` 总量按来源分钟数归一到每 90 分钟；保留来源动作定义，不等同于抢断成功率或全部防守贡献。", unit: "次/90分钟", normalization: "per90" },
+  { key: "fplRecoveriesPer90", label: "FPL 球权恢复 /90", definition: "Fantasy Premier League 当前赛季 `recoveries` 总量按来源分钟数归一到每 90 分钟；是来源记录的球权恢复动作次数，不揭示发生位置或球队压迫结构。", unit: "次/90分钟", normalization: "per90" },
+  { key: "fplClearancesBlocksInterceptionsPer90", label: "FPL 解围、封堵与拦截 /90", definition: "Fantasy Premier League 当前赛季 `clearances_blocks_interceptions` 合并总量按来源分钟数归一到每 90 分钟；来源未拆分三种动作，不能解释为单独拦截数。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueGoalsPer90", label: "Premier League 进球 /90", definition: "Premier League 当前赛季来源统计字段 `goals`，按 `timePlayed` 分钟归一到每 90 分钟；只表示已记录进球产出，不表示终结能力或未来进球预测。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueAssistsPer90", label: "Premier League 助攻 /90", definition: "Premier League 当前赛季来源统计字段 `goalAssists`，按 `timePlayed` 分钟归一到每 90 分钟；只表示已记录助攻，不代表机会创造质量。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueKeyPassesPer90", label: "Premier League 关键传球 /90", definition: "Premier League 当前赛季来源字段 `keyPassesAttemptAssists`，按 `timePlayed` 分钟归一到每 90 分钟；按官方球员统计页面的 Key Passes 类别报告，不代表机会质量或完整创造力。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueSuccessfulDribblesPer90", label: "Premier League 成功盘带 /90", definition: "Premier League 当前赛季来源字段 `successfulDribbles`，按 `timePlayed` 分钟归一到每 90 分钟；表示成功盘带次数，不说明推进距离、方向或推进后的场地价值。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueTotalTacklesPer90", label: "Premier League 抢断动作 /90", definition: "Premier League 当前赛季来源字段 `totalTackles`，按 `timePlayed` 分钟归一到每 90 分钟；保留来源抢断动作口径，不等同于全部防守参与或抢断成功率。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueTacklesWonPer90", label: "Premier League 成功抢断 /90", definition: "Premier League 当前赛季来源字段 `tacklesWon`，按 `timePlayed` 分钟归一到每 90 分钟；保留来源成功抢断定义，不等同于整体对抗成功率。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueInterceptionsPer90", label: "Premier League 拦截 /90", definition: "Premier League 当前赛季来源字段 `interceptions`，按 `timePlayed` 分钟归一到每 90 分钟；表示记录到的拦截次数，不揭示防线位置或压迫协同。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueRecoveriesPer90", label: "Premier League 球权恢复 /90", definition: "Premier League 当前赛季来源字段 `recoveries`，按 `timePlayed` 分钟归一到每 90 分钟；表示来源记录的球权恢复次数，不揭示发生区域或压迫结构。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueForwardPassesPer90", label: "Premier League 向前传球 /90", definition: "Premier League 当前赛季来源字段 `forwardPasses`，按 `timePlayed` 分钟归一到每 90 分钟；仅表示向前传球次数，不等同于渐进传球、穿透防线或推进价值。", unit: "次/90分钟", normalization: "per90" },
+  { key: "premierLeagueAerialDuelsWonPer90", label: "Premier League 空中对抗胜出 /90", definition: "Premier League 当前赛季来源字段 `aerialDuelsWon`，按 `timePlayed` 分钟归一到每 90 分钟；表示空中对抗胜出次数，不等同于争顶成功率。", unit: "次/90分钟", normalization: "per90" },
+  { key: "asaExpectedGoalsPer90", label: "ASA xG /90", definition: "American Soccer Analysis (ASA) 当前赛事当前赛季 `xgoals` 按 ASA 记录的出场分钟归一到每 90 分钟；描述射门机会质量/数量，不是终结能力或未来进球预测。", unit: "xG/90分钟", normalization: "per90" },
+  { key: "asaExpectedAssistsPer90", label: "ASA xA /90", definition: "ASA 当前赛事当前赛季 `xassists` 按该 xGoals 记录的出场分钟归一到每 90 分钟；表示预期助攻，不等于创造机会的完整评估。", unit: "xA/90分钟", normalization: "per90" },
+  { key: "asaExpectedGoalContributionsPer90", label: "ASA xG+xA /90", definition: "ASA 当前赛事当前赛季来源字段 `xgoals_plus_xassists` 按记录分钟数归一到每 90 分钟；这是来源合并指标，不等于完整进攻贡献。", unit: "xG+xA/90分钟", normalization: "per90" },
+  { key: "asaExpectedGoalsPerShot", label: "ASA 平均射门 xG", definition: "TactiScout 以 ASA `xgoals ÷ shots` 派生；表示该样本平均射门机会质量，不代表射术或终结能力。", unit: "xG/次射门", normalization: "perShot" },
+  { key: "asaShotsPer90", label: "ASA 射门 /90", definition: "ASA 当前赛事当前赛季来源 `shots` 按记录分钟数归一到每 90 分钟；描述射门频次，不说明射门技术。", unit: "次/90分钟", normalization: "per90" },
+  { key: "asaPassCompletionPct", label: "ASA 传球成功率", definition: "ASA 当前赛事当前赛季 xPass 表中的来源 `pass_completion_percentage`；仅描述来源口径下已完成传球比例，不表示压迫下控球能力。", unit: "%", normalization: "percentage" },
+  { key: "asaExpectedPassCompletionPct", label: "ASA 预期传球成功率", definition: "ASA 当前赛事当前赛季 xPass 模型的来源 `xpass_completion_percentage`；描述所尝试传球的模型难度期望，不是实际成功率或创造力评分。", unit: "%", normalization: "percentage" },
+  { key: "asaPassesCompletedOverExpectedPer100", label: "ASA 超预期完成传球 /100 次", definition: "ASA 当前赛事当前赛季来源 `passes_completed_over_expected_p100`；按每 100 次尝试表示实际完成数相对 xPass 期望的差值，不能单独解释传球方向或风险。", unit: "次/100次传球", normalization: "per100" },
+  { key: "asaAverageVerticalPassDistanceYards", label: "ASA 平均纵向传球距离", definition: "ASA 当前赛事当前赛季来源 `avg_vertical_distance_yds`；按 ASA 坐标口径表示每次尝试的平均纵向传球距离，不等同于渐进传球次数。", unit: "码/次传球", normalization: "perAttempt" },
+  { key: "asaGoalsAddedTotalAboveAveragePer90", label: "ASA g+ 高于平均值 /90", definition: "将 ASA 当前赛事当前赛季六类 g+ 动作来源字段 `goals_added_above_avg` 相加，再按 g+ 样本分钟归一到每 90 分钟；只有六类均可用时才提供。它是来源的综合场上价值指标，不是 TactiScout 的球队适配或转会评分。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "asaGoalsAddedDribblingPer90", label: "ASA 带球动作 g+ /90", definition: "ASA 当前赛事当前赛季 `Dribbling` 类 `goals_added_above_avg` 按样本分钟归一到每 90 分钟；表示这类动作贡献的来源价值，不代表向前带球距离或过人成功率。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "asaGoalsAddedFoulingPer90", label: "ASA 犯规动作 g+ /90", definition: "ASA 当前赛事当前赛季 `Fouling` 类 `goals_added_above_avg` 按样本分钟归一到每 90 分钟；保留来源动作与正负值，不作为防守适配分。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "asaGoalsAddedInterruptingPer90", label: "ASA 防守中断动作 g+ /90", definition: "ASA 当前赛事当前赛季 `Interrupting` 类 `goals_added_above_avg` 按样本分钟归一到每 90 分钟；表示来源为该类防守动作估算的价值，不等于抢断次数或压迫成功率。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "asaGoalsAddedPassingPer90", label: "ASA 传球动作 g+ /90", definition: "ASA 当前赛事当前赛季 `Passing` 类 `goals_added_above_avg` 按样本分钟归一到每 90 分钟；表示传球动作贡献的来源价值，不等于渐进传球或关键传球数。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "asaGoalsAddedReceivingPer90", label: "ASA 接球动作 g+ /90", definition: "ASA 当前赛事当前赛季 `Receiving` 类 `goals_added_above_avg` 按样本分钟归一到每 90 分钟；表示接球动作贡献的来源价值，不等同于无球跑动测量。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "asaGoalsAddedShootingPer90", label: "ASA 射门动作 g+ /90", definition: "ASA 当前赛事当前赛季 `Shooting` 类 `goals_added_above_avg` 按样本分钟归一到每 90 分钟；表示射门动作的来源价值，不等同于射术或射门转化率。", unit: "g+/90分钟", normalization: "per90" },
+  { key: "understatExpectedGoalsPer90", label: "Understat xG /90", definition: "Understat 当前赛季来源字段 `xG` 按记录分钟归一到每 90 分钟；表示来源模型估计的射门机会数量与质量，不是终结能力或未来进球保证。", unit: "xG/90分钟", normalization: "per90" },
+  { key: "understatNonPenaltyExpectedGoalsPer90", label: "Understat 非点球 xG /90", definition: "Understat 当前赛季来源字段 `npxG` 按记录分钟归一到每 90 分钟；表示非点球射门机会的模型估计，不是终结能力或未来进球保证。", unit: "npxG/90分钟", normalization: "per90" },
+  { key: "understatExpectedAssistsPer90", label: "Understat xA /90", definition: "Understat 当前赛季来源字段 `xA` 按记录分钟归一到每 90 分钟；表示来源模型估计的预期助攻，不等同于关键传球数量或完整创造能力。", unit: "xA/90分钟", normalization: "per90" },
+  { key: "understatExpectedGoalsPerShot", label: "Understat 平均射门 xG", definition: "TactiScout 以 Understat 当前赛季来源字段 `xG ÷ shots` 派生；描述该样本平均射门机会质量，不代表球员射术或终结能力。", unit: "xG/次射门", normalization: "perShot" },
+  { key: "understatShotsPer90", label: "Understat 射门 /90", definition: "Understat 当前赛季来源字段 `shots` 按记录分钟归一到每 90 分钟；表示射门频率，不说明射门技术或机会质量。", unit: "次/90分钟", normalization: "per90" },
+  { key: "understatKeyPassesPer90", label: "Understat 关键传球 /90", definition: "Understat 当前赛季来源字段 `key_passes` 按记录分钟归一到每 90 分钟；保留来源关键传球口径，不等同于预期助攻或机会质量。", unit: "次/90分钟", normalization: "per90" },
+  { key: "understatXgChainPer90", label: "Understat xGChain /90", definition: "Understat 当前赛季来源字段 `xGChain` 按记录分钟归一到每 90 分钟；保留来源进攻链条参与指标，不解释为个人射门或助攻产出。", unit: "xGChain/90分钟", normalization: "per90" },
+  { key: "understatXgBuildupPer90", label: "Understat xGBuildup /90", definition: "Understat 当前赛季来源字段 `xGBuildup` 按记录分钟归一到每 90 分钟；保留来源进攻组织链条指标，不等同于渐进传球或个人创造机会。", unit: "xGBuildup/90分钟", normalization: "per90" },
+] as const satisfies readonly { key: SupplementaryMetricKey; label: string; definition: string; unit: string; normalization: SupplementaryMetricNormalization }[];
+
+export const CapabilityEvidenceSchema = z.object({
+  key: CapabilityMetricKeySchema,
+  label: z.string(),
+  value: z.number(),
+  unit: z.string(),
+  peerPercentile: z.number().min(0).max(100).nullable(),
+  peerGroupSize: z.number().int().nonnegative(),
+  peerPercentileUnavailableReason: z.enum(["candidate_low_sample", "candidate_sample_unknown", "insufficient_peer_group", "competition_scope_unreported"]).optional(),
+  minutes: z.number().nonnegative().nullable(),
+  sampleMatches: z.number().int().nonnegative().optional(),
+  sampleAttempts: z.number().int().nonnegative().optional(),
+  sampleAttemptsLabel: z.string().min(1).optional(),
+  competition: z.string(),
+  season: z.string(),
+  source: z.string(),
+  sourceScope: z.enum(["season_position_aggregate"]).optional(),
+  sourceField: z.string().optional(),
+  definition: z.string().optional(),
+  normalization: SupplementaryMetricNormalizationSchema.optional(),
+});
+
+export type CapabilityEvidence = z.infer<typeof CapabilityEvidenceSchema>;
+
+export const RequestedCapabilityCoverageSchema = z.object({
+  name: z.string().min(1),
+  requestedMetricKeys: z.array(CapabilityMetricKeySchema),
+  observedMetricKeys: z.array(CapabilityMetricKeySchema),
+  evaluatedCandidateCount: z.number().int().nonnegative(),
+  candidatesWithEvidenceCount: z.number().int().nonnegative(),
+  status: z.enum(["missing", "partial", "observed"]),
+});
+
+export type RequestedCapabilityCoverage = z.infer<typeof RequestedCapabilityCoverageSchema>;

@@ -1,5 +1,6 @@
 import { activeReferenceMessages } from "./replacement-reference.js";
-import type { CapabilityMetricKey, Position } from "./schemas.js";
+import { type CapabilityMetricKey } from "./capabilities.js";
+import { type Position } from "./position-contracts.js";
 
 const requestedCapabilityEvidenceMappings: readonly {
   name: string;

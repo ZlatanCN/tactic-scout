@@ -82,18 +82,39 @@ LangGraph 控制工具选择、结果回流、用户追问恢复、证据复核�
 
 候选搜索返回后，身份分组器只将 Reep 注册表确认的唯一有效身份 ID 作为跨来源分组键。分组引用保存在 LangGraph 案件状态，并随候选摘要提供给 Planner、Reviewer 和报告组装；每条来源记录依旧单独评估和引用，比较样本也继续按 provider、来源赛事、赛季与位置隔离。缺少映射、存在歧义、来源 ID 不稳定或本机索引不可用时，候选分别保留并在报告标出解析状态。身份分组不等于当前效力核验，也不表示已覆盖全部候选市场。
 
-## 招募主链的模块职责
+## 代码结构与依赖方向
 
-`src/agent/conversation.ts` 是组合入口：配置依赖、组合八个节点及条件路由，并把 checkpoint/stream 接到回合运行时。节点名和已有 checkpoint 字段保持兼容；状态和 reducer 集中在 `conversation/state.ts`，不通过增加另一层状态模型隐藏已有持久化语义。
+TactiScout 采用单体部署、按产品能力分模块的结构。目录名表示代码归属，不额外引入微服务或通用插件框架。
 
-- `required-investigation.ts` 决定模型调用前必须完成的调查、澄清和失败收束，返回动作及状态更新；它不调用模型或发送进度。
-- `planned-action-policy.ts` 根据候选范围、分页及预算校正模型动作并给出反馈；`planning-node.ts` 负责 Planner 调用、有限 fallback 和统一决策记录。
-- `tool-node.ts` 处理 IO、取消和失败；`tool-results.ts` 把 typed execution result 转成案件更新、进度说明和 trace 数量。结果投影不依赖 LangGraph、模型或知识库 IO。
-- `turn-nodes.ts` 处理新回合及 `interrupt` 回答；`review-node.ts` 负责证据复核；`enrichment-nodes.ts` 负责已有报告补充；`report-projection.ts` 统一组装报告及覆盖限制。
-- `src/data/player-repository.ts` 定义仓库 interface 和通用查询，具体来源适配器实现这个 interface。`provider.ts` 仅选择和配置来源；Demo 与 StatsBomb 解析各在自己的适配器中。Agent 的通用查询直接依赖仓库模块，不通过来源工厂加载其他实现。
-- 评测的参数与预检、单案运行、比较汇总分别在 `local-agent-options.ts`、`local-agent-run.ts`、`local-agent-comparisons.ts`。所有七种配对实验使用 `paired-runs.ts`，按配对交错执行且失败时终止；`harness-scenarios.ts` 保存登记输入，`harness-run-summary.ts` 计算资源统计，`harness-evaluation.ts` 保留行为检查。
+```text
+src/
+  app.ts, index.ts                 # HTTP 组合根与进程入口
+  recruitment/                     # LangGraph 招募案件、Planner、工具、策略、报告投影
+  players/                         # PlayerRepository、搜索、身份解析与位置证据能力
+  sources/<provider>/              # provider 适配器、解析器、补充数据与 smoke 入口
+  datasets/                        # 本地快照构建、刷新与仓库
+  domain/                          # 框架无关的领域规则和按概念拆分的契约
+  knowledge/                       # 方法 RAG 与报告检索
+  observations/                    # 第一方球探观察
+  evaluation/                      # Harness、配对消融、盲评与质量评估
+web/src/
+  app/                              # React 应用入口和全局样式
+  features/recruitment/{components,hooks,lib}
+  features/showcase/components/
+  features/position-selection-lab/
+  shared/{ui,lib}/                  # shadcn 组件与跨功能 UI 工具
+tests/<capability>/                 # 按 API、领域、招募、数据源、评测等归组
+```
 
-本轮整理依据实际职责和依赖，不按行数拆分每个函数，也没有引入通用 Agent/插件框架。实验以冻结数据、同图对照和真实 trace 检查核心机制；结果只支持所观察到的行为与资源差异。独立球探质量标签仍缺失，不能据此称名单排序准确或当前引援适配已验证。
+依赖从组合根向内：`app.ts` 选择来源、模型和 checkpoint 并装配案件；`recruitment/` 依赖领域契约、球员查询接口和知识检索接口；`sources/<provider>/` 实现球员仓库接口，不依赖 LangGraph 或 React；`domain/` 不依赖 Fastify、LangGraph、provider 或 UI。前端功能可以使用 `shared/`，共享层不能反向依赖具体功能。
+
+领域 Zod 契约按球员、位置、能力、需求、报告、对话等概念拆在 `src/domain/`；`positions.ts` 保留位置族判断规则，`position-contracts.ts` 保存位置及确认流程的 schema。避免再次引入一个容纳所有类型的 `schemas.ts` 或仅为缩短路径的全局 barrel。
+
+招募图组合入口是 `src/recruitment/conversation.ts`：配置依赖、组装节点和条件路由，并接入 checkpoint/stream。`conversation/state.ts` 集中图状态及 reducer；`required-investigation.ts`、`planned-action-policy.ts`、`planning-node.ts`、`tool-node.ts`、`review-node.ts`、`report-projection.ts` 分别负责调查守卫、动作策略、Planner 调用、工具执行、证据复核和报告投影。`src/players/repository.ts` 是数据查询接口；provider 选择位于 `src/sources/registry.ts`，每个 adapter 在 `src/sources/<provider>/` 独立实现。数据集刷新、知识 RAG、第一方观察和 Harness 由各自目录管理，命令行入口由 `package.json` 显式指向，不改变命令名。
+
+前端路由装配留在 `web/src/app/`；招募工作台的组件、hooks 和 API/计划逻辑收在 `features/recruitment/`；展示页和位置选择实验各自拥有 feature；shadcn primitive 统一在 `shared/ui/`。组件生成配置同步指向共享目录。
+
+本轮整理依据实际职责和依赖，不按行数拆分每个函数，也不改变 HTTP DTO、LangGraph checkpoint、浏览器 localStorage 数据或产品行为。实验仍以冻结数据、同图对照和真实 trace 检查机制；其结果只支持观察到的行为与资源差异。独立球探质量标签仍缺失，不能据此称名单排序准确或当前引援适配已验证。
 
 ## 技术结构
 

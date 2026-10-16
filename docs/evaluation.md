@@ -16,7 +16,7 @@ pnpm build:web
 
 停止请求通过实际 `createApp` HTTP turn 进入编译后的 LangGraph，再由 tool executor 传至候选搜索、RAG 和候选评估。取消活动中的候选查询后，HTTP 回合以取消终态结束，Planner 不会重启，也不会继续生成报告；另有运行时与同案队列回归覆盖原有停止语义。Understat、ASA 和 mosaic 的适配器验证了来源请求 signal、请求体读取与共享请求订阅行为。
 
-在固定整图 fixture 上，对照工具适配器收到 signal 与刻意不转发 signal：开启臂 3/3 次在取消终态前结束底层来源工作；屏蔽臂 3/3 次在终态时各剩余 1 项活动工作，随后由测试明确释放。它只证明这个 fixture 的信号传播会改变终态后的剩余工作，不代表真实源站延迟或一般性能收益。Transformers.js embedding 和 LanceDB 当前调用无法被该信号强制中断；取消前启动的单次本地调用可能完成，但其结果不会触发后续调查动作或报告。定向验证入口为 `node --import tsx --test tests/recruitment-cancellation.test.ts tests/app-composition.test.ts tests/understat-provider.test.ts tests/asa-provider.test.ts tests/multi-source-provider.test.ts`；整套测试及 API/Web 构建结果见本节首段。
+在固定整图 fixture 上，对照工具适配器收到 signal 与刻意不转发 signal：开启臂 3/3 次在取消终态前结束底层来源工作；屏蔽臂 3/3 次在终态时各剩余 1 项活动工作，随后由测试明确释放。它只证明这个 fixture 的信号传播会改变终态后的剩余工作，不代表真实源站延迟或一般性能收益。Transformers.js embedding 和 LanceDB 当前调用无法被该信号强制中断；取消前启动的单次本地调用可能完成，但其结果不会触发后续调查动作或报告。定向验证入口为 `node --import tsx --test tests/recruitment/recruitment-cancellation.test.ts tests/api/app-composition.test.ts tests/sources/understat-provider.test.ts tests/sources/asa-provider.test.ts tests/sources/multi-source-provider.test.ts`；整套测试及 API/Web 构建结果见本节首段。
 
 ## 真实模型 Harness
 
@@ -418,4 +418,4 @@ pnpm export:shortlist-review -- \
 
 `pnpm test:recruitment-core` 固定运行替代者排除、最新筛选条件、追问恢复、取消、证据评估/Reviewer 消融、按需检索及方法查询复用的公开整图测试。专项问题在对应测试文件中追加；`pnpm test` 仍涵盖全量回归。
 
-方法查询复用的开关对照位于 `tests/methodology-reuse-ablation.test.ts`，只改变 `experimentalMethodologyReuseMode`。成功的相同方法查询在同一用户轮次复用已有证据；失败可重试，新 query、limit 和用户答复后重新执行。`tool_reuse` 表示沿用已有结果，不计为实际索引访问，也不能解释为真实模型速度或推荐质量提升。设计审查及结果见 [issue 204](../.scratch/tactiscout-mvp/issues/204-internalize-agent-reliability-principles.md)。
+方法查询复用的开关对照位于 `tests/recruitment/methodology-reuse-ablation.test.ts`，只改变 `experimentalMethodologyReuseMode`。成功的相同方法查询在同一用户轮次复用已有证据；失败可重试，新 query、limit 和用户答复后重新执行。`tool_reuse` 表示沿用已有结果，不计为实际索引访问，也不能解释为真实模型速度或推荐质量提升。设计审查及结果见 [issue 204](../.scratch/tactiscout-mvp/issues/204-internalize-agent-reliability-principles.md)。
