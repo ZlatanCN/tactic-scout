@@ -78,6 +78,8 @@ async function runGraph(ordered: PlayerProfile[], bypassDiscovery: boolean) {
       async getComparisonPlayers() { return ordered; } },
     knowledgeBase: { async search() { return []; } },
     experimentalDeterministicSearchMode: "enabled", experimentalRetrievalMode: "on_demand",
+    // Keep the discovery intervention orthogonal to the separate expansion-sufficiency policy.
+    experimentalExpansionSufficiencyMode: "bypassed",
     planner: { async decide() {
       const bestObserved = ordered.filter(p => evaluated.has(p.playerId)).sort((a,b) => b.stats.goals-a.stats.goals)[0];
       return { action: "finish", targetTeam: "拜仁", needSummary: "根据已观察进球产出给出考察线索。", capabilityProfile: ["进球产出"],

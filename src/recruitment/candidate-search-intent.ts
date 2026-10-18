@@ -41,8 +41,8 @@ const specificPositionPatterns: Array<{ position: Position; pattern: RegExp }> =
   { position: "GK", pattern: /门将|守门员|\bGK\b/i },
   { position: "CB", pattern: /中后卫|中卫|\bCB\b/i },
   { position: "FB", pattern: /边后卫|边翼卫|fullback|\bFB\b/i },
-  { position: "LB", pattern: /左后卫|\bLB\b/i },
-  { position: "RB", pattern: /右后卫|\bRB\b/i },
+  { position: "LB", pattern: /左后卫|left[- ]back|\bLB\b/i },
+  { position: "RB", pattern: /右后卫|right[- ]back|\bRB\b/i },
   { position: "LWB", pattern: /左翼卫|左边翼卫|\bLWB\b/i },
   { position: "RWB", pattern: /右翼卫|右边翼卫|\bRWB\b/i },
   { position: "DM", pattern: /后腰|防守型中场|\bDM\b/i },
@@ -277,7 +277,7 @@ export function resolveCandidateSearchIntent(input: {
     : positionConstraintChange(latestMessage, currentPosition);
   const effectiveConfirmedPosition = latestPositionChange.changed ? latestPositionChange.position : confirmedPosition;
   const positionMessages = activeReferenceMessages(userMessages);
-  const explicitPosition = input.brief ? input.brief.positions[0] ?? null : explicitBroadPositionGroup(positionMessages);
+  const explicitPosition = input.brief ? input.brief.positions[0] ?? null : explicitPositionState(positionMessages).positions[0] ?? null;
   const allowsAnyPosition = input.brief ? input.brief.allowsAnyPosition : positionMessages.some((message) => broadAnyPositionPattern.test(message)
     || (broadenPositionPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
       && !declinePositionBroadeningPattern.test(message)));

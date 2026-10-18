@@ -274,6 +274,123 @@ test("the evaluation dataset fixes known tasks without claiming a correct player
   )));
 });
 
+test("the Harness accepts an expected position clarification as a paused turn", () => {
+  const threadId = "case-expected-position-clarification";
+  const paused = response({ threadId, status: "needs_input", targetTeam: "Bayern Munich" });
+  const ask = decision("ask_user", "Bayern Munich", { decisionSource: "policy" });
+  const result = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "我想给拜仁补强阵容，但位置还没定，先帮我明确需要的信息。",
+      answers: [],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedClarificationTopic: "position",
+    },
+    events: [ask],
+    firstTurnResponse: paused,
+    response: paused,
+    firstTurnEvents: [ask],
+    continuedEvents: [],
+    progressEvents: progressForTurns([{ turn: 1, toolStages: [], waitingForUser: true }]),
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(result.allPassed, true);
+});
+
+test("the Harness accepts an expected position clarification followed by same-case search", () => {
+  const threadId = "case-position-clarification-resume";
+  const question = decision("ask_user", "Bayern Munich", { decisionSource: "policy" });
+  const discovery = decision("search_candidates", "Bayern Munich", { decisionSource: "policy" });
+  const search = tool("search_candidates", { position: "DEF", candidateIds: ["player-1"] });
+  const evaluation = decision("evaluate_candidates", "Bayern Munich", { decisionSource: "policy" });
+  const evaluate = tool("evaluate_candidates", { requestedPlayerCount: 1, evaluatedPlayerIds: ["player-1"] });
+  const finish = decision("finish", "Bayern Munich", { decisionSource: "planner" });
+  const continuedEvents = [discovery, search, evaluation, evaluate, finish];
+  const paused = response({ threadId, status: "needs_input", targetTeam: "Bayern Munich" });
+  const result = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "我想给拜仁补强阵容，但位置还没定，先帮我明确需要的信息。",
+      answers: ["那先看后卫，重点是参与出球和高位防守。"],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedClarificationTopic: "position",
+      expectedPosition: "DEF",
+    },
+    events: [question, ...continuedEvents],
+    firstTurnResponse: paused,
+    response: response({ threadId, targetTeam: "Bayern Munich", position: "DEF" }),
+    firstTurnEvents: [question],
+    continuedEvents,
+    progressEvents: progressForTurns([
+      { turn: 1, toolStages: [], waitingForUser: true },
+      { turn: 2, toolStages: ["candidate_search", "player_evaluation"], completed: true },
+    ]),
+    answersUsed: 1,
+    threadId,
+  });
+
+  assert.equal(result.allPassed, true);
+});
+
+test("the expected position clarification fails when the question is about another topic", () => {
+  const threadId = "case-wrong-clarification-topic";
+  const paused = { ...response({ threadId, status: "needs_input", targetTeam: "Bayern Munich" }), message: "你希望预算控制在多少？" };
+  const ask = decision("ask_user", "Bayern Munich", { decisionSource: "policy" });
+  const result = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "我想给拜仁补强阵容，但位置还没定，先帮我明确需要的信息。",
+      answers: [],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedClarificationTopic: "position",
+    },
+    events: [ask],
+    firstTurnResponse: paused,
+    response: paused,
+    firstTurnEvents: [ask],
+    continuedEvents: [],
+    progressEvents: progressForTurns([{ turn: 1, toolStages: [], waitingForUser: true }]),
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(result.checks.askedAboutPosition, false);
+  assert.equal(result.allPassed, false);
+});
+
+test("the expected position clarification fails if candidate work runs before the question", () => {
+  const threadId = "case-candidate-search-before-clarification";
+  const paused = response({ threadId, status: "needs_input", targetTeam: "Bayern Munich" });
+  const ask = decision("ask_user", "Bayern Munich", { decisionSource: "policy" });
+  const search = tool("search_candidates", { position: "CM" }, { matchingRecordCount: 1 });
+  const result = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "我想给拜仁补强阵容，但位置还没定，先帮我明确需要的信息。",
+      answers: [],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedClarificationTopic: "position",
+    },
+    events: [search, ask],
+    firstTurnResponse: paused,
+    response: paused,
+    firstTurnEvents: [search, ask],
+    continuedEvents: [],
+    progressEvents: progressForTurns([{ turn: 1, toolStages: ["candidate_search"], waitingForUser: true }]),
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(result.checks.didNotSearchOrEvaluateCandidatesBeforeClarification, false);
+  assert.equal(result.allPassed, false);
+});
+
 test("the replacement scenario requires a shortlist when requested goal or creation evidence is observed", () => {
   const requestedCapabilityCoverage = bayernCapabilityCoverageFixture().map((coverage) => (
     coverage.name === "进球产出"

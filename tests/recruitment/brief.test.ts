@@ -3,6 +3,7 @@ import test, { after } from "node:test";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../../src/recruitment/candidate-search-intent.js";
 import { searchPlayerPage } from "../../src/players/repository.js";
+import type { PlayerSearchQuery } from "../../src/players/search.js";
 import { createRecruitmentConversation } from "../../src/recruitment/conversation.js";
 import { installRecruitmentConversationTestEnvironment, roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
 
@@ -130,6 +131,40 @@ test("explicit any-position preference overrides automatic reference position re
 test("a generic defender request is not silently narrowed to centre back", () => {
   const brief = { ...makeBrief(), task: "reinforcement", referencePlayer: null, positions: ["CB"] };
   assert.deepEqual(validateRecruitmentBrief(brief, ["我想为巴萨找一个新的后卫"]).positions, ["DEF"]);
+});
+
+test("the full graph keeps an explicit English fine position when the model omits it", async () => {
+  const candidate = roleConstraintPlayer("english-left-back", "Left Back Candidate", "LB");
+  const modelBrief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null, positions: [] };
+  const searches: PlayerSearchQuery[] = [];
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      return validateRecruitmentBrief(modelBrief, [...input.recentMessages, input.message]);
+    } },
+    repository: {
+      mode: "demo",
+      sourceName: "Fixture",
+      async loadPlayers() { return [candidate]; },
+      async searchCandidates(query) {
+        searches.push(query);
+        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    knowledgeBase: { async search() { return []; } },
+    planner: { async decide() {
+      return { action: "finish", targetTeam: null, needSummary: "寻找左后卫", capabilityProfile: [],
+        recommendations: [{ playerId: candidate.playerId, evidenceKeys: ["tacklesInterceptions"] }], limitationKeys: [] };
+    } },
+  });
+
+  const response = await conversation.turn({ threadId: "english-left-back", message: "Please find a left-back." });
+
+  assert.deepEqual(response.brief?.positions, ["LB"]);
+  assert.ok(searches.length > 0, "the graph must actually run candidate search");
+  assert.ok(searches.every(query => query.position === "LB" || query.positions?.length === 1 && query.positions[0] === "LB"),
+    `every search must stay scoped to left-back; got ${JSON.stringify(searches.map(({ position, positions }) => ({ position, positions })))}`);
 });
 
 test("an undecided position is not converted into unrestricted acceptance", () => {

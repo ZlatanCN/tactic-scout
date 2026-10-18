@@ -41,6 +41,18 @@ test("replacement requests inherit the reference player's observed position by d
   assert.equal(intent.replacementRequest, true);
 });
 
+test("English fine-position requests preserve their explicit position", () => {
+  for (const [message, expected] of [
+    ["Please find a left-back who can carry the ball forward.", "LB"],
+    ["Please find a left back.", "LB"],
+    ["We need a right-back.", "RB"],
+    ["Find a fullback.", "FB"],
+  ] as const) {
+    const intent = resolveCandidateSearchIntent({ userMessages: [message], confirmedPosition: null });
+    assert.equal(intent.position, expected, message);
+  }
+});
+
 test("a confirmed Wikidata identity excludes only its uniquely matched provider record, never same-name records from other providers", () => {
   const intent = resolveCandidateSearchIntent({
     userMessages: ["为拜仁寻找基米希的替代者，限定中前卫"],

@@ -38,6 +38,8 @@ pnpm eval:local-agent -- --scenario all --runs 3
 
 Harness 记录安全工具 trace 和与工具调用对应的进度事件；不输出密钥、原始查询、对话内容或模型隐藏推理。它检查候选确实来自数据工具、已评估后才推荐、能力证据与需求对齐、追问状态与同案恢复，以及失败/零匹配状态是否区分。它不评推荐排序准确率，也不把小语料 RAG 检索称作已验证相关性。
 
+2026-10-18 的 held-out 需求理解场景使用本机 Qwen 3.5 9B：四个在 90 秒内完成的输入中有三个符合任务、身份和显式条件；一个英文 left-back 请求漏掉了位置约束，另一个中英混合输入超时。位置遗漏已由原文确定性位置解析修复。随后真实整图输入“为巴萨寻找一名 left-back，重点考察出球能力”通过全部 Harness 检查，首个候选查询明确使用 `LB`，读取并评估 20 人，报告三条考察线索。总耗时 90.8 秒，其中一轮扩页 Planner 等待 60 秒后走有界回退；该运行验证控制流，不验证球员排序质量。需求理解原始记录在 Git 忽略目录 `.data/evaluations/recruitment-understanding-heldout-live-20261018.json`，整图日志在 `.data/evaluations/issue-219-live-english-left-back-20261018.log`。
+
 默认 Harness 的标准输出包含完整运行 JSON，stderr 包含逐事件 trace/进度；运行数据可能包含来源候选 ID 和报告细节。需要持久保存验收结果时，普通运行可改用身份自由摘要：
 
 ```bash

@@ -49,3 +49,4 @@ LangGraph 新增普通扩页阶段的确定性充分性策略。它只在一项�
 
 - 2026-10-18：开始验收时定向构建和 125 项位置、结论策略、完整图及 Harness 回归全部通过。
 - 2026-10-18：最终真实结果保存在 Git 忽略的 `.data/evaluations/expansion-sufficiency-barcelona-defender-rerun.json`。
+- 2026-10-18：后续 [issue 220](220-single-capability-expansion-sufficiency.md) 扩展了普通 `expand` 的充分性条件：单一可测能力区也可在至少三名独立候选均有直接证据时收束；不可测请求或证据覆盖不足仍交给 Planner。issue 217 原有“至少两项可测能力区”的条件只记录当时实现，已被这条更窄的证据门槛取代；`expand_recovery` 行为未变。

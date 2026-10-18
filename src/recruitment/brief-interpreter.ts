@@ -1,6 +1,6 @@
-import { createChatModel, structuredOutputMethod } from "./chat-model.js";
+import { createChatModel, openAIMaxOutputTokens, structuredOutputMethod } from "./chat-model.js";
 import { RecruitmentBriefReferenceClueSchema, RecruitmentBriefReferenceRecheckSchema } from "../domain/recruitment-brief.js";
-import { RecruitmentBriefSchema, RecruitmentBriefValidationError, validateRecruitmentBrief, type RecruitmentBrief, type RecruitmentBriefInterpreter } from "./brief.js";
+import { RecruitmentBriefOutputLimitError, RecruitmentBriefSchema, RecruitmentBriefValidationError, validateRecruitmentBrief, type RecruitmentBrief, type RecruitmentBriefInterpreter } from "./brief.js";
 import { normalizeModelTokenUsage, structuredModelText } from "./model-output.js";
 import { z } from "zod/v4";
 
@@ -38,6 +38,17 @@ export const RecruitmentBriefModelSchema = RecruitmentBriefSchema.extend({
     .describe("仅本轮用户明确要求重新核验时填写对象；其他情况输出 null。"),
 });
 
+function isStructuredOutputLengthLimit(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    if (current instanceof Error && /length limit (?:was )?reached|finish.reason.{0,24}length|(?:output|completion).{0,32}(?:token|length).{0,24}(?:limit|reached)/i.test(current.message)) return true;
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return false;
+}
+
 function preserveBriefDuringIdentityRecheck(candidate: unknown, previous: RecruitmentBrief | null, message: string): unknown {
   if (!previous || !candidate || typeof candidate !== "object") return candidate;
   const parsed = RecruitmentBriefModelSchema.safeParse(candidate);
@@ -55,7 +66,8 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
   const apiKey = process.env.OPENAI_API_KEY;
   const modelName = process.env.OPENAI_MODEL;
   if (!apiKey || !modelName) throw new Error("需求理解服务尚未配置模型。");
-  const model = createChatModel(apiKey, modelName, { maxOutputTokens: 2048 }).withStructuredOutput(RecruitmentBriefModelSchema, {
+  const maxOutputTokens = openAIMaxOutputTokens();
+  const model = createChatModel(apiKey, modelName, { maxOutputTokens }).withStructuredOutput(RecruitmentBriefModelSchema, {
     name: "recruitment_brief",
     method: structuredOutputMethod(),
     includeRaw: true,
@@ -68,7 +80,11 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
         const result = await model.invoke([
           ["system", briefInterpretationInstructions],
           ["human", JSON.stringify({ previous: input.previous, recentMessages: input.recentMessages, visibleCandidates: input.visibleCandidates ?? [], clarificationQuestion: input.clarificationQuestion, message: input.message, previousAttempt, correction })],
-        ], input.signal ? { signal: input.signal } : undefined).catch(error => { input.onUsage?.({ outcome: "failed" }); throw error; });
+        ], input.signal ? { signal: input.signal } : undefined).catch(error => {
+          input.onUsage?.({ outcome: "failed" });
+          if (isStructuredOutputLengthLimit(error)) throw new RecruitmentBriefOutputLimitError(maxOutputTokens, { cause: error });
+          throw error;
+        });
         input.onUsage?.({ outcome: "response", ...normalizeModelTokenUsage(result) });
         let candidate: unknown = result.parsed;
         if (!candidate) {

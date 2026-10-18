@@ -5,7 +5,7 @@ import { type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentPlannerUsageObservation } from "../recruitment-planner.js";
 
 export type RecruitmentTraceEvent =
-  | { phase: "brief_failure"; failureKind: string; validationFailure?: string; issuePaths?: string[] }
+  | { phase: "brief_failure"; failureKind: string; outputLimitTokens?: number; validationFailure?: string; issuePaths?: string[] }
   | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
   | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
@@ -59,6 +59,7 @@ export type PolicyBlockReasonCode =
   | "unavailable_player_report_claim"
   | "candidate_search_exhausted"
   | "evidence_sufficient_for_expansion"
+  | "shortlist_comparison_handled"
   | "other";
 
 export type RecruitmentTraceObserver = (event: RecruitmentTraceEvent) => void;

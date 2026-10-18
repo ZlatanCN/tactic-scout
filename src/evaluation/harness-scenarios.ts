@@ -47,6 +47,7 @@ export type EvaluationScenario = {
   answers: string[];
   kind: "custom";
   requireClarificationResume: boolean;
+  expectedClarificationTopic?: "position";
   expectedPosition?: Position;
   requireRecommendationsWhenEvidenceObserved?: boolean;
 };

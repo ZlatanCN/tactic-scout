@@ -529,9 +529,12 @@ test("a conclusion Planner timeout preserves the completed LangGraph evidence in
 });
 
 test("a blocked expansion question gets one model-directed recovery without asking again", async () => {
-  const players = Array.from({ length: 21 }, (_, index) =>
-    roleConstraintPlayer(`recovery-player-${index}`, `Recovery Player ${index}`, "CM"),
-  );
+  const players = Array.from({ length: 21 }, (_, index) => ({
+    ...roleConstraintPlayer(`recovery-player-${index}`, `Recovery Player ${index}`, "CM"),
+    // Keep this below the three-independent-lead sufficiency gate so the test exercises
+    // the blocked ask → expand_recovery branch instead of the normal early-finish policy.
+    availableStats: index < 2 ? ["goals"] as const : [] as const,
+  }));
   const searchPage: RecruitmentAction = {
     action: "search_candidates",
     position: "MID",

@@ -232,13 +232,13 @@ export function expansionPlannerFallback(input: {
   });
 }
 
-/** A fully evidenced shortlist needs no model-directed page expansion. */
+/** Three independently evidenced leads can satisfy the user's measurable request without model-directed page expansion. */
 export function expansionEvidenceIsSufficient(
   decisionConstraints: RecruitmentDecisionConstraints,
 ): boolean {
   const measurableAreas = decisionConstraints.requestedCapabilityCoverage
     .filter(area => area.requestedMetricKeys.length > 0);
-  if (measurableAreas.length < 2
+  if (measurableAreas.length === 0
     || measurableAreas.length !== decisionConstraints.requestedCapabilityCoverage.length) return false;
   const completeCandidates = decisionConstraints.evaluatedCandidates.filter(candidate => measurableAreas.every(area => (
     area.requestedMetricKeys.some(key => candidate.evidenceKeys.includes(key))

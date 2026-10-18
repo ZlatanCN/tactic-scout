@@ -64,6 +64,8 @@ export function createRecruitmentConversation(input: {
   experimentalReferenceComparisonMode?: "enabled" | "bypassed";
   experimentalCandidateComparisonMode?: "enabled" | "bypassed";
   experimentalMethodologyReuseMode?: "enabled" | "bypassed";
+  experimentalPreviousShortlistContextMode?: "enabled" | "bypassed";
+  experimentalShortlistComparisonMode?: "enabled" | "bypassed";
   experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
@@ -87,7 +89,7 @@ export function createRecruitmentConversation(input: {
   const workflow = new StateGraph(RecruitmentState)
     .addNode("record_user_turn", createRecordUserTurnNode({ disabledPlayerEloCoverage, historicalArchiveSetup, abilityProfilesEnabled: repository.supportsAbilityProfiles }))
     .addNode("understand_request", createUnderstandingNode({ interpreter: input.briefInterpreter, repository, resolver: input.referenceNameResolver, observer, referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed" }))
-    .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode }))
+    .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled", previousShortlistContextEnabled: input.experimentalPreviousShortlistContextMode !== "bypassed", shortlistComparisonEnabled: input.experimentalShortlistComparisonMode !== "bypassed", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode }))
     .addNode("execute_tool", createToolNode({ repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords, methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed", ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}), referenceNameResolver: input.referenceNameResolver }))
     .addNode("wait_for_user", waitForUser)
     .addNode("review_recommendation", createReviewNode({ observer, reviewerMode }))

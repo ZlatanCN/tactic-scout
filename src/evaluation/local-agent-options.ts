@@ -22,6 +22,7 @@ export const usage = [
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --scenario understat-five-league-xg-creation --compare-understat-research --runs 3",
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --message \"为巴萨寻找一个新的后卫，要能参与出球和高位防守\" --expected-position DEF --compare-expansion-sufficiency --runs 3",
   "  pnpm eval:local-agent -- --message \"自定义球探需求\" [--answer \"补充回答\"] [--expected-position ST]",
+  "  pnpm eval:local-agent -- --message \"我想给拜仁补强阵容，但位置还没定\" --expect-position-clarification",
   "",
   "选项：",
   "  --scenario <id|all> 运行当前数据源已登记场景；不传时使用该模式的默认场景",
@@ -29,6 +30,7 @@ export const usage = [
   "  --message <text>     自定义单个场景需求",
   "  --answer <text>      自定义补答；可重复",
   "  --expected-position <position> 检查自定义场景的搜索及推荐位置",
+  "  --expect-position-clarification 验证先询问位置，可附 --answer 与 --expected-position 检查同案续跑",
   "  --summary-output <path> 写入不含候选身份、正文、trace 或进度载荷的本地聚合摘要；只支持普通运行",
   "  --compare-reviewer    在单一登记场景上配对运行完整证据复核与旁路消融（仅 curated 数据）",
   "  --compare-interaction 在单一澄清场景上配对运行完整补答与首次追问后不补答控制（仅 curated 数据）",
@@ -79,6 +81,7 @@ function selectScenarios(): { scenarios: EvaluationScenario[]; runsPerScenario: 
   const scenarioId = option("--scenario");
   const message = option("--message");
   const answers = options("--answer");
+  const expectPositionClarification = process.argv.includes("--expect-position-clarification");
   const expectedPositionInput = option("--expected-position");
   const expectedPositionResult = expectedPositionInput ? PositionSchema.safeParse(expectedPositionInput) : undefined;
   if (expectedPositionInput && !expectedPositionResult?.success) {
@@ -87,8 +90,12 @@ function selectScenarios(): { scenarios: EvaluationScenario[]; runsPerScenario: 
   const expectedPosition = expectedPositionResult?.success ? expectedPositionResult.data : undefined;
   const runsPerScenario = parseRunCount(option("--runs"));
 
+  if (expectPositionClarification && !message) {
+    throw new Error("--expect-position-clarification 必须与 --message 一起使用。");
+  }
   if (scenarioId) {
     if (message || expectedPosition) throw new Error("--scenario 不能与 --message 或 --expected-position 一起使用。");
+    if (expectPositionClarification) throw new Error("--scenario 不能与 --expect-position-clarification 一起使用。");
     if (scenarioId === "all") {
       if (answers.length) throw new Error("--scenario all 使用数据集内登记的补答，不接受 --answer。");
       return { scenarios: configuredScenarios, runsPerScenario };
@@ -110,7 +117,8 @@ function selectScenarios(): { scenarios: EvaluationScenario[]; runsPerScenario: 
       message: message ?? defaultScenario.message,
       answers,
       kind: "custom",
-      requireClarificationResume: answers.length > 0,
+      requireClarificationResume: answers.length > 0 && !expectPositionClarification,
+      ...(expectPositionClarification ? { expectedClarificationTopic: "position" as const } : {}),
       ...(expectedPosition ? {
         expectedPosition,
         requireRecommendationsWhenEvidenceObserved: true,

@@ -38,6 +38,14 @@ export class RecruitmentBriefValidationError extends Error {
   override name = "RecruitmentBriefValidationError";
 }
 
+export class RecruitmentBriefOutputLimitError extends Error {
+  override name = "RecruitmentBriefOutputLimitError";
+
+  constructor(readonly maxOutputTokens: number, options?: ErrorOptions) {
+    super(`需求理解模型在 ${maxOutputTokens} 个输出 token 的预算内未能完成结构化结果。`, options);
+  }
+}
+
 /** Reject fabricated explicit evidence before it can become a search condition. */
 export function validateRecruitmentBrief(value: unknown, userMessages: readonly string[], visibleCandidates: readonly VisibleRecruitmentCandidate[] = []): RecruitmentBrief {
   const brief = RecruitmentBriefSchema.parse(value);
@@ -71,7 +79,8 @@ export function validateRecruitmentBrief(value: unknown, userMessages: readonly 
     && explicitlySelectsCandidate(latestMessage, selectedCandidate, visibleCandidates)) {
     brief.referencePlayer = { value: selectedCandidate.name, basis: "explicit", quote: latestMessage };
   }
-  if (!brief.referencePlayer && latestPosition === undefined && /(?:还?没|未|尚未)(?:想好|确定|决定).{0,12}位置|不知道.{0,10}(?:哪个|什么)位置|unsure.{0,12}position|not.{0,8}decided.{0,12}position/i.test(latestMessage)) {
+  if (!brief.referencePlayer && latestPosition === undefined
+    && /(?:还?没|未|尚未)(?:想好|确定|决定|定).{0,12}位置|位置.{0,12}(?:还?没|未|尚未)(?:想好|确定|决定|定)|不知道.{0,10}(?:哪个|什么)位置|unsure.{0,12}position|not.{0,8}decided.{0,12}position/i.test(latestMessage)) {
     brief.positions = [];
     brief.allowsAnyPosition = false;
     const positionQuestion: RecruitmentBrief["unresolved"][number] = { topic: "position", question: "你想补强哪些位置？可以在球场上多选。", impact: "位置会决定寻找和比较哪些球员；尚未确定不等于接受所有位置。" };

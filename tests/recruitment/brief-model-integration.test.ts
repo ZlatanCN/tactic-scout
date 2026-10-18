@@ -59,6 +59,102 @@ test("real structured model adapter works directly and inside the streamed LangG
   }
 });
 
+test("a truncated brief honors the configured budget and same-case retry re-runs understanding", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS", "OPENAI_REASONING_EFFORT"] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  process.env.OPENAI_API_KEY = "fixture";
+  process.env.OPENAI_MODEL = "qwen3.5:9b";
+  process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "8192";
+  process.env.OPENAI_REASONING_EFFORT = "none";
+
+  const brief = {
+    task: "reinforcement" as const,
+    targetTeam: { value: "拜仁", basis: "explicit" as const, quote: "拜仁" },
+    referencePlayer: null,
+    referenceClues: [],
+    referenceRecheck: null,
+    selectedCandidateId: null,
+    positions: [],
+    allowsAnyPosition: false,
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [],
+    constraints: [],
+    unresolved: [],
+  };
+  const requests: Array<{ max_tokens?: number; reasoning_effort?: string }> = [];
+  let calls = 0;
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { max_tokens?: number; reasoning_effort?: string };
+    requests.push(body);
+    calls += 1;
+    const truncated = calls === 1;
+    return new Response(JSON.stringify({
+      id: "fixture",
+      object: "chat.completion",
+      created: 1,
+      model: "qwen3.5:9b",
+      choices: [{
+        index: 0,
+        message: { role: "assistant", content: truncated ? '{"task":"reinforcement"' : JSON.stringify(brief) },
+        finish_reason: truncated ? "length" : "stop",
+      }],
+      usage: { prompt_tokens: 5000, completion_tokens: truncated ? 2048 : 350, total_tokens: truncated ? 7048 : 5350 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    let playerReads = 0;
+    let plannerCalls = 0;
+    const trace: unknown[] = [];
+    const conversation = createRecruitmentConversation({
+      briefInterpreter: createRecruitmentBriefInterpreter(),
+      repository: {
+        mode: "demo",
+        sourceName: "Fixture",
+        async loadPlayers() { playerReads += 1; return []; },
+        async searchCandidates() { playerReads += 1; return { players: [], offset: 0, totalRecords: 0, nextOffset: null, appliedFilters: [] }; },
+      },
+      planner: { async decide() {
+        plannerCalls += 1;
+        return { action: "finish", targetTeam: "拜仁", needSummary: "找中卫", capabilityProfile: [], recommendations: [], limitationKeys: [] };
+      } },
+      knowledgeBase: { async search() { return []; } },
+      observer(event) { trace.push(event); },
+    });
+    const message = "我想给拜仁补强阵容，但位置还没定，先帮我明确需要的信息。";
+    const first = await conversation.turn({ threadId: "brief-output-limit-retry", message });
+    assert.equal(first.status, "completed");
+    assert.equal(first.retryMessage, message);
+    assert.match(first.message, /8192 个输出 token.*未能完成需求解析/);
+    assert.equal(playerReads, 0, "an incomplete brief must stop before reading candidate data");
+    assert.equal(plannerCalls, 0, "an incomplete brief must stop before planning the investigation");
+    assert.ok(trace.some(event => typeof event === "object" && event !== null
+      && "failureKind" in event && (event as { failureKind: unknown }).failureKind === "RecruitmentBriefOutputLimitError"
+      && "outputLimitTokens" in event && (event as { outputLimitTokens: unknown }).outputLimitTokens === 8192));
+
+    const retry = await conversation.turn({ threadId: "brief-output-limit-retry", message: first.retryMessage, expectsExistingState: true });
+    assert.equal(retry.status, "needs_input", retry.message);
+    assert.equal(retry.brief?.unresolved.some(item => item.topic === "position"), true);
+    assert.equal(requests.length, 2, "retrying the same message must invoke brief understanding again");
+    assert.deepEqual(requests.map(({ max_tokens, reasoning_effort }) => ({ max_tokens, reasoning_effort })), [
+      { max_tokens: 8192, reasoning_effort: "none" },
+      { max_tokens: 8192, reasoning_effort: "none" },
+    ]);
+    assert.equal(playerReads, 0);
+    assert.equal(plannerCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test("the runtime model contract requires explicit empty identity-control fields while persisted briefs stay backward-compatible", () => {
   const legacyBrief = { task: "reinforcement", targetTeam: null, referencePlayer: null, positions: [], priorities: [], constraints: [],
     filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] };

@@ -30,6 +30,18 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
   assert.match(result.stdout, /--summary-output <path>/);
+  assert.match(result.stdout, /--expect-position-clarification/);
+});
+
+test("the local evaluation CLI requires a custom message for expected position clarification", () => {
+  const result = runCli(["--expect-position-clarification"], {
+    ...process.env,
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /必须与 --message 一起使用/);
+  assert.doesNotMatch(result.stderr, /ECONNREFUSED|fetch failed/i);
 });
 
 test("the local evaluation CLI refuses an existing summary path before contacting data or the model", async () => {

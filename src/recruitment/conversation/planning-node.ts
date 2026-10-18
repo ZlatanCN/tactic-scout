@@ -20,10 +20,13 @@ import { enforceInvestigationAction, investigationActionFeedback } from "./plann
 import { emitProgress } from "./progress.js";
 import { investigationCandidates, nextRequiredInvestigation } from "./required-investigation.js";
 import { type State } from "./state.js";
+import { preserveExplicitShortlistComparison } from "./shortlist-comparison.js";
 
 export function createPlanningNode(input: {
   deterministicSearchEnabled: boolean;
   expansionSufficiencyEnabled?: boolean;
+  previousShortlistContextEnabled?: boolean;
+  shortlistComparisonEnabled?: boolean;
   retrievalMode: RecruitmentRetrievalMode;
   repository: PlayerRepository;
   planner: RecruitmentPlanner;
@@ -136,6 +139,7 @@ export function createPlanningNode(input: {
     let plannerTimeoutMs: number | undefined;
     let candidateSearchCursorAdjustment: { requestedOffset: number; effectiveOffset: number } | null = null;
     let candidateSearchExhausted = false;
+    let shortlistComparisonApplied = false;
     const plannerHistory = (decisionMode === "expand" || decisionMode === "expand_recovery"
       ? compactExpansionHistory(state.history, { includeLatestPolicyFeedback: decisionMode === "expand_recovery" })
       : decisionMode === "conclude" || decisionMode === "reorient"
@@ -143,6 +147,17 @@ export function createPlanningNode(input: {
           preserveAllMethodology: decisionMode === "reorient",
         })
         : state.history).map((entry) => ({ ...entry }));
+    if (input.previousShortlistContextEnabled !== false && state.briefCandidates.length > 0) {
+      const latestUserIndex = plannerHistory.reduce((latest, entry, index) => entry.role === "user" ? index : latest, -1);
+      plannerHistory.splice(latestUserIndex < 0 ? plannerHistory.length : latestUserIndex, 0, {
+        role: "tool",
+        toolName: "previous_shortlist",
+        content: JSON.stringify({
+          candidates: state.briefCandidates,
+          note: "这是上一轮实际展示给用户的短名单，仅用于解析‘这些候选’等指代和保持可见顺序。若用户明确要求在现有考察范围内继续比较，应优先复用仍符合当前条件且有真实评估证据的候选；若候选因当前硬条件或缺少所需证据而不能延续，必须说明具体原因。此快照本身不代表本轮推荐，不得据此补造指标或资格。",
+        }),
+      });
+    }
     try {
       let modelAction: RecruitmentAction;
       if (input.expansionSufficiencyEnabled !== false
@@ -232,7 +247,15 @@ export function createPlanningNode(input: {
       proposedAction = RecruitmentActionSchema.parse(modelAction);
       const enforced = enforceInvestigationAction(proposedAction, state, { candidatePolicyMode, enforceCurrentTurnObservation, decisionMode, expansionConstraints, retrievalNeeds, understatResearchMode: input.understatResearchMode });
       ({ action, candidateSearchCursorAdjustment, candidateSearchExhausted } = enforced);
-      policyOverrodePlanner = enforced.policyOverrodePlanner || Boolean(plannerFallback);
+      policyOverrodePlanner = policyOverrodePlanner || enforced.policyOverrodePlanner || Boolean(plannerFallback);
+      if (input.shortlistComparisonEnabled !== false && action.action === "finish") {
+        const continuation = preserveExplicitShortlistComparison(action, state);
+        action = continuation.action;
+        if (continuation.handled) {
+          policyOverrodePlanner = true;
+          shortlistComparisonApplied = true;
+        }
+      }
     } catch (error) {
       observer?.({
         phase: "decision",
@@ -247,6 +270,7 @@ export function createPlanningNode(input: {
     }
     const { endedTooEarly, policyFeedback } = investigationActionFeedback(state, proposedAction, action, decisionMode, candidateSearchExhausted, retrievalNeeds);
     let policyReasonCodes = policyFeedback.map(policyBlockReasonCode);
+    if (shortlistComparisonApplied) policyReasonCodes.push("shortlist_comparison_handled");
     if (decisionMode === "expand"
       && state.positionBroadeningApproved
       && expansionConstraints

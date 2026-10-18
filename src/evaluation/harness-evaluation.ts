@@ -431,7 +431,8 @@ function candidateSearchOutcomeIsExplicit(
 ): boolean {
   const successful = candidateSearches.some((event) => event.ok);
   if (successful) return true;
-  if (response.status === "needs_input") return candidateSearches.length > 0;
+  // A suspended turn has not produced a candidate-search outcome yet.
+  if (response.status === "needs_input") return true;
   const report = response.report;
   if (!report || candidateSearches.length === 0 || report.recommendations.length > 0) return false;
   return /查询.*失败|无法确认/.test(report.needSummary)
@@ -553,10 +554,14 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
   const requestedCapabilities = "requestedCapabilities" in scenario
     ? scenario.requestedCapabilities
     : undefined;
+  const expectsPositionClarification = scenario.kind === "custom"
+    && scenario.expectedClarificationTopic === "position";
   const commonChecks = {
-    usedMultipleModelActions: scenario.kind === "shortlist"
-      ? successfulPlannerDecisions > 1
-      : plannerInvocations > 0,
+    ...(!expectsPositionClarification ? {
+      usedMultipleModelActions: scenario.kind === "shortlist"
+        ? successfulPlannerDecisions > 1
+        : plannerInvocations > 0,
+    } : {}),
     finalStatusMatchesReport: response.status === "needs_input" ? report === null : report !== null,
     ...("targetTeamAliases" in scenario ? {
       targetTeamContextPreserved: targetTeamContextPreserved(response, events, scenario.targetTeamAliases),
@@ -761,8 +766,46 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       })(),
     };
   } else {
+    const firstTurnToolEvents = input.firstTurnEvents.filter(isToolEvent);
+    const firstTurnDecisionEvents = input.firstTurnEvents.filter(isDecisionEvent);
+    const expectedQuestionText = `${input.firstTurnResponse.message} ${input.firstTurnResponse.question?.reason ?? ""}`;
+    const positionSearchAfterAnswer = input.continuedEvents.some((event) => (
+      isToolEvent(event)
+      && event.ok
+      && event.toolName === "search_candidates"
+      && (!scenario.expectedPosition || event.filters.position === scenario.expectedPosition)
+    ));
     checks = {
       ...commonChecks,
+      ...(expectsPositionClarification ? {
+        pausedForExpectedClarification: input.firstTurnResponse.status === "needs_input"
+          && input.firstTurnResponse.report === null,
+        askedAboutPosition: /位置|门将|守门员|后卫|中卫|边卫|中场|后腰|中前卫|前腰|前锋|中锋|边锋/
+          .test(expectedQuestionText),
+        askedExactlyOnce: firstTurnDecisionEvents.filter((event) => event.action === "ask_user"
+          && event.policyBlocked !== true && event.askPolicyOutcome !== "suppressed").length === 1,
+        didNotSearchOrEvaluateCandidatesBeforeClarification: !firstTurnToolEvents.some((event) => (
+          event.toolName === "search_candidates"
+          || event.toolName === "evaluate_candidates"
+          || event.toolName === "inspect_candidate_group"
+          || event.toolName === "inspect_player"
+        )),
+        didNotInvokePlannerBeforeClarification: !firstTurnDecisionEvents.some((event) => (
+          event.decisionSource === "planner" || event.proposedAction !== undefined || event.plannerFallback !== undefined
+        )),
+        ...(input.answersUsed > 0 ? {
+          resumedSameCaseAfterAnswer: input.firstTurnResponse.threadId === input.threadId
+            && response.threadId === input.threadId,
+          continuedInvestigationAfterAnswer: input.continuedEvents.some((event) => (
+            (isDecisionEvent(event) || isToolEvent(event)) && event.ok
+          )),
+          searchedExpectedPositionAfterAnswer: positionSearchAfterAnswer,
+          completedAfterAnswer: response.status === "completed" && response.report !== null,
+        } : {
+          remainedPausedForUser: response.status === "needs_input" && response.report === null,
+          noAnswerWasInjected: input.answersUsed === 0,
+        }),
+      } : {}),
       ...(scenario.requireClarificationResume ? {
         ...clarificationResumeChecks(input, false),
       } : {}),

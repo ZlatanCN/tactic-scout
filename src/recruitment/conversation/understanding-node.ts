@@ -2,7 +2,7 @@ import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import type { PlayerRepository } from "../../players/repository.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import type { RecruitmentBriefInterpreter } from "../brief.js";
-import { RecruitmentBriefValidationError } from "../brief.js";
+import { RecruitmentBriefOutputLimitError, RecruitmentBriefValidationError } from "../brief.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../recruitment-comparison.js";
 import { throwIfTurnCancelled } from "../turn-cancellation.js";
@@ -39,9 +39,12 @@ export function createUnderstandingNode(input: {
       } catch (error) {
         throwIfTurnCancelled(config.signal);
         input.observer?.({ phase: "brief_failure", failureKind: error instanceof Error ? error.name : "unknown",
+          ...(error instanceof RecruitmentBriefOutputLimitError ? { outputLimitTokens: error.maxOutputTokens } : {}),
           ...(error instanceof z.ZodError ? { issuePaths: error.issues.map(issue => issue.path.join(".")) } : {}),
           ...(error instanceof RecruitmentBriefValidationError ? { validationFailure: error.message } : {}) });
-        return { briefFailure: "这次没能完成需求理解，调查尚未开始。原始输入已保留，可以直接重试。",
+        return { briefFailure: error instanceof RecruitmentBriefOutputLimitError
+          ? `模型在 ${error.maxOutputTokens} 个输出 token 的预算内未能完成需求解析，调查尚未开始。原始输入已保留，可以重试。`
+          : "这次没能完成需求理解，调查尚未开始。原始输入已保留，可以直接重试。",
           briefFailureKind: error instanceof Error ? error.name : "unknown", briefInterpretedThrough: messages.length };
       }
     }

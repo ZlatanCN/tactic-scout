@@ -159,7 +159,7 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs font-medium text-muted-foreground">{report.targetTeam || "球员招募"}{reportedAt ? ` · ${formatDate(reportedAt)}` : ""}</span>
         <Badge variant="outline" className={reportBusy ? "border-amber-300 bg-amber-50 text-amber-950" : "border-primary/20 bg-secondary text-primary"}>
-          <span className={`size-1.5 rounded-full ${reportBusy ? "bg-amber-700" : "bg-primary"}`} aria-hidden="true" />{isWaiting ? "等待你补充" : isRefreshing ? "重新分析中" : isUpdating ? "继续调查中" : "调查已完成"}
+          <span className={`size-1.5 rounded-full ${reportBusy ? "bg-amber-700" : "bg-primary"}`} aria-hidden="true" />{isWaiting ? "等待你补充" : isRefreshing ? "重新分析中" : isUpdating ? "继续调查中" : "最近完整报告"}
         </Badge>
       </div>
       <div className="space-y-3">

@@ -218,6 +218,11 @@ Labels: wayfinder:map
 
 ## Decisions-so-far
 
+- 2026-10-18：[issue 218](issues/218-score-expected-clarification-pauses.md) 已解决：Harness 能把预期位置追问识别为正常暂停，并验证补答后同案续跑、按确认位置检索及完成报告。真实 Qwen 3.5 9B 的暂停场景和同案 DEF 续跑各通过 1/1；后者约 21.3 秒。定向 Harness/CLI 85/85，构建与 diff 检查通过。该结果验证需求理解与交互控制流，不评估候选排序质量。
+- 2026-10-18：[issue 211](issues/211-local-model-investigation-reliability.md) 的 Qwen 3.5 9B 原始输入重跑完成且无长度上限错误，首次追问与同案续跑均通过 Harness；原始 `finish_reason` 未直接暴露，不阻塞产品行为验收。
+- 2026-10-18：[issue 219](issues/219-preserve-english-fine-position-intent.md) 已解决：英文 left-back 等细分位置由用户原文确定性保留；模型漏填位置时整图仍按 LB 检索。真实 Qwen 整图场景 Harness 全通过；本轮 90.8 秒，其中扩页 Planner 触发既有 60 秒超时回退。该场景未评估候选排序质量。
+- 2026-10-18：[issue 220](issues/220-single-capability-expansion-sufficiency.md) 已解决：普通扩页在所有请求能力可测、且至少三名独立候选都有每项能力的直接证据时确定性收束；不满足仍调用 Planner。Understat/Qwen 整图配对消融 3/3 次同序同证据，Harness 全通过；中位耗时由 78.674 秒降至 35.072 秒（-55.4%）。该固定案例验证延迟与控制流，不证明一般候选排序质量。
+
 - 2026-10-16: [issue 215](issues/215-deepen-app-and-harness-modules.md) 已解决：`createApp()` 留作组合根，API 路由按能力注册，应用级进度与回合协调仍每实例共享；Harness 保留整图评估器，只拆 trace 脱敏和脚本追问匹配；3,777 行招募集成测试拆成六组并共享 fixture；报告候选卡从主面板抽出。KnowledgeBase 和来源 research 保持高内聚模块。API/Web 构建、561/561 测试和 diff check 通过；对外接口与界面行为不变。
 
 - [issue 214](issues/214-modular-monolith-organization.md) 已解决：API 按招募、球员、数据源、数据集、知识库、评测和观察模块归位；领域 schema 按概念拆分；Web 与测试按 feature/能力分组。API/Web 构建通过，561 项测试通过，结构迁移已提交；不改变对外接口和存储行为。
@@ -391,6 +396,7 @@ Labels: wayfinder:map
 
 ## Fog
 
+- 2026-10-18：[TactiScout 产品化整合方案](research/tactiscout-product-integration-plan-2026-10-18.md)将开源 LangGraph 案例映射到现有招募图与 Harness，并排了可靠性、整图场景、短名单盲评、交互完善和有条件并行调查的执行顺序。issue 211 已用本机 Qwen 原始输入验证位置追问暂停，Harness 评测语义修复见 [issue 218](issues/218-score-expected-clarification-pauses.md)；原始 `finish_reason` 未直接观测。issue 168 的独立真人评审仍待两位评审提交。方案不建议增加 Agent 数量，优先复用已有状态图、评测接口和机制消融。
 - [issue 144](issues/144-showcase-dynamic-planning-ablation.md)：Planner 对照卡已加入 `/showcase`；生产构建、桌面浏览器显示和响应式 CSS 断点检查通过。按用户明确选择，精确 390 CSS px 以及方法说明收起/展开的目视检查仍待用户完成。浏览器临时视口能力已在 issue 172 的 400px 检查中使用并重置；这不替代此项 390px 人工验收。
 - [issue 136](issues/136-clarification-interaction-ablation.md) 已解决：Qwen 3.5 9B 在固定 Wyscout 2017/18 curated 快照上完成两个场景各 3 对运行、共 12 次 Harness 检查。拜仁替代者场景中，补答臂 3/3 次经两次职责/扩位追问后同案完成；无答案臂 3/3 次在首个必要问题后安全暂停。巴萨清晰请求两臂均 3/3 次无追问完成。证明范围仅是冻结案例中的答案可用性与中断/续跑契约，不代表 `ask_user` 策略消融、排序质量或一般可靠性；见 [实验协议与结果](../../docs/evaluation.md#澄清互动消融) 和[增量研究审计](research/clarification-eval-incremental-audit-2026-10-10.md)。
 - [issue 85](issues/85-centralize-explicit-candidate-search-intent.md) 已完成：纯 `resolveCandidateSearchIntent` 接口统一多轮位置、年龄、分钟、赛事和赛季条件，供 LangGraph 搜索、候选资格校验、报告过滤和追问续跑共用。真实 Qwen 9B/FPL 全链路 21/21 检查通过（3 轮、2 次同案追问、12 次工具、30 人评估、Reviewer 与报告，282.4 秒）；完整确定性测试 241/241、TS 与网页构建通过。该运行仅验证 Agent 行为与报告证据契约，不代表推荐排序准确性。

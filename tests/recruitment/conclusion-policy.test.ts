@@ -881,7 +881,12 @@ test("three records covering every measurable request make expansion evidence su
   assert.equal(expansionEvidenceIsSufficient({
     ...decisionConstraints,
     requestedCapabilityCoverage: decisionConstraints.requestedCapabilityCoverage.slice(0, 1),
-  }), false, "one measurable area can retain a material planning question");
+  }), true, "three independent candidates can form a limited shortlist for the one measurable area the user requested");
+  assert.equal(expansionEvidenceIsSufficient({
+    ...decisionConstraints,
+    evaluatedCandidates: decisionConstraints.evaluatedCandidates.slice(0, 2),
+    requestedCapabilityCoverage: decisionConstraints.requestedCapabilityCoverage.slice(0, 1),
+  }), false, "one requested area still needs at least three independent candidates with direct evidence");
   assert.equal(expansionEvidenceIsSufficient({
     ...decisionConstraints,
     requestedCapabilityCoverage: decisionConstraints.requestedCapabilityCoverage.map(area => ({

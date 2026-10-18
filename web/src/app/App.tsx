@@ -118,7 +118,7 @@ function App() {
           {!state.isFreshCase && <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" className="sm:hidden" onClick={actions.startNewCase} disabled={state.turnUnresolved}>新建计划</Button>
             <Button type="button" variant="outline" size="sm" onClick={actions.saveCurrentPlan} disabled={state.turnUnresolved || !state.messages.length}><Save aria-hidden="true" />保存计划</Button>
-            {!(state.report && state.workspaceView === "report") && <Badge variant="secondary" className={`h-7 px-2.5 text-xs ${state.turnUnresolved ? "bg-amber-100 text-amber-900" : ""}`}>{state.turnUnresolved ? "调查中" : state.waitingForAnswer ? "等待回答" : state.report ? "报告已生成" : "待继续"}</Badge>}
+            {!(state.report && state.workspaceView === "report") && <Badge variant="secondary" className={`h-7 px-2.5 text-xs ${state.turnUnresolved ? "bg-amber-100 text-amber-900" : ""}`}>{state.turnUnresolved ? "调查中" : state.waitingForAnswer ? "等待回答" : state.report ? "最近报告可查看" : "待继续"}</Badge>}
           </div>}
         </div>
 
