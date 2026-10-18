@@ -28,6 +28,12 @@ const positionFamiliesByBroadGroup: Record<Position, Position> = {
   ST: "ATT",
 };
 
+const broadPositionEligibility: Partial<Record<Position, readonly Position[]>> = {
+  DEF: ["CB", "FB", "LB", "RB", "LWB", "RWB"],
+  MID: ["DM", "CM", "AM"],
+  ATT: ["WG", "LW", "RW", "ST"],
+};
+
 const intermediatePositionGroups: Partial<Record<Position, readonly Position[]>> = {
   LB: ["FB"],
   RB: ["FB"],
@@ -81,8 +87,15 @@ export function hasSpecificPositionEvidence(player: {
 export function hasAbilityPositionEvidence(player: {
   abilityProfile?: { positions: Partial<Record<Position, number>> };
 }, requested: Position): boolean {
-  return Boolean(player.abilityProfile && Object.entries(player.abilityProfile.positions)
-    .some(([position, rating]) => rating !== undefined && rating >= 15 && positionMatches(position as Position, requested)));
+  const positions = Object.entries(player.abilityProfile?.positions ?? {})
+    .filter((entry): entry is [Position, number] => entry[1] !== undefined && entry[1] >= 15)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+  const primary = positions[0]?.[0];
+  if (!primary) return false;
+  const broadEligible = broadPositionEligibility[requested];
+  // A broad request means "this side of the team" and follows the strongest
+  // observed role. A detailed request preserves source-backed versatility.
+  return broadEligible ? broadEligible.includes(primary) : positions.some(([position]) => position === requested);
 }
 
 /** Position qualification may use verified profile familiarity or observed source position evidence. */
@@ -97,11 +110,14 @@ export function playerPositionMatches(player: {
   positionEvidence?: { provider: string; targetPosition: Position; status: string };
   positionEvidenceByPosition?: Partial<Record<Position, { provider: string; targetPosition: Position; status: string }>>;
 }, requested: Position): boolean {
+  const hasAbilityProfile = player.abilityProfile?.positions !== undefined;
   if (hasAbilityPositionEvidence(player, requested)) return true;
+  if (hasAbilityProfile) return false;
   if (player.sourceIdentity?.provider === "understat") {
     if (positionFamilyFor(requested) === requested) {
-      return positionMatches(player.position, requested)
-        || player.sourceIdentity.positionGroups?.some((group) => positionMatches(group, requested)) === true;
+      const eligibleGroups = [requested, ...(broadPositionEligibility[requested] ?? [])];
+      return (player.position !== "UNKNOWN" && eligibleGroups.includes(player.position))
+        || player.sourceIdentity.positionGroups?.some((group) => eligibleGroups.includes(group)) === true;
     }
     return hasSpecificPositionEvidence(player, requested);
   }

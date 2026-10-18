@@ -9,6 +9,7 @@ import {
   createConstrainedExpansionSchema,
   createConstrainedReorientationSchema,
   conclusionPlannerOutputFallback,
+  expansionEvidenceIsSufficient,
   expansionPlannerFallback,
   requestedCapabilityEvidenceAreas,
   summarizeRequestedCapabilityCoverage,
@@ -784,4 +785,119 @@ test("expansion recovery preserves three jointly evidenced leads instead of expa
     assert.deepEqual(recovered.recommendations.map(item => item.playerId), ["supported-0", "supported-1", "supported-2"]);
     assert.match(recovered.needSummary, /扩围未能完成/);
   }
+});
+
+test("recovery fallback counts and recommends each verified candidate identity once", () => {
+  const decisionConstraints = {
+    targetTeam: "Barcelona",
+    evaluatedCandidates: Array.from({ length: 4 }, (_, index) => ({
+      playerId: `complete-${index}`,
+      evidenceKeys: ["goals", "assists"] as const,
+    })).map(item => ({ ...item, evidenceKeys: [...item.evidenceKeys] })),
+    reportObservations: [],
+    requestedCapabilityCoverage: ["goals", "assists"].map(key => ({
+      name: key,
+      requestedMetricKeys: [key as "goals" | "assists"],
+      observedMetricKeys: [key as "goals" | "assists"],
+      evaluatedCandidateCount: 4,
+      candidatesWithEvidenceCount: 3,
+      status: "partial" as const,
+    })),
+    candidateIdentityGroups: [{
+      identityKey: "reep:one-player",
+      status: "resolved" as const,
+      registryAvailable: true,
+      reepId: "one-player",
+      releaseStamp: "fixture",
+      recordPlayerIds: ["complete-0", "complete-1"],
+    }],
+  };
+  const expansionConstraints = {
+    targetTeam: "Barcelona",
+    nextOffset: 20,
+    position: "ST" as const,
+    playerName: null,
+    maxAge: null,
+    minimumMinutes: 0,
+    competition: null,
+    season: null,
+  };
+
+  const threeRecordLeads = expansionPlannerFallback({
+    decisionConstraints: {
+      ...decisionConstraints,
+      evaluatedCandidates: decisionConstraints.evaluatedCandidates.slice(0, 3),
+    },
+    expansionConstraints,
+  });
+  assert.equal(threeRecordLeads.action, "search_candidates", "three records do not establish three independent candidates");
+
+  const recovered = expansionPlannerFallback({ decisionConstraints, expansionConstraints });
+  assert.equal(recovered.action, "finish");
+  if (recovered.action === "finish") {
+    assert.deepEqual(
+      recovered.recommendations.map(({ playerId }) => playerId),
+      ["complete-0", "complete-2", "complete-3"],
+    );
+  }
+});
+
+test("three records covering every measurable request make expansion evidence sufficient", () => {
+  const decisionConstraints = {
+    targetTeam: "Barcelona",
+    evaluatedCandidates: [
+      ...Array.from({ length: 3 }, (_, index) => ({
+        playerId: `complete-${index}`,
+        evidenceKeys: ["goals", "assists"] as const,
+      })),
+      { playerId: "incomplete", evidenceKeys: ["goals"] as const },
+    ].map(item => ({ ...item, evidenceKeys: [...item.evidenceKeys] })),
+    reportObservations: [],
+    requestedCapabilityCoverage: ["goals", "assists"].map(key => ({
+      name: key,
+      requestedMetricKeys: [key as "goals" | "assists"],
+      observedMetricKeys: [key as "goals" | "assists"],
+      evaluatedCandidateCount: 4,
+      candidatesWithEvidenceCount: 3,
+      status: "partial" as const,
+    })),
+  };
+  const expansionConstraints = {
+    targetTeam: "Barcelona",
+    nextOffset: 20,
+    position: "DEF" as const,
+    playerName: null,
+    maxAge: null,
+    minimumMinutes: 0,
+    competition: null,
+    season: null,
+  };
+
+  assert.equal(expansionEvidenceIsSufficient(decisionConstraints), true);
+  assert.equal(expansionEvidenceIsSufficient({
+    ...decisionConstraints,
+    evaluatedCandidates: decisionConstraints.evaluatedCandidates.slice(0, 2),
+  }), false);
+  assert.equal(expansionEvidenceIsSufficient({
+    ...decisionConstraints,
+    requestedCapabilityCoverage: decisionConstraints.requestedCapabilityCoverage.slice(0, 1),
+  }), false, "one measurable area can retain a material planning question");
+  assert.equal(expansionEvidenceIsSufficient({
+    ...decisionConstraints,
+    requestedCapabilityCoverage: decisionConstraints.requestedCapabilityCoverage.map(area => ({
+      ...area,
+      requestedMetricKeys: [],
+    })),
+  }), false, "qualitative-only requests remain a Planner judgment");
+  assert.equal(expansionEvidenceIsSufficient({
+    ...decisionConstraints,
+    candidateIdentityGroups: [{
+      identityKey: "reep:one-player",
+      status: "resolved",
+      registryAvailable: true,
+      reepId: "one-player",
+      releaseStamp: "fixture",
+      recordPlayerIds: ["complete-0", "complete-1"],
+    }],
+  }), false, "two source records cannot become two independent candidates");
 });

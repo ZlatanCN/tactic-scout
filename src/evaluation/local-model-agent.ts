@@ -4,7 +4,7 @@ import { createLocalKnowledgeBase } from "../knowledge/index.js";
 import { createWebSearchKnowledgeRepository } from "../knowledge/web-player-report-search.js";
 import { summarizeEvaluationRuns } from "./harness-run-summary.js";
 import { createIdentityFreeHarnessSummary, writeIdentityFreeHarnessSummary } from "./harness-summary-export.js";
-import { historicalArchivePair, sameRecommendationEvidenceOrder, sameRecommendationOrder, summarizeAblationArm, summarizeAblationRun, summarizeAskPolicyArm, summarizeAskPolicyRun, summarizeEvidenceEvaluatorArm, summarizeEvidenceEvaluatorPair, summarizeInteractionArm, summarizeInteractionRun, summarizeInvestigationPlanningArm, summarizeInvestigationPlanningRun, summarizeMethodologyRagArm, summarizeMethodologyRagRun, summarizeUnderstatResearchArm, suppressMethodologyCorpus } from "./local-agent-comparisons.js";
+import { historicalArchivePair, sameRecommendationEvidenceOrder, sameRecommendationOrder, summarizeAblationArm, summarizeAblationRun, summarizeAskPolicyArm, summarizeAskPolicyRun, summarizeEvidenceEvaluatorArm, summarizeEvidenceEvaluatorPair, summarizeExpansionSufficiencyArm, summarizeExpansionSufficiencyRun, summarizeInteractionArm, summarizeInteractionRun, summarizeInvestigationPlanningArm, summarizeInvestigationPlanningRun, summarizeMethodologyRagArm, summarizeMethodologyRagRun, summarizeUnderstatResearchArm, suppressMethodologyCorpus } from "./local-agent-comparisons.js";
 import { curatedDatasetSha256, getDataRepository, prepareUnderstatResearchSnapshot, safeEndpoint } from "./local-agent-environment.js";
 import { parseLocalAgentOptions, usage } from "./local-agent-options.js";
 import { operationLatencySamplesFromTrace, runScenarioOnce } from "./local-agent-run.js";
@@ -306,6 +306,43 @@ if (process.argv.includes("--help")) {
         continue;
       }
 
+      if (comparison === "expansion_sufficiency") {
+
+        const { baseline: enabledRuns, control: bypassedRuns } = await runCounterbalancedPairs(runsPerScenario,
+          (runNumber) => runScenarioOnce(scenario, runNumber, knowledgeBase, {
+            expansionSufficiencyMode: "enabled",
+            suppressTraceOutput: true,
+            suppressProgressOutput: true,
+          }),
+          (runNumber) => runScenarioOnce(scenario, runNumber, knowledgeBase, {
+            expansionSufficiencyMode: "bypassed",
+            suppressTraceOutput: true,
+            suppressProgressOutput: true,
+          }),
+        );
+        const enabledArm = summarizeExpansionSufficiencyArm("enabled", enabledRuns);
+        const bypassedArm = summarizeExpansionSufficiencyArm("bypassed", bypassedRuns);
+        baselinePassRates.push(enabledArm.summary.passRate);
+        ablationPassRates.push(bypassedArm.summary.passRate);
+        outputs.push({
+          id: scenario.id,
+          comparison: {
+            controls: ["same complete LangGraph", "same registered request and answer script", "same model configuration and data repository", "same knowledge base", "same Planner, Reviewer, policies, tools, and budgets"],
+            changedFactor: "The enabled arm deterministically finishes ordinary expansion once three independent candidates jointly cover every measurable requested capability. The bypassed arm sends the same state to the expansion Planner and preserves the Planner decision when valid.",
+            order: "Execution order alternates enabled-first and bypassed-first across paired repetitions.",
+            caveat: "This isolates Planner-call elimination for a fixed scenario. It does not establish recommendation quality, transfer suitability, general reliability, or that every expansion should be skipped.",
+          },
+          arms: [enabledArm, bypassedArm],
+          pairedRuns: enabledRuns.map((enabledRun, index) => ({
+            enabled: summarizeExpansionSufficiencyRun(enabledRun),
+            bypassed: summarizeExpansionSufficiencyRun(bypassedRuns[index]!),
+            recommendationIdentityOrderSame: sameRecommendationOrder(enabledRun, bypassedRuns[index]!),
+            recommendationEvidenceOrderSame: sameRecommendationEvidenceOrder(enabledRun, bypassedRuns[index]!),
+          })),
+        });
+        continue;
+      }
+
       const runs = [];
       for (let runNumber = 1; runNumber <= runsPerScenario; runNumber += 1) {
         runs.push(await runScenarioOnce(scenario, runNumber, knowledgeBase, summaryOutputPath
@@ -326,7 +363,7 @@ if (process.argv.includes("--help")) {
     }
 
     const output = {
-      datasetVersion: (comparison === "understat_research") ? 12 : (comparison === "evidence_evaluator") ? 10 : (comparison === "historical_archive") ? 9 : (comparison === "investigation_planning") ? 8 : (comparison === "methodology_rag") ? 7 : (comparison === "ask_policy") ? 6 : (comparison === "interaction") ? 5 : (comparison === "reviewer") ? 4 : 3,
+      datasetVersion: (comparison === "understat_research") ? 13 : (comparison === "expansion_sufficiency") ? 12 : (comparison === "evidence_evaluator") ? 10 : (comparison === "historical_archive") ? 9 : (comparison === "investigation_planning") ? 8 : (comparison === "methodology_rag") ? 7 : (comparison === "ask_policy") ? 6 : (comparison === "interaction") ? 5 : (comparison === "reviewer") ? 4 : 3,
       model: process.env.OPENAI_MODEL ?? null,
       endpoint: safeEndpoint(process.env.OPENAI_BASE_URL),
       apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
@@ -334,7 +371,8 @@ if (process.argv.includes("--help")) {
       datasetSnapshotSha256: understatResearchSnapshot?.snapshotSha256 ?? datasetSnapshotSha256,
       ...(understatResearchSnapshot ? { understatResearchSnapshot } : {}),
       repeatsPerScenario: runsPerScenario,
-      experiment: (comparison === "understat_research") ? "understat-research-strategy-ablation" : (comparison === "evidence_evaluator") ? "recruitment-evidence-evaluator-ablation"
+      experiment: (comparison === "understat_research") ? "understat-research-strategy-ablation" : (comparison === "expansion_sufficiency") ? "expansion-sufficiency-ablation"
+        : (comparison === "evidence_evaluator") ? "recruitment-evidence-evaluator-ablation"
         : (comparison === "historical_archive") ? "historical-archive-report-sidecar-ablation"
           : (comparison === "investigation_planning") ? "dynamic-investigation-planning-ablation"
             : (comparison === "methodology_rag") ? "methodology-rag-agent-ablation"

@@ -1,4 +1,5 @@
 import { type RecruitmentAskUserMode, type RecruitmentReviewerMode } from "../recruitment/conversation.js";
+import type { RecruitmentTraceEvent } from "../recruitment/conversation/contracts.js";
 import { type KnowledgeRepository } from "../knowledge/index.js";
 import { type EvaluationScenario, summarizeEvaluationRuns } from "./harness-evaluation.js";
 import { type LocalAgentRun, operationLatencySamplesFromTrace, summarizeModelUsageAcrossRuns } from "./local-agent-run.js";
@@ -418,6 +419,71 @@ export function summarizeInvestigationPlanningRun(run: LocalAgentRun) {
     recommendationCount: run.report?.recommendations.length ?? null,
     methodologyChunksRetrieved: run.report?.methodologyChunksRetrieved ?? null,
     reportGenerated: Boolean(run.report),
+  };
+}
+
+export function summarizeExpansionSufficiencyRun(run: LocalAgentRun) {
+  const decisions = run.trace.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "decision" }> => (
+    event.phase === "decision"
+  ));
+  const expansionDecisions = decisions.filter((event) => event.decisionMode === "expand");
+  const deterministicExpansionDecisions = expansionDecisions.filter((event) => (
+    event.policyReasonCodes?.includes("evidence_sufficient_for_expansion")
+  ));
+  const plannerExpansionAttempts = expansionDecisions.filter((event) => (
+    !event.policyReasonCodes?.includes("evidence_sufficient_for_expansion")
+  ));
+  const recommendations = run.report?.recommendations ?? [];
+  return {
+    run: run.run,
+    mode: run.expansionSufficiencyMode,
+    allPassed: run.allPassed,
+    failedChecks: Object.entries(run.checks).flatMap(([name, passed]) => passed ? [] : [name]),
+    elapsedMs: run.elapsedMs,
+    modelUsage: run.modelUsage,
+    plannerRequestAttempts: run.plannerRequestAttempts,
+    decisionCount: run.decisionCount,
+    plannerDecisionCount: run.plannerDecisionCount,
+    policyDecisionCount: run.policyDecisionCount,
+    expansionDecisionCount: expansionDecisions.length,
+    modelExpansionAttemptCount: plannerExpansionAttempts.length,
+    modelExpansionResponseCount: plannerExpansionAttempts.filter((event) => (
+      event.decisionSource === "planner" && event.plannerFallback === undefined
+    )).length,
+    modelExpansionFallbackCount: plannerExpansionAttempts.filter((event) => event.plannerFallback !== undefined).length,
+    deterministicExpansionDecisionCount: deterministicExpansionDecisions.length,
+    recommendationCount: recommendations.length,
+    recommendationPositions: recommendations.map(({ position }) => position),
+    evidenceReferenceCount: recommendations.reduce((count, candidate) => count + candidate.evidenceKeys.length, 0),
+    requestedCapabilityCoverage: run.report?.requestedCapabilityCoverage ?? [],
+    reportGenerated: Boolean(run.report),
+  };
+}
+
+export function summarizeExpansionSufficiencyArm(
+  mode: "enabled" | "bypassed",
+  runs: LocalAgentRun[],
+) {
+  const runSummaries = runs.map(summarizeExpansionSufficiencyRun);
+  const mean = (values: number[]) => values.length
+    ? Math.round(values.reduce((total, value) => total + value, 0) / values.length * 100) / 100
+    : null;
+  return {
+    mode,
+    summary: summarizeEvaluationRuns(runs.map((run) => ({
+      checks: run.checks,
+      elapsedMs: run.elapsedMs,
+      operationLatencySamples: operationLatencySamplesFromTrace(run.trace),
+    }))),
+    meanPlannerRequestAttempts: mean(runSummaries.map(({ plannerRequestAttempts }) => plannerRequestAttempts)),
+    meanExpansionDecisionCount: mean(runSummaries.map(({ expansionDecisionCount }) => expansionDecisionCount)),
+    meanModelExpansionAttemptCount: mean(runSummaries.map(({ modelExpansionAttemptCount }) => modelExpansionAttemptCount)),
+    meanModelExpansionResponseCount: mean(runSummaries.map(({ modelExpansionResponseCount }) => modelExpansionResponseCount)),
+    meanModelExpansionFallbackCount: mean(runSummaries.map(({ modelExpansionFallbackCount }) => modelExpansionFallbackCount)),
+    meanDeterministicExpansionDecisionCount: mean(runSummaries.map(({ deterministicExpansionDecisionCount }) => deterministicExpansionDecisionCount)),
+    meanRecommendationCount: mean(runSummaries.map(({ recommendationCount }) => recommendationCount)),
+    modelUsage: summarizeModelUsageAcrossRuns(runs.map((run) => run.modelUsage)),
+    runs: runSummaries,
   };
 }
 

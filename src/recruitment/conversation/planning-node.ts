@@ -3,7 +3,13 @@ import { type LangGraphRunnableConfig } from "@langchain/langgraph";
 import { type PlayerRepository } from "../../players/repository.js";
 import { type PlayerProfile } from "../../domain/players.js";
 import { type CandidateIdentityGroup } from "../../players/identity/candidate-groups.js";
-import { type RecruitmentExpansionConstraints, buildDecisionConstraints, conclusionPlannerOutputFallback, expansionPlannerFallback } from "../conclusion-policy.js";
+import {
+  type RecruitmentExpansionConstraints,
+  buildDecisionConstraints,
+  conclusionPlannerOutputFallback,
+  expansionEvidenceIsSufficient,
+  expansionPlannerFallback,
+} from "../conclusion-policy.js";
 import { compactConclusionHistory, compactExpansionHistory } from "../planner-context.js";
 import { type ParsedRecruitmentAction, type RecruitmentAction, emptyDecision, RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
 import { type RecruitmentPlanner, type RecruitmentPlannerUsageObservation, RecruitmentModelTimeoutError, RecruitmentPlannerOutputError } from "../recruitment-planner.js";
@@ -17,6 +23,7 @@ import { type State } from "./state.js";
 
 export function createPlanningNode(input: {
   deterministicSearchEnabled: boolean;
+  expansionSufficiencyEnabled?: boolean;
   retrievalMode: RecruitmentRetrievalMode;
   repository: PlayerRepository;
   planner: RecruitmentPlanner;
@@ -123,6 +130,7 @@ export function createPlanningNode(input: {
     let action: ParsedRecruitmentAction;
     let proposedAction: ParsedRecruitmentAction;
     let policyOverrodePlanner = false;
+    let deterministicExpansion = false;
     let expansionPlannerTimeoutMs: number | undefined;
     let plannerFallback: "expansion_timeout" | "expansion_output_limit" | "conclusion_timeout" | "conclusion_output_limit" | undefined;
     let plannerTimeoutMs: number | undefined;
@@ -137,7 +145,15 @@ export function createPlanningNode(input: {
         : state.history).map((entry) => ({ ...entry }));
     try {
       let modelAction: RecruitmentAction;
-      try {
+      if (input.expansionSufficiencyEnabled !== false
+        && decisionMode === "expand"
+        && decisionConstraints
+        && expansionConstraints
+        && expansionEvidenceIsSufficient(decisionConstraints)) {
+        modelAction = expansionPlannerFallback({ decisionConstraints, expansionConstraints, outcome: "sufficient" });
+        policyOverrodePlanner = true;
+        deterministicExpansion = true;
+      } else try {
         modelAction = await planner.decide({
           brief: state.brief,
           history: plannerHistory,
@@ -279,8 +295,9 @@ export function createPlanningNode(input: {
       elapsedMs: Math.round(performance.now() - decisionStartedAt),
       ok: true,
       policyBlocked: blockedByPolicy,
+      ...(deterministicExpansion ? { policyReasonCodes: ["evidence_sufficient_for_expansion"] } : {}),
       ...(askPolicyOutcome ? { askPolicyOutcome } : {}),
-      ...(policyReasonCodes.length ? { policyReasonCodes } : {}),
+      ...(!deterministicExpansion && policyReasonCodes.length ? { policyReasonCodes } : {}),
       targetTeam: action.action === "inspect_team" ? action.teamName : action.targetTeam ?? state.targetTeam,
     });
     completePlanning(stopRepeatedPolicyAction

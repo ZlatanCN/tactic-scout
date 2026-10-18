@@ -57,6 +57,7 @@ type LocalAgentRunOptions = {
   investigationPlanningMode?: "adaptive" | "single_pass";
   historicalArchiveMode?: "enabled" | "disabled";
   evidenceEvaluatorMode?: "enabled" | "withheld";
+  expansionSufficiencyMode?: "enabled" | "bypassed";
   understatResearchMode?: UnderstatResearchMode;
   suppressTraceOutput?: boolean;
   suppressProgressOutput?: boolean;
@@ -272,6 +273,7 @@ export async function runScenarioOnce(
       },
       experimentalReviewerMode: reviewerMode,
       experimentalAskUserMode: askUserMode,
+      experimentalExpansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       ...(options.understatResearchMode ? { experimentalDeterministicSearchMode: "bypassed" as const } : {}),
       experimentalUnderstatResearchMode: options.understatResearchMode,
       plannerFactory: () => {
@@ -416,6 +418,7 @@ export async function runScenarioOnce(
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
+      expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
       modelUsage: summarizeModelUsage(events),
       askUserDecisionCount,
@@ -445,6 +448,7 @@ export async function runScenarioOnce(
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
+      expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
       modelUsage: summarizeModelUsage(events),
       askUserDecisionCount: events.filter(isDecisionTrace).filter((event) => (

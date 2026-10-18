@@ -14,7 +14,11 @@ import { conclusionInstructions } from "../../src/recruitment/conversation.js";
 import { type ConversationTurnResponse } from "../../src/domain/conversation.js";
 import { type HistoricalArchiveSample } from "../../src/domain/external-evidence.js";
 
-function decision(action: string, targetTeam?: string, options: { policyBlocked?: boolean } = {}): RecruitmentTraceEvent {
+function decision(
+  action: string,
+  targetTeam?: string,
+  options: { policyBlocked?: boolean; decisionSource?: "planner" | "policy" } = {},
+): RecruitmentTraceEvent {
   return {
     phase: "decision",
     action,
@@ -22,6 +26,7 @@ function decision(action: string, targetTeam?: string, options: { policyBlocked?
     ok: true,
     ...(targetTeam ? { targetTeam } : {}),
     ...(options.policyBlocked ? { policyBlocked: true } : {}),
+    ...(options.decisionSource ? { decisionSource: options.decisionSource } : {}),
   };
 }
 
@@ -366,6 +371,163 @@ test("the Harness rejects an empty shortlist when requested metrics were observe
 
   assert.equal(evaluation.checks.returnsLeadWhenRelevantEvidenceObserved, false);
   assert.equal(evaluation.allPassed, false);
+});
+
+test("a custom one-turn investigation does not inherit the shortlist multi-model-action requirement", () => {
+  const threadId = "case-custom-single-model-action";
+  const candidate = recommendation("DEF");
+  const events: RecruitmentTraceEvent[] = [
+    decision("search_candidates", undefined, { decisionSource: "planner" }),
+    tool("search_candidates", { position: "DEF", candidateIds: ["player-1"] }),
+    decision("evaluate_candidates", undefined, { decisionSource: "planner" }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+    {
+      phase: "decision",
+      action: "finish",
+      decisionSource: "policy",
+      proposedAction: "finish",
+      decisionMode: "expand",
+      policyReasonCodes: ["evidence_sufficient_for_expansion"],
+      elapsedMs: 0,
+      ok: true,
+    },
+  ];
+  const finalResponse = response({ threadId, position: "DEF", recommendations: [candidate] });
+  const evaluation = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "为巴萨寻找一个新的后卫，要能参与出球和高位防守",
+      answers: [],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedPosition: "DEF",
+      requireRecommendationsWhenEvidenceObserved: true,
+    },
+    events,
+    firstTurnResponse: finalResponse,
+    response: finalResponse,
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(evaluation.checks.usedMultipleModelActions, true);
+});
+
+test("the Harness rejects an investigation that never invoked the Planner", () => {
+  const threadId = "case-custom-no-planner-invocation";
+  const candidate = recommendation("DEF");
+  const events: RecruitmentTraceEvent[] = [
+    decision("search_candidates", undefined, { decisionSource: "policy" }),
+    tool("search_candidates", { position: "DEF", candidateIds: ["player-1"] }),
+    decision("evaluate_candidates", undefined, { decisionSource: "policy" }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+    decision("finish", undefined, { decisionSource: "policy" }),
+  ];
+  const finalResponse = response({ threadId, position: "DEF", recommendations: [candidate] });
+  const evaluation = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "为巴萨寻找一个新的后卫，要能参与出球和高位防守",
+      answers: [],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedPosition: "DEF",
+      requireRecommendationsWhenEvidenceObserved: true,
+    },
+    events,
+    firstTurnResponse: finalResponse,
+    response: finalResponse,
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(evaluation.checks.usedMultipleModelActions, false);
+});
+
+test("an intentional Planner timeout fallback still records that the model path was invoked", () => {
+  const threadId = "case-custom-planner-timeout-fallback";
+  const candidate = recommendation("DEF");
+  const events: RecruitmentTraceEvent[] = [
+    decision("search_candidates", undefined, { decisionSource: "planner" }),
+    tool("search_candidates", { position: "DEF", candidateIds: ["player-1"] }),
+    decision("evaluate_candidates", undefined, { decisionSource: "planner" }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+    {
+      phase: "decision",
+      action: "finish",
+      decisionSource: "policy",
+      proposedAction: "search_candidates",
+      plannerFallback: "expansion_timeout",
+      decisionMode: "expand",
+      elapsedMs: 60_000,
+      ok: true,
+    },
+  ];
+  const finalResponse = response({ threadId, position: "DEF", recommendations: [candidate] });
+  const evaluation = evaluateLocalAgentScenario({
+    scenario: {
+      id: "custom",
+      message: "为巴萨寻找一个新的后卫，要能参与出球和高位防守",
+      answers: [],
+      kind: "custom",
+      requireClarificationResume: false,
+      expectedPosition: "DEF",
+      requireRecommendationsWhenEvidenceObserved: true,
+    },
+    events,
+    firstTurnResponse: finalResponse,
+    response: finalResponse,
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(evaluation.checks.usedMultipleModelActions, true);
+});
+
+test("the Harness accepts explicit source position groups when the provider leaves the primary label unknown", () => {
+  const threadId = "case-understat-source-position-group";
+  const evaluate = (positionGroups: ("DEF" | "MID")[]) => {
+    const candidate = recommendation("UNKNOWN");
+    candidate.player.sourceIdentity = {
+      provider: "understat",
+      playerId: "understat-player",
+      seasonId: "2026",
+      positionGroups,
+      retrievedAt: "2026-10-16T00:00:00.000Z",
+    };
+    return evaluateLocalAgentScenario({
+      scenario: {
+        id: "custom",
+        message: "Find a defender.",
+        answers: [],
+        kind: "custom",
+        requireClarificationResume: false,
+        expectedPosition: "DEF",
+        requireRecommendationsWhenEvidenceObserved: true,
+      },
+      events: [
+        decision("search_candidates"),
+        tool("search_candidates", { position: "DEF", candidateIds: ["player-1"] }),
+        decision("evaluate_candidates"),
+        tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+      ],
+      firstTurnResponse: response({ threadId, position: "UNKNOWN", recommendations: [candidate] }),
+      response: response({ threadId, position: "UNKNOWN", recommendations: [candidate] }),
+      firstTurnEvents: [],
+      continuedEvents: [],
+      answersUsed: 0,
+      threadId,
+    });
+  };
+
+  assert.equal(evaluate(["DEF", "MID"]).checks.recommendationsMatchExpectedPosition, true);
+  assert.equal(evaluate(["MID"]).checks.recommendationsMatchExpectedPosition, false);
 });
 
 test("the Harness accepts a source failure only when the report preserves unknown matching status", () => {

@@ -23,6 +23,51 @@ test("every detailed role retrieves its broad source category without treating i
   }
 });
 
+test("a broad defender request is qualified only by defender ability positions", () => {
+  const abilityProfile = (positions: Partial<Record<Position, number>>) => ({
+    abilityProfile: { positions },
+  });
+  const defenderPositions = ["CB", "FB", "LB", "RB", "LWB", "RWB"] as const;
+  const nonDefenderPositions = ["GK", "DEF", "MID", "DM", "CM", "AM", "ATT", "WG", "LW", "RW", "ST"] as const;
+
+  for (const position of defenderPositions) {
+    assert.equal(playerPositionMatches(abilityProfile({ [position]: 18 }), "DEF"), true, `${position} should satisfy DEF`);
+  }
+  for (const position of nonDefenderPositions) {
+    assert.equal(playerPositionMatches(abilityProfile({ [position]: 18 }), "DEF"), false, `${position} must not satisfy DEF`);
+  }
+  assert.equal(playerPositionMatches(abilityProfile({ DM: 18 }), "DM"), true, "explicit DM requests still accept DM");
+});
+
+test("a lower-rated part-time defender role does not displace a player's primary midfield role", () => {
+  assert.equal(
+    playerPositionMatches({ abilityProfile: { positions: { CB: 15, DM: 20 } } }, "DEF"),
+    false,
+  );
+  assert.equal(
+    playerPositionMatches({ abilityProfile: { positions: { CB: 15, DM: 20 } } }, "CB"),
+    true,
+    "an explicit CB request can use source-backed part-time centre-back familiarity",
+  );
+});
+
+test("an Understat coarse label cannot override a verified ability profile", () => {
+  const player = {
+    position: "DEF" as const,
+    abilityProfile: { positions: { CB: 15, DM: 20 } },
+    sourceIdentity: {
+      provider: "understat",
+      playerId: "understat-player",
+      seasonId: "2026",
+      positionGroups: ["DEF"] as const,
+      retrievedAt: "2026-10-18T00:00:00.000Z",
+    },
+  };
+
+  assert.equal(playerPositionMatches(player, "DEF"), false);
+  assert.equal(playerPositionMatches(player, "CB"), true);
+});
+
 test("13-role position ablation separates strict recall, family recall, and source-evidence qualification", () => {
   const broadGroupFor = (role: typeof detailedRoles[number]) => {
     if (["CB", "FB", "LB", "RB", "LWB", "RWB"].includes(role)) return "DEF" as const;

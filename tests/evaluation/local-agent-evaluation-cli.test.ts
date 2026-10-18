@@ -26,6 +26,7 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /--compare-methodology-rag/);
   assert.match(result.stdout, /--compare-investigation-planning/);
   assert.match(result.stdout, /--compare-understat-research/);
+  assert.match(result.stdout, /--compare-expansion-sufficiency/);
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
   assert.match(result.stdout, /--summary-output <path>/);
@@ -225,6 +226,61 @@ test("the evidence-evaluator comparison requires curated data and rejects anothe
   assert.equal(conflicting.status, 2);
   assert.match(conflicting.stderr, /一次只能使用一个/);
   assert.doesNotMatch(conflicting.stderr, /ECONNREFUSED|fetch failed/i);
+});
+
+test("the expansion-sufficiency comparison accepts a custom scenario but requires three paired Understat runs", () => {
+  const messageArgs = [
+    "--message", "为巴萨寻找一个新的后卫，要能参与出球和高位防守",
+    "--expected-position", "DEF",
+    "--compare-expansion-sufficiency",
+  ];
+  const tooFew = runCli([...messageArgs, "--runs", "2"], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "understat",
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+  });
+  assert.equal(tooFew.status, 2);
+  assert.match(tooFew.stderr, /至少需要 --runs 3/);
+  assert.doesNotMatch(tooFew.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const unpinned = runCli([...messageArgs, "--runs", "3"], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "demo",
+  });
+  assert.equal(unpinned.status, 2);
+  assert.match(unpinned.stderr, /需要 TACTISCOUT_DATA_MODE=understat/);
+  assert.doesNotMatch(unpinned.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const missingPosition = runCli([
+    "--message", "为巴萨寻找一个新的后卫",
+    "--compare-expansion-sufficiency",
+    "--runs", "3",
+  ], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "understat",
+  });
+  assert.equal(missingPosition.status, 2);
+  assert.match(missingPosition.stderr, /同时提供 --message 与 --expected-position/);
+  assert.doesNotMatch(missingPosition.stderr, /ECONNREFUSED|fetch failed/i);
+});
+
+test("the expansion-sufficiency comparison rejects the all-scenario fan-out and competing ablation", () => {
+  const env = { ...process.env, TACTISCOUT_DATA_MODE: "understat" };
+  const all = runCli(["--scenario", "all", "--compare-expansion-sufficiency", "--runs", "3"], env);
+  assert.equal(all.status, 2);
+  assert.match(all.stderr, /必须使用单个场景/);
+  assert.doesNotMatch(all.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const competing = runCli([
+    "--message", "为巴萨寻找一个新的后卫",
+    "--expected-position", "DEF",
+    "--compare-expansion-sufficiency",
+    "--compare-understat-research",
+    "--runs", "3",
+  ], env);
+  assert.equal(competing.status, 2);
+  assert.match(competing.stderr, /比较实验选项一次只能使用一个/);
+  assert.doesNotMatch(competing.stderr, /ECONNREFUSED|fetch failed/i);
 });
 
 test("help and argument validation remain available when curated model processing is disabled", () => {

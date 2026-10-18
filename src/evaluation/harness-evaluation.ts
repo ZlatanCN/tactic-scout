@@ -1,7 +1,7 @@
 import type { RecruitmentTraceEvent } from "../recruitment/conversation.js";
 import { type ToolActionName } from "../recruitment/recruitment-actions.js";
 import { minimumMinutesForPercentileComparison } from "../domain/evidence-comparison.js";
-import { positionMatches } from "../domain/positions.js";
+import { playerPositionMatches, positionMatches } from "../domain/positions.js";
 import { type ConversationTurnResponse, type RecruitmentProgressEventStatus, type RecruitmentProgressStage } from "../domain/conversation.js";
 import { type Position } from "../domain/position-contracts.js";
 import type { EvaluationScenario, ExpectedCapabilityCoverage, RequestedCapabilityExpectation } from "./harness-scenarios.js";
@@ -539,6 +539,13 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
   const successfulPlannerDecisions = hasDecisionSource
     ? decisionEvents.filter((event) => event.decisionSource === "planner").length
     : decisionEvents.length;
+  const plannerInvocations = hasDecisionSource
+    ? decisionEvents.filter((event) => (
+      event.decisionSource === "planner"
+      || event.proposedAction !== undefined
+      || event.plannerFallback !== undefined
+    )).length
+    : decisionEvents.length;
   const report = response.report;
   const expectedCapabilityCoverage = "expectedCapabilityCoverage" in scenario
     ? scenario.expectedCapabilityCoverage
@@ -547,7 +554,9 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     ? scenario.requestedCapabilities
     : undefined;
   const commonChecks = {
-    usedMultipleModelActions: successfulPlannerDecisions > 1,
+    usedMultipleModelActions: scenario.kind === "shortlist"
+      ? successfulPlannerDecisions > 1
+      : plannerInvocations > 0,
     finalStatusMatchesReport: response.status === "needs_input" ? report === null : report !== null,
     ...("targetTeamAliases" in scenario ? {
       targetTeamContextPreserved: targetTeamContextPreserved(response, events, scenario.targetTeamAliases),
@@ -760,7 +769,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       ...(scenario.expectedPosition ? {
         searchedExpectedPosition: candidateSearches.some((event) => event.filters.position === scenario.expectedPosition),
         recommendationsMatchExpectedPosition: !report || report.recommendations.every((recommendation) => (
-          recommendation.player.position === scenario.expectedPosition
+          playerPositionMatches(recommendation.player, scenario.expectedPosition!)
         )),
       } : {}),
       ...(scenario.requireRecommendationsWhenEvidenceObserved ? {

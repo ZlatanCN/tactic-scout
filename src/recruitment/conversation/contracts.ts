@@ -58,6 +58,7 @@ export type PolicyBlockReasonCode =
   | "repeated_position_broadening"
   | "unavailable_player_report_claim"
   | "candidate_search_exhausted"
+  | "evidence_sufficient_for_expansion"
   | "other";
 
 export type RecruitmentTraceObserver = (event: RecruitmentTraceEvent) => void;

@@ -20,6 +20,7 @@ export const usage = [
   "  TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- --scenario all --compare-evidence-evaluator --runs 3",
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --scenario understat-five-league-xg-creation --compare-historical-archive --runs 3",
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --scenario understat-five-league-xg-creation --compare-understat-research --runs 3",
+  "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --message \"为巴萨寻找一个新的后卫，要能参与出球和高位防守\" --expected-position DEF --compare-expansion-sufficiency --runs 3",
   "  pnpm eval:local-agent -- --message \"自定义球探需求\" [--answer \"补充回答\"] [--expected-position ST]",
   "",
   "选项：",
@@ -37,6 +38,7 @@ export const usage = [
   "  --compare-evidence-evaluator 在完整 LangGraph 中配对比较正常能力评估与明确屏蔽评估器（仅 curated 数据；至少 3 对）",
   "  --compare-historical-archive 在 Understat 或 mosaic 场景配对开关历史 Wyscout 报告旁注；须预先启用展示与本地保留",
   "  --compare-understat-research 在同一 Understat 候选调查整图中比较目录、固定四组资料和动态调查（至少 3 轮）",
+  "  --compare-expansion-sufficiency 在同一整图配对比较证据充分时的确定性收束与保留扩页 Planner（至少 3 对）",
   "  --help               显示本帮助",
 ].join("\n");
 
@@ -135,10 +137,11 @@ export async function parseLocalAgentOptions() {
   const compareInvestigationPlanning = process.argv.includes("--compare-investigation-planning");
   const compareHistoricalArchive = process.argv.includes("--compare-historical-archive");
   const compareEvidenceEvaluator = process.argv.includes("--compare-evidence-evaluator");
-  if ([compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch].filter(Boolean).length > 1) {
-    throw new Error("--compare-reviewer、--compare-interaction、--compare-ask-policy、--compare-methodology-rag、--compare-investigation-planning、--compare-historical-archive、--compare-evidence-evaluator 和 --compare-understat-research 一次只能使用一个。");
+  const compareExpansionSufficiency = process.argv.includes("--compare-expansion-sufficiency");
+  if ([compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency].filter(Boolean).length > 1) {
+    throw new Error("比较实验选项一次只能使用一个。");
   }
-  if (summaryOutputPath && [compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch].some(Boolean)) {
+  if (summaryOutputPath && [compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency].some(Boolean)) {
     throw new Error("--summary-output 目前只支持普通 Harness 运行，不能与消融实验选项一起使用。");
   }
   if (summaryOutputPath) await assertIdentityFreeSummaryPathAvailable(summaryOutputPath);
@@ -241,6 +244,24 @@ export async function parseLocalAgentOptions() {
       throw new Error("--compare-understat-research 需要 TACTISCOUT_DATA_MODE=understat，以固定单一 Understat 来源。");
     }
   }
+  if (compareExpansionSufficiency) {
+    const scenarioId = option("--scenario");
+    if (!scenarioId && (!option("--message") || !option("--expected-position"))) {
+      throw new Error("--compare-expansion-sufficiency 需要单个 --scenario，或同时提供 --message 与 --expected-position。");
+    }
+    if (scenarioId === "all") {
+      throw new Error("--compare-expansion-sufficiency 必须使用单个场景。");
+    }
+    if (runsPerScenario < 3) {
+      throw new Error("--compare-expansion-sufficiency 至少需要 --runs 3，才能完成三组交错配对复跑。");
+    }
+    if (option("--answer")) {
+      throw new Error("--compare-expansion-sufficiency 的单轮实验不接受 --answer；该需求应在首回合完成。");
+    }
+    if (configuredDataMode !== "understat") {
+      throw new Error("--compare-expansion-sufficiency 需要 TACTISCOUT_DATA_MODE=understat，以固定单一 Understat 来源。");
+    }
+  }
   let historicalArchivePreflight: Awaited<ReturnType<typeof preflightConfiguredHistoricalArchive>> | null = null;
   if (compareHistoricalArchive) {
     const scenarioId = option("--scenario");
@@ -266,6 +287,6 @@ export async function parseLocalAgentOptions() {
     }
   }
 
-  const comparison = compareReviewer ? "reviewer" as const : compareInteraction ? "interaction" as const : compareAskPolicy ? "ask_policy" as const : compareMethodologyRag ? "methodology_rag" as const : compareInvestigationPlanning ? "investigation_planning" as const : compareHistoricalArchive ? "historical_archive" as const : compareEvidenceEvaluator ? "evidence_evaluator" as const : compareUnderstatResearch ? "understat_research" as const : null;
+  const comparison = compareReviewer ? "reviewer" as const : compareInteraction ? "interaction" as const : compareAskPolicy ? "ask_policy" as const : compareMethodologyRag ? "methodology_rag" as const : compareInvestigationPlanning ? "investigation_planning" as const : compareHistoricalArchive ? "historical_archive" as const : compareEvidenceEvaluator ? "evidence_evaluator" as const : compareUnderstatResearch ? "understat_research" as const : compareExpansionSufficiency ? "expansion_sufficiency" as const : null;
   return { scenarios, runsPerScenario, summaryOutputPath, comparison, historicalArchivePreflight };
 }

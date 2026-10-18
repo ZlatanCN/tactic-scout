@@ -64,6 +64,7 @@ export function createRecruitmentConversation(input: {
   experimentalReferenceComparisonMode?: "enabled" | "bypassed";
   experimentalCandidateComparisonMode?: "enabled" | "bypassed";
   experimentalMethodologyReuseMode?: "enabled" | "bypassed";
+  experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
 }): RecruitmentConversation {
@@ -75,6 +76,7 @@ export function createRecruitmentConversation(input: {
   const askUserMode = input.experimentalAskUserMode ?? "enabled";
   const candidatePolicyMode = input.experimentalCandidatePolicyMode ?? "enabled";
   const candidateSearchFreshnessMode = input.experimentalCandidateSearchFreshnessMode ?? "enabled";
+  const expansionSufficiencyMode = input.experimentalExpansionSufficiencyMode ?? "enabled";
   const enforceCurrentTurnObservation = candidateSearchFreshnessMode === "enabled";
   const knowledgeBase = input.knowledgeBase ?? createLocalKnowledgeBase();
   const playerEloSetup = createConfiguredPlayerEloReportClient();
@@ -85,7 +87,7 @@ export function createRecruitmentConversation(input: {
   const workflow = new StateGraph(RecruitmentState)
     .addNode("record_user_turn", createRecordUserTurnNode({ disabledPlayerEloCoverage, historicalArchiveSetup, abilityProfilesEnabled: repository.supportsAbilityProfiles }))
     .addNode("understand_request", createUnderstandingNode({ interpreter: input.briefInterpreter, repository, resolver: input.referenceNameResolver, observer, referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed" }))
-    .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode }))
+    .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode }))
     .addNode("execute_tool", createToolNode({ repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords, methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed", ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}), referenceNameResolver: input.referenceNameResolver }))
     .addNode("wait_for_user", waitForUser)
     .addNode("review_recommendation", createReviewNode({ observer, reviewerMode }))
@@ -192,6 +194,7 @@ export interface ConfiguredRecruitmentConversationOptions {
   experimentalReferenceProfileMode?: "enabled" | "bypassed";
   experimentalReferenceComparisonMode?: "enabled" | "bypassed";
   experimentalCandidateComparisonMode?: "enabled" | "bypassed";
+  experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
 }
@@ -221,6 +224,7 @@ export function configuredRecruitmentConversation(
       experimentalReferenceProfileMode: options.experimentalReferenceProfileMode,
       experimentalReferenceComparisonMode: options.experimentalReferenceComparisonMode,
       experimentalCandidateComparisonMode: options.experimentalCandidateComparisonMode,
+      experimentalExpansionSufficiencyMode: options.experimentalExpansionSufficiencyMode ?? "enabled",
       experimentalUnderstatResearchMode: options.experimentalUnderstatResearchMode,
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       candidateIdentityGrouper: groupCandidatesWithConfiguredReepIndex,

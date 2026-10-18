@@ -8,6 +8,7 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-18：[issue 217](issues/217-shorten-evidenced-barcelona-defender-expansion.md) 已解决：泛称后卫候选改用主要能力位置资格，避免兼职中卫的后腰进入名单；完整 LangGraph 在能力覆盖充分时直接收束，不再等待无收益的扩页 Planner。三对真实配对消融均通过，p50 从 114.473 秒降至 56.513 秒，两臂推荐数、证据引用数、候选身份顺序和证据顺序一致；这只证明移除无收益等待，不证明推荐质量提升。
 - 2026-10-18：[Planner 延迟审查与实验纠正](research/planner-latency-adversarial-audit-2026-10-18.md)：已撤回无收益的 schema 放宽实验，恢复严格校验并修复构建、能力画像 Harness 误报及 SSE 终态。现有测量只支持模型等待占主要耗时，不足以证明提示词或 schema 是唯一根因；后续使用冻结输入和交错配对实验，端到端提速仍待验证。
 - 2026-10-16：[issue 214](issues/214-modular-monolith-organization.md) 依据实际职责记录模块化单体边界：招募图、球员接口、按 provider 分组的数据源、概念化领域契约、前端 feature 和对应测试目录；没有增加服务或运行时框架。
 

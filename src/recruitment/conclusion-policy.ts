@@ -19,6 +19,7 @@ export interface RecruitmentDecisionConstraints {
   evaluatedCandidates: Array<{ playerId: string; evidenceKeys: CapabilityMetricKey[] }>;
   reportObservations: Array<{ playerId: string; documentId: string; evidenceKeys: CapabilityMetricKey[] }>;
   requestedCapabilityCoverage: RequestedCapabilityCoverage[];
+  candidateIdentityGroups?: CandidateIdentityGroupReference[];
 }
 
 export interface RecruitmentExpansionConstraints {
@@ -182,19 +183,21 @@ export function expansionPlannerFallback(input: {
   decisionConstraints: RecruitmentDecisionConstraints;
   expansionConstraints: RecruitmentExpansionConstraints;
   preserveExistingEvidence?: boolean;
+  outcome?: "recovery" | "sufficient";
 }): ParsedRecruitmentAction {
   const { decisionConstraints, expansionConstraints } = input;
   const coverage = decisionConstraints.requestedCapabilityCoverage;
-  const hasMeasurableCoverageGap = coverage.some((area) => (
-    area.requestedMetricKeys.length > 0 && area.status !== "observed"
-  ));
   const measurableAreas = coverage.filter(area => area.requestedMetricKeys.length > 0);
   const completeLeads = decisionConstraints.evaluatedCandidates.filter(candidate => measurableAreas.every(area => (
     area.requestedMetricKeys.some(key => candidate.evidenceKeys.includes(key))
   )));
-  // A timeout is not a reason to keep paging solely to fill gaps in other records.
-  // Recovery remains explicitly limited; normal model-directed expansion is unaffected.
-  const preserveLeads = input.preserveExistingEvidence !== false && measurableAreas.length > 0 && completeLeads.length >= 3;
+  const independentCompleteLeads = independentCandidates(completeLeads, decisionConstraints.candidateIdentityGroups);
+  const preserveLeads = input.preserveExistingEvidence !== false
+    && measurableAreas.length > 0
+    && independentCompleteLeads.length >= 3;
+  const hasMeasurableCoverageGap = coverage.some((area) => (
+    area.requestedMetricKeys.length > 0 && area.status !== "observed"
+  ));
   if (hasMeasurableCoverageGap && !preserveLeads) {
     return SearchCandidatesActionSchema.parse({
       action: "search_candidates",
@@ -212,18 +215,50 @@ export function expansionPlannerFallback(input: {
   }
 
   const recommendations = recommendationsFromRequestedEvidence(preserveLeads
-    ? { ...decisionConstraints, evaluatedCandidates: completeLeads }
+    ? { ...decisionConstraints, evaluatedCandidates: independentCompleteLeads }
     : decisionConstraints);
   return FinishActionSchema.parse({
     action: "finish",
     targetTeam: decisionConstraints.targetTeam,
-    needSummary: fallbackNeedSummary(decisionConstraints, "后续扩围未能完成，本轮先依据已经取得的证据提供考察线索。"),
+    needSummary: fallbackNeedSummary(decisionConstraints, input.outcome === "sufficient"
+      ? "当前已有多名候选共同覆盖用户明确提出的可测能力，本轮直接依据现有证据提供考察线索。"
+      : "后续扩围未能完成，本轮先依据已经取得的证据提供考察线索。"),
     capabilityProfile: coverage.slice(0, 8).map((area) => (
       `${area.name}：${coverageStatusLabel(area.status)}（${area.candidatesWithEvidenceCount}/${area.evaluatedCandidateCount}）`.slice(0, 120)
     )),
     recommendations,
     limitationKeys: ["other"],
     reportObservations: [],
+  });
+}
+
+/** A fully evidenced shortlist needs no model-directed page expansion. */
+export function expansionEvidenceIsSufficient(
+  decisionConstraints: RecruitmentDecisionConstraints,
+): boolean {
+  const measurableAreas = decisionConstraints.requestedCapabilityCoverage
+    .filter(area => area.requestedMetricKeys.length > 0);
+  if (measurableAreas.length < 2
+    || measurableAreas.length !== decisionConstraints.requestedCapabilityCoverage.length) return false;
+  const completeCandidates = decisionConstraints.evaluatedCandidates.filter(candidate => measurableAreas.every(area => (
+    area.requestedMetricKeys.some(key => candidate.evidenceKeys.includes(key))
+  )));
+  return independentCandidates(completeCandidates, decisionConstraints.candidateIdentityGroups).length >= 3;
+}
+
+function independentCandidates<T extends { playerId: string }>(
+  candidates: readonly T[],
+  groups: readonly CandidateIdentityGroupReference[] | undefined,
+): T[] {
+  const identityKeyFor = (playerId: string) => groups
+    ?.find(group => group.status === "resolved" && group.recordPlayerIds.includes(playerId))?.identityKey
+    ?? `record:${playerId}`;
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const identityKey = identityKeyFor(candidate.playerId);
+    if (seen.has(identityKey)) return false;
+    seen.add(identityKey);
+    return true;
   });
 }
 
@@ -351,6 +386,7 @@ export function buildDecisionConstraints(input: {
       evaluatedPlayers: eligiblePlayers,
       ...(input.candidateIdentityGroups ? { candidateIdentityGroups: input.candidateIdentityGroups } : {}),
     }),
+    ...(input.candidateIdentityGroups ? { candidateIdentityGroups: [...input.candidateIdentityGroups] } : {}),
   };
 }
 

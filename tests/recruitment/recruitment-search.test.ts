@@ -785,7 +785,7 @@ test("candidate search cannot use an unverified reference-player name as a filte
   assert.equal(JSON.stringify(events).includes("Harry Kane"), false);
 });
 
-test("an expansion timeout with a jointly evidenced shortlist completes without another page or model call", async () => {
+test("a jointly evidenced shortlist bypasses the expensive expansion Planner", async () => {
   const players = Array.from({ length: 21 }, (_, index) => ({
     ...roleConstraintPlayer(`preserve-lead-${index}`, `Preserve Lead ${index}`, "ST"),
     availableStats: index < 10 ? ["goals" as const, "assists" as const] : ["goals" as const],
@@ -807,10 +807,170 @@ test("an expansion timeout with a jointly evidenced shortlist completes without 
   });
   const result = await conversation.turn({ threadId: "preserve-evidenced-shortlist", message: "为巴萨找前锋，重点看进球产出和创造机会。" });
   assert.equal(result.status, "completed");
-  assert.equal(expansionCalls, 1);
+  assert.equal(expansionCalls, 0);
   assert.equal(result.report?.recommendations.length, 3);
-  assert.match(result.report?.needSummary ?? "", /扩围未能完成/);
+  assert.doesNotMatch(result.report?.needSummary ?? "", /扩围未能完成/);
   assert.equal(trace.filter(event => event.phase === "tool" && event.toolName === "search_candidates").length, 1);
   assert.ok(result.report?.requestedCapabilityCoverage.some(area => area.status === "partial"));
   assert.ok(result.report?.recommendations.every(candidate => candidate.focusEvidenceKeys.includes("goals") && candidate.focusEvidenceKeys.includes("assists")));
+  assert.deepEqual(trace.filter(event => event.phase === "model_usage").map(event => event.callPhase), []);
+});
+
+test("the expansion-sufficiency experiment can retain the model-directed expansion decision", async () => {
+  const players = Array.from({ length: 21 }, (_, index) => ({
+    ...roleConstraintPlayer(`bypass-lead-${index}`, `Bypass Lead ${index}`, "ST"),
+    availableStats: index < 10 ? ["goals" as const, "assists" as const] : ["goals" as const],
+  }));
+  let expansionCalls = 0;
+  const conversation = createRecruitmentConversation({
+    experimentalExpansionSufficiencyMode: "bypassed",
+    repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
+    planner: { async decide({ history, decisionMode, constraints, targetTeam }) {
+      if (decisionMode === "expand") {
+        expansionCalls += 1;
+        assert.equal(constraints?.evaluatedCandidates.length, 20);
+        return {
+          action: "finish",
+          targetTeam,
+          needSummary: "实验对照组保留扩页模型判断并形成有限名单。",
+          capabilityProfile: ["进球产出", "创造机会"],
+          recommendations: constraints!.evaluatedCandidates
+            .filter(candidate => candidate.evidenceKeys.includes("goals") && candidate.evidenceKeys.includes("assists"))
+            .slice(0, 3)
+            .map(({ playerId, evidenceKeys }) => ({ playerId, evidenceKeys })),
+          limitationKeys: [],
+        };
+      }
+      assert.notEqual(decisionMode, "conclude");
+      if (!history.some(entry => entry.toolName === "search_methodology")) return { action: "search_methodology", query: "进球产出和创造机会的观察指标" };
+      if (!history.some(entry => entry.toolName === "search_candidates")) return { action: "search_candidates", position: "ATT", maxAge: null, minimumMinutes: 0, competition: null, season: null, offset: 0, limit: 20 };
+      return { action: "search_player_reports", query: "球员报告", playerNames: players.slice(0, 20).map(player => player.name) };
+    } },
+    knowledgeBase: { async search() { return []; } },
+  });
+
+  const result = await conversation.turn({ threadId: "bypass-expansion-sufficiency", message: "为巴萨找前锋，重点看进球产出和创造机会。" });
+
+  assert.equal(result.status, "completed");
+  assert.equal(expansionCalls, 1);
+  assert.equal(result.report?.recommendations.length, 3);
+});
+
+test("a broad defender request excludes a midfielder with a part-time centre-back rating", async () => {
+  const abilityProfile = (positions: Partial<Record<"CB" | "DM", number>>) => ({
+    recordId: "fm-record",
+    uniqueId: null,
+    snapshotId: "fixture",
+    inGameDate: "2026-10-01",
+    birthDate: null,
+    aliases: [] as string[],
+    heightCm: null,
+    identityLink: { method: "source_record" as const, evidence: "fixture" },
+    positions,
+    attributes: {},
+    leftFoot: null,
+    rightFoot: null,
+    personality: {},
+    traits: [] as string[],
+    currentAbility: null,
+    potentialAbility: null,
+    roles: [],
+  });
+  const defender = {
+    ...roleConstraintPlayer("broad-defender", "Broad Defender", "CB"),
+    abilityProfile: abilityProfile({ CB: 18 }),
+    sourceIdentity: {
+      provider: "understat",
+      playerId: "EPL:defender",
+      seasonId: "2026",
+      positionGroup: "DEF" as const,
+      positionGroups: ["DEF"] as const,
+      sourcePositionLabels: ["D"],
+      retrievedAt: "2026-10-16T00:00:00.000Z",
+    },
+  };
+  const defensiveMidfielder = {
+    ...roleConstraintPlayer("broad-defensive-midfielder", "Rodri-like Holding Midfielder", "DM"),
+    abilityProfile: abilityProfile({ CB: 15, DM: 20 }),
+    sourceIdentity: {
+      provider: "understat",
+      playerId: "EPL:defensive-midfielder",
+      seasonId: "2026",
+      positionGroup: "DEF" as const,
+      positionGroups: ["DEF", "MID"] as const,
+      sourcePositionLabels: ["D", "M"],
+      retrievedAt: "2026-10-16T00:00:00.000Z",
+    },
+  };
+  const players = [defender, defensiveMidfielder];
+  const events: RecruitmentTraceEvent[] = [];
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret() { return { task: "reinforcement", targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" }, referencePlayer: null, referenceClues: [], referenceRecheck: null, selectedCandidateId: null, positions: ["DEF"], allowsAnyPosition: false, priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null, excludedCompetitions: [] }, unresolved: [] }; } },
+    repository: {
+      mode: "understat",
+      sourceName: "Understat fixture",
+      async loadPlayers() { return players; },
+      async searchCandidates(query: PlayerSearchQuery) {
+        return {
+          players,
+          totalRecords: players.length,
+          offset: query.offset,
+          nextOffset: null,
+          appliedFilters: ["position", "positionFamily"],
+          discovery: {
+            strategy: "metric_cohort_round_robin",
+            metricKeys: ["goals"],
+            populationRecords: players.length,
+          },
+        };
+      },
+    },
+    planner: { async decide(input) {
+      if (input.constraints) {
+        return {
+          action: "finish",
+          targetTeam: input.targetTeam,
+          needSummary: "为巴萨整理后卫候选。",
+          capabilityProfile: ["后卫比赛表现"],
+          recommendations: input.constraints.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals" as const] })),
+          limitationKeys: [],
+        };
+      }
+      if (!input.history.some(entry => entry.role === "tool" && entry.toolName === "search_methodology")) {
+        return { action: "search_methodology", query: "后卫比赛表现" };
+      }
+      if (!input.history.some(entry => entry.role === "tool" && entry.toolName === "search_candidates")) {
+        return {
+          action: "search_candidates",
+          targetTeam: "Barcelona",
+          position: "DEF",
+          playerName: null,
+          maxAge: null,
+          minimumMinutes: 0,
+          competition: null,
+          season: null,
+          offset: 0,
+          limit: 20,
+        };
+      }
+      if (!input.history.some(entry => entry.role === "tool" && entry.toolName === "evaluate_candidates")) {
+        return { action: "evaluate_candidates", targetTeam: "Barcelona", playerIds: [defender.playerId] };
+      }
+      return { action: "search_player_reports", targetTeam: "Barcelona", query: "后卫比赛观察", playerNames: [defender.name] };
+    } },
+    knowledgeBase: { async search() { return []; } },
+    observer: event => { events.push(event); },
+  });
+
+  const response = await conversation.turn({ threadId: "broad-defender-not-dm", message: "为巴萨寻找一个新的后卫，重点看进球表现" });
+
+  assert.equal(response.status, "completed", `${response.message}; ${JSON.stringify(events)}; ${JSON.stringify({
+    intent: response.report?.searchScopes,
+    recommendationIds: response.report?.recommendations.map(({ player }) => player.playerId),
+    limitations: response.report?.limitations,
+  })}`);
+  assert.deepEqual(response.report?.recommendations.map(({ player }) => player.playerId), [defender.playerId], JSON.stringify({
+    report: response.report,
+    events,
+  }));
 });
