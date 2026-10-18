@@ -13,7 +13,17 @@ export type EvaluationOperationLatencySample = {
 };
 
 const knownToolOperations = new Set(Object.keys(toolBudgets));
-const knownPlannerOperations = new Set(["ask_user", "finish", ...knownToolOperations]);
+const knownPlannerOperations = new Set([
+  "ask_user",
+  "finish",
+  "investigate",
+  "expand",
+  "expand_recovery",
+  "reorient",
+  "conclude",
+  "unresolved",
+  ...knownToolOperations,
+]);
 
 export interface EvaluationRunSummary {
   runCount: number;

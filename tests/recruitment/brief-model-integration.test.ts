@@ -52,7 +52,7 @@ test("real structured model adapter works directly and inside the streamed LangG
     assert.equal(failures.length, 0, JSON.stringify(failures));
     assert.equal(result.brief?.task, "similarity");
     assert.equal(result.report?.recommendations[0]?.player.playerId, candidate.playerId, JSON.stringify({ result, requests }));
-    assert.deepEqual(requests, [{ stream: false }, { stream: true }], "valid streamed text must not trigger a second model call");
+    assert.deepEqual(requests, [{ stream: false }, { stream: false }], "a valid brief response must not trigger a second model call or token streaming");
   } finally {
     for (const key of keys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; }
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

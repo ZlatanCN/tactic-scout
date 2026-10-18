@@ -8,7 +8,7 @@ import {
   type RecruitmentTurnState,
 } from "../../src/recruitment/conversation-turn-runtime.js";
 
-function graphRun(): RecruitmentTurnGraphRun {
+function graphRun(options: { candidates?: AsyncIterable<unknown> } = {}): RecruitmentTurnGraphRun {
   async function* progress() {
     yield {
       type: "tactiscout/recruitment-progress" as const,
@@ -18,7 +18,13 @@ function graphRun(): RecruitmentTurnGraphRun {
       completedSteps: 1,
     };
   }
-  return { output: Promise.resolve(), extensions: { recruitmentProgress: progress() } };
+  return {
+    output: Promise.resolve(),
+    extensions: {
+      recruitmentProgress: progress(),
+      ...(options.candidates ? { recruitmentCandidates: options.candidates as never } : {}),
+    },
+  };
 }
 
 function checkpoint(
@@ -88,6 +94,39 @@ test("turn runtime pauses, then resumes the same checkpoint thread", async () =>
   const resumed = await turn({ threadId: "runtime-resume", message: "中锋" });
   assert.equal(resumed.status, "completed");
   assert.deepEqual(resumeInputs, [false, true]);
+});
+
+test("turn runtime forwards candidate previews from the graph stream", async () => {
+  let current = checkpoint(undefined, []);
+  async function* candidates() {
+    yield {
+      type: "tactiscout/recruitment-candidates" as const,
+      candidates: [{
+        playerId: "u-1", name: "Player A", team: "Leverkusen", position: "ATT", age: 23, minutes: 900,
+        source: "understat", competition: "德甲", season: "2026/27",
+      }],
+      completedSteps: 2,
+    };
+  }
+  const turn = runtime({
+    async getCheckpoint() { return current; },
+    async run() {
+      current = checkpoint(completedState());
+      return graphRun({ candidates: candidates() });
+    },
+  });
+  const received: Array<{ candidates: unknown[]; completedSteps: number }> = [];
+
+  const response = await turn({
+    threadId: "runtime-candidates",
+    message: "为拜仁寻找凯恩的替代者",
+    onCandidates: (event) => received.push(event),
+  });
+
+  assert.equal(response.status, "completed");
+  assert.equal(received.length, 1);
+  assert.equal((received[0]!.candidates[0] as { name: string }).name, "Player A");
+  assert.equal(received[0]!.completedSteps, 2);
 });
 
 test("turn runtime rejects an expired saved case before invoking the graph", async () => {

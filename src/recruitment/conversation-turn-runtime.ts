@@ -3,13 +3,15 @@ import {
   type StreamTransformer,
 } from "@langchain/langgraph";
 import { RecruitmentTurnCancelledError } from "./turn-cancellation.js";
-import { ConversationTurnResponseSchema, RecruitmentGraphProgressUpdateSchema, type ConversationTurnResponse, type RecruitmentGraphProgressUpdate, type RecruitmentProgress, type RecruitmentProgressEventStatus } from "../domain/conversation.js";
+import { ConversationTurnResponseSchema, RecruitmentGraphCandidatesUpdateSchema, RecruitmentGraphProgressUpdateSchema, type ConversationTurnResponse, type RecruitmentGraphCandidatesUpdate, type RecruitmentGraphProgressUpdate, type RecruitmentProgress, type RecruitmentProgressEventStatus } from "../domain/conversation.js";
 import { PlayerIdentityAnswerSchema, PositionSelectionAnswerSchema, type PlayerIdentityAnswer, type PositionSelectionAnswer, type SelectablePosition, type PositionSelectionQuestion, type PlayerIdentityQuestion } from "../domain/position-contracts.js";
 import { type RecruitmentReport } from "../domain/reports.js";
 
 export type RecruitmentTurnProgress = Pick<RecruitmentProgress, "stage" | "message" | "completedSteps"> & {
   status: RecruitmentProgressEventStatus;
 };
+
+export type RecruitmentTurnCandidates = Omit<RecruitmentGraphCandidatesUpdate, "type">;
 
 export type RecruitmentTurnInput = {
   threadId: string;
@@ -36,8 +38,15 @@ export interface RecruitmentTurnCheckpoint {
 }
 
 export interface RecruitmentTurnGraphRun {
-  extensions: { recruitmentProgress: AsyncIterable<RecruitmentGraphProgressUpdate> };
+  extensions: {
+    recruitmentProgress: AsyncIterable<RecruitmentGraphProgressUpdate>;
+    recruitmentCandidates?: AsyncIterable<RecruitmentGraphCandidatesUpdate>;
+  };
   output: Promise<unknown>;
+}
+
+export interface RecruitmentTurnRuntimeEvents {
+  onCandidates?: (candidates: RecruitmentTurnCandidates) => void;
 }
 
 export interface RecruitmentTurnGraph {
@@ -85,8 +94,9 @@ async function withThreadTurnLock<T>(threadId: string, signal: AbortSignal | und
 
 export const recruitmentProgressTransformer = () => {
   const progress = StreamChannel.local<RecruitmentGraphProgressUpdate>();
+  const candidates = StreamChannel.local<RecruitmentGraphCandidatesUpdate>();
   return {
-    init: () => ({ recruitmentProgress: progress }),
+    init: () => ({ recruitmentProgress: progress, recruitmentCandidates: candidates }),
     process(event) {
       if (event.method === "custom") {
         const customPayload = typeof event.params.data === "object"
@@ -96,10 +106,15 @@ export const recruitmentProgressTransformer = () => {
           : event.params.data;
         const parsed = RecruitmentGraphProgressUpdateSchema.safeParse(customPayload);
         if (parsed.success) progress.push(parsed.data);
+        const parsedCandidates = RecruitmentGraphCandidatesUpdateSchema.safeParse(customPayload);
+        if (parsedCandidates.success) candidates.push(parsedCandidates.data);
       }
       return true;
     },
-  } satisfies StreamTransformer<{ recruitmentProgress: StreamChannel<RecruitmentGraphProgressUpdate> }>;
+  } satisfies StreamTransformer<{
+    recruitmentProgress: StreamChannel<RecruitmentGraphProgressUpdate>;
+    recruitmentCandidates: StreamChannel<RecruitmentGraphCandidatesUpdate>;
+  }>;
 };
 
 /**
@@ -113,7 +128,7 @@ export function createRecruitmentTurnRuntime(input: {
   assertTurnAllowed: () => void;
   createExpiredStateError: () => Error;
 }): (turn: RecruitmentTurnInput) => Promise<ConversationTurnResponse> {
-  return async ({ threadId, message, positionAnswer, playerIdentityAnswer, positionUpdate, expectsExistingState = false, signal, onProgress }) => {
+  return async ({ threadId, message, positionAnswer, playerIdentityAnswer, positionUpdate, expectsExistingState = false, signal, onProgress, onCandidates }: RecruitmentTurnInput & RecruitmentTurnRuntimeEvents) => {
     if (signal?.aborted) throw new RecruitmentTurnCancelledError();
     if ((positionAnswer && !PositionSelectionAnswerSchema.safeParse(positionAnswer).success)
       || (playerIdentityAnswer && !PlayerIdentityAnswerSchema.safeParse(playerIdentityAnswer).success)
@@ -153,10 +168,24 @@ export function createRecruitmentTurnRuntime(input: {
       };
       const streamProgress = async (graphStream: RecruitmentTurnGraphRun) => {
         const progressDrain = (async () => {
-          for await (const update of graphStream.extensions.recruitmentProgress) {
-            const { type: _type, ...progress } = update;
-            publishProgress(progress);
+          const drains: Promise<void>[] = [];
+          if (graphStream.extensions.recruitmentProgress) {
+            drains.push((async () => {
+              for await (const update of graphStream.extensions.recruitmentProgress) {
+                const { type: _type, ...progress } = update;
+                publishProgress(progress);
+              }
+            })());
           }
+          const candidateStream = graphStream.extensions.recruitmentCandidates;
+          if (candidateStream) {
+            drains.push((async () => {
+              for await (const update of candidateStream) {
+                onCandidates?.({ candidates: update.candidates, completedSteps: update.completedSteps });
+              }
+            })());
+          }
+          if (drains.length) await Promise.all(drains);
         })();
         const [outputResult, progressResult] = await Promise.allSettled([graphStream.output, progressDrain]);
         if (outputResult.status === "rejected") throw outputResult.reason;

@@ -42,3 +42,35 @@ test("real Planner HTTP output contract bounds the limitation array that exhaust
     for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; }
   }
 });
+
+test("Planner deadline includes a response body that stays open after HTTP headers", async () => {
+  const names = ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_TIMEOUT_MS"] as const;
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  const server = createServer(async (request, response) => {
+    for await (const _chunk of request) { /* drain the request */ }
+    response.writeHead(200, { "content-type": "application/json" });
+    response.flushHeaders();
+    const heartbeat = setInterval(() => response.write(" "), 50);
+    const finish = setTimeout(() => response.end(JSON.stringify({ id: "fixture", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({ action: "ask_user", question: "补强哪个位置？", reason: "尚未指定位置。" }) } }],
+    })), 2500);
+    response.once("close", () => { clearInterval(heartbeat); clearTimeout(finish); });
+  });
+  try {
+    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+    const address = server.address(); assert.ok(address && typeof address !== "string");
+    process.env.OPENAI_API_KEY = "fixture";
+    process.env.OPENAI_MODEL = "fixture";
+    process.env.OPENAI_BASE_URL = `http://127.0.0.1:${address.port}/v1`;
+    process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+    process.env.OPENAI_TIMEOUT_MS = "1000";
+    const started = performance.now();
+    await assert.rejects(createRecruitmentPlanner().decide({ history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: null, decisionMode: "conclude", confirmedPosition: null }),
+      (error: unknown) => error instanceof Error && error.name === "RecruitmentModelTimeoutError");
+    assert.ok(performance.now() - started < 2200, "deadline must cover body reading, not just arrival of headers");
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; }
+  }
+});

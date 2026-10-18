@@ -1,24 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiContractError, getRecruitmentProgress } from "../lib/api";
+import { getRecruitmentProgress } from "../lib/api";
+import { ApiContractError } from "../lib/api-contract";
 import type { PendingTurnRequest } from "../lib/turn-requests";
-import { type RecruitmentProgress } from "../../../../../src/domain/conversation.js";
+import { type RecruitmentCandidatePreview, type RecruitmentProgress } from "../../../../../src/domain/conversation.js";
 
 type ProgressConnection = "idle" | "connecting" | "live" | "stale" | "incompatible";
 
-/** Owns the live progress snapshot and polling lifecycle for one recruitment turn. */
-export function useRecruitmentProgress(request: PendingTurnRequest | null, running: boolean) {
+/** Owns the live progress snapshot, SSE projection, and polling fallback for one recruitment turn. */
+export function useRecruitmentProgress(request: PendingTurnRequest | null, running: boolean, streamActive = false) {
   const [progress, setProgress] = useState<RecruitmentProgress | null>(null);
+  const [candidatesPreview, setCandidatesPreview] = useState<RecruitmentCandidatePreview[]>([]);
   const [progressConnection, setProgressConnection] = useState<ProgressConnection>("idle");
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
-    const recoveringTurn = request?.outcomeUnknown === true;
-    if (!request || (!running && !recoveringTurn) || startedAt === null) return;
-
+    if (startedAt === null) return;
     const updateElapsed = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     updateElapsed();
     const elapsedTimer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(elapsedTimer);
+  }, [startedAt]);
+
+  useEffect(() => {
+    const recoveringTurn = request?.outcomeUnknown === true;
+    if (!request || (!running && !recoveringTurn) || startedAt === null || streamActive) return;
+
     let disposed = false;
     let consecutiveFailures = 0;
     let pollTimer: number | undefined;
@@ -26,7 +33,7 @@ export function useRecruitmentProgress(request: PendingTurnRequest | null, runni
     const poll = async () => {
       try {
         const current = await getRecruitmentProgress(request.caseId, request.requestId);
-        if (!disposed) {
+        if (!disposed && current.requestId === request.requestId) {
           consecutiveFailures = 0;
           setProgress(current);
           setProgressConnection("live");
@@ -51,10 +58,9 @@ export function useRecruitmentProgress(request: PendingTurnRequest | null, runni
     void poll();
     return () => {
       disposed = true;
-      window.clearInterval(elapsedTimer);
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
     };
-  }, [request?.caseId, request?.outcomeUnknown, request?.requestId, running, startedAt]);
+  }, [request?.caseId, request?.outcomeUnknown, request?.requestId, running, startedAt, streamActive]);
 
   const begin = useCallback((requestId: string) => {
     const timestamp = Date.now();
@@ -99,6 +105,19 @@ export function useRecruitmentProgress(request: PendingTurnRequest | null, runni
   }, []);
 
   const stopClock = useCallback(() => setStartedAt(null), []);
+  const updateFromStream = useCallback((requestId: string, current: RecruitmentProgress) => {
+    if (current.requestId !== requestId) return;
+    setProgress(current);
+    if (!current.active) setCandidatesPreview([]);
+    setProgressConnection("live");
+  }, []);
+  const updateCandidatesFromStream = useCallback((requestId: string, candidates: RecruitmentCandidatePreview[]) => {
+    if (requestId !== request?.requestId) return;
+    setCandidatesPreview(candidates);
+  }, [request?.requestId]);
+  const markStreamUnavailable = useCallback(() => {
+    setProgressConnection((current) => current === "incompatible" ? current : "stale");
+  }, []);
 
-  return { progress, progressConnection, elapsedSeconds, begin, markCancelling, reset, stopClock };
+  return { progress, candidatesPreview, progressConnection, elapsedSeconds, begin, markCancelling, reset, stopClock, updateFromStream, updateCandidatesFromStream, markStreamUnavailable };
 }

@@ -2,7 +2,9 @@ import { loadActiveRecruitmentSession, saveActiveRecruitmentSession } from "../l
 import { positionSelectionLabel } from "../../../../../src/domain/position-selection";
 import { type PlayerIdentityAnswer, type PositionSelectionAnswer, type SelectablePosition } from "../../../../../src/domain/position-contracts.js";
 import { useEffect, useState } from "react";
-import { cancelRecruitmentTurn, turnRecruitmentCase } from "../lib/api";
+import { cancelRecruitmentTurn, turnRecruitmentCase, turnRecruitmentCaseStream } from "../lib/api";
+import { ApiStreamError } from "../lib/api-contract";
+import { shouldFallbackRecruitmentStreamToJson } from "../lib/recruitment-sse";
 import { formatDate } from "../lib/format-date";
 import { isTurnUnresolved, resolveTurnRequest, type PendingTurnRequest } from "../lib/turn-requests";
 import {
@@ -63,8 +65,9 @@ export function useRecruitmentSession() {
     try { saveActiveRecruitmentSession({ threadId, messages, report, reportAt, status, originalBrief, planName, activePlanId, hasConversationState, pendingTurnRequest }); }
     catch { setNotice("浏览器暂时无法保存当前调查，刷新前请保留重要结果。"); }
   }, [threadId, messages, report, reportAt, status, originalBrief, planName, activePlanId, hasConversationState, pendingTurnRequest]);
-  const progressRuntime = useRecruitmentProgress(pendingTurnRequest, loading);
-  const { progress, progressConnection, elapsedSeconds } = progressRuntime;
+  const [streamActive, setStreamActive] = useState(false);
+  const progressRuntime = useRecruitmentProgress(pendingTurnRequest, loading, streamActive);
+  const { progress, progressConnection, elapsedSeconds, candidatesPreview } = progressRuntime;
 
   useEffect(() => {
     try {
@@ -210,12 +213,40 @@ export function useRecruitmentSession() {
     if (!isReanalysis) setDraft("");
 
     setLoading(true);
+    setStreamActive(true);
     progressRuntime.begin(request.requestId);
     setError(null);
     setNotice(null);
 
     try {
-      const response = await turnRecruitmentCase(request.caseId, request.message, request.expectsExistingState, request.requestId, request.positionAnswer, request.positionUpdate, request.playerIdentityAnswer);
+      let response;
+      let streamStarted = false;
+      try {
+        response = await turnRecruitmentCaseStream(
+          request.caseId,
+          request.message,
+          request.expectsExistingState,
+          request.requestId,
+          request.positionAnswer,
+          request.positionUpdate,
+          request.playerIdentityAnswer,
+          {
+            onProgress: (progress) => {
+              streamStarted = true;
+              progressRuntime.updateFromStream(request.requestId, progress);
+            },
+            onCandidates: (candidates) => {
+              progressRuntime.updateCandidatesFromStream(request.requestId, candidates);
+            },
+            onHeaders: () => { streamStarted = true; },
+          },
+        );
+      } catch (streamError) {
+        if (!shouldFallbackRecruitmentStreamToJson(streamError, { started: streamStarted })) throw streamError;
+        progressRuntime.markStreamUnavailable();
+        setStreamActive(false);
+        response = await turnRecruitmentCase(request.caseId, request.message, request.expectsExistingState, request.requestId, request.positionAnswer, request.positionUpdate, request.playerIdentityAnswer);
+      }
       if (response.status === "cancelled") {
         const assistantMessage = messageFromTurn(response);
         const updatedMessages = [...nextMessages, userMessage, assistantMessage];
@@ -285,7 +316,9 @@ export function useRecruitmentSession() {
       if (!isReanalysis) setDraft(text);
       if (caught instanceof TypeError) {
         setPendingTurnRequest({ ...request, outcomeUnknown: true });
-        setError("连接中断，本轮结果尚未确认。恢复连接后点击“恢复本轮结果”；服务进程仍运行时，已接收的请求不会重复执行。");
+        setError(caught instanceof ApiStreamError && caught.kind === "interrupted"
+          ? "实时进度连接提前结束，本轮结果尚未确认。恢复连接后点击“恢复本轮结果”；服务端仍运行时不会重复执行。"
+          : "连接中断，本轮结果尚未确认。恢复连接后点击“恢复本轮结果”；服务进程仍运行时，已接收的请求不会重复执行。");
       } else {
         setPendingTurnRequest(null);
         progressRuntime.stopClock();
@@ -293,6 +326,7 @@ export function useRecruitmentSession() {
         setError(describeTurnError(caught));
       }
     } finally {
+      setStreamActive(false);
       setLoading(false);
       setCancellingRequestId(null);
     }
@@ -385,6 +419,7 @@ export function useRecruitmentSession() {
       cancellingRequestId,
       pendingTurnRequest,
       progress,
+      candidatesPreview,
       progressConnection,
       elapsedSeconds,
       error,

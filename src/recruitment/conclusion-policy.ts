@@ -119,7 +119,8 @@ export function createConstrainedConclusionSchema(constraints: RecruitmentDecisi
       playerId: z.string().min(1),
       documentId: z.string().min(1),
       summary: z.string().trim().min(1).max(280),
-      linkedMetricKeys: z.array(CapabilityMetricKeySchema).max(0),
+      // No item can be accepted here, so an exhaustive metric enum adds no constraint.
+      linkedMetricKeys: z.array(z.string()).max(0),
     });
   const constrainedFinishActionSchema = FinishActionSchema.extend({
     targetTeam: constraints.targetTeam === null ? z.null() : z.literal(constraints.targetTeam),
@@ -180,13 +181,21 @@ export function createConstrainedExpansionSchema(
 export function expansionPlannerFallback(input: {
   decisionConstraints: RecruitmentDecisionConstraints;
   expansionConstraints: RecruitmentExpansionConstraints;
+  preserveExistingEvidence?: boolean;
 }): ParsedRecruitmentAction {
   const { decisionConstraints, expansionConstraints } = input;
   const coverage = decisionConstraints.requestedCapabilityCoverage;
   const hasMeasurableCoverageGap = coverage.some((area) => (
     area.requestedMetricKeys.length > 0 && area.status !== "observed"
   ));
-  if (hasMeasurableCoverageGap) {
+  const measurableAreas = coverage.filter(area => area.requestedMetricKeys.length > 0);
+  const completeLeads = decisionConstraints.evaluatedCandidates.filter(candidate => measurableAreas.every(area => (
+    area.requestedMetricKeys.some(key => candidate.evidenceKeys.includes(key))
+  )));
+  // A timeout is not a reason to keep paging solely to fill gaps in other records.
+  // Recovery remains explicitly limited; normal model-directed expansion is unaffected.
+  const preserveLeads = input.preserveExistingEvidence !== false && measurableAreas.length > 0 && completeLeads.length >= 3;
+  if (hasMeasurableCoverageGap && !preserveLeads) {
     return SearchCandidatesActionSchema.parse({
       action: "search_candidates",
       targetTeam: expansionConstraints.targetTeam,
@@ -202,11 +211,13 @@ export function expansionPlannerFallback(input: {
     });
   }
 
-  const recommendations = recommendationsFromRequestedEvidence(decisionConstraints);
+  const recommendations = recommendationsFromRequestedEvidence(preserveLeads
+    ? { ...decisionConstraints, evaluatedCandidates: completeLeads }
+    : decisionConstraints);
   return FinishActionSchema.parse({
     action: "finish",
     targetTeam: decisionConstraints.targetTeam,
-    needSummary: fallbackNeedSummary(decisionConstraints, "后续扩围未能完成，本轮先依据已经取得的表现证据提供考察线索。"),
+    needSummary: fallbackNeedSummary(decisionConstraints, "后续扩围未能完成，本轮先依据已经取得的证据提供考察线索。"),
     capabilityProfile: coverage.slice(0, 8).map((area) => (
       `${area.name}：${coverageStatusLabel(area.status)}（${area.candidatesWithEvidenceCount}/${area.evaluatedCandidateCount}）`.slice(0, 120)
     )),
@@ -218,12 +229,16 @@ export function expansionPlannerFallback(input: {
 
 export function conclusionPlannerOutputFallback(
   decisionConstraints: RecruitmentDecisionConstraints,
+  options: { reason?: "output_limit" | "timeout" } = {},
 ): ParsedRecruitmentAction {
   const coverage = decisionConstraints.requestedCapabilityCoverage;
+  const outcome = options.reason === "timeout"
+    ? "报告规划超时，以下结论以本轮已核对的比赛证据为依据。"
+    : "报告输出达到长度上限，以下结论以本轮已核对的比赛证据为依据。";
   return FinishActionSchema.parse({
     action: "finish",
     targetTeam: decisionConstraints.targetTeam,
-    needSummary: fallbackNeedSummary(decisionConstraints, "报告输出达到长度上限，以下结论以本轮已核对的比赛证据为依据。"),
+    needSummary: fallbackNeedSummary(decisionConstraints, outcome),
     capabilityProfile: coverage.length
       ? coverage.slice(0, 8).map((area) => (
         `${area.name}：${coverageStatusLabel(area.status)}（${area.candidatesWithEvidenceCount}/${area.evaluatedCandidateCount}）`.slice(0, 120)

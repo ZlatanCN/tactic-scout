@@ -761,3 +761,27 @@ test("evidence review rejects unrelated recommendation metrics when requested pr
   };
   assert.equal(validateConclusion({ ...input, action: alignedAction }).some((problem) => problem.includes("推进")), false);
 });
+
+test("expansion recovery preserves three jointly evidenced leads instead of expanding merely because other records lack metrics", () => {
+  const decisionConstraints = {
+    targetTeam: "Barcelona",
+    evaluatedCandidates: [
+      ...Array.from({ length: 3 }, (_, index) => ({ playerId: `supported-${index}`, evidenceKeys: ["goals", "assists"] as const })),
+      { playerId: "missing", evidenceKeys: [] },
+    ].map(item => ({ ...item, evidenceKeys: [...item.evidenceKeys] })),
+    reportObservations: [],
+    requestedCapabilityCoverage: ["goals", "assists"].map(key => ({ name: key, requestedMetricKeys: [key as "goals" | "assists"], observedMetricKeys: [key as "goals" | "assists"], evaluatedCandidateCount: 4, candidatesWithEvidenceCount: 3, status: "partial" as const })),
+  };
+  const expansionConstraints = { targetTeam: "Barcelona", nextOffset: 20, position: "ST" as const, playerName: null, maxAge: null, minimumMinutes: 0, competition: null, season: null };
+  const recovered = expansionPlannerFallback({ decisionConstraints, expansionConstraints });
+  const continued = expansionPlannerFallback({ decisionConstraints, expansionConstraints, preserveExistingEvidence: false });
+  assert.equal(continued.action, "search_candidates");
+  const insufficient = expansionPlannerFallback({ decisionConstraints: { ...decisionConstraints, evaluatedCandidates: decisionConstraints.evaluatedCandidates.slice(0, 2) }, expansionConstraints });
+  assert.equal(insufficient.action, "search_candidates", "coverage counts cannot substitute for three jointly evidenced records");
+  if (continued.action === "search_candidates") assert.equal(continued.offset, 20);
+  assert.equal(recovered.action, "finish");
+  if (recovered.action === "finish") {
+    assert.deepEqual(recovered.recommendations.map(item => item.playerId), ["supported-0", "supported-1", "supported-2"]);
+    assert.match(recovered.needSummary, /扩围未能完成/);
+  }
+});

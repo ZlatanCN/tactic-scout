@@ -227,6 +227,7 @@ test("the LangGraph trace carries one privacy-safe model-usage event per Planner
         input.onTokenUsage?.({
           callPhase,
           outcome: "response",
+          contextChars: 128,
           inputTokens: 0,
           outputTokens: 5,
           totalTokens: 5,
@@ -251,6 +252,7 @@ test("the LangGraph trace carries one privacy-safe model-usage event per Planner
   assert.deepEqual(usageEvents.map((event) => event.phase === "model_usage" ? event.callPhase : null), plannerModes);
   assert.ok(usageEvents.every((event) => event.phase === "model_usage"
     && event.outcome === "response"
+    && event.contextChars === 128
     && event.inputTokens === 0
     && event.outputTokens === 5
     && event.totalTokens === 5));

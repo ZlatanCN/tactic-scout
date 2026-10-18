@@ -477,6 +477,57 @@ test("an expansion planner output limit follows the exact next page and still co
   assert.match(response.report?.needSummary ?? "", /输出达到长度上限/);
 });
 
+test("a conclusion Planner timeout preserves the completed LangGraph evidence instead of failing the turn", async () => {
+  const players = [
+    roleConstraintPlayer("conclusion-timeout-1", "Conclusion Timeout 1", "DEF"),
+    roleConstraintPlayer("conclusion-timeout-2", "Conclusion Timeout 2", "DEF"),
+  ];
+  const firstPage: RecruitmentAction = {
+    action: "search_candidates",
+    position: "DEF",
+    maxAge: null,
+    minimumMinutes: 0,
+    competition: null,
+    season: null,
+    offset: 0,
+    limit: 20,
+  };
+  const trace: RecruitmentTraceEvent[] = [];
+  const conversation = createRecruitmentConversation({
+    repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
+    planner: createSinglePassInvestigationPlanner({
+      async decide({ history, decisionMode, onTokenUsage }) {
+        if (decisionMode === "conclude") {
+          onTokenUsage?.({ callPhase: decisionMode, outcome: "failed", contextChars: 256 });
+          throw new RecruitmentModelTimeoutError(180_000);
+        }
+        if (!history.some((entry) => entry.role === "tool" && entry.toolName === "search_candidates")) {
+          assert.fail(`single-pass helper must own the discovery decision: ${decisionMode}`);
+        }
+        assert.fail(`unexpected Planner state before conclusion: ${decisionMode}`);
+      },
+    }),
+    knowledgeBase: { async search() { return []; } },
+    observer: (event) => { trace.push(event); },
+  });
+
+  const response = await conversation.turn({
+    threadId: "conclusion-timeout-fallback",
+    message: "为巴萨找一名后卫，重点看进球产出。",
+  });
+
+  assert.equal(response.status, "completed");
+  assert.match(response.report?.needSummary ?? "", /报告规划超时/);
+  assert.equal(response.report?.recommendations.length, 2);
+  const fallback = trace.find((event) => event.phase === "decision" && event.plannerFallback === "conclusion_timeout");
+  assert.ok(fallback && fallback.phase === "decision");
+  assert.equal(fallback.decisionMode, "reorient");
+  assert.ok(trace.some((event) => event.phase === "model_usage"
+    && event.outcome === "failed"
+    && event.callPhase === "conclude"
+    && event.contextChars === 256));
+});
+
 test("a blocked expansion question gets one model-directed recovery without asking again", async () => {
   const players = Array.from({ length: 21 }, (_, index) =>
     roleConstraintPlayer(`recovery-player-${index}`, `Recovery Player ${index}`, "CM"),
@@ -732,4 +783,34 @@ test("candidate search cannot use an unverified reference-player name as a filte
   assert.ok(candidateSearch && candidateSearch.phase === "tool");
   assert.equal(candidateSearch.filters.playerNameFilterUsed, false);
   assert.equal(JSON.stringify(events).includes("Harry Kane"), false);
+});
+
+test("an expansion timeout with a jointly evidenced shortlist completes without another page or model call", async () => {
+  const players = Array.from({ length: 21 }, (_, index) => ({
+    ...roleConstraintPlayer(`preserve-lead-${index}`, `Preserve Lead ${index}`, "ST"),
+    availableStats: index < 10 ? ["goals" as const, "assists" as const] : ["goals" as const],
+  }));
+  const trace: RecruitmentTraceEvent[] = [];
+  let expansionCalls = 0;
+  const conversation = createRecruitmentConversation({
+    repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
+    planner: { async decide({ history, decisionMode }) {
+      if (decisionMode === "expand") { expansionCalls += 1; throw new RecruitmentModelTimeoutError(60_000); }
+      assert.notEqual(decisionMode, "conclude", "a failed expansion must not trigger another expensive synthesis");
+      assert.notEqual(decisionMode, "reorient");
+      if (!history.some(entry => entry.toolName === "search_methodology")) return { action: "search_methodology", query: "进球产出和创造机会的观察指标" };
+      if (!history.some(entry => entry.toolName === "search_candidates")) return { action: "search_candidates", position: "ATT", maxAge: null, minimumMinutes: 0, competition: null, season: null, offset: 0, limit: 20 };
+      return { action: "search_player_reports", query: "球员报告", playerNames: players.slice(0, 20).map(player => player.name) };
+    } },
+    knowledgeBase: { async search() { return []; } },
+    observer: event => { trace.push(event); },
+  });
+  const result = await conversation.turn({ threadId: "preserve-evidenced-shortlist", message: "为巴萨找前锋，重点看进球产出和创造机会。" });
+  assert.equal(result.status, "completed");
+  assert.equal(expansionCalls, 1);
+  assert.equal(result.report?.recommendations.length, 3);
+  assert.match(result.report?.needSummary ?? "", /扩围未能完成/);
+  assert.equal(trace.filter(event => event.phase === "tool" && event.toolName === "search_candidates").length, 1);
+  assert.ok(result.report?.requestedCapabilityCoverage.some(area => area.status === "partial"));
+  assert.ok(result.report?.recommendations.every(candidate => candidate.focusEvidenceKeys.includes("goals") && candidate.focusEvidenceKeys.includes("assists")));
 });

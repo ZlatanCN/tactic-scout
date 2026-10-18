@@ -31,7 +31,7 @@ export function SavedPlansSidebar({
           <Plus aria-hidden="true" />新建计划
         </Button>
       </CardHeader>
-      <CardContent className="space-y-2 px-0">
+      <CardContent className="max-h-64 space-y-2 overflow-y-auto overscroll-contain px-0 xl:max-h-none">
         {disabled && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900" role="status">
           当前调查尚未结束；完成或恢复结果后即可切换计划。
         </p>}

@@ -16,6 +16,7 @@ import { createLocalKnowledgeBase } from "./knowledge/index.js";
 import { createWebSearchKnowledgeRepository } from "./knowledge/web-player-report-search.js";
 import { createPlayerObservationLibrary } from "./observations/library.js";
 import { RecruitmentTurnCoordinator } from "./recruitment/turn-coordinator.js";
+import { RecruitmentTurnService } from "./app/recruitment-turn-service.js";
 
 export function createApp(options: CreateAppOptions = {}) {
   const app = Fastify({ logger: true });
@@ -52,12 +53,21 @@ export function createApp(options: CreateAppOptions = {}) {
       knowledgeBase: recruitmentKnowledge,
       ...(checkpointer ? { checkpointer } : {}),
     }));
+  const recruitmentTurnService = new RecruitmentTurnService({
+    recruitmentConversation,
+    recruitmentTurnCoordinator,
+    recruitmentProgressByCase,
+    recruitmentProgressEmitters,
+    teamRosterEnrichment,
+    teamRosterEnrichmentConfigured: Boolean(options.teamRosterEnrichment),
+  });
   registerLoopbackRequestGuard(app);
   if (checkpointStore) app.addHook("onClose", async () => checkpointStore.close());
 
   const recruitmentRouteContext: RecruitmentRouteContext = {
     recruitmentConversation,
     recruitmentTurnCoordinator,
+    recruitmentTurnService,
     recruitmentProgressByCase,
     recruitmentProgressEmitters,
     teamRosterEnrichment,

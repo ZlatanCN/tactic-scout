@@ -7,6 +7,20 @@ export interface ConversationHistoryEntry {
   toolName?: string;
 }
 
+/** Embed structured tool results directly instead of escaping JSON inside JSON. */
+export function structuredPlannerHistory(history: readonly ConversationHistoryEntry[]) {
+  return history.map((entry) => {
+    if (entry.role === "user") return entry;
+    try {
+      const content: unknown = JSON.parse(entry.content);
+      if (content !== null && typeof content === "object") return { ...entry, content };
+    } catch {
+      // Policy notices and incomplete payloads remain verbatim.
+    }
+    return entry;
+  });
+}
+
 /**
  * Expansion constraints already carry the current evidence coverage, eligible
  * player IDs, filters, and exact next page offset. Other tool results do not

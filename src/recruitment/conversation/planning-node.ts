@@ -124,7 +124,8 @@ export function createPlanningNode(input: {
     let proposedAction: ParsedRecruitmentAction;
     let policyOverrodePlanner = false;
     let expansionPlannerTimeoutMs: number | undefined;
-    let plannerFallback: "expansion_timeout" | "expansion_output_limit" | "conclusion_output_limit" | undefined;
+    let plannerFallback: "expansion_timeout" | "expansion_output_limit" | "conclusion_timeout" | "conclusion_output_limit" | undefined;
+    let plannerTimeoutMs: number | undefined;
     let candidateSearchCursorAdjustment: { requestedOffset: number; effectiveOffset: number } | null = null;
     let candidateSearchExhausted = false;
     const plannerHistory = (decisionMode === "expand" || decisionMode === "expand_recovery"
@@ -184,6 +185,18 @@ export function createPlanningNode(input: {
               : "扩页模型达到输出上限，系统按当前证据整理报告",
             completedSteps: state.decisionSteps,
           });
+        } else if (error instanceof RecruitmentModelTimeoutError
+          && (decisionMode === "conclude" || decisionMode === "reorient")
+          && decisionConstraints) {
+          plannerTimeoutMs = error.timeoutMs;
+          plannerFallback = "conclusion_timeout";
+          modelAction = conclusionPlannerOutputFallback(decisionConstraints, { reason: "timeout" });
+          emitProgress(config, {
+            stage: "planning",
+            status: "notice",
+            message: "报告规划超时，系统按已复核的比赛证据整理有限结论",
+            completedSteps: state.decisionSteps,
+          });
         } else if (error instanceof RecruitmentPlannerOutputError
           && (decisionMode === "conclude" || decisionMode === "reorient")
           && error.diagnostics.finishReason === "length"
@@ -205,7 +218,15 @@ export function createPlanningNode(input: {
       ({ action, candidateSearchCursorAdjustment, candidateSearchExhausted } = enforced);
       policyOverrodePlanner = enforced.policyOverrodePlanner || Boolean(plannerFallback);
     } catch (error) {
-      observer?.({ phase: "decision", action: null, decisionSource: "planner", proposedAction: null, elapsedMs: Math.round(performance.now() - decisionStartedAt), ok: false });
+      observer?.({
+        phase: "decision",
+        action: null,
+        decisionSource: "planner",
+        proposedAction: null,
+        decisionMode,
+        elapsedMs: Math.round(performance.now() - decisionStartedAt),
+        ok: false,
+      });
       throw error;
     }
     const { endedTooEarly, policyFeedback } = investigationActionFeedback(state, proposedAction, action, decisionMode, candidateSearchExhausted, retrievalNeeds);
@@ -254,6 +275,7 @@ export function createPlanningNode(input: {
       decisionSource: policyOverrodePlanner ? "policy" : "planner",
       ...(!plannerFallback ? { proposedAction: proposedAction.action } : {}),
       ...(plannerFallback ? { plannerFallback } : {}),
+      decisionMode,
       elapsedMs: Math.round(performance.now() - decisionStartedAt),
       ok: true,
       policyBlocked: blockedByPolicy,
@@ -267,8 +289,10 @@ export function createPlanningNode(input: {
         ? action.action === "search_candidates"
           ? "扩页规划未能生成动作，按证据覆盖和原有筛选条件继续调查"
           : "扩页规划未能生成动作，按当前证据覆盖完成调查"
-        : plannerFallback === "conclusion_output_limit"
-          ? "报告模型达到输出上限，正在按已复核证据整理结论"
+        : plannerFallback === "conclusion_timeout"
+          ? "报告规划超时，正在按已复核证据整理有限结论"
+          : plannerFallback === "conclusion_output_limit"
+            ? "报告模型达到输出上限，正在按已复核证据整理结论"
           : "已完成本步调查决策，正在按用户条件和工具预算继续");
     if (stopRepeatedPolicyAction) {
       const fallback = emptyDecision(state.targetTeam);
@@ -333,6 +357,11 @@ export function createPlanningNode(input: {
           role: "tool" as const,
           toolName: "investigation_policy",
           content: "结论 Planner 达到输出长度上限；LangGraph 只保留已评估候选中直接对应用户可测能力的证据，报告模型未能完成的定性描述不予补写。",
+        }] : []),
+        ...(plannerFallback === "conclusion_timeout" ? [{
+          role: "tool" as const,
+          toolName: "investigation_policy",
+          content: `结论 Planner 在 ${Math.round((plannerTimeoutMs ?? 0) / 1000)} 秒内未返回；LangGraph 只保留已评估候选中直接对应用户可测能力的证据，以当前已复核结果安全收束。`,
         }] : []),
         ...(blockedByPolicy ? [{ role: "tool" as const, toolName: "investigation_policy", content: policyFeedback.join(" ") }] : []),
       ],

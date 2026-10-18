@@ -8,6 +8,7 @@ import {
   type EvaluationProgressEvent,
 } from "../../src/evaluation/harness-evaluation.js";
 import { privacySafeTraceEvent } from "../../src/evaluation/trace-privacy.js";
+import { operationLatencySamplesFromTrace } from "../../src/evaluation/local-agent-run.js";
 import type { RecruitmentTraceEvent } from "../../src/recruitment/conversation.js";
 import { conclusionInstructions } from "../../src/recruitment/conversation.js";
 import { type ConversationTurnResponse } from "../../src/domain/conversation.js";
@@ -628,6 +629,68 @@ test("the harness accepts explicit low-sample and comparison-group reasons", () 
   });
 
   assert.equal(result.checks.percentilesRespectMetricSamples, true);
+});
+
+test("the harness accepts an ability-profile recommendation without match minutes or percentiles", () => {
+  const abilityCandidate = recommendation();
+  abilityCandidate.evidence = [{
+    key: "abilityLinkForward",
+    label: "接应做球适配",
+    value: 72,
+    unit: "/100",
+    peerPercentile: null,
+    peerGroupSize: 0,
+    peerPercentileUnavailableReason: "ability_profile",
+    basis: "ability_profile",
+    minutes: null,
+    competition: "",
+    season: "2026/27",
+    source: "fm",
+    definition: "职责属性评价，不是比赛产出。",
+  }];
+  abilityCandidate.focusEvidenceKeys = ["abilityLinkForward"];
+  const result = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events: [],
+    firstTurnResponse: response({ threadId: "case-ability-profile" }),
+    response: response({ threadId: "case-ability-profile", recommendations: [abilityCandidate] }),
+    firstTurnEvents: [],
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId: "case-ability-profile",
+  });
+
+  assert.equal(result.checks.percentilesRespectMetricSamples, true);
+});
+
+test("the harness rejects an ability-profile claim that mislabels its unavailable-percentile reason", () => {
+  const mislabeled = recommendation();
+  mislabeled.evidence = [{
+    key: "abilityLinkForward",
+    label: "接应做球适配",
+    value: 72,
+    unit: "/100",
+    peerPercentile: null,
+    peerGroupSize: 0,
+    peerPercentileUnavailableReason: "candidate_sample_unknown",
+    basis: "ability_profile",
+    minutes: null,
+    competition: "",
+    season: "2026/27",
+    source: "fm",
+  }];
+  const result = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events: [],
+    firstTurnResponse: response({ threadId: "case-ability-mislabeled" }),
+    response: response({ threadId: "case-ability-mislabeled", recommendations: [mislabeled] }),
+    firstTurnEvents: [],
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId: "case-ability-mislabeled",
+  });
+
+  assert.equal(result.checks.percentilesRespectMetricSamples, false);
 });
 
 test("a recommendation must cite available evidence for the requested ability instead of unrelated metrics", () => {
@@ -1644,6 +1707,22 @@ test("repeated-run summaries attribute Planner and tool latency without policy d
     { kind: "planner_action", operation: "unresolved", sampleCount: 1, p50: 42, p95: 42 },
     { kind: "tool", operation: "search_candidates", sampleCount: 2, p50: 1, p95: 3 },
   ]);
+});
+
+test("fallback Planner latency is attributed to its graph decision mode", () => {
+  const samples = operationLatencySamplesFromTrace([
+    {
+      phase: "decision",
+      action: "finish",
+      decisionSource: "policy",
+      decisionMode: "conclude",
+      plannerFallback: "conclusion_timeout",
+      elapsedMs: 180_000,
+      ok: true,
+    },
+  ]);
+
+  assert.deepEqual(samples, [{ kind: "planner_action", operation: "conclude", elapsedMs: 180_000 }]);
 });
 
 test("repeated-run summaries show critical failures and nearest-rank latency percentiles", () => {

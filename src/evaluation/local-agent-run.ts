@@ -29,7 +29,7 @@ export function operationLatencySamplesFromTrace(
     if (!attemptedPlanner) continue;
 
     const operation = event.plannerFallback !== undefined
-      ? "unresolved"
+      ? typeof event.decisionMode === "string" ? event.decisionMode : "unresolved"
       : typeof event.proposedAction === "string"
         ? event.proposedAction
         : event.proposedAction === null

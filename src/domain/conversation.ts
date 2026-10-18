@@ -149,3 +149,60 @@ export const RecruitmentProgressSchema = z.object({
 });
 
 export type RecruitmentProgress = z.infer<typeof RecruitmentProgressSchema>;
+
+const RecruitmentCandidatePreviewSchema = z.object({
+  playerId: z.string().min(1),
+  name: z.string().min(1),
+  team: z.string().min(1),
+  position: z.string().min(1),
+  age: z.number().int().nonnegative().nullable(),
+  minutes: z.number().int().nonnegative(),
+  source: z.string().min(1),
+  competition: z.string().min(1),
+  season: z.string().min(1),
+});
+
+export type RecruitmentCandidatePreview = z.infer<typeof RecruitmentCandidatePreviewSchema>;
+
+export const RecruitmentCandidatesEventSchema = z.object({
+  requestId: z.string().uuid(),
+  candidates: z.array(RecruitmentCandidatePreviewSchema).max(20),
+  completedSteps: z.number().int().nonnegative(),
+});
+
+export type RecruitmentCandidatesEvent = z.infer<typeof RecruitmentCandidatesEventSchema>;
+
+export const RecruitmentGraphCandidatesUpdateSchema = z.object({
+  type: z.literal("tactiscout/recruitment-candidates"),
+  candidates: z.array(RecruitmentCandidatePreviewSchema).max(20),
+  completedSteps: z.number().int().nonnegative(),
+});
+
+export type RecruitmentGraphCandidatesUpdate = z.infer<typeof RecruitmentGraphCandidatesUpdateSchema>;
+
+export const RecruitmentSseEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("progress"),
+    requestId: z.string().uuid(),
+    progress: RecruitmentProgressSchema,
+  }),
+  z.object({
+    type: z.literal("candidates"),
+    requestId: z.string().uuid(),
+    candidates: z.array(RecruitmentCandidatePreviewSchema).max(20),
+    completedSteps: z.number().int().nonnegative(),
+  }),
+  z.object({
+    type: z.literal("result"),
+    requestId: z.string().uuid(),
+    response: ConversationTurnResponseSchema,
+  }),
+  z.object({
+    type: z.literal("error"),
+    requestId: z.string().uuid(),
+    statusCode: z.number().int().min(400).max(599),
+    message: z.string().min(1),
+  }),
+]);
+
+export type RecruitmentSseEvent = z.infer<typeof RecruitmentSseEventSchema>;

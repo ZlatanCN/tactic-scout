@@ -20,7 +20,8 @@ export type RecruitmentTraceEvent =
     policyBlocked?: boolean;
     askPolicyOutcome?: "allowed" | "suppressed";
     policyReasonCodes?: PolicyBlockReasonCode[];
-    plannerFallback?: "expansion_timeout" | "expansion_output_limit" | "conclusion_output_limit";
+    plannerFallback?: "expansion_timeout" | "expansion_output_limit" | "conclusion_timeout" | "conclusion_output_limit";
+    decisionMode?: "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
     targetTeam?: string | null;
   }
   | {

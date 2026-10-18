@@ -1,0 +1,143 @@
+--- a/src/recruitment/conclusion-policy.ts
++++ b/src/recruitment/conclusion-policy.ts
+@@ -142,6 +142,15 @@
+   return z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
+ }
+ 
++/** Model selects evidence; the already confirmed brief supplies presentation text. */
++export function createConstrainedSelectionSchema(constraints: RecruitmentDecisionConstraints) {
++  const schema = createConstrainedConclusionSchema(constraints);
++  return z.discriminatedUnion("action", [schema.options[0], schema.options[1].omit({
++    needSummary: true,
++    capabilityProfile: true,
++  })]);
++}
++
+ export function createConstrainedExpansionSchema(
+   decisionConstraints: RecruitmentDecisionConstraints,
+   expansionConstraints: RecruitmentExpansionConstraints,
+--- a/src/recruitment/planner-context.ts
++++ b/src/recruitment/planner-context.ts
+@@ -1,5 +1,19 @@
+ import { type CapabilityMetricKey, type RequestedCapabilityCoverage } from "../domain/capabilities.js";
+ import { AbilityMetricDefinitions } from "../domain/player-abilities.js";
++import type { RecruitmentBrief } from "../domain/recruitment-brief.js";
++
++export function confirmedBriefPresentation(brief: RecruitmentBrief) {
++  const target = brief.targetTeam ? `为${brief.targetTeam.value}` : "";
++  const task = brief.task === "replacement" ? `寻找${brief.referencePlayer?.value ?? "参考球员"}的替代者`
++    : brief.task === "similarity" ? `寻找与${brief.referencePlayer?.value ?? "参考球员"}相似的球员` : "寻找补强候选";
++  const capabilityProfile = brief.priorities.map(({ value }) => value).slice(0, 8);
++  const requirements = [
++    brief.positions.length ? `位置：${brief.positions.join("、")}` : "",
++    ...capabilityProfile,
++    ...brief.constraints.map(({ strength, requirement }) => `${strength === "preferred" ? "偏好" : "要求"}：${requirement.value}`),
++  ].filter(Boolean);
++  return { needSummary: `${target}${task}${requirements.length ? `；${requirements.join("；")}` : ""}`.slice(0, 500), capabilityProfile };
++}
+ 
+ export interface ConversationHistoryEntry {
+   role: "user" | "assistant" | "tool";
+--- a/src/recruitment/recruitment-planner.ts
++++ b/src/recruitment/recruitment-planner.ts
+@@ -12,13 +12,14 @@
+ import { type Position } from "../domain/position-contracts.js";
+ import {
+   createConstrainedConclusionSchema,
++  createConstrainedSelectionSchema,
+   createConstrainedExpansionSchema,
+   createConstrainedReorientationSchema,
+   type RecruitmentDecisionConstraints,
+   type RecruitmentExpansionConstraints,
+ } from "./conclusion-policy.js";
+ import { RecruitmentActionSchema, type RecruitmentAction } from "./recruitment-actions.js";
+-import { structuredPlannerHistory, type ConversationHistoryEntry } from "./planner-context.js";
++import { confirmedBriefPresentation, structuredPlannerHistory, type ConversationHistoryEntry } from "./planner-context.js";
+ 
+ export type { ConversationHistoryEntry } from "./planner-context.js";
+ 
+@@ -207,7 +208,7 @@
+   private readonly timeoutMs: number;
+   private readonly expansionTimeoutMs: number;
+ 
+-  constructor() {
++  constructor(private readonly conclusionOutput: "full" | "selection" = "full") {
+     const apiKey = process.env.OPENAI_API_KEY;
+     const modelName = process.env.OPENAI_MODEL;
+     if (!apiKey || !modelName) throw new RecruitmentModelUnavailableError();
+@@ -221,8 +222,9 @@
+   }
+ 
+   async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentAction> {
++    const selectionOnly = this.conclusionOutput === "selection" && input.decisionMode === "conclude" && Boolean(input.brief) && Boolean(input.constraints);
+     const schema = input.decisionMode === "conclude" && input.constraints
+-      ? createConstrainedConclusionSchema(input.constraints)
++      ? selectionOnly ? createConstrainedSelectionSchema(input.constraints) : createConstrainedConclusionSchema(input.constraints)
+       : (input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints && input.expansionConstraints
+         ? createConstrainedExpansionSchema(input.constraints, input.expansionConstraints, {
+           allowAskUser: input.decisionMode !== "expand_recovery",
+@@ -263,6 +265,7 @@
+           })
+           : input.decisionMode === "reorient" ? reorientationInstructions(input.dataMode) : investigationInstructions(input.dataMode);
+       const systemInstructions = [baseInstructions,
++        selectionOnly ? "需求摘要与能力偏好由已确认的 brief 直接生成，不输出 needSummary 或 capabilityProfile。你仍负责依据全部已评估证据选择、比较候选，决定是否追问，并列出限制和真实文档观察。" : "",
+         input.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
+         abilityProfileInstructions(input.abilityProfilesEnabled)].filter(Boolean).join("\n");
+       let response: { raw?: unknown; parsed?: unknown };
+@@ -337,6 +340,9 @@
+           throw new RecruitmentPlannerOutputError(diagnostics, input.decisionMode);
+         }
+       }
++      if (selectionOnly && input.brief && action && typeof action === "object" && "action" in action && action.action === "finish") {
++        action = { ...action, ...confirmedBriefPresentation(input.brief) };
++      }
+       return RecruitmentActionSchema.parse(action);
+     } catch (error) {
+       if (isChatModelTimeout(error)) {
+@@ -375,6 +381,6 @@
+   }
+ }
+ 
+-export function createRecruitmentPlanner(): RecruitmentPlanner {
+-  return new OpenAIRecruitmentPlanner();
+-}
++export function createRecruitmentPlanner(options: { conclusionOutput?: "full" | "selection" } = {}): RecruitmentPlanner {
++  return new OpenAIRecruitmentPlanner(options.conclusionOutput);
++}
+--- a/tests/recruitment/conclusion-policy.test.ts
++++ b/tests/recruitment/conclusion-policy.test.ts
+@@ -761,3 +761,14 @@
+   };
+   assert.equal(validateConclusion({ ...input, action: alignedAction }).some((problem) => problem.includes("推进")), false);
+ });
++
++test("selection-only output retains the original candidate, evidence and report whitelist", async () => {
++  const { createConstrainedSelectionSchema } = await import("../../src/recruitment/conclusion-policy.js");
++  const constraints = buildDecisionConstraints({ targetTeam: "Barcelona", evaluatedPlayers: [candidate], retrievedKnowledge: [playerReport] });
++  const schema = createConstrainedSelectionSchema(constraints);
++  const { needSummary, capabilityProfile, ...selection } = validFinish();
++  assert.doesNotThrow(() => schema.parse(selection));
++  assert.throws(() => schema.parse({ ...selection, recommendations: [{ playerId: "not-evaluated", evidenceKeys: ["goals"] }] }));
++  assert.throws(() => schema.parse({ ...selection, recommendations: [{ playerId: candidate.player.playerId, evidenceKeys: ["assists"] }] }));
++  assert.throws(() => schema.parse({ ...selection, reportObservations: [{ playerId: candidate.player.playerId, documentId: "not-retrieved", summary: "无依据", linkedMetricKeys: [] }] }));
++});
+--- a/tests/recruitment/planner-context.test.ts
++++ b/tests/recruitment/planner-context.test.ts
+@@ -111,3 +111,17 @@
+   assert.equal(projected[3].content, history[3]!.content);
+   assert.equal(JSON.stringify(history), before);
+ });
++
++test("confirmed brief presentation preserves replacement intent and separates preferences from requirements", async () => {
++  const { confirmedBriefPresentation } = await import("../../src/recruitment/planner-context.js");
++  const { RecruitmentBriefSchema } = await import("../../src/domain/recruitment-brief.js");
++  const grounded = (value: string) => ({ value, basis: "explicit", quote: value });
++  const result = confirmedBriefPresentation(RecruitmentBriefSchema.parse({ task: "replacement", targetTeam: grounded("拜仁"), referencePlayer: grounded("基米希"),
++    positions: ["DM", "CM"], priorities: [grounded("组织出球")], filters: { maxAge: 24, minimumMinutes: 0, competition: null, season: null },
++    constraints: [{ kind: "age", strength: "required", requirement: grounded("24岁以下") }, { kind: "budget", strength: "preferred", requirement: grounded("预算尽量低") }], unresolved: [] }));
++  assert.match(result.needSummary, /为拜仁寻找基米希的替代者/);
++  assert.match(result.needSummary, /DM、CM/);
++  assert.match(result.needSummary, /要求：24岁以下/);
++  assert.match(result.needSummary, /偏好：预算尽量低/);
++  assert.deepEqual(result.capabilityProfile, ["组织出球"]);
++});

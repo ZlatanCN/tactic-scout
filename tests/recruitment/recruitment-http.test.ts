@@ -120,6 +120,248 @@ test("a repeated turn request ID returns the same run and progress instead of re
   }
 });
 
+test("a streaming recruitment turn sends real progress before its final result", async () => {
+  const requestId = "6e2fb89c-0b5b-471f-8406-c8f28147f22b";
+  let releaseTurn!: () => void;
+  let signalProgressSent!: () => void;
+  const progressSent = new Promise<void>((resolve) => { signalProgressSent = resolve; });
+  const turnGate = new Promise<void>((resolve) => { releaseTurn = resolve; });
+  const conversation: RecruitmentConversation = {
+    async turn(input) {
+      input.onProgress?.({
+        stage: "planning",
+        status: "started",
+        message: "正在规划调查步骤",
+        completedSteps: 0,
+      });
+      signalProgressSent();
+      await turnGate;
+      return {
+        threadId: input.threadId,
+        status: "completed",
+        message: "本轮调查完成。",
+        question: null,
+        report: null,
+      };
+    },
+  };
+  const app = createApp({ recruitmentConversation: conversation });
+  const caseId = "streaming-turn";
+
+  try {
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address();
+    assert.ok(address && typeof address === "object");
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/recruitment/cases/${caseId}/turns/stream`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId, message: "为拜仁寻找凯恩的替代者" }),
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") ?? "", /^text\/event-stream/);
+    assert.ok(response.body);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const nextEvent = async (): Promise<{ event: string; data: unknown }> => {
+      while (true) {
+        const boundary = buffer.indexOf("\n\n");
+        if (boundary >= 0) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const event = block.split("\n").find((line) => line.startsWith("event: "))?.slice(7);
+          const data = block.split("\n").filter((line) => line.startsWith("data: ")).map((line) => line.slice(6)).join("\n");
+          if (event && data) return { event, data: JSON.parse(data) as unknown };
+          continue;
+        }
+        const chunk = await reader.read();
+        assert.equal(chunk.done, false, "the stream ended before the expected event");
+        buffer += decoder.decode(chunk.value, { stream: true });
+      }
+    };
+
+    const first = await nextEvent();
+    assert.equal(first.event, "progress");
+    assert.equal((first.data as { progress: { stage: string } }).progress.stage, "starting");
+
+    await progressSent;
+    const second = await nextEvent();
+    assert.equal(second.event, "progress");
+    assert.equal((second.data as { progress: { stage: string } }).progress.stage, "planning");
+
+    releaseTurn();
+    const terminal = await nextEvent();
+    assert.equal(terminal.event, "progress");
+    assert.equal((terminal.data as { progress: { stage: string; active: boolean } }).progress.stage, "completed");
+    assert.equal((terminal.data as { progress: { active: boolean } }).progress.active, false);
+    const final = await nextEvent();
+    assert.equal(final.event, "result");
+    const result = (final.data as { response: { status: string; progressEvents: Array<{ stage: string }> } }).response;
+    assert.equal(result.status, "completed");
+    assert.equal(result.progressEvents.at(-1)?.stage, "completed");
+    await reader.cancel();
+  } finally {
+    releaseTurn();
+    await app.close();
+  }
+});
+
+test("a streaming turn reports an early failure even when the caller omitted a request ID", async () => {
+  const conversation: RecruitmentConversation = {
+    async turn() {
+      throw new RecruitmentModelTimeoutError();
+    },
+  };
+  const app = createApp({ recruitmentConversation: conversation });
+
+  try {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/recruitment/cases/stream-early-error/turns/stream",
+      headers: { accept: "text/event-stream" },
+      payload: { message: "为拜仁寻找凯恩的替代者" },
+    });
+    assert.equal(response.statusCode, 200);
+    const event = response.payload.split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6)) as { type: string; requestId?: string; statusCode?: number })
+      .find((candidate) => candidate.type === "error");
+    assert.ok(event);
+    assert.match(event.requestId ?? "", /^[0-9a-f-]{36}$/);
+    assert.equal(event.statusCode, 504);
+  } finally {
+    await app.close();
+  }
+});
+
+test("a streaming recruitment turn keeps the same final business response as the JSON endpoint", async () => {
+  const requestId = "31dba08b-22a7-4ec8-a9ae-0fdb82c9fb4b";
+  const responses: Array<Awaited<ReturnType<RecruitmentConversation["turn"]>>> = [
+    {
+      threadId: "stream-equivalence",
+      status: "needs_input",
+      message: "请选择优先考虑的位置。",
+      question: {
+        reason: "位置会改变候选范围。",
+        input: {
+          kind: "positions",
+          questionId: "00000000-0000-4000-8000-000000000216",
+          highlightedPositions: ["CM"],
+          selectedPositions: ["CM"],
+        },
+      },
+      report: null,
+      brief: null,
+    },
+    {
+      threadId: "stream-equivalence",
+      status: "needs_input",
+      message: "请选择优先考虑的位置。",
+      question: {
+        reason: "位置会改变候选范围。",
+        input: {
+          kind: "positions",
+          questionId: "00000000-0000-4000-8000-000000000216",
+          highlightedPositions: ["CM"],
+          selectedPositions: ["CM"],
+        },
+      },
+      report: null,
+      brief: null,
+    },
+  ];
+  const conversation: RecruitmentConversation = {
+    async turn(input) {
+      const response = responses.shift();
+      assert.ok(response);
+      return { ...response, threadId: input.threadId };
+    },
+  };
+  const app = createApp({ recruitmentConversation: conversation });
+  const caseId = "stream-equivalence";
+  const payload = { requestId, message: "为巴萨找一名中场" };
+
+  try {
+    const json = await app.inject({
+      method: "POST",
+      url: `/api/v1/recruitment/cases/${caseId}/turns`,
+      payload,
+    });
+    assert.equal(json.statusCode, 200);
+    const streamed = await app.inject({
+      method: "POST",
+      url: `/api/v1/recruitment/cases/${caseId}/turns/stream`,
+      headers: { accept: "text/event-stream" },
+      payload,
+    });
+    assert.equal(streamed.statusCode, 200);
+    const result = streamed.payload.split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6)) as { type: string; response?: unknown })
+      .find((event) => event.type === "result");
+    assert.ok(result?.response);
+    assert.deepEqual(result.response, json.json());
+  } finally {
+    await app.close();
+  }
+});
+
+test("closing a streaming response does not cancel the server-side turn", async () => {
+  const requestId = "88a20757-f62d-4fae-84d9-23143e1f3a95";
+  let releaseTurn!: () => void;
+  let signalStarted!: () => void;
+  let signalCompleted!: () => void;
+  const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+  const completed = new Promise<void>((resolve) => { signalCompleted = resolve; });
+  const turnGate = new Promise<void>((resolve) => { releaseTurn = resolve; });
+  const conversation: RecruitmentConversation = {
+    async turn(input) {
+      signalStarted();
+      await turnGate;
+      signalCompleted();
+      return {
+        threadId: input.threadId,
+        status: "completed",
+        message: "本轮调查完成。",
+        question: null,
+        report: null,
+      };
+    },
+  };
+  const app = createApp({ recruitmentConversation: conversation });
+  const caseId = "stream-disconnect";
+
+  try {
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address();
+    assert.ok(address && typeof address === "object");
+    const controller = new AbortController();
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/recruitment/cases/${caseId}/turns/stream`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId, message: "为拜仁寻找凯恩的替代者" }),
+      signal: controller.signal,
+    });
+    assert.equal(response.status, 200);
+    await started;
+    controller.abort();
+    releaseTurn();
+    await completed;
+
+    const progress = await app.inject({
+      method: "GET",
+      url: `/api/v1/recruitment/cases/${caseId}/progress?requestId=${requestId}`,
+    });
+    assert.equal(progress.statusCode, 200);
+    assert.equal(progress.json().stage, "completed");
+    assert.equal(progress.json().active, false);
+  } finally {
+    releaseTurn();
+    await app.close();
+  }
+});
+
 test("the HTTP interface explains when a saved case checkpoint expired after a server restart", async () => {
   const conversation: RecruitmentConversation = {
     async turn() { throw new RecruitmentCaseStateExpiredError(); },

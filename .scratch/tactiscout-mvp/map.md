@@ -8,6 +8,7 @@ Labels: wayfinder:map
 
 ## Notes
 
+- 2026-10-18：[Planner 延迟审查与实验纠正](research/planner-latency-adversarial-audit-2026-10-18.md)：已撤回无收益的 schema 放宽实验，恢复严格校验并修复构建、能力画像 Harness 误报及 SSE 终态。现有测量只支持模型等待占主要耗时，不足以证明提示词或 schema 是唯一根因；后续使用冻结输入和交错配对实验，端到端提速仍待验证。
 - 2026-10-16：[issue 214](issues/214-modular-monolith-organization.md) 依据实际职责记录模块化单体边界：招募图、球员接口、按 provider 分组的数据源、概念化领域契约、前端 feature 和对应测试目录；没有增加服务或运行时框架。
 
 - 2026-10-16：[issue 213](issues/213-source-aware-fine-position-search.md) 将细分位置的父/子层级、召回与资格分离、来源证据矩阵及“未核实位置线索”报告收敛为统一规则。Understat 用本源赛季标签，StatsBomb 汇总实际 lineup 位置分钟；细节不足的来源只提供线索，不能冒充匹配。决策记录在 [ADR 0012](../../docs/adr/0012-source-aware-position-qualification.md)。

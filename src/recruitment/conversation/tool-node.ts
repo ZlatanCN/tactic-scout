@@ -14,7 +14,7 @@ import { type RecruitmentToolExecutionRequest, executeRecruitmentToolAction } fr
 import { RecruitmentTurnCancelledError, throwIfTurnCancelled } from "../turn-cancellation.js";
 import { discoveredPlayersForConstraint, evaluatedPlayersForConstraint, userMessages } from "./candidate-context.js";
 import { type RecruitmentTraceObserver } from "./contracts.js";
-import { type ProgressUpdate, emitProgress } from "./progress.js";
+import { type ProgressUpdate, emitCandidatePreviews, emitProgress } from "./progress.js";
 import { type State } from "./state.js";
 import { projectToolResult } from "./tool-results.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
@@ -75,6 +75,22 @@ export function createToolNode(input: {
       message,
       completedSteps: state.decisionSteps,
     });
+    // Candidate previews let the UI surface search results while the report is still being written.
+    const emitCandidatePreview = (candidates: readonly { playerId: string; name: string; team: string; position: string; age: number | null; minutes: number; source: string; competition: string; season: string }[]) => emitCandidatePreviews(
+      config,
+      candidates.slice(0, 20).map((candidate) => ({
+        playerId: candidate.playerId,
+        name: candidate.name,
+        team: candidate.team,
+        position: candidate.position,
+        age: candidate.age,
+        minutes: candidate.minutes,
+        source: candidate.source,
+        competition: candidate.competition,
+        season: candidate.season,
+      })),
+      state.decisionSteps,
+    );
     const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
     const alreadySearchedReportNames = new Set(state.searchedReportPlayerNames.map(normalizeSearchText));
     const reportNames = action.action === "search_player_reports"
@@ -165,6 +181,19 @@ export function createToolNode(input: {
       filters = projected.filters;
       observer?.({ phase: "tool", toolName: execution.action, elapsedMs: Math.round(performance.now() - toolStartedAt), ok: true, filters: projected.filters, resultCount: projected.resultCount, ...(projected.matchingRecordCount === undefined ? {} : { matchingRecordCount: projected.matchingRecordCount }) });
       completeToolProgress(projected.message);
+      if (execution.action === "search_candidates" && projected.update.history?.at(-1)?.role === "tool") {
+        const historyPayload = projected.update.history.at(-1)?.content;
+        if (typeof historyPayload === "string") {
+          try {
+            const parsed = JSON.parse(historyPayload) as { candidates?: Array<{
+              playerId: string; name: string; team: string; position: string; age: number | null; minutes: number; source: string; competition: string; season: string;
+            }> };
+            if (Array.isArray(parsed.candidates)) emitCandidatePreview(parsed.candidates);
+          } catch {
+            // History payload is an internal contract; a preview is optional and must never break the turn.
+          }
+        }
+      }
       return {
         ...projected.update,
         ...(methodologyKey === null ? {} : { successfulMethodologyQueries: { ...state.successfulMethodologyQueries, [methodologyKey]: projected.resultCount } }),

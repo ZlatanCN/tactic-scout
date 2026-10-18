@@ -155,18 +155,20 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
       {report.requestedPositions.length > 1 && <div className="flex flex-wrap gap-2" aria-label="按位置查看名单"><Button size="sm" variant={positionFilter === "all" ? "default" : "outline"} aria-pressed={positionFilter === "all"} onClick={() => setPositionFilter("all")}>全部</Button>{report.requestedPositions.map((position) => <Button key={position} size="sm" variant={positionFilter === position ? "default" : "outline"} aria-pressed={positionFilter === position} onClick={() => setPositionFilter(position)}>{positionLabels[position]}</Button>)}</div>}
       {report.positionCoverage?.filter((item) => item.confirmedCandidates === 0).map((item) => <p className="m-0 text-xs text-muted-foreground" key={item.position}>{positionLabels[item.position]}：{!item.searched ? "本轮尚未读取相关候选" : item.hasMore ? "已读范围内暂未核实，来源仍有下一页" : "当前数据尚无已核实的位置候选"}</p>)}
     </section>}
-    <CardHeader className="gap-5 px-0 pb-7">
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>{report.targetTeam || "球员招募"}{reportedAt ? ` / ${formatDate(reportedAt)}` : ""}</span>
-        <span className="inline-flex items-center gap-2"><span className={`size-1.5 rounded-full ${reportBusy ? "bg-amber-600" : "bg-primary"}`} />{isWaiting ? "等待补充" : isRefreshing ? "重新分析中" : isUpdating ? "继续调查中" : "本轮调查完成"}</span>
+    <CardHeader className="gap-5 px-0 pb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs font-medium text-muted-foreground">{report.targetTeam || "球员招募"}{reportedAt ? ` · ${formatDate(reportedAt)}` : ""}</span>
+        <Badge variant="outline" className={reportBusy ? "border-amber-300 bg-amber-50 text-amber-950" : "border-primary/20 bg-secondary text-primary"}>
+          <span className={`size-1.5 rounded-full ${reportBusy ? "bg-amber-700" : "bg-primary"}`} aria-hidden="true" />{isWaiting ? "等待你补充" : isRefreshing ? "重新分析中" : isUpdating ? "继续调查中" : "调查已完成"}
+        </Badge>
       </div>
       <div className="space-y-3">
-        <h2 id="report-outcome-title" className="m-0 text-3xl font-semibold tracking-tight sm:text-4xl">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? `发现 ${positionLeadCount} 条位置线索` : emptyShortlist.title : onlyAdjacentPositionLeads ? "发现相邻位置线索" : backgroundOnly ? "找到球员，尚待核实能力" : <>值得关注的 {evidenceBackedRecommendations.length} 位球员</>}</h2>
-        <p className="m-0 max-w-3xl text-sm leading-7 text-muted-foreground">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? "数据源找到了目标位置大类的球员，但没有提供足够细的场上位置信息。这些线索不会混入候选名单或参与比较。" : emptyShortlist.summary : onlyAdjacentPositionLeads ? "当前赛季只观察到这些球员出现在相邻位置，不能据此说他们符合你指定的位置。以下作为后续人工核验线索，不计入目标位置候选名单。" : backgroundOnly ? `现有记录缺少${missingCapabilityDescription}${referenceName ? `，还不能判断谁适合接替${referenceName}` : ""}。以下仅供补查。` : "按建议考察顺序展示。选择球员，可并排比较本轮重点指标。"}</p>
+        <h2 id="report-outcome-title" className="m-0 text-[1.75rem] font-semibold tracking-[-0.025em] sm:text-3xl">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? `发现 ${positionLeadCount} 条位置线索` : emptyShortlist.title : onlyAdjacentPositionLeads ? "发现相邻位置线索" : backgroundOnly ? "找到球员，能力证据待补" : <>有 {evidenceBackedRecommendations.length} 位候选具备直接表现依据</>}</h2>
+        <p className="m-0 max-w-3xl text-sm leading-6 text-muted-foreground">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? "现有记录只确认到较宽的位置类别，尚不能核实具体场上位置；这些线索不会混入候选名单。" : emptyShortlist.summary : onlyAdjacentPositionLeads ? "当前赛季只观察到这些球员出现在相邻位置，不能据此说他们符合你指定的位置。以下作为后续人工核验线索，不计入目标位置候选名单。" : backgroundOnly ? `现有记录缺少${missingCapabilityDescription}${referenceName ? `，还不能判断谁适合接替${referenceName}` : ""}。以下仅供补查。` : "名单按本轮能力重点排列。展开候选详情，可核对样本、取舍和来源。"}</p>
       </div>
-      {report.referenceNameSource?.resolvedName && <p className="m-0 rounded-lg border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">参考对象按 <strong className="text-foreground"><bdi>{report.referenceNameSource.resolvedName}</bdi></strong> 处理{report.referenceNameSource.mention ? `（原始提及：“${report.referenceNameSource.mention}”）` : ""}。若对应有误，可在对话中纠正。 {report.referenceNameSource.url && <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">核对身份来源</a>}</p>}
-      {reportBusy && <p role="status" className="m-0 border-l-2 border-primary pl-4 text-sm text-muted-foreground">{isWaiting ? "回答对话中的问题后继续；这里保留上一份报告。" : "正在调查，完成后将更新这份报告。"}</p>}
-      {unverifiedCapabilities.length > 0 && !backgroundOnly && <p className="m-0 text-xs leading-6 text-muted-foreground"><span className="font-semibold text-foreground">待核实</span>　{unverifiedCapabilities.join("、")}缺少充分的直接证据。</p>}
+      {report.referenceNameSource?.resolvedName && <p className="m-0 rounded-xl border border-border/80 bg-muted/50 px-3.5 py-3 text-xs leading-5 text-muted-foreground">参考对象：<strong className="text-foreground"><bdi>{report.referenceNameSource.resolvedName}</bdi></strong>{report.referenceNameSource.mention ? `（你提到“${report.referenceNameSource.mention}”）` : ""} · 已从候选中排除{report.referenceNameSource.url && <> · <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">核对身份</a></>}</p>}
+      {reportBusy && <p role="status" className="m-0 rounded-lg border border-primary/15 bg-secondary/50 px-3.5 py-2.5 text-sm text-foreground">{isWaiting ? "回答对话中的问题后继续；这份报告会保留。" : "调查仍在继续，完成后会更新这份报告。"}</p>}
+      {unverifiedCapabilities.length > 0 && !backgroundOnly && <p className="m-0 text-sm leading-6 text-muted-foreground"><span className="font-semibold text-foreground">仍待核实：</span>{unverifiedCapabilities.join("、")}缺少直接数据。</p>}
     </CardHeader>
     <CardContent className="space-y-5 px-0">
       {comparisonAvailable && selectedIds.length > 0 && <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -174,15 +176,15 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
         {selectedIds.length >= 2 && <CompareRecommendations backgroundOnly={false} recommendations={selectedRecommendations} onClear={() => setSelectedIds([])} />}
       </div>}
       {exactRoleRecommendations.length > 0 && <>
-        <div className="space-y-4">{evidenceBackedRecommendations.map(({ recommendation, playerId, rank, canCompare }) => <RecommendationCard key={playerId} recommendation={recommendation} backgroundOnly={false} rank={rank ?? 0} selected={selectedIds.includes(playerId)} selectionDisabled={!canCompare || (selectedIds.length >= 3 && !selectedIds.includes(playerId))} comparisonAvailable={canCompare} onToggle={() => toggleRecommendation(playerId)} />)}</div>
+        <div className="space-y-3">{evidenceBackedRecommendations.map(({ recommendation, playerId, rank, canCompare }) => <RecommendationCard key={playerId} recommendation={recommendation} backgroundOnly={false} rank={rank ?? 0} selected={selectedIds.includes(playerId)} selectionDisabled={!canCompare || (selectedIds.length >= 3 && !selectedIds.includes(playerId))} comparisonAvailable={canCompare} onToggle={() => toggleRecommendation(playerId)} />)}</div>
         {backgroundRecommendations.length > 0 && <section aria-labelledby="background-candidate-heading" className="space-y-4 pt-3">
           <div><h3 id="background-candidate-heading" className="m-0 text-lg">仅供补查 · {backgroundRecommendations.length} 人</h3><p className="mb-0 mt-2 text-sm text-muted-foreground">缺少本轮重点能力的直接数据，未参与排序或比较。</p></div>
-          <div className="space-y-4">{backgroundRecommendations.map(({ recommendation, playerId }) => <RecommendationCard key={playerId} recommendation={recommendation} backgroundOnly={true} rank={0} selected={false} selectionDisabled={true} comparisonAvailable={false} onToggle={() => undefined} />)}</div>
+          <div className="space-y-3">{backgroundRecommendations.map(({ recommendation, playerId }) => <RecommendationCard key={playerId} recommendation={recommendation} backgroundOnly={true} rank={0} selected={false} selectionDisabled={true} comparisonAvailable={false} onToggle={() => undefined} />)}</div>
         </section>}
       </>}
       {adjacentPositionLeads.length > 0 && <section aria-labelledby="adjacent-position-leads-heading" className="space-y-4 pt-3">
         <div><h3 id="adjacent-position-leads-heading" className="m-0 text-lg">相邻位置线索 · {adjacentPositionLeads.length} 人</h3><p className="mb-0 mt-2 text-sm text-muted-foreground">这些记录不计入指定位置名单，也不参与同位置比较。详情只展示相邻位置的来源表现。</p></div>
-        <div className="space-y-4">{adjacentPositionLeads.map(({ recommendation, playerId }) => <RecommendationCard key={playerId} recommendation={recommendation} backgroundOnly={true} rank={0} selected={false} selectionDisabled={true} comparisonAvailable={false} onToggle={() => undefined} />)}</div>
+        <div className="space-y-3">{adjacentPositionLeads.map(({ recommendation, playerId }) => <RecommendationCard key={playerId} recommendation={recommendation} backgroundOnly={true} rank={0} selected={false} selectionDisabled={true} comparisonAvailable={false} onToggle={() => undefined} />)}</div>
       </section>}
       {positionLeads.length > 0 && <section aria-labelledby="position-leads-heading" className="space-y-3 pt-3">
         <div><h3 id="position-leads-heading" className="m-0 text-lg">位置未核实 · {positionLeadCount} 条</h3><p className="mb-0 mt-1 text-sm text-muted-foreground">只提供了更宽的位置类别或未返回细分位置。它们不是目标位置候选，不参与排序和比较。</p></div>

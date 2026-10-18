@@ -115,6 +115,8 @@ export function createChatModel(
   return new ChatOpenAI({
     apiKey,
     model: modelName,
+    // Graph progress uses custom events; actions are consumed only after full validation.
+    streaming: false,
     temperature: 0,
     ...(isLocalOllamaEndpoint(baseURL) ? { presencePenalty: 0, frequencyPenalty: 0 } : {}),
     timeout: options.timeoutMs ?? openAIRequestTimeoutMs(),
