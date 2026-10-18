@@ -38,6 +38,16 @@ export interface CandidateSearchObservation {
 }
 
 export const RecruitmentState = Annotation.Root({
+  brief: replaceable<import("../brief.js").RecruitmentBrief | null>(() => null),
+  briefFailure: replaceable<string | null>(() => null),
+  briefFailureKind: replaceable<string | null>(() => null),
+  briefInterpretedThrough: replaceable<number>(() => 0),
+  briefAnswerKind: replaceable<"positions" | "identity" | "identity_reject" | null>(() => null),
+  briefQuestionContext: replaceable<string | null>(() => null),
+  briefCandidates: replaceable<import("../brief.js").VisibleRecruitmentCandidate[]>(() => []),
+  unsupportedConstraintQuestionKey: replaceable<string | null>(() => null),
+  referenceComparisonEnabled: replaceable<boolean>(() => true),
+  abilityProfilesEnabled: replaceable<boolean>(() => false),
   userMessage: Annotation<string>(),
   incomingPositions: replaceable<SelectablePosition[] | null>(() => null),
   history: Annotation<ConversationHistoryEntry[]>({
@@ -76,6 +86,9 @@ export const RecruitmentState = Annotation.Root({
   understatTeamResearch: replaceable<UnderstatTeamResearch | null>(() => null),
   understatMatchResearch: replaceable<Record<string, UnderstatMatchResearch>>(() => ({})),
   referenceNameResolution: replaceable<import("../../players/identity/name-resolver.js").PlayerNameResolution | null>(() => null),
+  rejectedReferenceIds: replaceable<string[]>(() => []),
+  rejectedReferenceRecordIds: replaceable<string[]>(() => []),
+  referenceCandidatesBeforeAnswer: replaceable<import("../../domain/player-identity.js").PlayerIdentityCandidate[]>(() => []),
   referenceResolutionQuery: replaceable<string | null>(() => null),
   inspectedReferenceMention: replaceable<string | null>(() => null),
   replacementReferencePosition: replaceable<Position | null>(() => null),

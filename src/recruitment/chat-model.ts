@@ -8,6 +8,10 @@ export const DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = 1_024;
 
 export type StructuredOutputMethod = "functionCalling" | "jsonSchema" | "jsonMode";
 
+function isLocalOllamaEndpoint(value: string | undefined): boolean {
+  try { return Boolean(value && isLoopbackModelEndpoint(value) && new URL(value).port === "11434"); } catch { return false; }
+}
+
 export function isLoopbackModelEndpoint(value: string | undefined): boolean {
   if (!value?.trim()) return false;
   try {
@@ -112,6 +116,7 @@ export function createChatModel(
     apiKey,
     model: modelName,
     temperature: 0,
+    ...(isLocalOllamaEndpoint(baseURL) ? { presencePenalty: 0, frequencyPenalty: 0 } : {}),
     timeout: options.timeoutMs ?? openAIRequestTimeoutMs(),
     maxTokens: options.maxOutputTokens ?? openAIMaxOutputTokens(),
     maxRetries: 0,

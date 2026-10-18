@@ -116,6 +116,7 @@ export interface BlindedReviewAnswerKey {
   packetId: string;
   queryId: string;
   snapshotSha256: string;
+  systemRuns?: Array<{ systemId: string; runId: string }>;
   cards: Array<{
     cardId: string;
     sourcePlayerIds: string[];

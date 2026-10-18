@@ -9,12 +9,13 @@ export const ShortlistFitGradeSchema = z.union([
 ]);
 
 const SampleSizeSchema = z.object({
-  minutes: z.number().nonnegative(),
-  matches: z.number().int().nonnegative(),
+  minutes: z.number().nonnegative().nullable(),
+  matches: z.number().int().nonnegative().nullable(),
 }).strict();
 
 const ReviewMetricSchema = z.object({
   key: z.string().trim().min(1),
+  label: z.string().trim().min(1).optional(),
   status: z.enum(["observed", "missing"]),
   value: z.number().nullable(),
   unit: z.string().nullable(),
@@ -27,6 +28,7 @@ const ReviewMetricSchema = z.object({
 }).strict();
 
 const PerformanceCardSchema = z.object({
+  basis: z.enum(["match_statistics", "ability_profile"]).optional(),
   position: z.string().nullable(),
   ageAtSeasonEnd: z.number().int().nonnegative().nullable(),
   competition: z.string().trim().min(1),
@@ -49,7 +51,7 @@ export const BlindedReviewerPacketSchema = z.object({
     source: z.string().trim().min(1),
     publisher: z.string().trim().min(1),
     attribution: z.string().trim().min(1),
-    license: z.object({ name: z.string().trim().min(1), url: z.string().url() }).strict(),
+    license: z.object({ name: z.string().trim().min(1), url: z.string().url().nullable() }).strict(),
     datasetId: z.string().trim().min(1),
     sha256: z.string().regex(/^[a-f0-9]{64}$/i),
     asOf: z.string().datetime(),

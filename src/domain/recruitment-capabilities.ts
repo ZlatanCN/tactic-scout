@@ -2,6 +2,17 @@ import { activeReferenceMessages } from "./replacement-reference.js";
 import { type CapabilityMetricKey } from "./capabilities.js";
 import { type Position } from "./position-contracts.js";
 
+const abilityEvidenceByCapability: Readonly<Record<string, readonly CapabilityMetricKey[]>> = {
+  "射门终结": ["abilityFinishing"],
+  "进攻接应": ["abilityLinkForward"],
+  "创造机会": ["abilityPlaymaking", "abilityLinkForward"],
+  "带球推进": ["abilityCarrying"],
+  "推进": ["abilityCarrying", "abilityPlaymaking", "abilityBallPlayingDefender"],
+  "后场出球": ["abilityBallPlayingDefender", "abilitySweeperKeeper"],
+  "整体防守": ["abilityHolding", "abilityBallPlayingDefender"],
+  "门将专项能力": ["abilityGoalkeeping", "abilitySweeperKeeper"],
+};
+
 const requestedCapabilityEvidenceMappings: readonly {
   name: string;
   pattern: RegExp;
@@ -138,7 +149,7 @@ function userExplicitlyRequestsCapability(userMessages: readonly string[], name:
   return false;
 }
 
-export function requestedCapabilityEvidenceAreas(userMessages: readonly string[], position?: Position | null): Array<{
+export function requestedCapabilityEvidenceAreas(userMessages: readonly string[], position?: Position | null, includeAbilityProfiles = false): Array<{
   name: string;
   metricKeys: readonly CapabilityMetricKey[];
 }> {
@@ -156,5 +167,6 @@ export function requestedCapabilityEvidenceAreas(userMessages: readonly string[]
     requested.push({ name: "\u95e8\u5c06\u4e13\u9879\u80fd\u529b", metricKeys: [] });
   }
   const explicitlyRequestsCarryingProgression = requested.some(({ name }) => name === "带球推进");
-  return requested.filter(({ name }) => !(explicitlyRequestsCarryingProgression && name === "推进"));
+  return requested.filter(({ name }) => !(explicitlyRequestsCarryingProgression && name === "推进"))
+    .map((area) => ({ ...area, metricKeys: [...new Set([...area.metricKeys, ...(includeAbilityProfiles ? abilityEvidenceByCapability[area.name] ?? [] : [])])] }));
 }

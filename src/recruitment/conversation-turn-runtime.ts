@@ -23,6 +23,8 @@ export type RecruitmentTurnInput = {
 };
 
 export interface RecruitmentTurnState {
+  retryMessage?: string;
+  brief?: import("../domain/recruitment-brief.js").RecruitmentBrief | null;
   pendingQuestion: { question: string; reason: string; input?: PositionSelectionQuestion | PlayerIdentityQuestion } | null;
   responseMessage: string;
   report: RecruitmentReport | null;
@@ -137,7 +139,9 @@ export function createRecruitmentTurnRuntime(input: {
       if (playerIdentityAnswer) {
         const question = before.values?.pendingQuestion?.input;
         if (!isWaitingForAnswer || question?.kind !== "player_identity" || question.questionId !== playerIdentityAnswer.questionId
-          || !question.candidates.some(candidate => candidate.entityId === playerIdentityAnswer.entityId)) throw new RecruitmentPositionAnswerError("球员身份选项已更新，请重新选择。");
+          || (!("rejectAll" in playerIdentityAnswer) && !question.candidates.some(candidate => candidate.entityId === playerIdentityAnswer.entityId))) {
+          throw new RecruitmentPositionAnswerError("球员身份选项已更新，请重新选择。");
+        }
       }
 
       if (positionUpdate && isWaitingForAnswer) throw new RecruitmentPositionAnswerError();
@@ -181,6 +185,7 @@ export function createRecruitmentTurnRuntime(input: {
             message: state.pendingQuestion.question,
             question: { reason: state.pendingQuestion.reason, ...(state.pendingQuestion.input ? { input: state.pendingQuestion.input } : {}) },
             report: null,
+            brief: state.brief,
           });
           publishProgress({
             stage: "asking_user",
@@ -196,11 +201,13 @@ export function createRecruitmentTurnRuntime(input: {
           message: state.responseMessage || "调查已完成。",
           question: null,
           report: state.report,
+          brief: state.brief,
+          ...(state.retryMessage ? { retryMessage: state.retryMessage } : {}),
         });
         publishProgress({
-          stage: "completed",
-          status: "completed",
-          message: "调查完成，报告已生成",
+          stage: state.retryMessage ? "failed" : "completed",
+          status: state.retryMessage ? "failed" : "completed",
+          message: state.retryMessage ? "需求理解未完成，原始输入已保留，可以重试" : state.report ? "调查完成，报告已生成" : "本轮对话已结束",
           completedSteps: lastCompletedSteps,
         });
         return response;

@@ -3,7 +3,7 @@ import { type Position } from "../../domain/position-contracts.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { type CandidateIdentityGroup, type CandidateIdentityGroupReference, toCandidateIdentityGroupReferences } from "../../players/identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../players/identity/source-player-key.js";
-import { type CandidateSearchIntent, candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../candidate-search-intent.js";
+import { positionSearchForIntent, type CandidateSearchIntent, candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../candidate-search-intent.js";
 import { type ConversationHistoryEntry } from "../planner-context.js";
 import { type CandidateSearchAction, type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
 
@@ -23,8 +23,7 @@ export function candidateSearchScopeKey(action: CandidateSearchAction, discovery
 function candidateSearchScopeKeyForIntent(intent: CandidateSearchIntent): string {
   return candidateSearchScopeKey({
     action: "search_candidates",
-    position: intent.positions && intent.positions.length > 1 ? null : intent.position,
-    ...(intent.positions && intent.positions.length > 1 ? { positions: [...intent.positions] } : {}),
+    ...positionSearchForIntent(intent),
     playerName: null,
     maxAge: intent.maxAge,
     minimumMinutes: intent.minimumMinutes,
@@ -116,17 +115,20 @@ export function routeCandidateSearch(
   };
 }
 
-type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles"> & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions">>;
+type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles"> & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions" | "abilityProfilesEnabled" | "brief">>;
 
 export function resolvedCandidateSearchIntent(state: CandidateConstraintState, latestMessage?: string): CandidateSearchIntent {
   const messages = userMessages(state.history);
   return resolveCandidateSearchIntent({
+    brief: state.brief,
     userMessages: latestMessage === undefined ? messages : [...messages, latestMessage],
     confirmedPosition: state.confirmedPosition,
+    abilityProfilesEnabled: state.abilityProfilesEnabled,
     confirmedPositions: state.confirmedPositions,
     replacementReferencePosition: state.replacementReferencePosition,
+    referencePositions: [...new Set(state.referenceProfiles.flatMap(profile => profile.supportedPositions ?? []))],
     referenceNames: state.referenceNameResolution?.status === "resolved" ? state.referenceNameResolution.player.names : undefined,
-    referenceIdentityResolved: state.referenceNameResolution?.status === "resolved",
+    referenceIdentityResolved: state.referenceNameResolution?.status === "resolved" || Boolean(state.brief?.selectedCandidateId),
     referenceSourceIdentityKeys: state.referenceProfiles.map(profile => profile.sourceIdentityKey),
     ...(latestMessage === undefined ? {} : { latestMessage }),
   });
@@ -137,11 +139,13 @@ export function hasCandidateSearchScopeChanged(
   latestMessage: string,
   confirmedPosition: Position | null,
   replacementReferencePosition: Position | null = null,
+  abilityProfilesEnabled = false,
 ): boolean {
   const priorMessages = userMessages(history);
   if (priorMessages.length === 0) return false;
-  const priorIntent = resolveCandidateSearchIntent({ userMessages: priorMessages, confirmedPosition, replacementReferencePosition });
+  const priorIntent = resolveCandidateSearchIntent({ userMessages: priorMessages, confirmedPosition, replacementReferencePosition, abilityProfilesEnabled });
   const latestIntent = resolveCandidateSearchIntent({
+    abilityProfilesEnabled,
     userMessages: [...priorMessages, latestMessage],
     confirmedPosition,
     replacementReferencePosition,

@@ -1,8 +1,10 @@
 import { type CapabilityMetricKey } from "./capabilities.js";
 import { type Per90, type PlayerProfile, type RawStatKey } from "./players.js";
+import { abilityMetricValue } from "./player-abilities.js";
 
 /** Shared availability semantics for discovery and the evidence evaluator. */
 export function observableMetricValue(player: PlayerProfile, key: CapabilityMetricKey): number | undefined {
+  if (key.startsWith("ability")) return abilityMetricValue(player.abilityProfile, key);
   const supplementary = player.supplementaryMetrics?.find(metric => metric.key === key);
   if (supplementary) return supplementary.value ?? undefined;
   if (player.eventDataComplete === false) return undefined;

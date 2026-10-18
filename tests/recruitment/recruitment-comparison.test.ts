@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { RecruitmentBriefSchema } from "../../src/domain/recruitment-brief.js";
 import test from "node:test";
 import { configuredRecruitmentConversation, createRecruitmentConversation, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
 import { createSinglePassInvestigationPlanner } from "../../src/evaluation/fixed-investigation-planner.js";
@@ -213,6 +214,7 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
   let calls = 0;
   let searches = 0;
   const conversation = configuredRecruitmentConversation({
+    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, positions: ["ST"], priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] }); } },
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
     knowledgeBase: { search: async () => { searches++; return []; } },
     plannerFactory: () => ({ async decide(input) {
@@ -230,6 +232,7 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
 
 test("report projection does not expose a model placeholder as the need summary", async () => {
   const conversation = configuredRecruitmentConversation({
+    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, positions: ["ST"], priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] }); } },
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
     plannerFactory: () => ({ async decide() {
       return { action: "finish", targetTeam: "拜仁", needSummary: "false", capabilityProfile: ["进球产出"], recommendations: [{ playerId: "a", evidenceKeys: ["goals"] }], limitationKeys: [] };

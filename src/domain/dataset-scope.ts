@@ -152,8 +152,8 @@ export function describeDatasetScope(
   const datasetBuiltAt = datasetSnapshot?.builtAt ?? recordDataset?.datasetBuiltAt;
   const observedCoverage = players ? {
     playerRecordCount: players.length,
-    competitions: [...new Set(players.map((player) => player.competition))].sort((left, right) => left.localeCompare(right)),
-    seasons: [...new Set(players.map((player) => player.season))].sort((left, right) => left.localeCompare(right)),
+    competitions: [...new Set(players.map((player) => player.competition).filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+    seasons: [...new Set(players.map((player) => player.season).filter(Boolean))].sort((left, right) => left.localeCompare(right)),
   } : undefined;
   return {
     ...scope,

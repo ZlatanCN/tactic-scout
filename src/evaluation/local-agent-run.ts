@@ -173,9 +173,9 @@ type ModelUsageSummary = {
   totalTokens: ModelUsageMetricSummary;
 };
 
-function summarizeModelUsage(events: readonly RecruitmentTraceEvent[]): ModelUsageSummary {
-  const requests = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "model_usage" }> => (
-    event.phase === "model_usage"
+export function summarizeModelUsage(events: readonly RecruitmentTraceEvent[]): ModelUsageSummary {
+  const requests = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "model_usage" | "brief_usage" | "identity_usage" }> => (
+    event.phase === "model_usage" || event.phase === "brief_usage" || event.phase === "identity_usage"
   ));
   const metric = (name: ModelUsageMetricName): ModelUsageMetricSummary => {
     const values = requests.flatMap((event) => typeof event[name] === "number" ? [event[name]!] : []);

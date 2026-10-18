@@ -1,3 +1,4 @@
+import { compareWithReference, referenceComparisonEvidence } from "../reference-similarity.js";
 import { teamNamesMatch } from "../../domain/team-names.js";
 import { createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../recruitment-comparison.js";
 import { type PlayerRepository } from "../../players/repository.js";
@@ -92,7 +93,7 @@ interface ToolResultProjection {
 }
 
 export function projectToolResult(state: State, execution: RecruitmentToolExecutionResult, dependencies: {
-  repository: Pick<PlayerRepository, "mode" | "sourceName">;
+  repository: Pick<PlayerRepository, "mode" | "sourceName" | "supportsAbilityProfiles">;
   evidenceAvailability: RecruitmentEvidenceEvaluator["availability"];
   groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
 }): ToolResultProjection {
@@ -172,16 +173,19 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
       const { players, request } = execution;
       filters = { teamName: request.teamName };
       const messages = state.history.filter(entry => entry.role === "user").map(entry => entry.content);
-      const nameResolution = execution.referenceNameResolution ?? null;
+      const nameResolution = state.brief?.referencePlayer ? state.referenceNameResolution ?? execution.referenceNameResolution ?? null
+        : execution.referenceNameResolution ?? null;
       const resolvedReference = nameResolution?.status === "resolved" ? nameResolution.player : null;
       const referenceNames = resolvedReference?.names.map(normalizeSearchText) ?? [];
-      const referenceProfiles = createReferencePlayerProfiles(players, messages, referenceNames);
+      const observedReferenceProfiles = createReferencePlayerProfiles(players, messages, referenceNames).map(profile =>
+        state.brief && resolvedReference ? { ...profile, name: resolvedReference.preferredName } : profile);
+      const referenceProfiles = referenceComparisonEvidence(observedReferenceProfiles.length ? observedReferenceProfiles : state.brief?.referencePlayer ? state.referenceProfiles : [], state.referenceComparisonEnabled);
       const replacementReferencePosition = resolveReplacementReferencePosition({
         players,
         rosterContext: execution.rosterContext ?? null,
         userMessages: messages,
         referenceNames,
-      });
+      }) ?? (state.brief?.referencePlayer ? state.replacementReferencePosition : null);
       const result = {
         ...teamHistory(players, request.teamName, repository),
         ...(nameResolution ? { referenceNameResolution: nameResolution, identityNote: nameResolution.status === "resolved"
@@ -208,12 +212,12 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           toolUses,
           observedRecords: observed,
           datasetScope: describeDatasetScope(repository.mode, Object.values(observedRecords)),
-          targetTeam: request.teamName,
+          targetTeam: state.brief ? state.targetTeam : request.teamName,
           referenceProfiles,
           ...(execution.understatResearch !== undefined ? { understatTeamResearch: execution.understatResearch } : {}),
           referenceNameResolution: nameResolution,
           ...(resolvedReference ? { referenceResolutionQuery: null } : {}),
-          inspectedReferenceMention: normalizeSearchText(replacementTargetMention(messages) ?? ""),
+          inspectedReferenceMention: normalizeSearchText(state.brief?.referencePlayer?.value ?? replacementTargetMention(messages) ?? ""),
           replacementReferencePosition,
           hasInvestigated: state.hasInvestigated || !resolvedCandidateSearchIntent(state).replacementRequest,
           history: [{ role: "tool" as const, toolName: request.action, content: JSON.stringify(result) }],
@@ -237,7 +241,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           hasInvestigated: true,
           understatPlayerResearch: { ...state.understatPlayerResearch, [research.playerId]: research },
           ...(targetPosition && player ? { discoveredPlayers: {
-            [research.playerId]: withUnderstatPositionEvidenceForTargets(player, research, state.confirmedPositions.length ? state.confirmedPositions : [targetPosition]),
+            [research.playerId]: withUnderstatPositionEvidenceForTargets(player, research, intent.positions?.length ? intent.positions : [targetPosition]),
           } } : {}),
           history: [{ role: "tool" as const, toolName: execution.request.action, content: JSON.stringify(research) }],
         },
@@ -257,7 +261,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
       const positionAwarePlayers = Object.fromEntries(research.flatMap((item) => {
         const player = state.discoveredPlayers[item.playerId];
         return targetPosition && player
-          ? [[item.playerId, withUnderstatPositionEvidenceForTargets(player, item, state.confirmedPositions.length ? state.confirmedPositions : [targetPosition])] as const]
+          ? [[item.playerId, withUnderstatPositionEvidenceForTargets(player, item, intent.positions?.length ? intent.positions : [targetPosition])] as const]
           : [];
       }));
       filters = {
@@ -370,6 +374,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
       }]));
       const observedRecords = { ...state.observedRecords, ...observed };
       const reportScope = RecruitmentSearchScopeSchema.parse({
+        ...(request.excludedCompetitions?.length ? { excludedCompetitions: request.excludedCompetitions } : {}),
         ...(request.positions?.length ? { positions: request.positions } : {}),
         position: request.position,
         maxAge: request.maxAge,
@@ -419,11 +424,13 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
               matchingRecordCountKnown: result.totalRecords !== null,
               appliedFilters: result.appliedFilters,
               ...(targetPosition ? {
-                positionEvidenceNote: repository.mode === "understat" || repository.mode === "mosaic"
+                positionEvidenceNote: repository.supportsAbilityProfiles
+                  ? `能力画像中熟练度足够的${targetPosition}位置可用于职责筛选；比赛位置标签用于补充近期实战背景。没有画像或明确比赛位置的宽位置记录仍只是待核实线索。`
+                  : repository.mode === "understat" || repository.mode === "mosaic"
                   ? `Understat 只按${targetPosition}对应的位置族召回；细分位置尚需按 Understat 当前赛季位置记录核实。其他来源只有自身明确返回${targetPosition}细分位置时才可作为目标位置候选。`
                   : `先按${targetPosition}对应的大类召回。只有来源明确提供${targetPosition}细分位置的记录才能进入目标位置名单；宽位置记录会作为待核实线索单独展示。`,
               } : {}),
-              ...(result.discovery ? { discovery: result.discovery, discoveryNote: "按用户明确可测的表现维度，在各来源、赛事、赛季和位置组内分别选取线索后交错发现；每90分钟指标按其实际样本还原累计观测量作发现依据，其他口径优先有明确分母的样本。没有相关指标时按出场样本发现。不是综合能力或跨联赛实力排名；低分钟和缺字段记录仍保留。" } : {}),
+              ...(result.discovery ? { discovery: result.discovery, discoveryNote: repository.supportsAbilityProfiles ? "比赛记录按可用指标发现线索；能力画像按用户所需职责属性召回，两条路径交错并保留完整分页。属性不使用比赛分钟加权，未知值保持未知；召回顺序不是最终推荐排名。" : "按用户明确可测的表现维度，在各来源、赛事、赛季和位置组内分别选取线索后交错发现；每90分钟指标按其实际样本还原累计观测量作发现依据，其他口径优先有明确分母的样本。没有相关指标时按出场样本发现。不是综合能力或跨联赛实力排名；低分钟和缺字段记录仍保留。" } : {}),
               offset: result.offset,
               nextOffset: result.nextOffset,
               requestedOffset,
@@ -441,7 +448,9 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
     }
     case "evaluate_candidates": {
       const { batch, request } = execution;
-      const result = batch.evaluations;
+      const result = Object.fromEntries(Object.entries(batch.evaluations).map(([id, candidate]) => [id, { ...candidate,
+        ...(state.brief?.task === "similarity" ? { referenceSimilarity: compareWithReference(candidate, state.referenceProfiles) } : {}),
+      }]));
       filters = {
         requestedPlayerCount: request.playerIds.length,
         evidenceAvailability: evidenceAvailability,
@@ -456,21 +465,24 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
 
       const missing = request.playerIds.filter((id) => !result[id]);
       const toolResult = {
-        evaluations: Object.values(result).map(({ player, evidence }) => ({
+        evaluations: Object.values(result).map(({ player, evidence, roleFits, referenceSimilarity }) => ({
           playerId: player.playerId,
           name: player.name,
+          age: player.age,
           position: player.position,
           competition: player.competition,
           season: player.season,
           minutes: player.minutes,
           source: player.source,
           metrics: evidence,
+          ...(roleFits ? { roleFits } : {}),
+          ...(referenceSimilarity ? { referenceSimilarity } : {}),
         })),
         missingPlayerIds: missing,
         evidenceAvailability: evidenceAvailability,
         note: evidenceAvailability === "experimentally_withheld"
           ? "本实验控制组有意屏蔽了候选表现评估器。未返回指标、百分位或能力评分；这不是 0 值，也不表示来源缺字段或球员没有该项能力。"
-          : "只返回可观察比赛产出。缺失事件文件时不会把动作记为零；没有传球尝试时省略传球成功率。百分位仅在同位置、同赛事、同赛季至少 5 个完整样本时提供。",
+          : "返回可用比赛证据与能力画像。basis=ability_profile 是职责属性评价，按 /100 表示，不适用分钟门槛或比赛百分位；不能改写为实际比赛产出。比赛统计缺失不会记零，百分位仍遵循样本与同组比较规则。",
       };
       const observed = Object.fromEntries(batch.observedPlayers.map((player) => [sourcePlayerKey(player), {
         competition: player.competition,

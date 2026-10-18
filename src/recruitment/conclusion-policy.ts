@@ -42,7 +42,8 @@ export function summarizeRequestedCapabilityCoverage(input: {
   candidateIdentityGroups?: readonly CandidateIdentityGroupReference[];
 }): RequestedCapabilityCoverage[] {
   const eligibleAreas = requestedCapabilityEvidenceAreas(input.userMessages,
-    input.evaluatedPlayers.length > 0 && input.evaluatedPlayers.every(candidate => candidate.player.position === "GK") ? "GK" : undefined);
+    input.evaluatedPlayers.length > 0 && input.evaluatedPlayers.every(candidate => candidate.player.position === "GK") ? "GK" : undefined,
+    input.evaluatedPlayers.some(candidate => candidate.player.abilityProfile !== undefined));
   const identityGroupByPlayerId = new Map(input.candidateIdentityGroups?.flatMap((group) => (
     group.recordPlayerIds.map((playerId) => [playerId, group.identityKey] as const)
   )) ?? []);
@@ -344,7 +345,7 @@ export function alignRecommendationEvidenceToRequestedCapabilities(input: {
   evaluatedPlayers: Record<string, EvaluatedCandidate>;
 }): { action: ParsedRecruitmentAction | undefined; repairedReferenceCount: number } {
   if (input.action?.action !== "finish") return { action: input.action, repairedReferenceCount: 0 };
-  const areas = requestedCapabilityEvidenceAreas(input.userMessages);
+  const areas = requestedCapabilityEvidenceAreas(input.userMessages, undefined, Object.values(input.evaluatedPlayers).some(candidate => candidate.player.abilityProfile !== undefined));
   let repairedReferenceCount = 0;
   const recommendations = input.action.recommendations.map((recommendation) => {
     const candidate = input.evaluatedPlayers[recommendation.playerId];
@@ -394,7 +395,7 @@ export function validateConclusion(input: {
     group.recordPlayerIds.map((playerId) => [playerId, group] as const)
   )) ?? []);
   const recommendedIdentityKeys = new Set<string>();
-  const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(input.userMessages ?? []);
+  const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(input.userMessages ?? [], undefined, Object.values(input.evaluatedPlayers).some(candidate => candidate.player.abilityProfile !== undefined));
   for (const recommendation of action.recommendations) {
     if (ids.has(recommendation.playerId)) problems.push(`球员 ${recommendation.playerId} 被重复推荐。`);
     ids.add(recommendation.playerId);

@@ -10,6 +10,7 @@ export function formatMetric(value: number): string {
 
 export function peerComparisonLabel(evidence: CapabilityEvidence | undefined): string {
   if (!evidence) return "无数据";
+  if (evidence.basis === "ability_profile") return "职责属性评估";
   const unavailableReason = getPeerPercentileUnavailableReason({
     minutes: evidence.minutes,
     recordedReason: evidence.peerPercentileUnavailableReason,
@@ -28,6 +29,7 @@ export function peerComparisonLabel(evidence: CapabilityEvidence | undefined): s
 }
 
 export function sourceSampleLabel(evidence: CapabilityEvidence): string {
+  if (evidence.basis === "ability_profile") return "能力画像";
   if (evidence.sampleMatches === undefined && evidence.sourceScope !== "season_position_aggregate") {
     return evidence.minutes === null ? "样本分钟未知" : "—";
   }

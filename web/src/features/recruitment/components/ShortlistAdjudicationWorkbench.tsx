@@ -1,3 +1,4 @@
+import { AbilityMetricDefinitions } from "../../../../../src/domain/player-abilities.js";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { z } from "zod/v4";
 import {
@@ -272,10 +273,10 @@ export function ShortlistAdjudicationWorkbench() {
                   })}</div>
                   {currentCard.performances.map((performance, performanceIndex) => <section className="space-y-3 border-t pt-4" key={`${performance.competition}:${performance.season}:${performanceIndex}`}>
                     <div className="flex flex-wrap items-baseline justify-between gap-2"><div className="flex flex-wrap items-baseline gap-2"><strong>{performance.competition}</strong><Badge variant="outline">{performance.season}</Badge></div><span className="text-xs text-muted-foreground">{performance.position ?? "位置未知"}{performance.ageAtSeasonEnd === null ? " · 年龄未知" : ` · ${performance.ageAtSeasonEnd} 岁`}</span></div>
-                    <p className="m-0 text-xs text-muted-foreground">样本：{performance.sampleSize.minutes.toLocaleString()} 分钟 · {performance.sampleSize.matches} 场</p>
+                    <p className="m-0 text-xs text-muted-foreground">{performance.basis === "ability_profile" ? "职责属性评价，不适用比赛分钟" : `样本：${performance.sampleSize.minutes?.toLocaleString() ?? "未知"} 分钟 · ${performance.sampleSize.matches ?? "未知"} 场`}</p>
                     <div className="grid gap-2 sm:grid-cols-2">{performance.metrics.map((metric) => <article className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-lg border p-3 ${metric.status === "missing" ? "bg-muted/60" : "bg-card"}`} key={metric.key}>
                       <div><strong className="block text-base tabular-nums">{metric.status === "missing" || metric.value === null ? "未提供" : new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(metric.value)}</strong><span className="text-[11px] text-muted-foreground">{metric.unit ?? ""}</span></div>
-                      <div className="min-w-0 text-xs leading-5"><span>{metric.definition ?? `指标 ${metric.key}`}</span><small className="mt-1 block text-[11px] text-muted-foreground">来源字段：{metric.sourceField ?? "未提供"}</small></div>
+                      <div className="min-w-0 text-xs leading-5"><strong className="block font-semibold">{metric.label ?? AbilityMetricDefinitions.find((definition) => definition.key === metric.key)?.label ?? metric.key}</strong><span className="text-muted-foreground">{metric.definition ?? "暂无指标说明"}</span>{metric.sourceField && <small className="mt-1 block text-[11px] text-muted-foreground">字段：{metric.sourceField}</small>}</div>
                       {metric.status === "missing" && <small className="col-span-2 text-xs text-amber-900">缺少数据不表示能力较差</small>}
                     </article>)}</div>
                   </section>)}

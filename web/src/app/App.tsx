@@ -76,7 +76,7 @@ function App() {
         </a>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
           <Badge variant="outline" className={`min-w-0 max-w-[54vw] shrink gap-1.5 truncate px-2.5 py-1 text-xs font-normal ${connectionBadgeClass}`}>
-            <Database className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{datasetLabel}</span>
+            <Database className="size-3.5 shrink-0" aria-hidden="true" /><span className="truncate">{dataset ? "球员资料已就绪" : "正在连接球员资料"}</span>
           </Badge>
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="打开工具与资料菜单" />}><MoreHorizontal aria-hidden="true" /></DropdownMenuTrigger>
@@ -106,7 +106,7 @@ function App() {
         <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h1 className="m-0 break-words text-3xl font-semibold tracking-tight sm:text-4xl">{state.isFreshCase ? "下一位，谁能改变比赛？" : state.planName || "招募调查"}</h1>
-            <p className="mb-0 mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{state.isFreshCase ? "从一个引援想法，开始你的球探调查。" : state.turnUnresolved ? "正在调查你的需求，上一份报告会继续保留。" : state.waitingForAnswer ? "回答球探的问题，继续这项调查。" : state.report ? "查看候选名单，比较表现，决定下一步考察谁。" : "在对话中继续补充球队与球员需求。"}</p>
+            <p className="mb-0 mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{state.isFreshCase ? "从一个引援想法，开始你的球探调查。" : state.turnUnresolved ? state.report ? "正在继续调查，上一份报告会保留。" : "正在根据你的需求寻找候选球员。" : state.waitingForAnswer ? "回答球探的问题，继续这项调查。" : state.report ? "查看候选名单，比较表现，决定下一步考察谁。" : "在对话中继续补充球队与球员需求。"}</p>
           </div>
           {!state.isFreshCase && <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" className="sm:hidden" onClick={actions.startNewCase} disabled={state.turnUnresolved}>新建计划</Button>

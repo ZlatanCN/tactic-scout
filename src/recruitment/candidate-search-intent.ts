@@ -1,4 +1,5 @@
 import { activeReferenceMessages } from "../domain/replacement-reference.js";
+import { competitionNamesMatch } from "../domain/competition-names.js";
 import { requestedCapabilityEvidenceAreas } from "../domain/recruitment-capabilities.js";
 import { playerPositionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
@@ -20,6 +21,7 @@ export interface CandidateSearchIntent {
   maxAge: number | null;
   minimumMinutes: number;
   competition: string | null;
+  excludedCompetitions?: readonly string[];
   season: string | null;
   allowsAnyPosition: boolean;
   replacementRequest: boolean;
@@ -29,6 +31,10 @@ export interface CandidateSearchIntent {
   declinedPositionBroadening: boolean;
   competitionMentioned: boolean;
   latestPositionChange: PositionConstraintChange;
+}
+
+export function positionSearchForIntent(intent: Pick<CandidateSearchIntent, "position" | "positions">): { position: Position | null; positions?: Position[] } {
+  return intent.positions && intent.positions.length > 1 ? { position: null, positions: [...intent.positions] } : { position: intent.position };
 }
 
 const specificPositionPatterns: Array<{ position: Position; pattern: RegExp }> = [
@@ -129,6 +135,47 @@ function explicitBroadPositionGroup(userMessages: readonly string[]): Position |
   return requestedPosition;
 }
 
+/** Derive position constraints only from user text, never from the model's memory of a reference player. */
+export function explicitPositionState(userMessages: readonly string[]): { positions: Position[]; allowsAnyPosition: boolean } {
+  const broadPatterns: Array<{ position: Position; pattern: RegExp }> = [
+    { position: "MID", pattern: /中场|中場|midfield(?:er)?s?/gi },
+    { position: "DEF", pattern: /(?<![中边左右])后卫|后防|defenders?|defence|defense/gi },
+    { position: "ATT", pattern: /前锋|前鋒|锋线|鋒線|strikers?|attackers?/gi },
+  ];
+  let positions: Position[] = [];
+  let allowsAnyPosition = false;
+  for (const message of activeReferenceMessages(userMessages)) {
+    const explicitAny = broadAnyPositionPattern.test(message)
+      && !/(?:不|别|不要|不想|不是|不接受|拒绝).{0,8}(?:位置不限|不限.{0,6}位置|任何位置)/.test(message);
+    if (explicitAny) {
+      positions = [];
+      allowsAnyPosition = true;
+      continue;
+    }
+    const specific = specificPositionPatterns.flatMap(({ position, pattern }) => {
+      const matcher = new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`);
+      return [...message.matchAll(matcher)].flatMap(match => {
+        const index = match.index ?? 0;
+        return positionNegationPattern.test(message.slice(Math.max(0, index - 7), index))
+          ? [] : [{ position, start: index, end: index + match[0].length }];
+      });
+    });
+    const broad = broadPatterns.flatMap(({ position, pattern }) => [...message.matchAll(new RegExp(pattern.source, pattern.flags))].flatMap(match => {
+      const index = match.index ?? 0;
+      if (positionNegationPattern.test(message.slice(Math.max(0, index - 7), index))) return [];
+      const end = index + match[0].length;
+      if (specific.some(item => index < item.end && end > item.start)) return [];
+      return [{ position, start: index, end }];
+    }));
+    const mentioned = [...new Set([...specific, ...broad].sort((left, right) => left.start - right.start).map(item => item.position))];
+    if (mentioned.length) {
+      positions = mentioned;
+      allowsAnyPosition = false;
+    }
+  }
+  return { positions, allowsAnyPosition };
+}
+
 function explicitMaxAge(userMessages: readonly string[]): number | null {
   const patterns = [
     /(\d{1,2})\s*岁(?:以下|以内|不超过)/,
@@ -208,43 +255,49 @@ function explicitMinimumMinutes(userMessages: readonly string[]): number {
 }
 
 export function resolveCandidateSearchIntent(input: {
+  brief?: import("./brief.js").RecruitmentBrief | null;
   userMessages: readonly string[];
   confirmedPosition: Position | null;
   confirmedPositions?: readonly Position[];
   replacementReferencePosition?: Position | null;
+  referencePositions?: readonly Position[];
   referenceNames?: readonly string[];
   referenceIdentityResolved?: boolean;
   referenceSourceIdentityKeys?: readonly string[];
   latestMessage?: string;
+  abilityProfilesEnabled?: boolean;
 }): CandidateSearchIntent {
   const { userMessages, confirmedPosition, replacementReferencePosition = null, latestMessage } = input;
   const originalRequest = userMessages[0] ?? "";
-  const replacementRequest = Boolean(replacementTargetMention(userMessages)) || /替代者|替代|接班人|接班|替补|replacement|successor|backup/i.test(originalRequest);
+  const replacementRequest = input.brief ? input.brief.task !== "reinforcement" && Boolean(input.brief.referencePlayer)
+    : Boolean(replacementTargetMention(userMessages)) || /替代者|替代|接班人|接班|替补|replacement|successor|backup/i.test(originalRequest);
   const currentPosition = confirmedPosition ?? (replacementRequest ? replacementReferencePosition : null);
   const latestPositionChange = latestMessage === undefined
     ? { changed: false } as const
     : positionConstraintChange(latestMessage, currentPosition);
   const effectiveConfirmedPosition = latestPositionChange.changed ? latestPositionChange.position : confirmedPosition;
   const positionMessages = activeReferenceMessages(userMessages);
-  const explicitPosition = explicitBroadPositionGroup(positionMessages);
-  const allowsAnyPosition = positionMessages.some((message) => broadAnyPositionPattern.test(message)
+  const explicitPosition = input.brief ? input.brief.positions[0] ?? null : explicitBroadPositionGroup(positionMessages);
+  const allowsAnyPosition = input.brief ? input.brief.allowsAnyPosition : positionMessages.some((message) => broadAnyPositionPattern.test(message)
     || (broadenPositionPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
       && !declinePositionBroadeningPattern.test(message)));
-  const selectedPositions = latestPositionChange.changed ? [] : input.confirmedPositions ?? [];
+  const selectedPositions = input.brief?.allowsAnyPosition ? [] : latestPositionChange.changed ? [] : input.confirmedPositions?.length ? input.confirmedPositions
+    : input.brief?.positions.length ? input.brief.positions : input.brief?.referencePlayer ? input.referencePositions ?? [] : [];
   const position = selectedPositions.length ? selectedPositions[0]! : allowsAnyPosition ? null : effectiveConfirmedPosition ?? explicitPosition
     ?? (replacementRequest ? replacementReferencePosition : null);
   return {
     position,
     ...(selectedPositions.length ? { positions: selectedPositions } : {}),
-    discoveryMetricGroups: requestedCapabilityEvidenceAreas(userMessages).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
+    discoveryMetricGroups: requestedCapabilityEvidenceAreas(userMessages, undefined, input.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
     positionBasis: position === null ? null : effectiveConfirmedPosition !== null || explicitPosition !== null ? "user" : "reference",
-    maxAge: explicitMaxAge(userMessages),
-    minimumMinutes: explicitMinimumMinutes(userMessages),
-    competition: explicitCompetition(userMessages),
-    season: explicitSeason(userMessages),
+    maxAge: input.brief ? input.brief.filters.maxAge : explicitMaxAge(userMessages),
+    minimumMinutes: input.brief ? input.brief.filters.minimumMinutes : explicitMinimumMinutes(userMessages),
+    competition: input.brief ? input.brief.filters.competition : explicitCompetition(userMessages),
+    ...(input.brief?.filters.excludedCompetitions.length ? { excludedCompetitions: input.brief.filters.excludedCompetitions } : {}),
+    season: input.brief ? input.brief.filters.season : explicitSeason(userMessages),
     allowsAnyPosition,
     replacementRequest,
-    replacementTargetNames: [...new Set([...replacementTargetNames(userMessages), ...(input.referenceNames ?? []).map(normalizeSearchText)])],
+    replacementTargetNames: [...new Set([...(input.brief ? input.brief.referencePlayer ? [normalizeSearchText(input.brief.referencePlayer.value)] : [] : replacementTargetNames(userMessages)), ...(input.referenceNames ?? []).map(normalizeSearchText)])],
     ...(input.referenceIdentityResolved ? { referenceIdentityResolved: true, referenceSourceIdentityKeys: input.referenceSourceIdentityKeys ?? [] } : {}),
     declinedPositionBroadening: userMessages.some((message) => declinePositionBroadeningPattern.test(message)),
     competitionMentioned: userMessages.some((message) => explicitCompetitionPattern.test(message)),
@@ -258,7 +311,8 @@ function matchesNonPositionIntent(player: PlayerProfile, intent: CandidateSearch
     : isReplacementTarget(player.name, intent.replacementTargetNames)) return false;
   if (intent.maxAge !== null && (player.age === null || player.age > intent.maxAge)) return false;
   if (player.minutes < intent.minimumMinutes) return false;
-  if (intent.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(intent.competition))) return false;
+  if (intent.competition && !competitionNamesMatch(player.competition, intent.competition)) return false;
+  if (intent.excludedCompetitions?.length && (!player.competition || intent.excludedCompetitions.some(competition => competitionNamesMatch(player.competition, competition)))) return false;
   if (intent.season && !normalizeSearchText(player.season).includes(normalizeSearchText(intent.season))) return false;
   return true;
 }

@@ -12,6 +12,8 @@ import { createRecommendationPresentation, describeEmptyShortlist } from "../lib
 import { RecommendationCard } from "./RecommendationCard";
 import { positionLabels } from "./report-labels";
 import { formatMetric } from "./report-evidence-format";
+import { hasAbilityPositionEvidence } from "../../../../../src/domain/positions.js";
+import { friendlyMetricLabel } from "./ability-labels";
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -47,7 +49,7 @@ function requestedCapabilityCoverageText(coverage: RecruitmentReport["requestedC
   if (coverage.status === "partial") {
     return `只有部分候选有对应指标；其余候选的这项能力仍未知。${metricNote}`;
   }
-  return `所有当前已评估候选都有相关统计；这些仍是表现线索，不是完整能力结论。${metricNote}`;
+  return `已评估候选都有对应依据，可结合职责和比赛表现进一步比较。${metricNote}`;
 }
 
 function RequestedCapabilityCoverage({ report }: { report: RecruitmentReport }) {
@@ -60,7 +62,7 @@ function RequestedCapabilityCoverage({ report }: { report: RecruitmentReport }) 
     <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="m-0 text-sm font-semibold">能力证据覆盖</h3><span className="text-xs text-muted-foreground">按当前已评估样本</span></div>
     <ul className="grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2">{report.requestedCapabilityCoverage.map((coverage) => <li className="min-w-0 rounded-lg border bg-card p-3" key={coverage.name}>
       <div className="flex items-start justify-between gap-2"><strong className="text-sm">{coverage.name}</strong><Badge variant={coverage.status === "observed" ? "secondary" : coverage.status === "partial" ? "outline" : "destructive"} className="shrink-0">{statusLabel(coverage.status)}</Badge></div>
-      <p className="mb-0 mt-2 text-xs font-medium tabular-nums">{coverage.candidatesWithEvidenceCount} / {coverage.evaluatedCandidateCount} {candidateUnit}有对应统计</p>
+      <p className="mb-0 mt-2 text-xs font-medium tabular-nums">{coverage.candidatesWithEvidenceCount} / {coverage.evaluatedCandidateCount} {candidateUnit}有对应依据</p>
       <p className="mb-0 mt-1 text-xs leading-5 text-muted-foreground">{requestedCapabilityCoverageText(coverage)}</p>
     </li>)}</ul>
   </section>;
@@ -97,11 +99,13 @@ function EmptyReport({ dataset, datasetLabel, connectionStatus, caseStatus = "re
 function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, isRefreshing, isUpdating, snapshot, onOpenObservations }: { report: RecruitmentReport; teamRosterContext: TeamRosterContext | null; reportedAt: string | null; isWaiting: boolean; isRefreshing: boolean; isUpdating: boolean; snapshot: DatasetStatus["snapshot"]; onOpenObservations: () => void }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [positionFilter, setPositionFilter] = useState<string>("all");
+  const hasAbilityProfiles = report.recommendations.some((item) => item.player.abilityProfile);
   useEffect(() => { setSelectedIds([]); setPositionFilter("all"); }, [report]);
   const presentation = createRecommendationPresentation(report.recommendations);
   const emptyShortlist = describeEmptyShortlist(report.searchScopes.length);
   const isAdjacentPositionLead = (item: typeof presentation.recommendations[number]) =>
     item.recommendation.player.positionEvidence?.provider === "understat"
+      && !hasAbilityPositionEvidence(item.recommendation.player, item.recommendation.player.positionEvidence.targetPosition)
       && item.recommendation.player.positionEvidence.status === "compatible";
   const adjacentPositionLeads = presentation.recommendations.filter(isAdjacentPositionLead);
   const exactRoleRecommendations = presentation.recommendations.filter((item) => !isAdjacentPositionLead(item)
@@ -123,7 +127,9 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
     ? positionLabels[report.recommendations[0].player.position]
     : null;
   const unverifiedCapabilities = report.requestedCapabilityCoverage
-    .filter((area) => area.status === "missing" || area.status === "partial")
+    .filter((area) => (area.status === "missing" || area.status === "partial")
+      && (report.recommendations.length === 0 || report.recommendations.some((item) =>
+        !item.evidence.some((evidence) => area.requestedMetricKeys.includes(evidence.key)))))
     .map((area) => area.name);
   const missingCapabilityDescription = backgroundPosition === "门将" && unverifiedCapabilities.includes("门将专项能力")
     ? "扑救、出击或出球等门将专项表现数据"
@@ -158,7 +164,7 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
         <h2 id="report-outcome-title" className="m-0 text-3xl font-semibold tracking-tight sm:text-4xl">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? `发现 ${positionLeadCount} 条位置线索` : emptyShortlist.title : onlyAdjacentPositionLeads ? "发现相邻位置线索" : backgroundOnly ? "找到球员，尚待核实能力" : <>值得关注的 {evidenceBackedRecommendations.length} 位球员</>}</h2>
         <p className="m-0 max-w-3xl text-sm leading-7 text-muted-foreground">{report.recommendations.length === 0 ? hasUnverifiedPositionLeads ? "数据源找到了目标位置大类的球员，但没有提供足够细的场上位置信息。这些线索不会混入候选名单或参与比较。" : emptyShortlist.summary : onlyAdjacentPositionLeads ? "当前赛季只观察到这些球员出现在相邻位置，不能据此说他们符合你指定的位置。以下作为后续人工核验线索，不计入目标位置候选名单。" : backgroundOnly ? `现有记录缺少${missingCapabilityDescription}${referenceName ? `，还不能判断谁适合接替${referenceName}` : ""}。以下仅供补查。` : "按建议考察顺序展示。选择球员，可并排比较本轮重点指标。"}</p>
       </div>
-      {report.referenceNameSource?.resolvedName && <p className="m-0 rounded-lg border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">参考对象按 <strong className="text-foreground">{report.referenceNameSource.resolvedName}</strong> 处理{report.referenceNameSource.mention ? `（原始提及：“${report.referenceNameSource.mention}”）` : ""}。若对应有误，可在对话中纠正。 <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">核对身份来源</a></p>}
+      {report.referenceNameSource?.resolvedName && <p className="m-0 rounded-lg border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">参考对象按 <strong className="text-foreground"><bdi>{report.referenceNameSource.resolvedName}</bdi></strong> 处理{report.referenceNameSource.mention ? `（原始提及：“${report.referenceNameSource.mention}”）` : ""}。若对应有误，可在对话中纠正。 {report.referenceNameSource.url && <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">核对身份来源</a>}</p>}
       {reportBusy && <p role="status" className="m-0 border-l-2 border-primary pl-4 text-sm text-muted-foreground">{isWaiting ? "回答对话中的问题后继续；这里保留上一份报告。" : "正在调查，完成后将更新这份报告。"}</p>}
       {unverifiedCapabilities.length > 0 && !backgroundOnly && <p className="m-0 text-xs leading-6 text-muted-foreground"><span className="font-semibold text-foreground">待核实</span>　{unverifiedCapabilities.join("、")}缺少充分的直接证据。</p>}
     </CardHeader>
@@ -200,11 +206,11 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
         <div className={detailBodyClass}>{report.referenceProfiles.length > 0
           ? <ReferenceProfilesPanel profiles={report.referenceProfiles} />
           : <p>本轮读取的目标球队来源样本里没有找到可确认对应的表现记录。这只说明当前数据覆盖不足，不表示球员不存在；当前无法用这份样本与候选做统计对比。</p>}
-          {report.referenceNameSource && <p>身份依据：<a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">查看 Wikidata 条目</a></p>}
+          {report.referenceNameSource && <p>身份依据：{report.referenceNameSource.url ? <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">查看身份资料</a> : "已匹配本地球员记录；没有额外声明跨来源身份关联。"}</p>}
         </div>
       </details>}
       <details className={detailClass}><summary className={detailSummaryClass}>需求与证据覆盖</summary><div className={detailBodyClass}><RequestedCapabilityCoverage report={report} /></div></details>
-      <details className={detailClass}>
+      {!hasAbilityProfiles && <details className={detailClass}>
         <summary className={detailSummaryClass}><span>数据与来源依据</span><span className="text-xs font-normal text-muted-foreground">数据范围 · 检索条件 · 指标覆盖 · 外部来源</span></summary>
         <div className={detailBodyClass}>
           <DatasetScopeCard scope={report.datasetScope ?? describeDatasetScope(report.datasetMode)} showCoverageState snapshot={snapshot} showLimitations={false} />
@@ -213,6 +219,7 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
             scope.maxAge !== null ? `${scope.maxAge} 岁及以下` : null,
             scope.minimumMinutes > 0 ? `至少 ${scope.minimumMinutes} 分钟` : null,
             scope.competition ? `赛事 ${scope.competition}` : null,
+            scope.excludedCompetitions?.length ? `排除赛事 ${scope.excludedCompetitions.join("、")}` : null,
             scope.season ? `赛季 ${scope.season}` : null,
           ].filter(Boolean).join(" · ") || "未设位置、年龄或赛事赛季限制"}</li>)}</ul></section>}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -232,12 +239,14 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
             <small className="mt-2 block">方法资料用于理解角色和评估方法，不是球员表现证据。球员报告只补充定性观察，不直接计入能力评分；关联比赛指标也不代表整条观察已证实。</small>
           </></EvidenceNote>
         </div>
-      </details>
-      {report.understatTeamResearch && <UnderstatTeamResearchPanel research={report.understatTeamResearch} />}
-      {report.understatMatchResearch.map((research) => <UnderstatMatchResearchPanel key={research.matchId} research={research} />)}
-      {teamRosterContext && <TeamRosterContextPanel context={teamRosterContext} />}
-      {report.limitations.length > 0 && <details className={detailClass}><summary className={detailSummaryClass}>数据范围与风险</summary><ul className="m-0 list-disc space-y-2 border-t p-4 pl-9 text-sm leading-6 text-muted-foreground">{report.limitations.map((limitation, index) => <li key={`${limitation}-${index}`}>{limitation}</li>)}</ul></details>}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-primary" />{report.dataSource}</span></div>
+      </details>}
+      {hasAbilityProfiles && <details className={detailClass}><summary className={detailSummaryClass}>如何阅读这份名单</summary><div className={detailBodyClass}><p>职责评价依据相关属性计算；比赛表现保留各自的赛事、赛季与分钟样本。两者共同用于考察，缺少比赛记录的球员只展示能力画像。</p><p>球员年龄按出生日期计算。画像不提供当前合同、身价或可签约性，需要在进一步考察时确认。位置熟练度表示可承担的区域，不能替代近期实战观察。</p><p>本轮完成 {report.evidenceCoverage.evaluatedCandidateCount} 个候选的评估；名单覆盖本轮调查范围。可以继续对话，调整年龄、位置或能力重点。</p></div></details>}
+      {!hasAbilityProfiles && <>
+        {report.understatTeamResearch && <UnderstatTeamResearchPanel research={report.understatTeamResearch} />}
+        {report.understatMatchResearch.map((research) => <UnderstatMatchResearchPanel key={research.matchId} research={research} />)}
+        {teamRosterContext && <TeamRosterContextPanel context={teamRosterContext} />}
+        {report.limitations.length > 0 && <details className={detailClass}><summary className={detailSummaryClass}>数据范围与风险</summary><ul className="m-0 list-disc space-y-2 border-t p-4 pl-9 text-sm leading-6 text-muted-foreground">{report.limitations.map((limitation, index) => <li key={`${limitation}-${index}`}>{limitation}</li>)}</ul></details>}
+      </>}
     </CardContent>
   </Card>;
 }
@@ -248,11 +257,11 @@ function EvidenceNote({ title, children }: { title: string; children: ReactNode 
 
 function ReferenceProfilesPanel({ profiles }: { profiles: RecruitmentReport["referenceProfiles"] }) {
   return <section className="space-y-3" aria-label="参考球员画像">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="m-0 text-sm font-semibold">参考球员画像</h3><p className="mb-0 mt-1 text-xs leading-5 text-muted-foreground">目标球员已排除在候选名单外。这里只展示同来源记录中实际存在的指标。</p></div><Badge variant="outline">不作为候选</Badge></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="m-0 text-sm font-semibold">参考球员画像</h3><p className="mb-0 mt-1 text-xs leading-5 text-muted-foreground">参考球员已排除在名单外，可用他的特点对照候选。</p></div><Badge variant="outline">不作为候选</Badge></div>
     {profiles.map(profile => <Card className="gap-3 py-4" key={`${profile.playerId}:${profile.source}:${profile.season}`}>
-      <CardHeader className="px-4 py-0"><div className="flex flex-wrap items-baseline justify-between gap-2"><CardTitle className="text-base">{profile.name}</CardTitle><span className="text-xs text-muted-foreground">{profile.competition} · {profile.season} · {profile.minutes.toLocaleString()} 分钟</span></div><p className="m-0 text-xs text-muted-foreground">{profile.source}</p></CardHeader>
+      <CardHeader className="px-4 py-0"><div className="flex flex-wrap items-baseline justify-between gap-2"><CardTitle className="text-base">{profile.name}</CardTitle><span className="text-xs text-muted-foreground">{[profile.competition, profile.season, profile.competition || profile.season ? `${profile.minutes.toLocaleString()} 分钟` : "能力画像"].filter(Boolean).join(" · ")}</span></div></CardHeader>
       <CardContent className="px-4">{profile.metrics.length > 0 ? <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">{profile.metrics.map(metric => <div className="rounded-md bg-muted/70 p-2.5" key={metric.key} title={metric.definition}>
-        <dt className="text-xs text-muted-foreground">{metric.label}</dt><dd className="mb-0 mt-1 text-sm font-semibold tabular-nums">{formatMetric(metric.value)} <small className="font-normal text-muted-foreground">{metric.unit}</small></dd>
+        <dt className="text-xs text-muted-foreground">{friendlyMetricLabel(metric.label)}</dt><dd className="mb-0 mt-1 text-sm font-semibold tabular-nums">{formatMetric(metric.value)} <small className="font-normal text-muted-foreground">{metric.unit}</small></dd>
       </div>)}</dl> : <p className="m-0 text-xs leading-5 text-muted-foreground">本轮没有可直接对应目标能力的参考指标；位置和出场样本只作背景核对。</p>}</CardContent>
     </Card>)}
     <p className="m-0 text-xs text-muted-foreground">数据描述来源记录，不代表完整技术能力、适配分或未来表现。</p>
@@ -363,18 +372,17 @@ function CompareRecommendations({ recommendations, backgroundOnly, onClear }: { 
   return <Card size="sm" className="gap-0 overflow-hidden py-0" aria-label="推荐球员比较">
     <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3"><CardTitle className="text-sm">{backgroundOnly ? metricRows.length ? "背景数据对照" : "位置与样本对照" : "能力证据比较"}</CardTitle><Button type="button" variant="ghost" size="sm" onClick={onClear}>清除选择</Button></CardHeader>
     {backgroundOnly && <p className="mx-4 my-0 text-xs text-muted-foreground">当前缺少可直接验证目标能力的指标；这些记录和背景统计不能作为适配结论。</p>}
-    <CardContent className="px-0 pb-0"><p className="mx-4 mb-3 mt-0 text-xs leading-5 text-muted-foreground">数值按来源原样展示；不同联赛的表现不能直接视为能力高低。{hasUnscopedPositionMetrics ? "其中 Understat 位置分组未提供赛事范围，数值只作单人来源记录，不构成同联赛或候选排名。" : "样本与口径见球员详情。"}</p><div className="max-w-full overflow-x-auto overscroll-x-contain">
+    <CardContent className="px-0 pb-0"><p className="mx-4 mb-3 mt-0 text-xs leading-5 text-muted-foreground">职责属性按 /100 对照；比赛指标结合各自样本阅读。{hasUnscopedPositionMetrics ? "部分位置统计未报告赛事范围，不作同组排名。" : "缺失项保留为空，不按零分处理。"}</p><div className="max-w-full overflow-x-auto overscroll-x-contain">
       <Table className="min-w-[520px] text-xs">
         <TableHeader><TableRow><TableHead>比较维度</TableHead>{recommendations.map((item) => <TableHead className="min-w-32" key={item.player.playerId}>{item.player.name}</TableHead>)}</TableRow></TableHeader>
         <TableBody>
-          <TableRow><TableHead scope="row">出场样本</TableHead>{recommendations.map((item) => <TableCell key={item.player.playerId}>{item.player.minutes.toLocaleString()} 分钟</TableCell>)}</TableRow>
-          <TableRow><TableHead scope="row">赛事 / 赛季</TableHead>{recommendations.map((item) => <TableCell key={item.player.playerId}>{item.player.competition} · {item.player.season}</TableCell>)}</TableRow>
-          <TableRow><TableHead scope="row">数据来源</TableHead>{recommendations.map((item) => <TableCell key={item.player.playerId}>{item.player.source}</TableCell>)}</TableRow>
+          <TableRow><TableHead scope="row">比赛样本</TableHead>{recommendations.map((item) => <TableCell key={item.player.playerId}>{item.player.sourceIdentity?.provider === "fm" ? "未关联比赛记录" : `${item.player.minutes.toLocaleString()} 分钟`}</TableCell>)}</TableRow>
+          <TableRow><TableHead scope="row">赛事 / 赛季</TableHead>{recommendations.map((item) => <TableCell key={item.player.playerId}>{[item.player.competition, item.player.season].filter(Boolean).join(" · ") || "—"}</TableCell>)}</TableRow>
 
           {metricRows.map((metric) => <TableRow key={metric.key}><TableHead scope="row">{metric.label}</TableHead>{recommendations.map((item, index) => {
             const evidence = metric.values[index];
             const unavailableReason = evidence ? getPeerPercentileUnavailableReason({ minutes: evidence.minutes, recordedReason: evidence.peerPercentileUnavailableReason }) : undefined;
-            const comparison = unavailableReason === "competition_scope_unreported"
+            const comparison = evidence?.basis === "ability_profile" ? "职责属性评价" : unavailableReason === "competition_scope_unreported"
               ? "赛事范围未报告；不作同组排名"
               : evidence?.peerPercentile !== null && evidence?.peerPercentile !== undefined && unavailableReason === undefined ? `同组百分位 ${evidence.peerPercentile}` : "无可用百分位";
             return <TableCell key={item.player.playerId}>{evidence ? <>{formatMetric(evidence.value)} {evidence.unit}<small className="mt-1 block whitespace-normal leading-5 text-muted-foreground">{comparison}</small></> : "无数据"}</TableCell>;

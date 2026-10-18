@@ -56,8 +56,10 @@ test("candidate expansion decisions use a bounded timeout within the general mod
 test("LangChain sends the expansion token cap and Ollama reasoning setting in the request", async () => {
   const originalFetch = globalThis.fetch;
   const previousReasoningEffort = process.env.OPENAI_REASONING_EFFORT;
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
   let requestBody: Record<string, unknown> | undefined;
   process.env.OPENAI_REASONING_EFFORT = "none";
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
     return new Response(JSON.stringify({
@@ -78,8 +80,12 @@ test("LangChain sends the expansion token cap and Ollama reasoning setting in th
 
     assert.equal(requestBody?.max_tokens, 1_024);
     assert.equal(requestBody?.reasoning_effort, "none");
+    assert.equal(requestBody?.presence_penalty, 0);
+    assert.equal(requestBody?.frequency_penalty, 0);
   } finally {
     globalThis.fetch = originalFetch;
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
     if (previousReasoningEffort === undefined) delete process.env.OPENAI_REASONING_EFFORT;
     else process.env.OPENAI_REASONING_EFFORT = previousReasoningEffort;
   }

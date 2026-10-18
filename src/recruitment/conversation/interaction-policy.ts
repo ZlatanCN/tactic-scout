@@ -36,17 +36,17 @@ export function questionForAskPolicy(
 export function playerIdentityClarification(resolution: Exclude<PlayerNameResolution, { status: "resolved" }>, rawMention: string) {
   const mention = rawMention.trim() || resolution.mention;
   const reason = resolution.status === "unavailable"
-    ? "身份查询服务没有返回结果；服务故障不代表球员不存在。为了避免把相似姓名误认成同一人，需要补充线索或稍后重试。"
+    ? "查询暂不可用，不能把服务故障当作没有这位球员。"
     : resolution.status === "unresolved"
-      ? "当前别名与实体来源没有提供足够证据确认这个名字；不能仅凭模型记忆或姓名相似度猜测球员。"
-    : "身份线索尚未与用户提及建立足够可靠的唯一对应。确认前不会把任何候选当作参考球员，也不会据此排除候选名单中的球员。";
+      ? "现有名称线索不足以确认对象。补充一条球队、国家、位置或年代线索即可继续。"
+    : "这些是待确认的人选。确认后才会使用其资料比较，并从推荐中排除本人。";
   const question = resolution.status === "unavailable"
-    ? `我暂时无法核实“${mention}”指哪位球员。请补充他的外文全名、球队/位置/年代等线索，或稍后重试。`
+    ? `暂时无法核实“${mention}”。可以稍后重试，或补充一条球队、国家、位置或年代线索。`
     : resolution.status === "unresolved"
-      ? `我还不能可靠对应“${mention}”。请补充外文全名、球队、位置或大致年代；我不会按相似名字替你猜。`
+      ? `暂时没能对应“${mention}”。你记得他的球队、国家、位置或大致年代吗？`
       : resolution.status === "needs_confirmation"
         ? `“${mention}”可能指 ${resolution.candidates[0]?.preferredName}。请确认这是否是你说的球员。`
-        : `“${mention}”对应多个球员。请选择你指的对象，或补充球队、位置或年代。`;
+        : `“${mention}”有几个可能人选。请选择你指的对象，或补充一条线索。`;
   return {
     question,
     reason,
@@ -57,7 +57,7 @@ export function playerIdentityClarification(resolution: Exclude<PlayerNameResolu
       candidates: resolution.candidates.slice(0, 5).map(candidate => ({
         entityId: candidate.entityId,
         name: candidate.preferredName,
-        ...(candidate.description ? { description: candidate.description } : {}),
+        ...(candidate.description || candidate.match === "previous_confirmation" ? { description: [candidate.match === "previous_confirmation" ? "已有确认记录" : null, candidate.description].filter(Boolean).join(" · ") } : {}),
         sourceUrl: candidate.sourceUrl,
       })),
     } } : {}),

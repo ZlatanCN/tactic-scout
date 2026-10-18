@@ -138,9 +138,11 @@ export function createPlanningNode(input: {
       let modelAction: RecruitmentAction;
       try {
         modelAction = await planner.decide({
+          brief: state.brief,
           history: plannerHistory,
           dataMode: repository.mode,
           dataSource: repository.sourceName,
+          abilityProfilesEnabled: state.abilityProfilesEnabled,
           targetTeam: state.targetTeam,
           decisionMode,
           confirmedPosition: state.confirmedPosition,

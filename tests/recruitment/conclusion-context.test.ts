@@ -73,3 +73,30 @@ test("conclusion context stores shared candidate metadata once while preserving 
   assert.equal("minutes" in (firstMetric ?? {}), false);
   assert.equal("source" in (firstMetric ?? {}), false);
 });
+
+test("ability-profile instructions explicitly distinguish supplied role evidence from match statistics", async () => {
+  const { abilityProfileInstructions } = await import("../../src/recruitment/recruitment-planner.js");
+  assert.equal(abilityProfileInstructions(false), "");
+  const instructions = abilityProfileInstructions(true);
+  assert.match(instructions, /basis=ability_profile/);
+  assert.match(instructions, /availableStats=\[\]/);
+  assert.match(instructions, /不表示零能力/);
+  assert.match(instructions, /比赛统计/);
+});
+
+test("ability conclusion context retains values and basis without repeating match-only metadata or absent fusion scores", () => {
+  const evaluation = { playerId: "profile-1", name: "Fixture player", position: "ST", competition: "", season: "", minutes: 0, source: "fm",
+    roleFits: [{ role: "finisher", abilityFit: 82, performanceFit: null, combinedFit: null }, { role: "playmaker", abilityFit: 74, performanceFit: 60, combinedFit: 69 }],
+    metrics: [{ key: "abilityFinishing", basis: "ability_profile", value: 82, unit: "/100", definition: "Repeated definition ".repeat(30), minutes: null, peerPercentile: null, peerGroupSize: 0 }],
+  };
+  const history = [{ role: "tool" as const, toolName: "evaluate_candidates", content: JSON.stringify({ evaluations: [evaluation] }) }];
+  const compact = compactConclusionHistory(history, [{ requestedMetricKeys: ["abilityFinishing"] }]);
+  const result = JSON.parse(compact[0]!.content);
+  const player = result.evaluations[0];
+  assert.deepEqual(player.metrics, [{ key: "abilityFinishing", value: 82, unit: "/100", basis: "ability_profile" }]);
+  assert.equal(player.playerId, "profile-1");
+  assert.equal("minutes" in player, false);
+  assert.deepEqual(player.roleFits, []);
+  assert.match(result.note, /不.*实战表现/);
+  assert.ok(compact[0]!.content.length < history[0]!.content.length / 2);
+});

@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { PlayerPositionEvidenceSchema, PlayerPositionSchema, PositionSchema } from "./position-contracts.js";
+import { PlayerAbilityProfileSchema } from "./player-abilities.js";
 
 export const RawStatsSchema = z.object({
   goals: z.number().default(0),
@@ -137,6 +138,8 @@ export const SupplementaryPerformanceMetricSchema = z.object({
 export type SupplementaryPerformanceMetric = z.infer<typeof SupplementaryPerformanceMetricSchema>;
 
 export const PlayerProfileSchema = z.object({
+  birthDate: z.string().optional(),
+  abilityProfile: PlayerAbilityProfileSchema.optional(),
   playerId: z.string(),
   externalPlayerId: z.string().optional(),
   name: z.string(),

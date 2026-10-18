@@ -13,8 +13,11 @@ import {
 import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
 
 export interface RecruitmentCandidatePolicyState {
+  brief?: import("./brief.js").RecruitmentBrief | null;
+  replacementReferencePosition?: Position | null;
+  abilityProfilesEnabled?: boolean;
   referenceNameResolution?: import("../players/identity/name-resolver.js").PlayerNameResolution | null;
-  referenceProfiles?: Array<{ sourceIdentityKey: string }>;
+  referenceProfiles?: Array<{ sourceIdentityKey: string; supportedPositions?: Position[] }>;
   targetTeam: string | null;
   confirmedPosition: Position | null;
   confirmedPositions?: readonly Position[];
@@ -30,11 +33,15 @@ function userMessages(history: ConversationHistoryEntry[]): string[] {
 
 function currentIntent(state: RecruitmentCandidatePolicyState): CandidateSearchIntent {
   return resolveCandidateSearchIntent({
+    brief: state.brief,
+    replacementReferencePosition: state.replacementReferencePosition,
+    referencePositions: [...new Set(state.referenceProfiles?.flatMap(profile => profile.supportedPositions ?? []) ?? [])],
+    abilityProfilesEnabled: state.abilityProfilesEnabled,
     userMessages: userMessages(state.history),
     confirmedPosition: state.confirmedPosition,
     confirmedPositions: state.confirmedPositions,
     referenceNames: state.referenceNameResolution?.status === "resolved" ? state.referenceNameResolution.player.names : undefined,
-    referenceIdentityResolved: state.referenceNameResolution?.status === "resolved",
+    referenceIdentityResolved: state.referenceNameResolution?.status === "resolved" || Boolean(state.brief?.selectedCandidateId),
     referenceSourceIdentityKeys: state.referenceProfiles?.map(profile => profile.sourceIdentityKey),
   });
 }
@@ -53,7 +60,7 @@ function evaluatedPlayersForConstraint(
 }
 
 function preserveTargetTeam(action: ParsedRecruitmentAction, state: RecruitmentCandidatePolicyState): ParsedRecruitmentAction {
-  const targetTeam = state.targetTeam
+  const targetTeam = state.brief ? state.targetTeam : state.targetTeam
     ?? action.targetTeam
     ?? (action.action === "inspect_team" ? action.teamName : null);
   if (action.action === "finish") return FinishActionSchema.parse({ ...action, targetTeam });

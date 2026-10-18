@@ -1,9 +1,10 @@
+import { positionSearchForIntent } from "../candidate-search-intent.js";
 import { nextSelectedPositionInvestigation } from "./selected-position-investigation.js";
 import type { PlayerRepository } from "../../players/repository.js";
 import { isUnderstatFinePositionSearch } from "../../sources/understat/position-evidence.js";
 import { canProvideDetailedPositionEvidence } from "../../players/position-evidence.js";
 import { type Position } from "../../domain/position-contracts.js";
-import { playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
+import { hasAbilityPositionEvidence, playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { buildDecisionConstraints, conclusionPlannerOutputFallback, requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import type { ConversationHistoryEntry } from "../planner-context.js";
@@ -69,6 +70,7 @@ function policyHistory(action: ParsedRecruitmentAction, content: string): Conver
 function candidatesAwaitingUnderstatPositionEvidence(state: State, position: Position) {
   return Object.values(state.discoveredPlayers).filter((player) => {
     if (player.sourceIdentity?.provider !== "understat") return false;
+    if (hasAbilityPositionEvidence(player, position)) return false;
     if (!candidateMatchesSearchIntentForPositionRetrieval(player, resolvedCandidateSearchIntent(state))) return false;
     const evidence = player.positionEvidence;
     return evidence?.targetPosition !== position || evidence.status === "pending";
@@ -94,6 +96,27 @@ export function nextRequiredInvestigation(
     message,
     update: { responseMessage, pendingQuestion: null },
   });
+  if (state.briefFailure) return terminal("需求尚未可靠理解。", state.briefFailure, "需求理解未完成，可重试或补充描述");
+  const unsupportedRequired = state.brief?.constraints.filter(item => item.strength === "required" && (item.kind === "budget" || item.kind === "other"));
+  if (unsupportedRequired?.length) {
+    const requirement = unsupportedRequired.map(item => item.requirement.value).join("；");
+    const questionKey = JSON.stringify(unsupportedRequired.map(item => item.requirement.value).sort());
+    if (state.unsupportedConstraintQuestionKey === questionKey) return terminal("必要条件尚无法核验。",
+      `目前无法核验“${requirement}”，因此没有把任何球员作为满足这些硬要求的推荐。你可以将它改为待核实条件，或取消该条件后继续。`, "保留暂不可核验的硬要求，本轮已暂停推荐");
+    return { action: { action: "ask_user", targetTeam: state.targetTeam,
+      question: `“${requirement}”目前还不能由现有资料可靠筛选。你愿意改为待核实条件，先按位置和能力推荐，还是保留硬要求？`,
+      reason: "这项条件会改变候选资格，不能在未核验时声称推荐已满足。" }, message: "需要确认如何处理暂时无法核验的硬要求",
+      update: { unsupportedConstraintQuestionKey: questionKey } };
+  }
+  if (state.brief?.unresolved[0]) {
+    const clarification = state.brief.unresolved[0];
+    return { action: { action: "ask_user", targetTeam: state.targetTeam, question: clarification.question, reason: clarification.impact,
+      ...(clarification.topic === "position" ? { positionSelection: { highlight: null } } : {}) },
+      message: "有一项会影响找人方向的需求需要确认" };
+  }
+  if (state.brief?.referencePlayer && state.inspectedReferenceMention && state.referenceNameResolution?.status === "resolved" && !state.referenceProfiles.length) {
+    return terminal("已确认参考身份，但缺少可比较的球员画像。", `已确认你说的是${state.referenceNameResolution.player.preferredName}，但当前资料中没有他的可用画像，暂时无法可靠寻找相似球员。你可以补充希望保留的位置和特点，再按这些要求找人。`, "身份已确认，缺少参考画像");
+  }
   if (state.sourceAccessFailure) return terminal(
     `${source.sourceName} 当前数据请求被拒绝，本轮无法生成候选名单。`,
     `${source.sourceName} 的数据请求被拒绝（${state.sourceAccessFailure.code === "blocked" ? "HTTP 403" : "HTTP 429"}）。本轮无法读取球员数据；这不代表没有符合条件的球员。`,
@@ -125,7 +148,7 @@ export function nextRequiredInvestigation(
         "候选来源查询未成功，正在明确说明匹配情况未知",
       );
   }
-  if (intent.replacementRequest && state.targetTeam
+  if (!state.brief && intent.replacementRequest && state.targetTeam
     && state.toolUses.inspect_team < toolBudgets.inspect_team
     && state.inspectedReferenceMention !== normalizeSearchText(replacementTargetMention(userMessages(state.history)) ?? "")) {
     const action = RecruitmentActionSchema.parse({ action: "inspect_team", targetTeam: state.targetTeam, teamName: state.targetTeam });
@@ -133,7 +156,7 @@ export function nextRequiredInvestigation(
   }
   const identityResolution = state.referenceNameResolution;
   if (intent.replacementRequest && identityResolution && identityResolution.status !== "resolved") {
-    const rawMention = replacementTargetMention(userMessages(state.history)) ?? identityResolution.mention;
+    const rawMention = state.brief?.referencePlayer?.value ?? replacementTargetMention(userMessages(state.history)) ?? identityResolution.mention;
     const pendingQuestion = playerIdentityClarification(identityResolution, rawMention);
     const action = RecruitmentActionSchema.parse({ action: "ask_user", targetTeam: state.targetTeam,
       question: pendingQuestion.question, reason: pendingQuestion.reason });
@@ -214,9 +237,9 @@ export function nextRequiredInvestigation(
     }
 
     const roleLeads = discoveredPlayersForConstraint(state, intent);
-    const verifiedCandidates = roleLeads.filter((player) => player.sourceIdentity?.provider === "understat"
+    const verifiedCandidates = roleLeads.filter((player) => hasAbilityPositionEvidence(player, understatFinePosition) || (player.sourceIdentity?.provider === "understat"
       ? player.positionEvidence?.targetPosition === understatFinePosition && player.positionEvidence.status === "direct"
-      : playerPositionMatches(player, understatFinePosition));
+      : playerPositionMatches(player, understatFinePosition)));
     const adjacentRoleLeads = roleLeads.filter((player) => player.positionEvidence?.targetPosition === understatFinePosition
       && player.positionEvidence.status === "compatible");
     const hasMorePositionCandidates = constrainedPositionSearch.nextOffset !== null;
@@ -288,7 +311,7 @@ export function nextRequiredInvestigation(
   }
   if (options.deterministicSearchEnabled && (!needsMethodology || state.hasSearchedMethodology) && intent.position && state.candidateSearchObservations.length === 0) {
     const action = RecruitmentActionSchema.parse({ action: "search_candidates", targetTeam: state.targetTeam,
-      position: intent.position, playerName: null, maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes,
+      ...positionSearchForIntent(intent), playerName: null, maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes,
       competition: intent.competition, season: intent.season, offset: 0, limit: options.understatResearchMode ? 12 : 20 });
     return { action, message: "需求已有明确位置与可观察指标，直接读取首批候选", history: policyHistory(action, "没有角色解释缺口，跳过固定方法检索与冗余搜索规划；保留后续扩围和追问决策。") };
   }
@@ -307,6 +330,8 @@ export function nextRequiredInvestigation(
   }
   if (options.understatResearchMode !== "catalog_only"
     && understatResearchCandidates.length >= 2
+    && pendingCandidateIds.length > 0
+    && !pendingCandidateIds.some((id) => state.discoveredPlayers[id]?.abilityProfile)
     && state.toolUses.inspect_candidate_group < toolBudgets.inspect_candidate_group) return null;
   if (!confirmedPositionSearchPending && pendingCandidateIds.length > 0 && state.toolUses.evaluate_candidates < toolBudgets.evaluate_candidates) {
     if (needsReports && Object.keys(eligibleEvaluatedPlayers).length > 0 && unsearchedReportCandidates.length > 0 && state.toolUses.search_player_reports < toolBudgets.search_player_reports) {
@@ -329,7 +354,9 @@ export function nextRequiredInvestigation(
     const hasUnevaluatedReports = needsReports && Object.keys(eligibleEvaluatedPlayers).length > 0
       && unsearchedReportCandidates.length > 0
       && state.toolUses.search_player_reports < toolBudgets.search_player_reports;
-    if (pendingPositionEvidence.length > 0 && !canInspectPositionEvidence && pendingCandidateIds.length === 0 && !hasUnevaluatedReports) {
+    const inspectionCapabilityExists = Boolean(source.inspectCandidateGroup || source.inspectPlayer);
+    if (pendingPositionEvidence.length > 0 && !canInspectPositionEvidence && pendingCandidateIds.length === 0 && !hasUnevaluatedReports
+      && (inspectionCapabilityExists || Object.keys(eligibleEvaluatedPlayers).length === 0)) {
       const action = conclusionPlannerOutputFallback(buildDecisionConstraints({
         targetTeam: state.targetTeam,
         confirmedPosition: state.confirmedPosition ?? understatFinePosition,

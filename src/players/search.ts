@@ -1,18 +1,21 @@
 import { understatCatalogPositionGroupsFor } from "../sources/understat/position-evidence.js";
+import { competitionNamesMatch } from "../domain/competition-names.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
 import { type PlayerProfile } from "../domain/players.js";
 import { type PlayerPosition, type Position } from "../domain/position-contracts.js";
 import { observableMetricValue } from "../domain/performance-metrics.js";
-import { positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
+import { playerPositionMatches, positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 
 export interface PlayerSearchQuery {
+  referenceRoles?: { snapshotId: string; values: Record<string, number> };
   playerName: string | null;
   position: Position | null;
   positions?: readonly Position[];
   maxAge: number | null;
   minimumMinutes: number;
   competition: string | null;
+  excludedCompetitions?: readonly string[];
   season: string | null;
   offset: number;
   limit: number;
@@ -31,22 +34,23 @@ export interface PlayerSearchPage {
   discovery?: { strategy: "metric_cohort_round_robin" | "cohort_sample"; metricKeys: CapabilityMetricKey[]; populationRecords: number };
 }
 
-export type PlayerSearchFilter = "playerName" | "position" | "positionFamily" | "maxAge" | "minimumMinutes" | "competition" | "season";
+export type PlayerSearchFilter = "playerName" | "position" | "positionFamily" | "maxAge" | "minimumMinutes" | "competition" | "excludedCompetitions" | "season";
 
 export function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQuery): boolean {
-  if (query.playerName && !normalizeSearchText(player.name).includes(normalizeSearchText(query.playerName))) return false;
-  if (query.positions?.length && !query.positions.some((position) => positionMatchesRetrieval(
+  if (query.playerName && ![player.name, ...(player.abilityProfile?.aliases ?? [])].some((name) => normalizeSearchText(name).includes(normalizeSearchText(query.playerName!)))) return false;
+  if (query.positions?.length && !query.positions.some((position) => playerPositionMatches(player, position) || positionMatchesRetrieval(
     player.position, position, player.sourceIdentity?.positionGroups,
     player.sourceIdentity?.provider === "understat" ? understatCatalogPositionGroupsFor(position) : [],
     player.sourceIdentity?.provider === "understat",
   ))) return false;
-  if (!query.positions?.length && query.position && !(query.positionMatchMode === "family"
+  if (!query.positions?.length && query.position && !playerPositionMatches(player, query.position) && !(query.positionMatchMode === "family"
     ? positionMatchesRetrieval(player.position, query.position, player.sourceIdentity?.positionGroups,
       query.catalogPositionGroups, query.includeUnknownPosition)
     : matchesPositionFromCatalog(player.position, query.position, player.sourceIdentity?.positionGroups))) return false;
   if (player.minutes < query.minimumMinutes) return false;
   if (query.maxAge !== null && (player.age === null || player.age > query.maxAge)) return false;
-  if (query.competition && !normalizeSearchText(player.competition).includes(normalizeSearchText(query.competition))) return false;
+  if (query.competition && !competitionNamesMatch(player.competition, query.competition)) return false;
+  if (query.excludedCompetitions?.length && (!player.competition || query.excludedCompetitions.some(competition => competitionNamesMatch(player.competition, competition)))) return false;
   if (query.season && !normalizeSearchText(player.season).includes(normalizeSearchText(query.season))) return false;
   return true;
 }
@@ -68,6 +72,7 @@ export function searchLoadedPlayers(players: readonly PlayerProfile[], query: Pl
   if (query.maxAge !== null) appliedFilters.push("maxAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
   if (query.competition) appliedFilters.push("competition");
+  if (query.excludedCompetitions?.length) appliedFilters.push("excludedCompetitions");
   if (query.season) appliedFilters.push("season");
   return {
     players: page,
@@ -93,12 +98,12 @@ function orderDiscoveryCandidates(players: readonly PlayerProfile[], metricGroup
     const capabilityLanes = metricGroups.map(keys => interleave(keys.map(key => cohort.flatMap(player => {
       const value = observableMetricValue(player, key);
       const supplementary = player.supplementaryMetrics?.find(metric => metric.key === key);
-      const per90 = supplementary ? supplementary.normalization === "per90" : key !== "passCompletionPct";
+      const per90 = !key.startsWith("ability") && (supplementary ? supplementary.normalization === "per90" : key !== "passCompletionPct");
       const sampleMinutes = supplementary ? supplementary.sampleMinutes : player.minutes;
       // Discovery uses accumulated observed output, not a noisy tiny-sample rate.
       // Other denominators (percent, shot, possession time) cannot be reconstructed from match minutes.
       const support = per90 && sampleMinutes !== null ? value === undefined ? 0 : value * sampleMinutes / 90
-        : supplementary?.sampleAttempts ?? sampleMinutes ?? 0;
+        : key.startsWith("ability") ? 1 : supplementary?.sampleAttempts ?? sampleMinutes ?? 0;
       return value === undefined || !Number.isFinite(value) ? [] : [{ player, value, support }];
     }).sort((a, b) => b.support - a.support || b.value - a.value || b.player.minutes - a.player.minutes || stableId(a.player).localeCompare(stableId(b.player)))
       .map(({ player }) => player))));

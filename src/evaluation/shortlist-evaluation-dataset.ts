@@ -32,8 +32,15 @@ const AnswerKeySchema = z.object({
   packetId: z.string().trim().min(1),
   queryId: z.string().trim().min(1),
   snapshotSha256: z.string().regex(/^[a-f0-9]{64}$/i),
+  systemRuns: z.array(z.object({ systemId: z.string().trim().min(1), runId: z.string().trim().min(1) }).strict()).optional(),
   cards: z.array(AnswerKeyCardSchema).min(1),
 }).strict().superRefine((answerKey, context) => {
+  const declaredRuns = new Set<string>();
+  for (const [index, run] of (answerKey.systemRuns ?? []).entries()) {
+    const key = `${run.systemId}\u0000${run.runId}`;
+    if (declaredRuns.has(key)) context.addIssue({ code: "custom", path: ["systemRuns", index], message: "答案键包含重复系统运行。" });
+    declaredRuns.add(key);
+  }
   const cardIds = new Set<string>();
   const sourcePlayerIds = new Set<string>();
   const ranksBySystemRun = new Map<string, Set<number>>();
@@ -51,6 +58,7 @@ const AnswerKeySchema = z.object({
     const cardSystemRuns = new Set<string>();
     for (const [rankIndex, rank] of card.systemRanks.entries()) {
       const systemRun = `${rank.systemId}\u0000${rank.runId}`;
+      if (answerKey.systemRuns && !declaredRuns.has(systemRun)) context.addIssue({ code: "custom", path: ["cards", cardIndex, "systemRanks", rankIndex], message: "名次引用了未声明的系统运行。" });
       if (cardSystemRuns.has(systemRun)) {
         context.addIssue({ code: "custom", path: ["cards", cardIndex, "systemRanks", rankIndex], message: "答案键在同一卡片中包含重复系统运行。" });
       }
@@ -125,6 +133,7 @@ export function createShortlistQualityDataset(input: CreateShortlistQualityDatas
   if (adjudicationsByCard.size !== expectedCardIds.size) throw new Error("裁决必须覆盖全部匿名卡；证据不足时明确选择 unknown。");
 
   const rankings = new Map<string, Map<number, string>>();
+  for (const run of answerKey.systemRuns ?? []) rankings.set(`${run.systemId}\u0000${run.runId}`, new Map());
   for (const card of answerKey.cards) {
     for (const rank of card.systemRanks) {
       const systemRun = `${rank.systemId}\u0000${rank.runId}`;

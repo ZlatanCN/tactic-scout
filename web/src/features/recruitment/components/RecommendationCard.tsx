@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { UnderstatPlayerResearchPanel } from "./UnderstatResearchPanels";
 import { describePositionEvidenceLabel, positionLabels } from "./report-labels";
 import { formatMetric, peerComparisonLabel, playerEloIdentityText, sourceSampleLabel } from "./report-evidence-format";
+import { AbilityRecommendationCard } from "./AbilityRecommendationCard";
 
 export function RecommendationCard({ recommendation, backgroundOnly, rank, selected, selectionDisabled, comparisonAvailable, onToggle }: {
   recommendation: RecruitmentReport["recommendations"][number];
@@ -19,6 +20,7 @@ export function RecommendationCard({ recommendation, backgroundOnly, rank, selec
   onToggle: () => void;
 }) {
   const { player } = recommendation;
+  if (player.abilityProfile) return <AbilityRecommendationCard recommendation={recommendation} rank={rank} selected={selected} selectionDisabled={selectionDisabled} comparisonAvailable={comparisonAvailable} onToggle={onToggle} />;
   const focusEvidence = recommendation.evidence.filter((evidence) => recommendation.focusEvidenceKeys.includes(evidence.key));
   const staleFocusPercentile = focusEvidence.some((evidence) => evidence.peerPercentile !== null
     && getPeerPercentileUnavailableReason({

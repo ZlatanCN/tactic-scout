@@ -78,9 +78,17 @@ export function hasSpecificPositionEvidence(player: {
     && (evidence.status === "direct" || evidence.status === "compatible"));
 }
 
-/** Position-family profile labels can retrieve a fine-role candidate, but only source evidence can qualify it. */
+export function hasAbilityPositionEvidence(player: {
+  abilityProfile?: { positions: Partial<Record<Position, number>> };
+}, requested: Position): boolean {
+  return Boolean(player.abilityProfile && Object.entries(player.abilityProfile.positions)
+    .some(([position, rating]) => rating !== undefined && rating >= 15 && positionMatches(position as Position, requested)));
+}
+
+/** Position qualification may use verified profile familiarity or observed source position evidence. */
 export function playerPositionMatches(player: {
   position: PlayerPosition;
+  abilityProfile?: { positions: Partial<Record<Position, number>> };
   sourceIdentity?: {
     provider?: string;
     positionGroups?: Position[];
@@ -89,6 +97,7 @@ export function playerPositionMatches(player: {
   positionEvidence?: { provider: string; targetPosition: Position; status: string };
   positionEvidenceByPosition?: Partial<Record<Position, { provider: string; targetPosition: Position; status: string }>>;
 }, requested: Position): boolean {
+  if (hasAbilityPositionEvidence(player, requested)) return true;
   if (player.sourceIdentity?.provider === "understat") {
     if (positionFamilyFor(requested) === requested) {
       return positionMatches(player.position, requested)

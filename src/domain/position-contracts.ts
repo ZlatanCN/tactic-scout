@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { PlayerIdentityIdSchema, PlayerIdentitySourceUrlSchema } from "./player-identity.js";
 
 export const PositionSchema = z.enum(["GK", "DEF", "CB", "FB", "LB", "RB", "LWB", "RWB", "MID", "DM", "CM", "AM", "ATT", "WG", "LW", "RW", "ST"]);
 
@@ -19,10 +20,10 @@ export const PositionSelectionQuestionSchema = z.object({
 export type PositionSelectionQuestion = z.infer<typeof PositionSelectionQuestionSchema>;
 
 export const PlayerIdentityOptionSchema = z.object({
-  entityId: z.string().regex(/^Q\d+$/),
+  entityId: PlayerIdentityIdSchema,
   name: z.string().min(1),
   description: z.string().min(1).optional(),
-  sourceUrl: z.string().regex(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/),
+  sourceUrl: PlayerIdentitySourceUrlSchema.optional(),
 });
 
 export type PlayerIdentityOption = z.infer<typeof PlayerIdentityOptionSchema>;
@@ -38,8 +39,11 @@ export type PlayerIdentityQuestion = z.infer<typeof PlayerIdentityQuestionSchema
 
 export const PlayerIdentityAnswerSchema = z.object({
   questionId: z.string().uuid(),
-  entityId: z.string().regex(/^Q\d+$/),
-});
+  entityId: PlayerIdentityIdSchema,
+}).or(z.object({
+  questionId: z.string().uuid(),
+  rejectAll: z.literal(true),
+}));
 
 export type PlayerIdentityAnswer = z.infer<typeof PlayerIdentityAnswerSchema>;
 

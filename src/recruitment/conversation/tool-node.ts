@@ -117,6 +117,8 @@ export function createToolNode(input: {
         .slice(0, 10)
         .map(({ name: playerName, team, competition, season }) => ({ playerName, team, competition, season }))
       : [];
+    const similarityReference = state.brief?.task === "similarity"
+      ? state.referenceProfiles.find(profile => profile.abilitySnapshotId && profile.abilityRolePriorities) : undefined;
     const toolRequest: RecruitmentToolExecutionRequest = action.action === "search_player_reports"
       ? {
         ...action,
@@ -136,7 +138,7 @@ export function createToolNode(input: {
             : {}),
         }
         : action.action === "search_candidates"
-          ? { ...action, discoveryMetricGroups: requestedCapabilityEvidenceAreas(currentUserMessages).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
+          ? { ...action, ...(state.brief?.filters.excludedCompetitions.length ? { excludedCompetitions: state.brief.filters.excludedCompetitions } : {}), ...(similarityReference ? { referenceRoles: { snapshotId: similarityReference.abilitySnapshotId!, values: similarityReference.abilityRolePriorities! } } : {}), discoveryMetricGroups: requestedCapabilityEvidenceAreas(currentUserMessages, undefined, state.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
           : action.action === "inspect_team"
             ? {
               ...action,

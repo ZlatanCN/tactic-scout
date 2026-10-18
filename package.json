@@ -7,6 +7,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "eval:player-identity": "node --import tsx src/evaluation/player-identity-cli.ts",
     "dev": "tsx watch src/index.ts",
     "dev:web": "pnpm --filter @tactiscout/web dev",
     "build": "tsc -p tsconfig.json",
@@ -26,6 +27,7 @@
     "knowledge:purge-source": "tsx src/knowledge/cli.ts purge-source",
     "identity:reep": "tsx src/players/identity/cli.ts",
     "dataset:build": "node --import tsx src/datasets/build-cli.ts",
+    "dataset:import:fm": "node --import tsx src/sources/fm/import-cli.ts",
     "dataset:refresh": "node --import tsx src/datasets/refresh-cli.ts",
     "dataset:refresh:skillcorner": "node --import tsx src/datasets/refresh-skillcorner-cli.ts",
     "source:smoke:api-football": "node --import tsx src/sources/api-football/smoke-cli.ts",
@@ -34,7 +36,11 @@
     "source:smoke:soccersapi": "node --import tsx src/sources/soccersapi/smoke-cli.ts",
     "source:smoke:sportmonks": "node --import tsx src/sources/sportmonks/smoke-cli.ts",
     "start": "node dist/index.js",
-    "eval:agent-optimization": "node --import tsx src/evaluation/agent-optimization-cli.ts"
+    "eval:agent-optimization": "node --import tsx src/evaluation/agent-optimization-cli.ts",
+    "eval:fm-fusion": "node --import tsx src/evaluation/fm-fusion-cli.ts",
+    "export:fm-review": "node --import tsx src/evaluation/fm-fusion-review-cli.ts",
+    "eval:recruitment-understanding": "node --import tsx src/evaluation/recruitment-understanding-cli.ts",
+    "eval:recruitment-mechanisms": "node --import tsx src/evaluation/recruitment-mechanisms-cli.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",

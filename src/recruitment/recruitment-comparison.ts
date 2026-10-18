@@ -1,4 +1,5 @@
 import { CapabilityMetricDefinitions, SupplementaryCapabilityMetricDefinitions, type CapabilityMetricKey } from "../domain/capabilities.js";
+import { AbilityMetricDefinitions, abilityMetricValue } from "../domain/player-abilities.js";
 import { type TeamRosterContext } from "../domain/conversation.js";
 import { type PlayerProfile } from "../domain/players.js";
 import { type Position } from "../domain/position-contracts.js";
@@ -20,12 +21,15 @@ export interface ReferencePlayerProfile {
   season: string;
   minutes: number;
   metrics: Record<string, number>;
+  abilitySnapshotId?: string;
+  abilityRolePriorities?: Record<string, number>;
+  supportedPositions?: Position[];
 }
 
 /** Match exact aliases only; if one provider has multiple same-name identities, leave that source unresolved. */
 export function createReferencePlayerProfiles(players: readonly PlayerProfile[], messages: readonly string[], referenceNames: readonly string[] = []): ReferencePlayerProfile[] {
   const names = [...replacementTargetNames(messages), ...referenceNames.map(normalizeSearchText)];
-  const matches = players.filter(player => isReplacementTarget(player.name, names));
+  const matches = players.filter(player => [player.name, ...(player.abilityProfile?.aliases ?? [])].some((name) => isReplacementTarget(name, names)));
   const idsByProvider = new Map<string, Set<string>>();
   for (const player of matches) {
     const provider = player.sourceIdentity?.provider ?? player.source;
@@ -35,11 +39,18 @@ export function createReferencePlayerProfiles(players: readonly PlayerProfile[],
   }
   return matches.filter(player => (idsByProvider.get(player.sourceIdentity?.provider ?? player.source)?.size ?? 0) === 1).map(player => ({
     playerId: player.playerId, sourceIdentityKey: sourcePlayerIdentityKey(player), name: player.name, source: player.source,
-    provider: player.sourceIdentity?.provider ?? player.source, position: player.position,
+    provider: player.sourceIdentity?.provider ?? player.source, position: (() => {
+      const positions = Object.entries(player.abilityProfile?.positions ?? {}).sort((a, b) => b[1]! - a[1]!);
+      return positions[0] && positions[0][1]! >= 18 && positions[0][1] !== positions[1]?.[1]
+        ? positions[0][0] as Position : player.position;
+    })(),
+    supportedPositions: Object.entries(player.abilityProfile?.positions ?? {}).filter(([, rating]) => rating! >= 18).map(([position]) => position as Position),
     competition: player.competition, season: player.season, minutes: player.minutes,
+    ...(player.abilityProfile ? { abilitySnapshotId: player.abilityProfile.snapshotId, abilityRolePriorities: Object.fromEntries(player.abilityProfile.roles.filter(role => role.positionCompatible && role.fit !== null).map(role => [role.role, role.searchPriority])) } : {}),
     metrics: Object.fromEntries([
       ...Object.entries(player.eventDataComplete === false ? {} : toPer90(player)),
       ...(player.supplementaryMetrics ?? []).map(metric => [metric.key, metric.value] as const),
+      ...AbilityMetricDefinitions.map((definition) => [definition.key, abilityMetricValue(player.abilityProfile, definition.key)] as const),
     ].filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]))),
   }));
 }
@@ -86,9 +97,10 @@ export function resolveReplacementReferencePosition(input: {
   return distinctPositions.length === 1 ? distinctPositions[0]! : null;
 }
 
-const referenceMetricDefinitions = new Map([
+const referenceMetricDefinitions = new Map<CapabilityMetricKey, { key: CapabilityMetricKey; label: string; unit: string; definition?: string }>([
   ...CapabilityMetricDefinitions,
   ...SupplementaryCapabilityMetricDefinitions,
+  ...AbilityMetricDefinitions.map((definition) => ({ ...definition, unit: "/100" })),
 ].map(definition => [definition.key, definition] as const));
 
 export function reportReferenceProfile(profile: ReferencePlayerProfile): ReportReferenceProfile {
@@ -119,17 +131,22 @@ export function createReferenceComparisonNotes(
 ): string[] {
   const provider = candidate.player.sourceIdentity?.provider ?? candidate.player.source;
   return profiles
-    .filter(profile => profile.provider === provider
-      && profile.position === candidate.player.position
-      && profile.competition === candidate.player.competition
-      && profile.season === candidate.player.season)
     .flatMap(profile => candidate.evidence
       .filter(evidence => metricKeys.includes(evidence.key)
         && evidence.sourceScope !== "season_position_aggregate"
-        && typeof profile.metrics[evidence.key] === "number")
+        && typeof profile.metrics[evidence.key] === "number"
+        && (evidence.basis === "ability_profile"
+          ? profile.abilitySnapshotId !== undefined && profile.abilitySnapshotId === candidate.player.abilityProfile?.snapshotId
+          : profile.provider === provider && profile.position === candidate.player.position
+            && profile.competition === candidate.player.competition && profile.season === candidate.player.season))
       .slice(0, 4)
       .map(evidence => {
         const referenceValue = profile.metrics[evidence.key]!;
+        if (evidence.basis === "ability_profile") {
+          const difference = evidence.value - referenceValue;
+          const direction = Math.abs(difference) < 1 ? "接近" : difference > 0 ? "高于" : "低于";
+          return `${evidence.label}评价${direction}${profile.name}：${Math.round(evidence.value)}/100，对照 ${Math.round(referenceValue)}/100。`;
+        }
         const candidateSample = evidence.minutes === null ? "样本分钟未知" : `${Math.round(evidence.minutes)} 分钟样本`;
         return `${evidence.label}：候选 ${metricText(evidence.value)} ${evidence.unit}（${candidateSample}），参考球员 ${profile.name} ${metricText(referenceValue)} ${evidence.unit}（${Math.round(profile.minutes)} 分钟记录）。同来源、位置、赛事和赛季的观测差异，不代表能力优劣。`;
       }));
@@ -142,15 +159,19 @@ export function createCandidateComparison(candidates: readonly EvaluatedCandidat
     minutes: candidate.player.minutes,
     comparisons: candidate.evidence.filter(item => metricKeys.includes(item.key)).map(item => {
       const peers = item.sourceScope === "season_position_aggregate" ? [] : candidates.filter(peer => peer.player.playerId !== candidate.player.playerId
-        && peer.player.position === candidate.player.position
+        && (item.basis === "ability_profile"
+          ? candidate.player.abilityProfile?.snapshotId !== undefined && peer.player.abilityProfile?.snapshotId === candidate.player.abilityProfile.snapshotId
+          : peer.player.position === candidate.player.position
         && peer.player.competition === candidate.player.competition
         && peer.player.season === candidate.player.season
-        && (peer.player.sourceIdentity?.provider ?? peer.player.source) === (candidate.player.sourceIdentity?.provider ?? candidate.player.source))
+        && (peer.player.sourceIdentity?.provider ?? peer.player.source) === (candidate.player.sourceIdentity?.provider ?? candidate.player.source)))
         .flatMap(peer => peer.evidence.filter(evidence => evidence.key === item.key && evidence.unit === item.unit));
       return { key: item.key, label: item.label, value: item.value, unit: item.unit,
         comparedCandidateCount: peers.length,
         ...(peers.length ? { observedMinimum: Math.min(item.value, ...peers.map(peer => peer.value)), observedMaximum: Math.max(item.value, ...peers.map(peer => peer.value)) } : {}),
-        sampleWarning: "仅比较本轮同来源、位置、赛事和赛季的已评估样本；数值高低不等于战术适配。",
+        sampleWarning: item.basis === "ability_profile"
+          ? "仅比较同版能力画像中已评估的职责属性；数值高低不等于完整战术适配。"
+          : "仅比较本轮同来源、位置、赛事和赛季的已评估样本；数值高低不等于战术适配。",
       };
     }),
   }));

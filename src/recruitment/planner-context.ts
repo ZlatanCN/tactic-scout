@@ -1,4 +1,5 @@
 import { type CapabilityMetricKey, type RequestedCapabilityCoverage } from "../domain/capabilities.js";
+import { AbilityMetricDefinitions } from "../domain/player-abilities.js";
 
 export interface ConversationHistoryEntry {
   role: "user" | "assistant" | "tool";
@@ -41,12 +42,14 @@ export function compactConclusionHistory(
   const hasRequestedCapabilities = (requestedCapabilityCoverage?.length ?? 0) > 0;
   const requestedMetricKeys = new Set(requestedCapabilityCoverage?.flatMap(({ requestedMetricKeys: keys }) => keys) ?? []);
   const evaluatedPlayerIds = new Set<string>();
+  let hasAbilityEvidence = false;
   for (const entry of history) {
     if (entry.role !== "tool" || entry.toolName !== "evaluate_candidates") continue;
     try {
-      const result = JSON.parse(entry.content) as { evaluations?: Array<{ playerId?: unknown }> };
+      const result = JSON.parse(entry.content) as { evaluations?: Array<{ playerId?: unknown; metrics?: Array<{ basis?: unknown }> }> };
       for (const evaluation of result.evaluations ?? []) {
         if (typeof evaluation.playerId === "string") evaluatedPlayerIds.add(evaluation.playerId);
+        if (evaluation.metrics?.some((metric) => metric.basis === "ability_profile")) hasAbilityEvidence = true;
       }
     } catch {
       // Ignore malformed internal tool summaries; they do not affect candidate eligibility.
@@ -87,9 +90,9 @@ export function compactConclusionHistory(
           ...entry,
           content: JSON.stringify({
             ...result,
-            candidates,
+            candidates: hasAbilityEvidence ? [] : candidates,
             discoveredCandidateCount: result.candidates?.length ?? 0,
-            note: "仅列出本页中已评估的候选人；其余候选尚未评估，不可推荐。",
+            note: hasAbilityEvidence ? "候选姓名与指标统一见 evaluate_candidates；此处只保留分页事实。" : "仅列出本页中已评估的候选人；其余候选尚未评估，不可推荐。",
           }),
         }];
       } catch {
@@ -112,18 +115,23 @@ export function compactConclusionHistory(
           content: JSON.stringify({
             ...result,
             evaluations: (result.evaluations ?? []).map((evaluation) => {
-              const { metrics = [], ...player } = evaluation;
+              const { metrics = [], roleFits, ...player } = evaluation;
+              const requestedRoles = new Set(AbilityMetricDefinitions.filter((definition) => requestedMetricKeys.has(definition.key)).map((definition) => definition.role));
+              const abilityOnly = metrics.length > 0 && metrics.every((metric) => metric.basis === "ability_profile");
               return {
-                ...player,
+                ...(abilityOnly ? Object.fromEntries(["playerId", "name", "position", "age", "referenceSimilarity"].filter(key => player[key] !== undefined).map((key) => [key, player[key]])) : player),
+                ...(Array.isArray(roleFits) ? { roleFits: roleFits.filter((role) => role.performanceFit !== null && (!hasRequestedCapabilities || requestedRoles.has(role.role))) } : {}),
                 metrics: metrics
                   .filter((metric) => !hasRequestedCapabilities || requestedMetricKeys.has(metric.key as CapabilityMetricKey))
-                  .map((metric) => Object.fromEntries(Object.entries(metric).filter(([key, value]) => (
+                  .map((metric) => metric.basis === "ability_profile"
+                    ? Object.fromEntries(["key", "value", "unit", "basis"].map((key) => [key, metric[key]]))
+                    : Object.fromEntries(Object.entries(metric).filter(([key, value]) => (
                     !["competition", "season", "minutes"].includes(key)
                     && !(key === "source" && value === player.source)
                   )))),
               };
             }),
-            note: `${result.note ?? ""} 同一球员的赛事、赛季和样本分钟在球员字段中统一提供。`,
+            note: `${result.note ?? ""} 同一球员的赛事、赛季和样本分钟在球员字段中统一提供。${hasAbilityEvidence ? " basis=ability_profile 为 /100 职责属性评价，无比赛分钟或百分位；不能改写为实战表现。" : ""}`,
           }),
         }];
       } catch {

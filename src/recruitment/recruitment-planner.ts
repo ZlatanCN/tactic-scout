@@ -1,3 +1,5 @@
+import { normalizeModelTokenUsage, structuredModelText, type NormalizedModelTokenUsage } from "./model-output.js";
+export { normalizeModelTokenUsage, type NormalizedModelTokenUsage } from "./model-output.js";
 import {
   createChatModel,
   isChatModelTimeout,
@@ -22,9 +24,11 @@ export type { ConversationHistoryEntry } from "./planner-context.js";
 
 export interface RecruitmentPlanner {
   decide(input: {
+    brief?: import("./brief.js").RecruitmentBrief | null;
     history: ConversationHistoryEntry[];
     dataMode: DatasetMode;
     dataSource: string;
+    abilityProfilesEnabled?: boolean;
     targetTeam: string | null;
     decisionMode?: RecruitmentDecisionMode;
     confirmedPosition: Position | null;
@@ -50,46 +54,9 @@ export type RecruitmentPlannerResponseDiagnostics = {
   toolCallCount: number;
 };
 
-export interface NormalizedModelTokenUsage {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-}
-
 export interface RecruitmentPlannerUsageObservation extends NormalizedModelTokenUsage {
   callPhase: RecruitmentDecisionMode;
   outcome: "response" | "failed";
-}
-
-function record(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
-}
-
-function reportedTokenCount(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
-}
-
-function firstReportedTokenCount(...values: unknown[]): number | undefined {
-  return values.map(reportedTokenCount).find((value) => value !== undefined);
-}
-
-export function normalizeModelTokenUsage(response: unknown): NormalizedModelTokenUsage {
-  const structuredResponse = record(response);
-  const raw = record(structuredResponse?.raw) ?? structuredResponse;
-  const responseMetadata = record(raw?.response_metadata);
-  const providerUsage = record(responseMetadata?.usage);
-  const usageMetadata = record(raw?.usage_metadata);
-  const inputTokens = firstReportedTokenCount(providerUsage?.prompt_tokens, usageMetadata?.input_tokens);
-  const outputTokens = firstReportedTokenCount(providerUsage?.completion_tokens, usageMetadata?.output_tokens);
-  const totalTokens = firstReportedTokenCount(providerUsage?.total_tokens, usageMetadata?.total_tokens);
-
-  return {
-    ...(inputTokens !== undefined ? { inputTokens } : {}),
-    ...(outputTokens !== undefined ? { outputTokens } : {}),
-    ...(totalTokens !== undefined ? { totalTokens } : {}),
-  };
 }
 
 export const methodologySearchInstructions = [
@@ -102,6 +69,7 @@ export const methodologySearchInstructions = [
 
 const agentInstructions = [
   "你是一个对话式足球球探。用户通常只会用一句自然语言描述阵容问题；你负责先调查可用证据，再形成目标能力画像、比较候选人并提出有依据的推荐。",
+  "结构化 brief 是当前用户需求的权威摘要。similarity 任务无需目标球队：先读取参考画像，比较相同职责下的能力特点与表现，并排除参考本人。不得把相似理解成仅同位置，也不能把高分自动视为相似。replacement 沿用参考职责，除非用户明确改变。缺少球队、预算、年龄不构成追问理由。只执行 required 条件，preferred 用于排序解释；未支持的约束需明确说明，不宣称已经满足。",
   "每次只选择一个下一步 action。可调用 inspect_team、inspect_candidate_group、inspect_player、inspect_match、search_methodology、search_candidates、evaluate_candidates、search_player_reports；数据工具是否可用以当前来源和工具结果为准。调用内部数据工具不需要用户许可，禁止询问用户是否要调用某个工具（例如‘要不要读取这组球员资料’），应直接调用并继续调查。只有答案会实质改变候选范围、且不能通过已有数据或工具解决时，才调用 ask_user；证据足够时调用 finish。每轮总决策最多 16 步，并另有独立工具上限：inspect_team 2 次、inspect_candidate_group 4 次、inspect_player 3 次、inspect_match 2 次、search_methodology 2 次、search_candidates 4 次、evaluate_candidates 3 次、search_player_reports 3 次。必须根据每次工具结果重新决定下一步。",
   methodologySearchInstructions,
   "当决策上下文标记为 conclude 时，只能在 ask_user 与 finish 之间选择；这代表当前调查完成，且球员报告索引没有新证据。",
@@ -187,6 +155,15 @@ export function investigationInstructions(dataMode: DatasetMode): string {
   return [agentInstructions, ...sourceScopeInstructions(dataMode)].join("\n");
 }
 
+export function abilityProfileInstructions(enabled = false): string {
+  return enabled ? [
+    "本案另有球员能力画像。上述数据源的统计范围限制只适用于比赛统计，不限制工具实际返回的能力画像。",
+    "evaluate_candidates 中 basis=ability_profile 的 ability* 指标是已计算的职责属性评价（/100），可作为对应职责的推荐依据；roleFits 区分 abilityFit、performanceFit 与 combinedFit。只能引用工具给出的值，不自行计算或填补。",
+    "能力画像不适用比赛分钟门槛或比赛百分位；空赛事、空赛季、0 minutes 与 availableStats=[] 表示没有关联比赛记录，不表示零能力。能力画像与比赛表现分别解释，缺失分保持未知。",
+    "已确认的画像位置可支持职责筛选；近期比赛位置记录用于补充实战背景。画像没有当前球队、合同、身价或可签约性，不凭姓名补写这些信息。",
+  ].join("\n") : "";
+}
+
 export function expansionInstructions(options: {
   blockedQuestionRecovery?: boolean;
   positionBroadeningApproved?: boolean;
@@ -250,6 +227,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       includeRaw: true,
     });
     const context = JSON.stringify({
+      brief: "brief" in input ? input.brief : undefined,
       dataMode: input.dataMode,
       dataSource: input.dataSource,
       targetTeam: input.targetTeam,
@@ -266,7 +244,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       history: input.history,
     });
     try {
-      const systemInstructions = input.decisionMode === "conclude"
+      const baseInstructions = input.decisionMode === "conclude"
         ? conclusionInstructions(input.dataMode)
         : input.decisionMode === "expand" || input.decisionMode === "expand_recovery"
           ? expansionInstructions({
@@ -274,6 +252,9 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
             positionBroadeningApproved: input.positionBroadeningApproved,
           })
           : input.decisionMode === "reorient" ? reorientationInstructions() : investigationInstructions(input.dataMode);
+      const systemInstructions = [baseInstructions,
+        input.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
+        abilityProfileInstructions(input.abilityProfilesEnabled)].filter(Boolean).join("\n");
       let response: { raw?: unknown; parsed?: unknown };
       try {
         response = await actionModel.invoke([
@@ -298,17 +279,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           tool_calls?: unknown;
         } | undefined;
         const content = raw?.content;
-        const textParts = typeof content === "string"
-          ? [content]
-          : Array.isArray(content)
-            ? content.flatMap((part) => (
-              part && typeof part === "object" && (part as { type?: unknown }).type === "text"
-                && typeof (part as { text?: unknown }).text === "string"
-                ? [(part as { text: string }).text]
-                : []
-            ))
-            : [];
-        const modelText = textParts.join("\n").trim().replace(/^```(?:json)?\s*([\s\S]*?)```$/i, "$1").trim();
+        const modelText = structuredModelText(content);
         let output: unknown;
         let failure: RecruitmentPlannerResponseDiagnostics["failure"] | undefined;
         try {
@@ -340,7 +311,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
             contentKind: content === undefined ? "missing"
               : typeof content === "string" ? content.length === 0 ? "empty_text" : "text"
                 : Array.isArray(content) ? "blocks" : "other",
-            ...(content === undefined ? {} : { contentLength: textParts.join("\n").length }),
+            ...(content === undefined ? {} : { contentLength: structuredModelText(content).length }),
             ...(contentBlockTypes?.length ? { contentBlockTypes } : {}),
             ...(issuePaths?.length ? { issuePaths } : {}),
             ...(finishReason ? { finishReason } : {}),

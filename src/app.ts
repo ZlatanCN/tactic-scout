@@ -20,6 +20,7 @@ import { RecruitmentTurnCoordinator } from "./recruitment/turn-coordinator.js";
 export function createApp(options: CreateAppOptions = {}) {
   const app = Fastify({ logger: true });
   const playerRepository = options.playerRepository ?? createRepository();
+  if (playerRepository.close) app.addHook("onClose", async () => playerRepository.close!());
   const knowledgeBase = options.knowledgeBase ?? createLocalKnowledgeBase();
   const recruitmentKnowledge = createWebSearchKnowledgeRepository(knowledgeBase);
   const playerObservationLibrary = options.playerObservationLibrary ?? createPlayerObservationLibrary({

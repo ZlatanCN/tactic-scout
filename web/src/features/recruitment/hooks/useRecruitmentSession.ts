@@ -263,8 +263,8 @@ export function useRecruitmentSession() {
       setReportAt(updatedReportAt);
       setThreadId(request.caseId);
       setStatus(response.status);
-      setDraft("");
-      setTeamContext("");
+      setDraft(response.retryMessage ? text : "");
+      setTeamContext(response.retryMessage ? teamContext : "");
       setOriginalBrief(brief);
       setHasConversationState(true);
       setPendingTurnRequest(null);

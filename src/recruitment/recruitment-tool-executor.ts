@@ -32,7 +32,7 @@ export type RecruitmentToolExecutionRequest =
   | ToolAction<"inspect_player">
   | ToolAction<"inspect_candidate_group">
   | ToolAction<"inspect_match">
-  | (ToolAction<"search_candidates"> & { discoveryMetricGroups?: CapabilityMetricKey[][] })
+  | (ToolAction<"search_candidates"> & { discoveryMetricGroups?: CapabilityMetricKey[][]; referenceRoles?: import("../players/search.js").PlayerSearchQuery["referenceRoles"]; excludedCompetitions?: readonly string[] })
   | (ToolAction<"evaluate_candidates"> & {
     eligiblePlayers: PlayerProfile[];
     understatResearch?: Readonly<Record<string, UnderstatPlayerInsight>>;
@@ -52,7 +52,7 @@ export type RecruitmentToolExecutionResult =
   | { action: "inspect_player"; request: ToolAction<"inspect_player">; research: UnderstatPlayerInsight }
   | { action: "inspect_candidate_group"; request: ToolAction<"inspect_candidate_group">; research: UnderstatPlayerInsight[] }
   | { action: "inspect_match"; request: ToolAction<"inspect_match">; research: UnderstatMatchInsight }
-  | { action: "search_candidates"; request: ToolAction<"search_candidates"> & { discoveryMetricGroups?: CapabilityMetricKey[][] }; page: PlayerSearchPage }
+  | { action: "search_candidates"; request: Extract<RecruitmentToolExecutionRequest, { action: "search_candidates" }>; page: PlayerSearchPage }
   | {
     action: "evaluate_candidates";
     request: ToolAction<"evaluate_candidates"> & { eligiblePlayers: PlayerProfile[] };
@@ -109,6 +109,11 @@ export async function executeRecruitmentToolAction(
       const understatResearch = dependencies.repository.inspectTeamDetails
         ? await observeCancellation(signal, () => dependencies.repository.inspectTeamDetails!(request.teamName, signal))
         : undefined;
+      if (resolvedReference?.status === "resolved" && dependencies.repository.findPlayersByNames) {
+        const references = await dependencies.repository.findPlayersByNames(resolvedReference.player.names, signal);
+        const existing = new Set(players.map((player) => player.playerId));
+        players.push(...references.filter((player) => !existing.has(player.playerId)));
+      }
       throwIfAborted(signal);
       return {
         action: "inspect_team",
@@ -145,6 +150,8 @@ export async function executeRecruitmentToolAction(
         action: "search_candidates",
         request,
         page: await observeCancellation(signal, () => searchPlayerPage(dependencies.repository, {
+          ...(request.referenceRoles ? { referenceRoles: request.referenceRoles } : {}),
+          ...(request.excludedCompetitions?.length ? { excludedCompetitions: request.excludedCompetitions } : {}),
           playerName: request.playerName,
           position: request.position,
           ...(request.positions?.length ? { positions: request.positions } : {}),

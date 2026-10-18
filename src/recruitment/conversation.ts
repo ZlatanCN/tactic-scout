@@ -1,5 +1,9 @@
+import { createUnderstandingNode } from "./conversation/understanding-node.js";
+import { createRecruitmentBriefInterpreter } from "./brief-interpreter.js";
+import type { RecruitmentBriefInterpreter } from "./brief.js";
 import type { RecruitmentRetrievalMode } from "./conversation/retrieval-policy.js";
 import { createConfiguredPlayerNameResolver, type PlayerNameResolver } from "../players/identity/name-resolver.js";
+import { createPlayerNameVariantGenerator } from "./player-name-variants.js";
 import type { TeamRosterEnrichmentProvider } from "../sources/thesportsdb/roster.js";
 import { type BaseCheckpointSaver, Command, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { createConfiguredHistoricalArchive } from "../sources/reep/historical-archive-enrichment.js";
@@ -42,6 +46,7 @@ export type { RecruitmentPlanner, RecruitmentPlannerResponseDiagnostics } from "
 
 export function createRecruitmentConversation(input: {
   repository: PlayerRepository;
+  briefInterpreter?: RecruitmentBriefInterpreter;
   referenceNameResolver?: PlayerNameResolver;
   teamRosterEnrichment?: TeamRosterEnrichmentProvider;
   planner: RecruitmentPlanner;
@@ -56,6 +61,7 @@ export function createRecruitmentConversation(input: {
   experimentalDeterministicSearchMode?: "enabled" | "bypassed";
   experimentalRetrievalMode?: RecruitmentRetrievalMode;
   experimentalReferenceProfileMode?: "enabled" | "bypassed";
+  experimentalReferenceComparisonMode?: "enabled" | "bypassed";
   experimentalCandidateComparisonMode?: "enabled" | "bypassed";
   experimentalMethodologyReuseMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
@@ -77,7 +83,8 @@ export function createRecruitmentConversation(input: {
     ? createEmptyExternalSignalCoverage("disabled", playerEloSetup.reason)
     : createEmptyExternalSignalCoverage();
   const workflow = new StateGraph(RecruitmentState)
-    .addNode("record_user_turn", createRecordUserTurnNode({ disabledPlayerEloCoverage, historicalArchiveSetup }))
+    .addNode("record_user_turn", createRecordUserTurnNode({ disabledPlayerEloCoverage, historicalArchiveSetup, abilityProfilesEnabled: repository.supportsAbilityProfiles }))
+    .addNode("understand_request", createUnderstandingNode({ interpreter: input.briefInterpreter, repository, resolver: input.referenceNameResolver, observer, referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed" }))
     .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode }))
     .addNode("execute_tool", createToolNode({ repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords, methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed", ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}), referenceNameResolver: input.referenceNameResolver }))
     .addNode("wait_for_user", waitForUser)
@@ -86,7 +93,8 @@ export function createRecruitmentConversation(input: {
     .addNode("enrich_historical_archive", createHistoricalArchiveNode({ repository, historicalArchiveSetup }))
     .addNode("deliver_recommendation", createReportProjection({ repository, evidenceEvaluator, groupCandidateRecords, candidateComparisonEnabled: input.experimentalCandidateComparisonMode !== "bypassed", referenceProfileEnabled: input.experimentalReferenceProfileMode !== "bypassed" }))
     .addEdge(START, "record_user_turn")
-    .addEdge("record_user_turn", "choose_next_action")
+    .addEdge("record_user_turn", "understand_request")
+    .addEdge("understand_request", "choose_next_action")
     .addConditionalEdges("choose_next_action", (state: State) => {
       if (state.forcedLimitReached || state.policyLoopStopped) return "review";
       if (state.policyBlocked) return "replan";
@@ -100,7 +108,7 @@ export function createRecruitmentConversation(input: {
           && state.history.some((entry) => entry.role === "tool" && entry.toolName === "inspect_team");
         const unresolvedReferenceIdentity = state.action.action === "ask_user"
           && state.pendingQuestion?.input?.kind === "player_identity";
-        if (!state.hasInvestigated && !unresolvedReplacementPosition && !unresolvedReferenceIdentity) return "replan";
+        if (!state.hasInvestigated && !state.brief && !state.briefFailure && !unresolvedReplacementPosition && !unresolvedReferenceIdentity) return "replan";
         return state.action.action === "ask_user" ? "ask" : "review";
       }
       return "tool";
@@ -141,6 +149,8 @@ export function createRecruitmentConversation(input: {
             pendingQuestion: state.pendingQuestion,
             responseMessage: state.responseMessage,
             report: state.report,
+            brief: state.brief,
+            retryMessage: state.briefFailure ? state.history.filter(entry => entry.role === "user").at(-1)?.content : undefined,
           } : undefined,
           tasks: snapshot.tasks.map((task) => ({ interrupts: task.interrupts })),
         };
@@ -167,6 +177,7 @@ export function createRecruitmentConversation(input: {
 }
 
 export interface ConfiguredRecruitmentConversationOptions {
+  briefInterpreter?: RecruitmentBriefInterpreter;
   referenceNameResolver?: PlayerNameResolver;
   repository: PlayerRepository;
   teamRosterEnrichment?: TeamRosterEnrichmentProvider;
@@ -179,6 +190,7 @@ export interface ConfiguredRecruitmentConversationOptions {
   experimentalDeterministicSearchMode?: "enabled" | "bypassed";
   experimentalRetrievalMode?: RecruitmentRetrievalMode;
   experimentalReferenceProfileMode?: "enabled" | "bypassed";
+  experimentalReferenceComparisonMode?: "enabled" | "bypassed";
   experimentalCandidateComparisonMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
@@ -201,10 +213,13 @@ export function configuredRecruitmentConversation(
     return createRecruitmentConversation({
       repository,
       planner: plannerFactory(),
-      referenceNameResolver: options.referenceNameResolver ?? createConfiguredPlayerNameResolver(),
+      briefInterpreter: options.briefInterpreter ?? createRecruitmentBriefInterpreter(),
+      referenceNameResolver: options.referenceNameResolver ?? createConfiguredPlayerNameResolver(process.env, { repository,
+        variants: createPlayerNameVariantGenerator(usage => observer?.({ phase: "identity_usage", ...usage })) }),
       experimentalDeterministicSearchMode: options.experimentalDeterministicSearchMode ?? "enabled",
       experimentalRetrievalMode: options.experimentalRetrievalMode ?? "on_demand",
       experimentalReferenceProfileMode: options.experimentalReferenceProfileMode,
+      experimentalReferenceComparisonMode: options.experimentalReferenceComparisonMode,
       experimentalCandidateComparisonMode: options.experimentalCandidateComparisonMode,
       experimentalUnderstatResearchMode: options.experimentalUnderstatResearchMode,
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),

@@ -56,7 +56,9 @@ export class RecruitmentTurnCoordinator<Response> {
       expectsExistingState: input.expectsExistingState,
       positionUpdate: input.positionUpdate ? [...input.positionUpdate].sort() : undefined,
       positionAnswer: input.positionAnswer ? { questionId: input.positionAnswer.questionId, keepCurrent: input.positionAnswer.keepCurrent ?? false, positions: [...input.positionAnswer.positions].sort() } : undefined,
-      playerIdentityAnswer: input.playerIdentityAnswer ? { questionId: input.playerIdentityAnswer.questionId, entityId: input.playerIdentityAnswer.entityId } : undefined });
+      playerIdentityAnswer: input.playerIdentityAnswer ? ("rejectAll" in input.playerIdentityAnswer
+        ? { questionId: input.playerIdentityAnswer.questionId, rejectAll: true }
+        : { questionId: input.playerIdentityAnswer.questionId, entityId: input.playerIdentityAnswer.entityId }) : undefined });
     const existing = this.entries.get(key);
     if (existing) {
       if (existing.fingerprint !== fingerprint) return Promise.reject(new RecruitmentTurnIdConflictError());

@@ -1,11 +1,12 @@
 export const minimumMinutesForPercentileComparison = 900;
 
-export type PercentileUnavailableReason = "candidate_low_sample" | "candidate_sample_unknown" | "insufficient_peer_group" | "competition_scope_unreported";
+export type PercentileUnavailableReason = "candidate_low_sample" | "candidate_sample_unknown" | "insufficient_peer_group" | "competition_scope_unreported" | "ability_profile";
 
 export function getPeerPercentileUnavailableReason(input: {
   minutes: number | null;
   recordedReason?: PercentileUnavailableReason;
 }): PercentileUnavailableReason | undefined {
+  if (input.recordedReason === "ability_profile") return "ability_profile";
   if (input.recordedReason === "competition_scope_unreported") {
     return "competition_scope_unreported";
   }

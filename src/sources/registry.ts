@@ -14,6 +14,10 @@ import { StatsBombRepository } from "./statsbomb/provider.js";
 import { UnderstatPlayerRepository, UnderstatProviderError } from "./understat/provider.js";
 import { SqliteUnderstatSnapshotStore } from "./understat/data-gateway.js";
 import { WyscoutPlayerRepository } from "./wyscout/provider.js";
+import { existsSync } from "node:fs";
+import { FmProfileRepository } from "./fm/repository.js";
+import { FusedPlayerRepository } from "./fm/fused-repository.js";
+import { ReepIdentityRegistry } from "../players/identity/reep-registry.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -22,6 +26,19 @@ export function getConfiguredDataMode(): string {
 }
 
 export function createRepository(): PlayerRepository {
+  const base = createPerformanceRepository();
+  const profilePath = process.env.TACTISCOUT_FM_PROFILES_PATH?.trim();
+  if (!profilePath) return base;
+  const registryPath = path.resolve(process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH ?? ".data/reep/identity.sqlite");
+  const profiles = new FmProfileRepository(path.resolve(profilePath));
+  let registry: ReepIdentityRegistry | undefined;
+  try {
+    registry = existsSync(registryPath) ? new ReepIdentityRegistry(registryPath) : undefined;
+    return new FusedPlayerRepository(base, profiles, registry);
+  } catch (error) { profiles.close(); registry?.close(); throw error; }
+}
+
+function createPerformanceRepository(): PlayerRepository {
   const mode = getConfiguredDataMode();
   if (mode === "fbref") {
     const cacheLifetimeText = process.env.TACTISCOUT_FBREF_CACHE_TTL_MS;

@@ -1,3 +1,4 @@
+import { AbilityMetricDefinitions } from "../../../../../src/domain/player-abilities.js";
 import { useEffect, useState, type ChangeEvent } from "react";
 import {
   createShortlistReviewWorkspace,
@@ -161,10 +162,10 @@ export function ShortlistReviewWorkbench() {
       <a href="/" className={buttonVariants({ variant: "outline", size: "sm" })}>返回球探工作台</a>
     </div></header>
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-6 max-w-3xl"><Badge variant="secondary">独立评审</Badge><h1 className="mb-0 mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">只看比赛证据，独立判断适配。</h1><p className="mb-0 mt-2 text-sm leading-6 text-muted-foreground">评审包隐藏球员身份、球队、系统排名和模型解释。数据缺失时选“未知”，不要把未知当作不适合。</p></div>
+      <div className="mb-6 max-w-3xl"><Badge variant="secondary">独立评审</Badge><h1 className="mb-0 mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">只看证据，独立判断适配。</h1><p className="mb-0 mt-2 text-sm leading-6 text-muted-foreground">评审包隐藏球员身份、球队、系统排名和模型解释。数据缺失时选“未知”，不要把未知当作不适合。</p></div>
 
       {!session ? <Card className="mx-auto max-w-2xl">
-        <CardHeader><CardTitle>载入匿名评审包</CardTitle><CardDescription>卡片只展示冻结职责和比赛证据。答案键不是评审材料，导入时会被拒绝。</CardDescription></CardHeader>
+        <CardHeader><CardTitle>载入匿名评审包</CardTitle><CardDescription>卡片展示冻结职责、能力属性与比赛记录。答案键不是评审材料，导入时会被拒绝。</CardDescription></CardHeader>
         <CardContent className="space-y-4">
           <label className="grid gap-1.5 text-sm font-medium" htmlFor="reviewer-id">本机评审代号<span className="text-xs font-normal text-muted-foreground">不要填写姓名或邮箱</span></label>
           <Input id="reviewer-id" value={reviewerId} onChange={(event) => setReviewerId(event.target.value)} maxLength={80} autoComplete="off" />
@@ -186,7 +187,7 @@ export function ShortlistReviewWorkbench() {
             ["快照时间", new Date(session.packet.snapshot.asOf).toLocaleDateString("zh-CN")], ["评审代号", session.reviewerId], ["候选卡片", `${ratedCount} / ${cardCount} 已评分`],
           ].map(([label, value]) => <div className="grid grid-cols-[78px_minmax(0,1fr)] gap-2 py-2" key={label}><dt className="text-muted-foreground">{label}</dt><dd className="m-0 break-words">{value}</dd></div>)}</dl>
           <Progress value={cardCount ? (ratedCount / cardCount) * 100 : 0} aria-label="匿名候选评审进度" />
-          <p className="m-0 text-xs leading-5 text-muted-foreground">{session.packet.snapshot.attribution} · <a className="text-primary underline underline-offset-4" href={session.packet.snapshot.license.url} target="_blank" rel="noreferrer">{session.packet.snapshot.license.name}</a></p>
+          <p className="m-0 text-xs leading-5 text-muted-foreground">{session.packet.snapshot.attribution} · {session.packet.snapshot.license.url ? <a className="text-primary underline underline-offset-4" href={session.packet.snapshot.license.url} target="_blank" rel="noreferrer">{session.packet.snapshot.license.name}</a> : session.packet.snapshot.license.name}</p>
           <details className="rounded-md border px-3 py-2"><summary className="cursor-pointer text-xs font-medium">查看评审说明</summary><ul className="mb-0 mt-2 list-disc space-y-1 border-t pt-2 pl-5 text-xs leading-5 text-muted-foreground">{session.packet.reviewerInstructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ul></details>
           <p className="m-0 text-xs leading-5 text-muted-foreground">评分与匿名卡 ID 仅保存在此浏览器中。每位评审者应使用自己的代号和独立草稿；系统无法验证评审者身份或独立性。</p>
           <div className="grid gap-2"><Button type="button" variant="outline" size="sm" onClick={changeReviewer}>为另一位评审者新建草稿</Button><Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={clearCurrentReview}>清除此浏览器中的当前草稿</Button>
@@ -198,14 +199,14 @@ export function ShortlistReviewWorkbench() {
           {currentCard && <>
             <div className="flex items-center justify-between gap-3"><div><Badge variant="outline">匿名候选 {String(activeCardIndex + 1).padStart(2, "0")} / {String(cardCount).padStart(2, "0")}</Badge></div><Badge variant={currentRating === undefined ? "outline" : "secondary"}>{currentRating === undefined ? "待评" : "已保存"}</Badge></div>
             <Card className="gap-0">
-              <CardHeader><Badge variant="secondary" className="w-fit">冻结来源证据</Badge><CardTitle className="text-lg">比赛表现样本</CardTitle></CardHeader>
+              <CardHeader><Badge variant="secondary" className="w-fit">冻结来源证据</Badge><CardTitle className="text-lg">候选证据</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 {currentCard.performances.map((performance, performanceIndex) => <section className="space-y-3 border-t pt-4" key={`${performance.competition}:${performance.season}:${performanceIndex}`}>
                   <div className="flex flex-wrap items-baseline justify-between gap-2"><div className="flex flex-wrap items-baseline gap-2"><strong className="text-sm">{performance.competition}</strong><span className="text-xs text-muted-foreground">{performance.season}</span></div><span className="text-xs text-muted-foreground">{performance.position ?? "位置未知"}{performance.ageAtSeasonEnd === null ? " · 年龄未知" : ` · ${performance.ageAtSeasonEnd} 岁`}</span></div>
-                  <p className="m-0 text-xs text-muted-foreground">样本：{performance.sampleSize.minutes.toLocaleString()} 分钟 · {performance.sampleSize.matches} 场</p>
+                  <p className="m-0 text-xs text-muted-foreground">{performance.basis === "ability_profile" ? "职责属性评价，不适用比赛分钟" : `样本：${performance.sampleSize.minutes?.toLocaleString() ?? "未知"} 分钟 · ${performance.sampleSize.matches ?? "未知"} 场`}</p>
                   <div className="grid gap-2 sm:grid-cols-2">{performance.metrics.map((metric) => <article className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-lg border p-3 ${metric.status === "missing" ? "bg-muted/50" : "bg-card"}`} key={metric.key}>
                     <div><strong className="block text-base tabular-nums">{metric.status === "missing" || metric.value === null ? "未提供" : formatMetricValue(metric.value)}</strong><span className="text-[11px] text-muted-foreground">{metric.unit ?? ""}</span></div>
-                    <div className="min-w-0 text-xs leading-5"><span>{metric.definition ?? `指标 ${metric.key}`}</span><small className="mt-1 block text-[11px] text-muted-foreground">来源字段：{metric.sourceField ?? "未提供"}</small></div>
+                    <div className="min-w-0 text-xs leading-5"><strong className="block font-semibold">{metric.label ?? AbilityMetricDefinitions.find((definition) => definition.key === metric.key)?.label ?? metric.key}</strong><span className="text-muted-foreground">{metric.definition ?? "暂无指标说明"}</span>{metric.sourceField && <small className="mt-1 block text-[11px] text-muted-foreground">字段：{metric.sourceField}</small>}</div>
                     {metric.status === "missing" && <small className="col-span-2 text-[11px] text-amber-900">缺少数据不表示能力较差</small>}
                   </article>)}</div>
                 </section>)}

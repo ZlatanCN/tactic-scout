@@ -5,11 +5,15 @@ import { loadComparisonPlayers, loadPlayersByIds, type PlayerRepository } from "
 import { sourcePlayerKey } from "../players/identity/source-player-key.js";
 import { observableMetricValue as metricValue } from "../domain/performance-metrics.js";
 import { throwIfAborted } from "../domain/abort.js";
+import { AbilityMetricDefinitions, type CandidateRoleFit } from "../domain/player-abilities.js";
+import { combineRoleEvidence, FmRoleTemplates, type FmRoleId } from "../sources/fm/role-fit.js";
 import { understatPositionMetricsForPlayer, type UnderstatPlayerInsight } from "../sources/understat/research.js";
 
 export interface EvaluatedCandidate {
+  referenceSimilarity?: import("../domain/reference-similarity.js").ReferenceSimilarity;
   player: PlayerProfile;
   evidence: CapabilityEvidence[];
+  roleFits?: CandidateRoleFit[];
 }
 
 export interface RecruitmentEvaluationBatch {
@@ -33,6 +37,9 @@ export interface RecruitmentEvidenceEvaluator {
 
 function metricDefinitionsFor(player: PlayerProfile): Array<{ key: CapabilityMetricKey; label: string; unit: string }> {
   const definitions: Array<{ key: CapabilityMetricKey; label: string; unit: string }> = [...CapabilityMetricDefinitions];
+  for (const definition of AbilityMetricDefinitions) {
+    if (metricValue(player, definition.key) !== undefined) definitions.push({ ...definition, unit: "/100" });
+  }
   for (const definition of SupplementaryCapabilityMetricDefinitions) {
     if (player.supplementaryMetrics?.some((metric) => metric.key === definition.key)) definitions.push(definition);
   }
@@ -84,9 +91,20 @@ async function evaluatePlayers(
     const cohortKey = comparisonCohortKey(player);
     const peers = peerPool.filter((candidate) => candidate.eventDataComplete !== false
       && comparisonCohortKey(candidate) === cohortKey);
-    const evidence = metricDefinitionsFor(player).flatMap(({ key, label, unit }) => {
+    const evidence = metricDefinitionsFor(player).flatMap<CapabilityEvidence>(({ key, label, unit }) => {
       const value = metricValue(player, key);
       if (value === undefined) return [];
+      if (key.startsWith("ability")) {
+        const definition = AbilityMetricDefinitions.find((definition) => definition.key === key)!;
+        const assessment = player.abilityProfile!.roles.find((assessment) => assessment.role === definition.role)!;
+        return [{
+          key, label, value, unit, basis: "ability_profile" as const,
+          peerPercentile: null, peerGroupSize: 0, peerPercentileUnavailableReason: "ability_profile" as const,
+          minutes: null, competition: "", season: player.abilityProfile!.inGameDate, source: "fm",
+          sourceField: assessment.attributes.map((attribute) => `raw_attributes_${attribute.key}`).join(","),
+          definition: `${label}职责画像，依据${assessment.attributes.map((attribute) => attribute.key).join("、")}等属性计算；不是比赛产出或未来表现概率。`,
+        } satisfies CapabilityEvidence];
+      }
       const supplementary = player.supplementaryMetrics?.find((metric) => metric.key === key);
       const minutes = supplementary ? supplementary.sampleMinutes : player.minutes;
       const peerSamples = peers.flatMap((peer) => {
@@ -123,7 +141,20 @@ async function evaluatePlayers(
         ...(supplementary ? { sourceField: supplementary.sourceField } : {}),
       } satisfies CapabilityEvidence];
     });
-    return [player.playerId, { player, evidence }];
+    const roleFits = player.abilityProfile?.roles.filter((assessment) => assessment.positionCompatible).flatMap((assessment) => {
+      const template = FmRoleTemplates[assessment.role as FmRoleId];
+      if (!template) return [];
+      const performanceKeys: readonly CapabilityMetricKey[] = template.performance;
+      const performance = evidence.filter((item) => performanceKeys.includes(item.key) && item.peerPercentile !== null);
+      const performanceFit = performance.length ? performance.reduce((sum, item) => sum + item.peerPercentile!, 0) / performance.length : null;
+      return [{ role: assessment.role, label: assessment.label,
+        ...combineRoleEvidence(
+          { value: assessment.fit, coverage: assessment.attributeCoverage },
+          { value: performanceFit, coverage: performanceKeys.length ? performance.length / performanceKeys.length : 0 },
+        ),
+      }];
+    });
+    return [player.playerId, { player, evidence, ...(roleFits ? { roleFits } : {}) }];
   }));
   return { evaluations, observedPlayers: peerPool };
 }
@@ -133,6 +164,7 @@ function trimMetricZeros(value: string): string {
 }
 
 function describeEvidence(item: CapabilityEvidence): string {
+  if (item.basis === "ability_profile") return `${item.label}适配 ${Math.round(item.value)}/100。`;
   const value = Number.isInteger(item.value)
     ? item.value.toLocaleString()
     : Math.abs(item.value) < 0.1 ? trimMetricZeros(item.value.toFixed(4)) : item.value.toFixed(2);

@@ -1,35 +1,29 @@
 import { z } from "zod/v4";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { signalWithTimeout, throwIfAborted } from "../../domain/abort.js";
+import type { PlayerIdentityCandidate, PlayerIdentityContext } from "../../domain/player-identity.js";
+import { createPlayerIdentityResolver, type PlayerNameVariantGenerator } from "./player-identity-resolver.js";
+import { NameEvidenceStore } from "./name-evidence-store.js";
+import type { PlayerRepository } from "../repository.js";
+export type { PlayerIdentityCandidate } from "../../domain/player-identity.js";
 
-export type PlayerIdentityMatch =
-  | "exact_label"
-  | "exact_alias"
-  | "similar_name"
-  | "web_corroborated"
-  | "user_confirmed";
+export type PlayerIdentityMatch = PlayerIdentityCandidate["match"];
 
-export interface PlayerIdentityCandidate {
-  entityId: string;
-  sourceUrl: string;
-  names: string[];
-  preferredName: string;
-  description?: string;
-  match: PlayerIdentityMatch;
-}
-
-export type PlayerNameResolution =
+export type PlayerNameResolution = (
   | {
       status: "resolved";
       mention: string;
       player: PlayerIdentityCandidate;
-      resolutionMethod: "wikidata_exact" | "tavily_wikidata" | "user_confirmed";
+      resolutionMethod: "wikidata_exact" | "tavily_wikidata" | "user_confirmed" | "local_exact" | "verified_alias";
     }
   | { status: "ambiguous" | "needs_confirmation"; mention: string; candidates: PlayerIdentityCandidate[] }
   | { status: "unresolved"; mention: string }
-  | { status: "unavailable"; mention: string; source: "wikidata" | "tavily"; retryable: true };
+  | { status: "unavailable"; mention: string; source: "wikidata" | "tavily" | "model"; retryable: true }
+) & { nameLeads?: Array<{ name: string; sourceUrls: string[] }> };
 
-export type PlayerNameResolver = (mention: string, signal?: AbortSignal) => Promise<PlayerNameResolution>;
+export type PlayerNameResolver = ((mention: string, signal?: AbortSignal, context?: PlayerIdentityContext) => Promise<PlayerNameResolution>) & {
+  rememberConfirmation?(mention: string, player: PlayerIdentityCandidate, context: PlayerIdentityContext): void;
+};
 
 const label = z.object({ value: z.string() });
 const description = z.object({ value: z.string() });
@@ -51,6 +45,7 @@ const entityResponse = z.object({
           datavalue: z.object({ value: z.object({ id: z.string() }).passthrough() }).optional(),
         }),
       })).optional(),
+      P569: z.array(z.object({ mainsnak: z.object({ datavalue: z.object({ value: z.object({ time: z.string(), precision: z.number().optional() }).passthrough() }).optional() }) })).optional(),
     }).optional(),
   })),
 });
@@ -100,11 +95,14 @@ function candidateFromEntity(entityId: string, entity: z.infer<typeof entityResp
   const names = [...new Set([
     ...labels,
     ...Object.values(entity.aliases ?? {}).flatMap(items => items.map(item => item.value)),
-  ])];
+  ])].filter(name => name.length <= 160).slice(0, 99);
   const preferredName = entity.labels?.en?.value ?? entity.labels?.zh?.value ?? labels[0];
   if (!preferredName || !names.length) return null;
-  const candidate = { entityId, sourceUrl: "https://www.wikidata.org/wiki/" + entityId, names, preferredName };
-  const summary = entity.descriptions?.en?.value ?? entity.descriptions?.zh?.value;
+  const birth = entity.claims?.P569?.find(claim => claim.mainsnak.datavalue?.value.time.match(/^\+\d{4}-\d{2}-\d{2}T/)
+    && (claim.mainsnak.datavalue?.value.precision ?? 11) >= 11)?.mainsnak.datavalue?.value.time.slice(1, 11);
+  const candidate = { entityId, sourceUrl: "https://www.wikidata.org/wiki/" + entityId, names, preferredName, ...(birth ? { birthDate: birth } : {}) };
+  const summary = [...new Set([entity.descriptions?.["zh-hans"]?.value, entity.descriptions?.["zh-cn"]?.value,
+    entity.descriptions?.zh?.value, entity.descriptions?.["zh-hant"]?.value, entity.descriptions?.en?.value].filter(Boolean))].join(" · ");
   return summary ? { ...candidate, description: summary } : candidate;
 }
 
@@ -114,7 +112,7 @@ function resolveExactOrSuggest(mention: string, candidates: ScoredCandidate[]): 
     return {
       status: "resolved",
       mention,
-      player: { ...exact[0]!.player, match: exact[0]!.match },
+      player: { ...exact[0]!.player, names: [...new Set([mention, ...exact[0]!.player.names])].slice(0, 100), match: exact[0]!.match },
       resolutionMethod: "wikidata_exact",
     };
   }
@@ -133,10 +131,18 @@ function resolveExactOrSuggest(mention: string, candidates: ScoredCandidate[]): 
 export function createWikidataPlayerNameResolver(options: {
   fetchImpl?: typeof fetch;
   enableTypoSuggestions?: boolean;
+  now?: () => number;
+  positiveTtlMs?: number;
+  negativeTtlMs?: number;
 } = {}): PlayerNameResolver {
   const fetchImpl = options.fetchImpl ?? fetch;
   const enableTypoSuggestions = options.enableTypoSuggestions ?? true;
-  const cache = new Map<string, PlayerNameResolution>();
+  const cache = new Map<string, { result: PlayerNameResolution; expiresAt: number }>();
+  const now = options.now ?? Date.now;
+  function remember(key: string, result: PlayerNameResolution) {
+    if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+    cache.set(key, { result, expiresAt: now() + (result.status === "unresolved" ? options.negativeTtlMs ?? 30_000 : options.positiveTtlMs ?? 86_400_000) });
+  }
 
   async function request(parameters: Record<string, string>, signal?: AbortSignal): Promise<unknown> {
     const url = new URL("https://www.wikidata.org/w/api.php");
@@ -152,16 +158,18 @@ export function createWikidataPlayerNameResolver(options: {
     return JSON.parse(text);
   }
 
-  return async (mention, signal) => {
+  return async (mention, signal, context) => {
     throwIfAborted(signal);
     const key = normalizeSearchText(mention);
     if (!key || mention.length > 100) return { status: "unresolved", mention };
     const cached = cache.get(key);
-    if (cached) return { ...cached, mention };
+    if (cached && cached.expiresAt > now() && !context?.forceRecheck
+      && !(cached.result.status === "unresolved" && (context?.queryHint || context?.clues?.length))) return { ...cached.result, mention };
+    cache.delete(key);
 
     try {
       const languages = /\p{Script=Han}/u.test(mention) ? ["zh", "en", "de"] : ["en", "zh", "de"];
-      const searchResults = await Promise.all(languages.map(language => request({
+      const searchResponses = await Promise.allSettled(languages.map(language => request({
         action: "wbsearchentities",
         search: mention,
         language,
@@ -169,12 +177,19 @@ export function createWikidataPlayerNameResolver(options: {
         type: "item",
         limit: "10",
       }, signal)));
-      const ids = [...new Set(searchResults.flatMap(result => searchResponse.parse(result).search.map(hit => hit.id)))].slice(0, 20);
+      throwIfAborted(signal);
+      const searchResults = searchResponses.flatMap(result => {
+        if (result.status !== "fulfilled") return [];
+        const parsed = searchResponse.safeParse(result.value);
+        return parsed.success ? [parsed.data] : [];
+      });
+      if (!searchResults.length) throw new Error("Name lookup unavailable");
+      const ids = [...new Set(searchResults.flatMap(result => result.search.map(hit => hit.id)))].slice(0, 20);
 
       if (!ids.length) {
+        if (searchResults.length < languages.length) throw new Error("Name lookup incomplete");
         const empty: PlayerNameResolution = { status: "unresolved", mention };
-        if (cache.size >= 256) cache.delete(cache.keys().next().value!);
-        cache.set(key, empty);
+        remember(key, empty);
         return empty;
       }
 
@@ -203,8 +218,7 @@ export function createWikidataPlayerNameResolver(options: {
       });
       const result = resolveExactOrSuggest(mention, candidates);
       throwIfAborted(signal);
-      if (cache.size >= 256) cache.delete(cache.keys().next().value!);
-      cache.set(key, result);
+      remember(key, result);
       return result;
     } catch {
       throwIfAborted(signal);
@@ -216,6 +230,14 @@ export function createWikidataPlayerNameResolver(options: {
 interface TavilyPlayerNameHit {
   title?: unknown;
   url?: unknown;
+  content?: unknown;
+}
+
+/** Lexical bilingual leads only; every proposed name is still entity-verified. */
+function snippetNameLeads(text: unknown): string[] {
+  if (typeof text !== "string") return [];
+  const pattern = /(?<!\p{L})(\p{Lu}[\p{L}'’.-]*(?:\s+\p{Lu}[\p{L}'’.-]*){1,3})(?!\p{L})/gu;
+  return [...text.slice(0, 2000).matchAll(pattern)].map(match => match[1]!.trim()).filter(name => name.length <= 80).slice(0, 6);
 }
 
 function playerNameFromSearchTitle(title: string): string | null {
@@ -247,20 +269,22 @@ export function createTavilyBackedPlayerNameResolver(options: {
   const primaryResolver = options.primaryResolver ?? createWikidataPlayerNameResolver();
   const fetcher = options.fetcher ?? fetch;
 
-  return async (mention, signal) => {
+  return async (mention, signal, context) => {
     throwIfAborted(signal);
-    const exact = await primaryResolver(mention, signal);
-    if (exact.status === "resolved" || exact.status === "ambiguous") return exact;
+    const exact = await primaryResolver(mention, signal, context);
+    if (!context?.forceRecheck && (exact.status === "ambiguous" || exact.status === "resolved"
+      && (context?.clues ?? []).every(clue => normalizeSearchText(exact.player.description ?? "").includes(normalizeSearchText(clue.value))))) return exact;
     if (!apiKey || !mention.trim() || mention.length > 100) return exact;
 
     let tavilyUnavailable = false;
+    let nameLeads: Array<{ name: string; sourceUrls: string[] }> = [];
     try {
       const response = await fetcher("https://api.tavily.com/search", {
         method: "POST",
         redirect: "error",
         headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: (mention.trim() + " football player soccer").slice(0, 250),
+          query: [mention.trim(), ...(context?.clues ?? []).map(clue => clue.value), context?.queryHint, "football player soccer"].filter(Boolean).join(" ").slice(0, 250),
           topic: "general",
           search_depth: "basic",
           max_results: 8,
@@ -281,23 +305,31 @@ export function createTavilyBackedPlayerNameResolver(options: {
           if (!Array.isArray(results)) {
             tavilyUnavailable = true;
           } else {
-            const byName = new Map<string, { name: string; hosts: Set<string> }>();
+            const byName = new Map<string, { name: string; hosts: Set<string>; urls: Set<string> }>();
             for (const hit of results.slice(0, 8) as TavilyPlayerNameHit[]) {
               if (typeof hit.title !== "string" || typeof hit.url !== "string") continue;
               const host = resultHost(hit.url);
-              const name = playerNameFromSearchTitle(hit.title);
-              if (!host || !name) continue;
-              const key = normalizeSearchText(name);
-              if (!key) continue;
-              const entry = byName.get(key) ?? { name, hosts: new Set<string>() };
-              entry.hosts.add(host);
-              byName.set(key, entry);
+              if (!host) continue;
+              const names = [playerNameFromSearchTitle(hit.title), ...snippetNameLeads(hit.content)].filter((name): name is string => Boolean(name));
+              for (const name of names) {
+                const key = normalizeSearchText(name);
+                if (!key) continue;
+                const entry = byName.get(key) ?? { name, hosts: new Set<string>(), urls: new Set<string>() };
+                entry.hosts.add(host);
+                entry.urls.add(hit.url);
+                byName.set(key, entry);
+              }
             }
-            const corroborated = [...byName.values()].filter(item => item.hosts.size >= 2).slice(0, 5);
+            // Search popularity is recall evidence, not proof of the original alias.
+            const corroborated = [...byName.values()].sort((a, b) => (b.hosts.size + Number(/\p{Script=Latin}/u.test(b.name)))
+              - (a.hosts.size + Number(/\p{Script=Latin}/u.test(a.name)))).slice(0, 3);
+            nameLeads = corroborated.map(item => ({ name: item.name, sourceUrls: [...item.urls] }));
             const verified = await Promise.all(corroborated.map(item => primaryResolver(item.name, signal)));
             const entities = new Map<string, PlayerIdentityCandidate>();
+            const exactVerified = new Set<string>();
             for (const resolution of verified) {
               if (resolution.status === "resolved") {
+                exactVerified.add(resolution.player.entityId);
                 entities.set(resolution.player.entityId, { ...resolution.player, match: "web_corroborated" });
               } else if (resolution.status === "ambiguous" || resolution.status === "needs_confirmation") {
                 for (const candidate of resolution.candidates) {
@@ -307,10 +339,14 @@ export function createTavilyBackedPlayerNameResolver(options: {
             }
             throwIfAborted(signal);
             if (entities.size === 1) {
+              const player = entities.values().next().value!;
+              if (!exactVerified.has(player.entityId) || !player.names.some(name => normalizeSearchText(name) === normalizeSearchText(mention))) {
+                return { status: "needs_confirmation", mention, candidates: [player] };
+              }
               return {
                 status: "resolved",
                 mention,
-                player: entities.values().next().value!,
+                player,
                 resolutionMethod: "tavily_wikidata",
               };
             }
@@ -323,17 +359,22 @@ export function createTavilyBackedPlayerNameResolver(options: {
       tavilyUnavailable = true;
     }
 
-    if (exact.status === "needs_confirmation") return exact;
-    if (tavilyUnavailable) return { status: "unavailable", mention, source: "tavily", retryable: true };
-    return exact;
+    if (exact.status === "needs_confirmation") return { ...exact, nameLeads };
+    if (tavilyUnavailable) return { status: "unavailable", mention, source: "tavily", retryable: true, nameLeads };
+    return { ...exact, nameLeads };
   };
 }
 
-export function createConfiguredPlayerNameResolver(environment: NodeJS.ProcessEnv = process.env): PlayerNameResolver {
+export function createConfiguredPlayerNameResolver(environment: NodeJS.ProcessEnv = process.env, options?: {
+  repository: PlayerRepository;
+  variants?: PlayerNameVariantGenerator;
+}): PlayerNameResolver {
   const wikidataResolver = createWikidataPlayerNameResolver();
   const apiKey = environment.TAVILY_API_KEY?.trim();
-  if (environment.TACTISCOUT_TAVILY_IDENTITY_SEARCH_ENABLED !== "true" || !apiKey) return wikidataResolver;
-  return createTavilyBackedPlayerNameResolver({ apiKey, primaryResolver: wikidataResolver });
+  const external = environment.TACTISCOUT_TAVILY_IDENTITY_SEARCH_ENABLED === "true" && apiKey
+    ? createTavilyBackedPlayerNameResolver({ apiKey, primaryResolver: wikidataResolver }) : wikidataResolver;
+  return options ? createPlayerIdentityResolver({ ...options, external,
+    store: new NameEvidenceStore(environment.TACTISCOUT_NAME_EVIDENCE_PATH ?? ".data/identity/name-evidence.sqlite") }) : external;
 }
 
 export function selectPlayerIdentityCandidate(

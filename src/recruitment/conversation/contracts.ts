@@ -5,6 +5,9 @@ import { type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentPlannerUsageObservation } from "../recruitment-planner.js";
 
 export type RecruitmentTraceEvent =
+  | { phase: "brief_failure"; failureKind: string; validationFailure?: string; issuePaths?: string[] }
+  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
   | { phase: "tool_reuse"; toolName: "search_methodology"; resultCount: number; reason: "successful_same_turn_query" }
   | {

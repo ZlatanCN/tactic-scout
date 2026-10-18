@@ -2,7 +2,7 @@ import { createCandidateComparison, createReferenceComparisonNotes, reportRefere
 import { type PlayerRepository } from "../../players/repository.js";
 import { describeDatasetScope } from "../../domain/dataset-scope.js";
 import { minimumMinutesForPercentileComparison } from "../../domain/evidence-comparison.js";
-import { playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
+import { hasAbilityPositionEvidence, playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
 import { isUnderstatFinePositionSearch } from "../../sources/understat/position-evidence.js";
 import { type CandidateIdentityResolutionStatus } from "../../domain/identity.js";
 import { type PlayerProfile } from "../../domain/players.js";
@@ -144,8 +144,8 @@ function positionLeadRecords(state: State): Array<{ player: PlayerProfile; statu
 }
 
 function hasLowSampleEvidence({ player, evidence }: EvaluatedPlayer): boolean {
-  return player.minutes < minimumMinutesForPercentileComparison
-    || evidence.some((item) => item.minutes !== null && item.minutes < minimumMinutesForPercentileComparison);
+  return (player.eventDataComplete !== false && player.minutes < minimumMinutesForPercentileComparison)
+    || evidence.some((item) => item.basis !== "ability_profile" && item.minutes !== null && item.minutes < minimumMinutesForPercentileComparison);
 }
 
 function reportNeedSummary(value: string, history: State["history"], recommendationCount: number): string {
@@ -168,7 +168,7 @@ function limitationsFor(
   evaluator: RecruitmentEvidenceEvaluator,
 ): string[] {
   const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
-  const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), resolvedCandidateSearchIntent(state).position);
+  const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), resolvedCandidateSearchIntent(state).position, state.abilityProfilesEnabled);
   const limitations = action.limitationKeys.map((key) => limitationDescriptions[key]);
   const identityCoverage = summarizeCandidateIdentityGroupReferences(state.candidateIdentityGroups);
   const identityStatusCount = (status: CandidateIdentityResolutionStatus) => (
@@ -260,7 +260,7 @@ function limitationsFor(
     && player.positionEvidence.sourceScope === "season_position_aggregate")) {
     limitations.push("Understat 位置标签按赛季与位置分组，未提供赛事拆分；它表示该球员当季有此位置记录，不能确认标签来自当前候选记录所对应的联赛。");
   }
-  if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some(({ player }) => player.eventDataComplete === false)) {
+  if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some(({ player }) => player.eventDataComplete === false && !player.abilityProfile)) {
     limitations.push("部分球员缺少一场或多场比赛的事件文件；这些球员只作为候选线索，不提供比赛表现指标或推荐依据。");
   }
   if (!state.evidenceEvaluationWithheld && eligibleEvaluatedPlayers.some((candidate) => evaluator.coverage(candidate).hasMissingMetrics)) {
@@ -308,6 +308,7 @@ export function createReportProjection(input: {
 }) {
   const { repository, evidenceEvaluator, groupCandidateRecords } = input;
   return (state: State): Partial<State> => {
+    if (state.briefFailure) return { report: null, responseMessage: state.briefFailure };
     const action = state.action?.action === "finish" ? state.action : emptyDecision(state.targetTeam);
     const eligibleEvaluatedPlayers = evaluatedPlayersForConstraint(state);
     const candidateIdentityGroups = candidateIdentityGroupReferencesFor(state, groupCandidateRecords);
@@ -319,12 +320,13 @@ export function createReportProjection(input: {
     const requestedPosition = state.confirmedPositions.length > 1 ? null : resolvedCandidateSearchIntent(state).position;
     const allPositionLeadRecords = positionLeadRecords(state);
     const positionLeads = allPositionLeadRecords.slice(0, 12);
-    const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), requestedPosition);
-    const backgroundOnly = requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
+    const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), requestedPosition, state.abilityProfilesEnabled);
+    const backgroundOnly = !state.referenceProfiles.length && requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
     const recommendedIds = new Set(action.recommendations.map(({ playerId }) => playerId));
     const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && (requestedPosition || state.confirmedPositions.length > 1)
       ? Object.values(eligibleEvaluatedPlayers)
         .filter(({ player, evidence }) => player.positionEvidence?.provider === "understat"
+          && !hasAbilityPositionEvidence(player, player.positionEvidence.targetPosition)
           && (player.positionEvidence.targetPosition === requestedPosition || state.confirmedPositions.includes(player.positionEvidence.targetPosition as typeof state.confirmedPositions[number]))
           && player.positionEvidence.status === "compatible"
           && !recommendedIds.has(player.playerId))
@@ -342,6 +344,7 @@ export function createReportProjection(input: {
         const evaluated = eligibleEvaluatedPlayers[item.playerId]!;
         const adjacentPositionLead = (repository.mode === "understat" || repository.mode === "mosaic")
           && evaluated.player.positionEvidence?.provider === "understat"
+          && !hasAbilityPositionEvidence(evaluated.player, evaluated.player.positionEvidence.targetPosition)
           && (evaluated.player.positionEvidence.targetPosition === requestedPosition || state.confirmedPositions.includes(evaluated.player.positionEvidence.targetPosition as typeof state.confirmedPositions[number]))
           && evaluated.player.positionEvidence.status === "compatible";
         const identityGroup = identityGroupForPlayer(item.playerId);
@@ -378,8 +381,8 @@ export function createReportProjection(input: {
           ...(adjacentPositionLead
             ? [`当前赛季只观察到相邻位置标签 ${evaluated.player.positionEvidence!.sourceCodes.join(" / ")}；此线索不计入${positionLabels[evaluated.player.positionEvidence!.targetPosition]}名单，也不参与同位置比较。`]
             : []),
-          ...(evaluated.player.minutes < minimumMinutesForPercentileComparison
-            || evaluated.evidence.some((evidence) => evidence.minutes !== null
+          ...((evaluated.player.eventDataComplete !== false && evaluated.player.minutes < minimumMinutesForPercentileComparison)
+            || evaluated.evidence.some((evidence) => evidence.basis !== "ability_profile" && evidence.minutes !== null
               && evidence.minutes < minimumMinutesForPercentileComparison)
             ? [`部分出场或指标样本少于 ${minimumMinutesForPercentileComparison} 分钟，每 90 分钟数据可能受小样本影响；对应指标不显示百分位。`]
             : []),
@@ -400,13 +403,17 @@ export function createReportProjection(input: {
         ];
         return {
           player: evaluated.player,
-          ...(state.confirmedPositions.length ? { matchedPositions: state.confirmedPositions.filter((position) => evaluated.player.sourceIdentity?.provider === "understat"
-            ? evaluated.player.positionEvidenceByPosition?.[position]?.status === "direct"
-            : playerPositionMatches(evaluated.player, position)) } : {}),
+          ...(evaluated.referenceSimilarity ? { referenceSimilarity: evaluated.referenceSimilarity } : {}),
+          ...(evaluated.roleFits ? { roleFits: evaluated.roleFits } : {}),
+          ...(state.confirmedPositions.length ? { matchedPositions: state.confirmedPositions.filter((position) => evaluated.player.abilityProfile
+            ? playerPositionMatches(evaluated.player, position)
+            : evaluated.player.sourceIdentity?.provider === "understat"
+              ? evaluated.player.positionEvidenceByPosition?.[position]?.status === "direct"
+              : playerPositionMatches(evaluated.player, position)) } : {}),
           comparisonNotes: input.candidateComparisonEnabled === false || backgroundOnly || adjacentPositionLead ? [] : createCandidateComparison(Object.values(eligibleEvaluatedPlayers), item.evidenceKeys)
             .find(candidate => candidate.playerId === item.playerId)?.comparisons
             .filter(comparison => comparison.comparedCandidateCount > 0).slice(0, 3)
-            .map(comparison => `${comparison.label} ${comparison.value} ${comparison.unit}；本轮同来源、位置、赛事和赛季 ${comparison.comparedCandidateCount + 1} 名已评估候选的观测范围为 ${comparison.observedMinimum}–${comparison.observedMaximum}。仅作有限样本比较，不是适配排名。`) ?? [],
+            .map(comparison => `${comparison.label} ${comparison.value} ${comparison.unit}；${comparison.key.startsWith("ability") ? "同版能力画像" : "本轮同来源、位置、赛事和赛季"} ${comparison.comparedCandidateCount + 1} 名已评估候选的观测范围为 ${comparison.observedMinimum}–${comparison.observedMaximum}。仅作有限样本比较，不是适配排名。`) ?? [],
           referenceComparisonNotes: input.referenceProfileEnabled === false || backgroundOnly || adjacentPositionLead ? [] : createReferenceComparisonNotes(evaluated, state.referenceProfiles, item.evidenceKeys),
           identityResolution: {
             status: identityGroup?.status ?? "missing_source_identity" as const,
@@ -476,7 +483,7 @@ export function createReportProjection(input: {
     ))).values()];
     const report = RecruitmentReportSchema.parse({
       ...(state.confirmedPositions.length ? { requestedPositions: state.confirmedPositions, positionCoverage: state.confirmedPositions.map((position) => ({
-        position, confirmedCandidates: Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, resolvedCandidateSearchIntent(state)) && (player.sourceIdentity?.provider === "understat" ? player.positionEvidenceByPosition?.[position]?.status === "direct" : playerPositionMatches(player, position))).length,
+        position, confirmedCandidates: Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, resolvedCandidateSearchIntent(state)) && (hasAbilityPositionEvidence(player, position) || (player.sourceIdentity?.provider === "understat" ? player.positionEvidenceByPosition?.[position]?.status === "direct" : playerPositionMatches(player, position)))).length,
         searched: state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex).some((observation) => observation.request.position === position || observation.request.positions?.includes(position)),
         hasMore: state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex).at(-1)?.nextOffset !== null && state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex).at(-1)?.nextOffset !== undefined,
       })) } : {}),
@@ -495,7 +502,7 @@ export function createReportProjection(input: {
         ? { entityId: state.referenceNameResolution.player.entityId, url: state.referenceNameResolution.player.sourceUrl,
           mention: state.referenceNameResolution.mention, resolvedName: state.referenceNameResolution.player.preferredName,
           resolutionMethod: state.referenceNameResolution.resolutionMethod,
-          performanceRecordStatus: state.referenceProfiles.length ? "observed_in_team_sample" : "not_observed_in_team_sample" }
+          performanceRecordStatus: state.referenceProfiles.length ? "observed_in_available_data" : "not_observed_in_team_sample" }
         : null,
       requestedCapabilityCoverage: state.evidenceEvaluationWithheld ? [] : requestedCapabilityCoverage,
       searchScopes,

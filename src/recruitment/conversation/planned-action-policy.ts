@@ -1,3 +1,4 @@
+import { positionSearchForIntent } from "../candidate-search-intent.js";
 import { playerPositionMatches } from "../../domain/positions.js";
 import { isUnderstatFinePositionSearch } from "../../sources/understat/position-evidence.js";
 import { buildDecisionConstraints, conclusionPlannerOutputFallback, type RecruitmentExpansionConstraints } from "../conclusion-policy.js";
@@ -87,8 +88,8 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
       policyOverrodePlanner = true;
     }
   }
-  if (action.action === "search_candidates" && state.confirmedPositions.length > 1) {
-    action = RecruitmentActionSchema.parse({ ...action, position: null, positions: state.confirmedPositions,
+  if (action.action === "search_candidates" && (intent.positions?.length ?? 0) > 1) {
+    action = RecruitmentActionSchema.parse({ ...action, ...positionSearchForIntent(intent),
       maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes, competition: intent.competition, season: intent.season });
   }
   if (action.action === "search_candidates"
@@ -143,11 +144,11 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
     } else if ((state.hasSearchedMethodology || settings.retrievalNeeds?.methodology === false)
       && action.action !== "search_methodology"
       && (action.action !== "search_candidates"
-        || (intent.position !== null && action.position !== intent.position))) {
+        || (!(intent.positions && intent.positions.length > 1) && intent.position !== null && action.position !== intent.position))) {
       action = RecruitmentActionSchema.parse({
         action: "search_candidates",
         targetTeam: state.targetTeam,
-        position: intent.position,
+        ...positionSearchForIntent(intent),
         maxAge: intent.maxAge,
         minimumMinutes: intent.minimumMinutes,
         competition: intent.competition,

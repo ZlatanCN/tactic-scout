@@ -1,3 +1,4 @@
+import { RecruitmentBriefSchema } from "../../../../../src/domain/recruitment-brief.js";
 import { z } from "zod/v4";
 import { ScoutResponseSchema, type ScoutResponse } from "../../../../../src/domain/assessment.js";
 import { CapabilityMetricDefinitions } from "../../../../../src/domain/capabilities.js";
@@ -13,6 +14,8 @@ export const ConversationMessageSchema = z.object({
   id: z.string().min(1),
   role: z.enum(["user", "assistant"]),
   content: z.string(),
+  brief: RecruitmentBriefSchema.optional(),
+  retryMessage: z.string().optional(),
   teamContext: z.string().optional(),
   questionReason: z.string().optional(),
   questionInput: z.union([PositionSelectionQuestionSchema, PlayerIdentityQuestionSchema]).optional(),
@@ -284,6 +287,8 @@ export function messageFromTurn(response: ConversationTurnResponse, progressNoti
     id: crypto.randomUUID(),
     role: "assistant",
     content: response.message,
+    ...(response.retryMessage ? { retryMessage: response.retryMessage } : {}),
+    ...(response.brief ? { brief: response.brief } : {}),
     ...(response.question ? { questionReason: response.question.reason, ...(response.question.input ? { questionInput: response.question.input } : {}) } : {}),
     ...(progressNotice ? { progressNotice } : {}),
     ...(response.progressEvents ? { progressEvents: response.progressEvents } : {}),

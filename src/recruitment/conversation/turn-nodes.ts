@@ -25,21 +25,26 @@ function resetReference(message: string): Partial<State> {
 }
 
 export function createRecordUserTurnNode(input: {
+  abilityProfilesEnabled?: boolean;
   disabledPlayerEloCoverage: ExternalSignalCoverage;
   historicalArchiveSetup: ReturnType<typeof createConfiguredHistoricalArchive>;
 }) {
   const { disabledPlayerEloCoverage, historicalArchiveSetup } = input;
   return (state: State): Partial<State> => {
-    const positionIntent = resolvedCandidateSearchIntent(state, state.userMessage);
+    const positionIntent = resolvedCandidateSearchIntent({ ...state, abilityProfilesEnabled: input.abilityProfilesEnabled ?? false }, state.userMessage);
     const positionChange = positionIntent.latestPositionChange;
     const referenceChanged = changesReference(state, state.userMessage);
-    const searchScopeChanged = referenceChanged || hasCandidateSearchScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition);
+    const searchScopeChanged = referenceChanged || hasCandidateSearchScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, input.abilityProfilesEnabled);
     const priorCandidateSearchIndex = !searchScopeChanged && positionIntent.position !== null
       ? candidateSearchObservationIndexForIntent(positionIntent, state.candidateSearchObservations)
       : null;
     const explicitTargetTeam = extractExplicitTargetTeam(state.userMessage);
     return {
+      abilityProfilesEnabled: input.abilityProfilesEnabled ?? false,
       incomingPositions: null,
+      briefAnswerKind: state.incomingPositions?.length ? "positions" : null,
+      briefQuestionContext: null,
+      briefCandidates: state.report ? state.report.recommendations.map((item, index) => ({ playerId: item.player.playerId, name: item.player.name, rank: index + 1 })) : state.briefCandidates,
       candidateSearchTurnStartIndex: state.candidateSearchObservations.length,
       history: [{ role: "user" as const, content: state.userMessage }],
       ...(explicitTargetTeam ? { targetTeam: explicitTargetTeam } : {}),
@@ -85,7 +90,7 @@ export function createRecordUserTurnNode(input: {
 export const waitForUser = (state: State) => {
   const pendingQuestion = state.pendingQuestion;
   if (!pendingQuestion) {
-    return new Command({ goto: "choose_next_action" });
+    return new Command({ goto: "understand_request" });
   }
   const answer = interrupt({ question: pendingQuestion.question, reason: pendingQuestion.reason });
   const selection = PositionSelectionAnswerSchema.safeParse(answer);
@@ -94,11 +99,12 @@ export const waitForUser = (state: State) => {
     if (pendingQuestion.input?.kind !== "positions" || selection.data.questionId !== pendingQuestion.input.questionId) throw new Error("位置问题已经更新，请重新选择。");
     if (selection.data.keepCurrent) {
       if (!pendingQuestion.input?.allowKeepCurrent) throw new Error("当前问题不支持保留位置并结束。");
-      return new Command({ update: { history: [{ role: "user" as const, content: "保留当前的位置范围并结束本轮。" }], pendingQuestion: null, responseMessage: "", confirmedPositionNoMatchDeclined: true }, goto: "choose_next_action" });
+      return new Command({ update: { briefAnswerKind: "positions", history: [{ role: "user" as const, content: "保留当前的位置范围并结束本轮。" }], pendingQuestion: null, responseMessage: "", confirmedPositionNoMatchDeclined: true }, goto: "understand_request" });
     }
     return new Command({
       update: {
         history: [{ role: "user" as const, content: `已选择：${positionSelectionLabel(selection.data.positions)}；寻找符合其中任一位置的球员。` }],
+        briefAnswerKind: "positions",
         confirmedPositions: selection.data.positions,
         confirmedPosition: selection.data.positions[0],
         candidateSearchTurnStartIndex: state.candidateSearchObservations.length,
@@ -116,7 +122,7 @@ export const waitForUser = (state: State) => {
         positionBroadeningApproved: false,
         roleClarificationAsked: true,
       },
-      goto: "choose_next_action",
+      goto: "understand_request",
     });
   }
   if (identityAnswer.success) {
@@ -124,11 +130,40 @@ export const waitForUser = (state: State) => {
     if (pendingQuestion.input?.kind !== "player_identity" || identityAnswer.data.questionId !== pendingQuestion.input.questionId) {
       throw new Error("球员身份问题已经更新，请重新选择。");
     }
+    if ("rejectAll" in identityAnswer.data) {
+      const candidates = previousResolution?.status === "ambiguous" || previousResolution?.status === "needs_confirmation"
+        ? previousResolution.candidates : [];
+      return new Command({
+        update: {
+          history: [{ role: "user" as const, content: "都不是，重新查找" }],
+          briefAnswerKind: "identity_reject",
+          briefQuestionContext: pendingQuestion.question,
+          referenceCandidatesBeforeAnswer: candidates,
+          referenceNameResolution: null,
+          referenceResolutionQuery: "都不是，重新查找",
+          inspectedReferenceMention: null,
+          referenceProfiles: [],
+          replacementReferencePosition: null,
+          pendingQuestion: null,
+          responseMessage: "",
+          decisionSteps: 0,
+          toolUses: emptyToolUseCounts(),
+          successfulMethodologyQueries: {},
+          candidateSearchSucceededThisTurn: false,
+          candidateSearchFailure: null,
+          candidateSearchTurnStartIndex: state.candidateSearchObservations.length,
+          candidateSearchScopeChanged: true,
+          confirmedPositionSearchObservationIndex: null,
+        },
+        goto: "understand_request",
+      });
+    }
     const resolved = previousResolution && selectPlayerIdentityCandidate(previousResolution, identityAnswer.data.entityId);
     if (!resolved || resolved.status !== "resolved") throw new Error("所选球员不属于当前身份候选，请重新选择。");
     return new Command({
       update: {
         history: [{ role: "user" as const, content: `已确认参考球员：${resolved.player.preferredName}。` }],
+        briefAnswerKind: "identity",
         referenceNameResolution: resolved,
         referenceResolutionQuery: null,
         inspectedReferenceMention: null,
@@ -148,7 +183,7 @@ export const waitForUser = (state: State) => {
         confirmedPositionNoMatchDeclined: false,
         positionBroadeningApproved: false,
       },
-      goto: "choose_next_action",
+      goto: "understand_request",
     });
   }
   const answerText = String(answer);
@@ -157,6 +192,7 @@ export const waitForUser = (state: State) => {
     if (typedSelection) return new Command({
       update: {
         history: [{ role: "user" as const, content: `已确认参考球员：${typedSelection.player.preferredName}。` }],
+        briefAnswerKind: "identity",
         referenceNameResolution: typedSelection,
         referenceResolutionQuery: null,
         inspectedReferenceMention: null,
@@ -171,7 +207,7 @@ export const waitForUser = (state: State) => {
         candidateSearchSucceededThisTurn: false,
         candidateSearchFailure: null,
       },
-      goto: "choose_next_action",
+      goto: "understand_request",
     });
   }
   const answerIntent = resolvedCandidateSearchIntent({
@@ -187,6 +223,8 @@ export const waitForUser = (state: State) => {
   const answeredEmptyPositionQuestion = state.confirmedPositionNoMatchQuestionAsked;
   return new Command({
     update: {
+      briefAnswerKind: null,
+      briefQuestionContext: pendingQuestion.question,
       history: [{ role: "user" as const, content: answerText }],
       candidateSearchTurnStartIndex: state.candidateSearchObservations.length,
       candidateSearchScopeChanged: searchScopeChanged,
@@ -207,6 +245,8 @@ export const waitForUser = (state: State) => {
       ...(positionChange.changed ? { confirmedPosition: positionChange.position, confirmedPositions: [] } : {}),
       ...(referenceChanged ? resetReference(answerText) : {}),
       ...(pendingQuestion.input?.kind === "player_identity" && !referenceChanged ? {
+        referenceCandidatesBeforeAnswer: state.referenceNameResolution?.status === "ambiguous" || state.referenceNameResolution?.status === "needs_confirmation"
+          ? state.referenceNameResolution.candidates : [],
         referenceNameResolution: null,
         referenceResolutionQuery: answerText,
         inspectedReferenceMention: null,
@@ -214,7 +254,7 @@ export const waitForUser = (state: State) => {
         replacementReferencePosition: null,
       } : {}),
     },
-    goto: "choose_next_action",
+    goto: "understand_request",
   });
 };
 

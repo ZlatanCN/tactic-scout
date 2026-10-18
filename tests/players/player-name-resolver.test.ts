@@ -10,6 +10,62 @@ function entity(english = "Mohamed Salah", chinese = "萨拉赫", footballer = t
       P569: [{ mainsnak: { datavalue: { value: { time: "+1992-06-15T00:00:00Z" } } } }] } };
 }
 
+test("negative Wikidata cache expires and a transient outage is not cached as missing", async () => {
+  let now = 0, requests = 0;
+  const resolve = createWikidataPlayerNameResolver({ now: () => now, negativeTtlMs: 10,
+    fetchImpl: async () => { requests++; return Response.json({ search: [] }); } });
+  await resolve("未知称呼"); await resolve("未知称呼");
+  assert.equal(requests, 3);
+  now = 11; await resolve("未知称呼"); assert.equal(requests, 6);
+  let failures = 0;
+  const unavailable = createWikidataPlayerNameResolver({ fetchImpl: async () => { failures++; throw new Error("offline"); } });
+  assert.equal((await unavailable("人名")).status, "unavailable");
+  assert.equal((await unavailable("人名")).status, "unavailable");
+  assert.equal(failures, 6);
+});
+
+test("two websites naming one verified footballer do not establish a different original nickname", async () => {
+  const resolve = createTavilyBackedPlayerNameResolver({ apiKey: "fixture", primaryResolver: async mention => mention === "Wrong Player"
+    ? { status: "resolved", mention, player: { entityId: "Q123", sourceUrl: "https://www.wikidata.org/wiki/Q123", names: ["Wrong Player"], preferredName: "Wrong Player", match: "exact_label" }, resolutionMethod: "wikidata_exact" }
+    : { status: "unresolved", mention }, fetcher: async () => Response.json({ results: [
+      { title: "Wrong Player | Team", url: "https://one.example/player" },
+      { title: "Wrong Player | News", url: "https://two.example/player" },
+    ] }) });
+  const result = await resolve("小魔术师");
+  assert.equal(result.status, "needs_confirmation");
+});
+
+test("a fuzzy English verification cannot be promoted into automatic identity confirmation", async () => {
+  const candidate = { entityId: "Q123", sourceUrl: "https://www.wikidata.org/wiki/Q123", names: ["小魔术师", "Wrong Player"], preferredName: "Wrong Player", match: "similar_name" as const };
+  const resolve = createTavilyBackedPlayerNameResolver({ apiKey: "fixture", primaryResolver: async mention => mention === "Wrong Player"
+    ? { status: "needs_confirmation", mention, candidates: [candidate] } : { status: "unresolved", mention },
+    fetcher: async () => Response.json({ results: [{ title: "Wrong Player | Team", url: "https://one.example/player" }] }) });
+  assert.equal((await resolve("小魔术师")).status, "needs_confirmation");
+});
+
+test("bilingual snippets can recall a player when the title contains only a Chinese name", async () => {
+  const resolve = createTavilyBackedPlayerNameResolver({ apiKey: "fixture", primaryResolver: async mention => mention === "Rayan Cherki"
+    ? { status: "resolved", mention, player: { entityId: "Q64736321", sourceUrl: "https://www.wikidata.org/wiki/Q64736321", names: ["Rayan Cherki", "拉扬·切尔基"], preferredName: "Rayan Cherki", match: "exact_label" }, resolutionMethod: "wikidata_exact" }
+    : { status: "unresolved", mention }, fetcher: async () => Response.json({ results: [
+      { title: "拉扬·切尔基 - 球员资料", url: "https://one.example/player", content: "拉扬·切尔基（Rayan Cherki）是一名足球运动员。" },
+    ] }) });
+  const result = await resolve("切尔基");
+  assert.equal(result.status, "needs_confirmation");
+  if (result.status === "needs_confirmation") assert.equal(result.candidates[0]?.preferredName, "Rayan Cherki");
+});
+
+test("an exact alias does not stop contextual research when the user specifies a different nationality", async () => {
+  let searches = 0;
+  const resolver = createTavilyBackedPlayerNameResolver({ apiKey: "fixture", primaryResolver: async mention => ({ status: "resolved", mention,
+    player: mention === "Cristiano Ronaldo" ? { entityId: "Q11571", sourceUrl: "https://www.wikidata.org/wiki/Q11571", names: ["Cristiano Ronaldo"], preferredName: "Cristiano Ronaldo", description: "葡萄牙球员", match: "exact_label" }
+      : { entityId: "Q529207", sourceUrl: "https://www.wikidata.org/wiki/Q529207", names: ["罗纳尔多"], preferredName: "Ronaldo", description: "巴西球员", match: "exact_alias" }, resolutionMethod: "wikidata_exact" }),
+    fetcher: async (_input, init) => { searches++; assert.match(String(init?.body), /葡萄牙/); return Response.json({ results: [{ title: "Cristiano Ronaldo | Player", url: "https://club.example/player" }] }); } });
+  const result = await resolver("罗纳尔多", undefined, { clues: [{ kind: "nationality", value: "葡萄牙", quote: "葡萄牙的" }] });
+  assert.equal(searches, 1);
+  assert.equal(result.status, "needs_confirmation");
+  if (result.status === "needs_confirmation") assert.equal(result.candidates[0]?.preferredName, "Cristiano Ronaldo");
+});
+
 test("multilingual lookup accepts exact simplified/traditional labels and normalizes Latin diacritics", async () => {
   let calls = 0;
   const resolve = createWikidataPlayerNameResolver({ fetchImpl: async input => {

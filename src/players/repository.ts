@@ -11,6 +11,12 @@ import type { UnderstatMatchInsight, UnderstatPlayerInsight, UnderstatPlayerSect
 export interface PlayerRepository {
   readonly mode: DatasetMode;
   readonly sourceName: string;
+  readonly supportsAbilityProfiles?: boolean;
+  readonly supportsCompetitionExclusions?: boolean;
+  findPlayersByNames?(names: readonly string[], signal?: AbortSignal): Promise<PlayerProfile[]>;
+  /** Must not fetch a remote catalog. Used before external identity lookup. */
+  findLocalPlayersByNames?(names: readonly string[], signal?: AbortSignal): Promise<PlayerProfile[]>;
+  close?(): void;
   getDatasetStatus?(): Promise<DatasetSnapshotStatus>;
   loadPlayers?(refresh?: boolean, signal?: AbortSignal): Promise<PlayerProfile[]>;
   searchCandidates?(query: PlayerSearchQuery, signal?: AbortSignal): Promise<PlayerSearchPage>;
@@ -37,6 +43,11 @@ export function withLocalQueries(repository: PlayerRepository): PlayerRepository
   return {
     mode: repository.mode,
     sourceName: repository.sourceName,
+    supportsAbilityProfiles: repository.supportsAbilityProfiles,
+    supportsCompetitionExclusions: repository.supportsCompetitionExclusions,
+    ...(repository.findPlayersByNames ? { findPlayersByNames: (names: readonly string[], signal?: AbortSignal) => repository.findPlayersByNames!(names, signal) } : {}),
+    ...(repository.findLocalPlayersByNames ? { findLocalPlayersByNames: (names: readonly string[], signal?: AbortSignal) => repository.findLocalPlayersByNames!(names, signal) } : {}),
+    ...(repository.close ? { close: () => repository.close!() } : {}),
     ...(repository.loadPlayers ? { loadPlayers: (refresh?: boolean, signal?: AbortSignal) => repository.loadPlayers!(refresh, signal) } : {}),
     ...(repository.getDatasetStatus ? { getDatasetStatus: () => repository.getDatasetStatus!() } : {}),
     searchCandidates: async (query, signal) => {
@@ -80,7 +91,9 @@ export async function searchPlayerPage(repository: PlayerRepository, query: Play
       } : {}),
     }
     : query;
-  const page = repository.searchCandidates
+  const page = effectiveQuery.excludedCompetitions?.length && !repository.supportsCompetitionExclusions
+    ? searchLoadedPlayers(await loadAllPlayers(repository, false, signal), effectiveQuery)
+    : repository.searchCandidates
     ? repository.searchCandidates(effectiveQuery, signal)
     : searchLoadedPlayers(await loadAllPlayers(repository, false, signal), effectiveQuery);
   const result = await page;

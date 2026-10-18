@@ -1,3 +1,4 @@
+import { RecruitmentBriefSchema } from "./recruitment-brief.js";
 import { z } from "zod/v4";
 import { PlayerIdentityQuestionSchema, PositionSelectionQuestionSchema } from "./position-contracts.js";
 import { RecruitmentReportSchema } from "./reports.js";
@@ -60,6 +61,8 @@ export const TeamRosterContextSchema = z.object({
 export type TeamRosterContext = z.infer<typeof TeamRosterContextSchema>;
 
 export const RecruitmentProgressStageSchema = z.enum([
+  "understanding",
+  "reference_identity",
   "starting",
   "planning",
   "methodology",
@@ -121,6 +124,8 @@ export const ConversationTurnResponseSchema = z.object({
   message: z.string().min(1),
   question: z.object({ reason: z.string().min(1), input: z.union([PositionSelectionQuestionSchema, PlayerIdentityQuestionSchema]).optional() }).nullable(),
   report: RecruitmentReportSchema.nullable(),
+  brief: RecruitmentBriefSchema.nullable().optional(),
+  retryMessage: z.string().min(1).optional(),
   teamRosterContext: TeamRosterContextSchema.optional(),
   progressEvents: z.array(RecruitmentProgressEventSchema).max(24).optional(),
 });

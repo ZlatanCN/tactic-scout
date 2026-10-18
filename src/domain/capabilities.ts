@@ -1,7 +1,9 @@
 import { z } from "zod/v4";
+import { AbilityMetricKeySchema } from "./player-abilities.js";
 import { type SupplementaryMetricKey, SupplementaryMetricKeySchema, type SupplementaryMetricNormalization, SupplementaryMetricNormalizationSchema } from "./players.js";
 
 export const CapabilityMetricKeySchema = z.enum([
+  ...AbilityMetricKeySchema.options,
   "goals",
   "assists",
   "shotAssists",
@@ -93,7 +95,8 @@ export const CapabilityEvidenceSchema = z.object({
   unit: z.string(),
   peerPercentile: z.number().min(0).max(100).nullable(),
   peerGroupSize: z.number().int().nonnegative(),
-  peerPercentileUnavailableReason: z.enum(["candidate_low_sample", "candidate_sample_unknown", "insufficient_peer_group", "competition_scope_unreported"]).optional(),
+  peerPercentileUnavailableReason: z.enum(["candidate_low_sample", "candidate_sample_unknown", "insufficient_peer_group", "competition_scope_unreported", "ability_profile"]).optional(),
+  basis: z.enum(["match_statistics", "ability_profile"]).optional(),
   minutes: z.number().nonnegative().nullable(),
   sampleMatches: z.number().int().nonnegative().optional(),
   sampleAttempts: z.number().int().nonnegative().optional(),

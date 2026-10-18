@@ -1,3 +1,5 @@
+import { ReferenceSimilaritySchema } from "./reference-similarity.js";
+import { PlayerIdentityIdSchema, PlayerIdentitySourceUrlSchema } from "./player-identity.js";
 import { z } from "zod/v4";
 import { CapabilityEvidenceSchema, CapabilityMetricKeySchema, RequestedCapabilityCoverageSchema } from "./capabilities.js";
 import { DatasetModeSchema, DatasetScopeSchema } from "./datasets.js";
@@ -6,8 +8,11 @@ import { CandidateIdentityCoverageSchema, CandidateIdentityResolutionStatusSchem
 import { PlayerProfileSchema } from "./players.js";
 import { PositionSchema, SelectablePositionSchema } from "./position-contracts.js";
 import { UnderstatMatchResearchSchema, UnderstatPlayerResearchSchema, UnderstatTeamResearchSchema } from "./understat-evidence.js";
+import { CandidateRoleFitSchema } from "./player-abilities.js";
 
 export const PlayerRecommendationSchema = z.object({
+  referenceSimilarity: ReferenceSimilaritySchema.optional(),
+  roleFits: z.array(CandidateRoleFitSchema).optional(),
   matchedPositions: z.array(SelectablePositionSchema).optional(),
   player: PlayerProfileSchema,
   identityResolution: z.object({
@@ -58,8 +63,9 @@ export const ReportReferenceProfileSchema = z.object({
   playerId: z.string().min(1),
   name: z.string().min(1),
   source: z.string().min(1),
-  competition: z.string().min(1),
-  season: z.string().min(1),
+  // Ability-only references have no observed competition or match season.
+  competition: z.string(),
+  season: z.string(),
   minutes: z.number().nonnegative(),
   metrics: z.array(ReferenceProfileMetricSchema),
 });
@@ -109,6 +115,7 @@ export const KnowledgeCoverageSchema = z.object({
 export type KnowledgeCoverage = z.infer<typeof KnowledgeCoverageSchema>;
 
 export const RecruitmentSearchScopeSchema = z.object({
+  excludedCompetitions: z.array(z.string()).optional(),
   positions: z.array(PositionSchema).optional(),
   position: PositionSchema.nullable(),
   maxAge: z.number().int().min(15).max(45).nullable(),
@@ -135,12 +142,12 @@ export const RecruitmentReportSchema = z.object({
   capabilityProfile: z.array(z.string()),
   referenceProfiles: z.array(ReportReferenceProfileSchema).max(5).default([]),
   referenceNameSource: z.object({
-    entityId: z.string().regex(/^Q\d+$/),
-    url: z.string().regex(/^https:\/\/www\.wikidata\.org\/wiki\/Q\d+$/),
+    entityId: PlayerIdentityIdSchema,
+    url: PlayerIdentitySourceUrlSchema.optional(),
     mention: z.string().min(1).optional(),
     resolvedName: z.string().min(1).optional(),
-    resolutionMethod: z.enum(["wikidata_exact", "tavily_wikidata", "user_confirmed"]).optional(),
-    performanceRecordStatus: z.enum(["observed_in_team_sample", "not_observed_in_team_sample"]).optional(),
+    resolutionMethod: z.enum(["wikidata_exact", "tavily_wikidata", "user_confirmed", "local_exact", "verified_alias"]).optional(),
+    performanceRecordStatus: z.enum(["observed_in_team_sample", "not_observed_in_team_sample", "observed_in_available_data"]).optional(),
   }).nullable().default(null),
   requestedCapabilityCoverage: z.array(RequestedCapabilityCoverageSchema).default([]),
   evidenceCoverage: EvidenceCoverageSummarySchema,

@@ -9,6 +9,9 @@ export function privacySafeTraceEvent(event: RecruitmentTraceEvent): Record<stri
   }
   if (event.phase === "review") return event;
   if (event.phase === "model_usage") return { ...event };
+  if (event.phase === "brief_usage") return { ...event };
+  if (event.phase === "identity_usage") return { ...event };
+  if (event.phase === "brief_failure") return { ...event };
   if (event.phase === "tool_reuse") return { ...event };
 
   const filters = { ...event.filters };

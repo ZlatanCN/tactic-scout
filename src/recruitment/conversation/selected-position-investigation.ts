@@ -1,6 +1,6 @@
 import type { PlayerRepository } from "../../players/repository.js";
 import { canProvideDetailedPositionEvidence } from "../../players/position-evidence.js";
-import { playerPositionMatches } from "../../domain/positions.js";
+import { hasAbilityPositionEvidence, playerPositionMatches } from "../../domain/positions.js";
 import { positionSelectionLabel } from "../../domain/position-selection.js";
 import { RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
@@ -25,8 +25,8 @@ export function nextSelectedPositionInvestigation(state: State, source: PlayerRe
   }
   const players = Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntentForPositionRetrieval(player, intent));
   const pending = players.filter((player) => player.sourceIdentity?.provider === "understat"
-    && positions.some((position) => !player.positionEvidenceByPosition?.[position]
-      || player.positionEvidenceByPosition[position]?.status === "pending"));
+    && positions.some((position) => !hasAbilityPositionEvidence(player, position)
+      && (!player.positionEvidenceByPosition?.[position] || player.positionEvidenceByPosition[position]?.status === "pending")));
   if (pending.length) {
     if (source.inspectCandidateGroup && state.toolUses.inspect_candidate_group < toolBudgets.inspect_candidate_group) {
       return {
