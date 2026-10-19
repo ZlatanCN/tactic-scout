@@ -10,7 +10,7 @@ import {
   expansionEvidenceIsSufficient,
   expansionPlannerFallback,
 } from "../conclusion-policy.js";
-import { compactConclusionHistory, compactExpansionHistory } from "../planner-context.js";
+import { buildConclusionCandidateEvidence, buildConclusionEvidenceDirectory, compactConclusionHistory, compactExpansionHistory } from "../planner-context.js";
 import { projectRecruitmentHistory } from "../context.js";
 import { caseEvidenceScopeRevision, createCaseEvidenceIndex } from "../case-evidence.js";
 import { caseSummaryHistoryEntry } from "../case-summary.js";
@@ -209,13 +209,18 @@ export function createPlanningNode(input: {
     const contextFeatures = contextManagementFeatures(contextManagementMode);
     const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
     if (contextFeatures.summaries && state.caseSummary) plannerHistory.unshift(caseSummaryHistoryEntry(state.caseSummary));
+    const conclusionMode = decisionMode === "conclude" || decisionMode === "reorient";
+    const replacedToolResults = contextFeatures.historyProjection && conclusionMode
+      ? new Set(["search_candidates", "evaluate_candidates"])
+      : new Set<string>();
+    const historyForProjection = plannerHistory.filter(entry => entry.role !== "tool" || !replacedToolResults.has(entry.toolName ?? ""));
+    const replacedHistoryEntries = plannerHistory.length - historyForProjection.length;
     const projectedHistory = !contextFeatures.historyProjection
       ? { entries: plannerHistory, userEventIds: [], manifest: { omittedEntryCount: 0, protectedQuoteCount: 0, includedEventIds: [], omittedEventIds: [], protectedQuoteReferences: [] } }
-      : projectRecruitmentHistory(plannerHistory, {
+      : projectRecruitmentHistory(historyForProjection, {
         caseId,
         recentUserTurns: 3,
         protectedQuotes,
-        preserveAllTools: decisionMode === "conclude" || decisionMode === "reorient",
       });
     const summarizedEventIds = new Set(contextFeatures.summaries && state.caseSummary?.version === 2
       ? state.caseSummary.claims.map(claim => claim.eventId)
@@ -235,6 +240,17 @@ export function createPlanningNode(input: {
       evaluations: Object.values(eligibleEvaluatedPlayers),
       documents: Object.values(state.retrievedKnowledge),
     }) : null;
+    const metricEvidenceRefs = contextFeatures.historyProjection && contextFeatures.evidenceReads && evidenceIndex
+      ? new Map(evidenceIndex.directory.flatMap(entry => entry.kind === "player_metrics" && entry.playerId ? [[entry.playerId, entry.ref] as const] : []))
+      : new Map<string, string>();
+    const conclusionCandidateEvidence = conclusionMode && decisionConstraints
+      ? buildConclusionCandidateEvidence(
+        Object.values(eligibleEvaluatedPlayers),
+        decisionConstraints.requestedCapabilityCoverage.flatMap(area => area.requestedMetricKeys),
+        metricEvidenceRefs,
+      )
+      : undefined;
+    const candidateEvidenceForBatching = decisionMode === "conclude" ? conclusionCandidateEvidence : undefined;
     const caseProgress = {
       toolUses: state.toolUses,
       currentTurnCandidatePages: currentTurnObservations.map(observation => ({
@@ -250,11 +266,16 @@ export function createPlanningNode(input: {
       hasSearchedMethodology: state.hasSearchedMethodology,
       hasSearchedPlayerReports: state.hasSearchedPlayerReports,
       searchedReportPlayerCount: state.searchedReportPlayerNames.length,
-      omittedHistoryEntries: projectedHistory.manifest.omittedEntryCount,
+      omittedHistoryEntries: projectedHistory.manifest.omittedEntryCount + replacedHistoryEntries,
       protectedQuoteCount: projectedHistory.manifest.protectedQuoteCount,
       omittedHistoryEventIds,
       protectedQuoteReferences: projectedHistory.manifest.protectedQuoteReferences,
-      ...(contextFeatures.evidenceReads && (decisionMode === "conclude" || decisionMode === "reorient") && evidenceIndex ? { evidenceDirectory: evidenceIndex.directory } : {}),
+      ...(contextFeatures.evidenceReads && (decisionMode === "conclude" || decisionMode === "reorient") && evidenceIndex ? {
+        evidenceDirectory: contextFeatures.historyProjection ? buildConclusionEvidenceDirectory(evidenceIndex.directory) : evidenceIndex.directory,
+      } : {}),
+      ...(contextFeatures.historyProjection && conclusionMode && decisionConstraints ? {
+        candidateEvidence: conclusionCandidateEvidence,
+      } : {}),
     };
     try {
       let modelAction: RecruitmentAction;
@@ -282,6 +303,7 @@ export function createPlanningNode(input: {
           ...(config.signal ? { signal: config.signal } : {}),
           ...(decisionConstraints ? { constraints: decisionConstraints } : {}),
           ...(expansionConstraints ? { expansionConstraints } : {}),
+          ...(candidateEvidenceForBatching ? { candidateEvidenceForBatching } : {}),
           caseProgress,
           omittedHistoryEventIds,
           contextRevision: JSON.stringify([

@@ -45,9 +45,13 @@ test("the full LangGraph independently gates evidence references and reads only 
           if (!evidenceEnabled || evidenceRead) {
             return { action: "finish", targetTeam: "巴萨", needSummary: "完成", capabilityProfile: [], recommendations: [], limitationKeys: [] };
           }
-          const progress = input.caseProgress as { evidenceDirectory?: Array<{ ref: string; kind: string }> } | undefined;
+          const progress = input.caseProgress as {
+            evidenceDirectory?: Array<{ ref: string; kind: string }>;
+            candidateEvidence?: { candidates?: Array<{ metricEvidenceRef?: string }> };
+          } | undefined;
           const directory = progress?.evidenceDirectory ?? [];
-          const metricRef = directory.find(item => item.kind === "player_metrics")?.ref;
+          const metricRef = progress?.candidateEvidence?.candidates?.find(candidate => candidate.metricEvidenceRef)?.metricEvidenceRef
+            ?? directory.find(item => item.kind === "player_metrics")?.ref;
           assert.ok(metricRef, `${mode} conclusion context should provide an evidence ref`);
           return { action: "read_case_evidence", targetTeam: "巴萨", refs: [metricRef], fields: ["body"], cursor: null, limit: 1_800 };
         },

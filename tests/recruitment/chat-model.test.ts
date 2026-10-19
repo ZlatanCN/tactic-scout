@@ -5,8 +5,10 @@ import {
   createChatModel,
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS,
   openAIExpansionMaxOutputTokens,
+  openAIConclusionMaxOutputTokens,
   openAIExpansionRequestTimeoutMs,
   openAIMaxOutputTokens,
   structuredOutputMethod,
@@ -34,6 +36,14 @@ test("planner response token budget leaves room for a complete evidence-backed r
   assert.equal(openAIMaxOutputTokens(""), 8_192);
   assert.equal(openAIMaxOutputTokens("8192"), 8_192);
   assert.throws(() => openAIMaxOutputTokens("128"), /OPENAI_MAX_OUTPUT_TOKENS/);
+});
+
+test("conclusion reports use a stage-specific output budget", () => {
+  assert.equal(DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS, 4_096);
+  assert.equal(openAIConclusionMaxOutputTokens("", "8192"), 4_096);
+  assert.equal(openAIConclusionMaxOutputTokens("2048", "8192"), 2_048);
+  assert.equal(openAIConclusionMaxOutputTokens("8192", "4096"), 4_096);
+  assert.throws(() => openAIConclusionMaxOutputTokens("128", "8192"), /OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS/);
 });
 
 test("candidate expansion decisions use a bounded output budget", () => {

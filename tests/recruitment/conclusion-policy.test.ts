@@ -228,6 +228,27 @@ test("conclusion schema permits only evaluated players, measured metrics, and re
   }));
 });
 
+test("a batched conclusion schema cannot stop the remaining candidate batches with a question", () => {
+  const constraints = buildDecisionConstraints({
+    targetTeam: "Barcelona",
+    evaluatedPlayers: [candidate],
+    retrievedKnowledge: [],
+  });
+  const schema = createConstrainedConclusionSchema(constraints, { allowAskUser: false });
+
+  assert.throws(() => schema.parse({
+    action: "ask_user",
+    targetTeam: "Barcelona",
+    question: "要优先哪项能力？",
+    reason: "回答会改变候选比较。",
+  }));
+  assert.doesNotThrow(() => schema.parse({
+    ...validFinish(),
+    targetTeam: "Barcelona",
+    reportObservations: [],
+  }));
+});
+
 test("conclusion bounds report observation text and count", () => {
   const reports = Array.from({ length: 4 }, (_, index) => ({
     ...playerReport,

@@ -182,7 +182,10 @@ function summarizeContextRequests(runs: readonly LocalAgentRun[]) {
     return { status, total: status === "complete" ? numbers.reduce((sum, value) => sum + value, 0) : null, observed: numbers.length, requestCount: requests.length };
   };
   const actualUsageStatus: Record<string, number> = {};
+  const budgetStrategyCounts: Record<string, number> = {};
   for (const request of requests) {
+    const budgetStrategy = typeof request.budgetStrategy === "string" ? request.budgetStrategy : "not_observed";
+    budgetStrategyCounts[budgetStrategy] = (budgetStrategyCounts[budgetStrategy] ?? 0) + 1;
     const usage = typeof request.actualTokenUsage === "object" && request.actualTokenUsage !== null
       ? request.actualTokenUsage as Record<string, unknown> : null;
     const status = typeof usage?.status === "string" ? usage.status : "not_observed";
@@ -206,6 +209,7 @@ function summarizeContextRequests(runs: readonly LocalAgentRun[]) {
     includedHistoryEventCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.includedHistoryEventIds) ? manifest.includedHistoryEventIds.length : 0), 0),
     omittedHistoryEventCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.omittedHistoryEventIds) ? manifest.omittedHistoryEventIds.length : 0), 0),
     evidenceReferenceCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.evidenceRefs) ? manifest.evidenceRefs.length : 0), 0),
+    budgetStrategyCounts,
     actualUsageStatus,
     byStage,
   };

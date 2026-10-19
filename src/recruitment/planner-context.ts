@@ -1,5 +1,8 @@
-import { type CapabilityMetricKey, type RequestedCapabilityCoverage } from "../domain/capabilities.js";
+import { type CapabilityEvidence, type CapabilityMetricKey, type RequestedCapabilityCoverage } from "../domain/capabilities.js";
 import { AbilityMetricDefinitions } from "../domain/player-abilities.js";
+import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
+import type { CaseEvidenceDirectoryEntry } from "./case-evidence.js";
+import type { CandidateIdentityGroupReference } from "../players/identity/candidate-groups.js";
 
 export interface ConversationHistoryEntry {
   role: "user" | "assistant" | "tool";
@@ -7,6 +10,237 @@ export interface ConversationHistoryEntry {
   toolName?: string;
   /** Added to model-facing history views; never required in persisted checkpoints. */
   eventId?: string;
+}
+
+export interface ConclusionCandidateEvidence {
+  candidateCount: number;
+  metricDefinitions: Array<{ key: CapabilityMetricKey; label: string; unit: string }>;
+  candidates: Array<Record<string, unknown> & { playerId: string }>;
+}
+
+/** Keep exact, resolved source records for one player inside the same comparison batch. */
+export function partitionConclusionCandidatesByIdentity<T extends { playerId: string }>(
+  candidates: readonly T[],
+  identityGroups: readonly CandidateIdentityGroupReference[] = [],
+  maxBatches = 5,
+): T[][] {
+  const identityKeyFor = (playerId: string) => identityGroups
+    .find(group => group.status === "resolved" && group.recordPlayerIds.includes(playerId))?.identityKey
+    ?? `record:${playerId}`;
+  const grouped = new Map<string, T[]>();
+  for (const candidate of candidates) {
+    const key = identityKeyFor(candidate.playerId);
+    const group = grouped.get(key) ?? [];
+    group.push(candidate);
+    grouped.set(key, group);
+  }
+  const identityGroupsInOrder = [...grouped.values()];
+  if (!identityGroupsInOrder.length) return [];
+  const batchCount = Math.min(maxBatches, identityGroupsInOrder.length, Math.max(2, Math.ceil(candidates.length / 12)));
+  const batches = Array.from({ length: batchCount }, () => [] as T[]);
+  const batchSizes = Array.from({ length: batchCount }, () => 0);
+  const largestGroupsFirst = identityGroupsInOrder
+    .map((group, order) => ({ group, order }))
+    .sort((left, right) => right.group.length - left.group.length || left.order - right.order);
+  for (const { group } of largestGroupsFirst) {
+    const targetBatch = batchSizes.indexOf(Math.min(...batchSizes));
+    batches[targetBatch]!.push(...group);
+    batchSizes[targetBatch] = batchSizes[targetBatch]! + group.length;
+  }
+  return batches.filter(batch => batch.length > 0);
+}
+
+/** Keep only already-observed tool evidence that belongs to one conclusion batch. */
+export function projectConclusionHistoryForBatch(
+  history: readonly ConversationHistoryEntry[],
+  input: { candidateIds: ReadonlySet<string>; candidateNames: ReadonlySet<string>; documentIds: ReadonlySet<string>; evidenceRefs: ReadonlySet<string> },
+): ConversationHistoryEntry[] {
+  return history.flatMap(entry => {
+    if (entry.role !== "tool") return [{ ...entry }];
+    if (entry.toolName === "evaluate_candidates" || entry.toolName === "search_candidates") {
+      try {
+        const result = JSON.parse(entry.content) as Record<string, unknown>;
+        const field = entry.toolName === "evaluate_candidates" ? "evaluations" : "candidates";
+        const rows = Array.isArray(result[field]) ? result[field] as Array<Record<string, unknown>> : [];
+        return [{ ...entry, content: JSON.stringify({
+          ...result,
+          [field]: rows.filter(row => typeof row.playerId === "string" && input.candidateIds.has(row.playerId)),
+        }) }];
+      } catch {
+        return [{ ...entry, content: "候选评估记录按本批候选范围筛选；只使用本批精简指标目录。" }];
+      }
+    }
+    if (entry.toolName === "search_player_reports") {
+      try {
+        const result = JSON.parse(entry.content) as Record<string, unknown> & { results?: Array<Record<string, unknown>>; searchedPlayerNames?: string[] };
+        return [{ ...entry, content: JSON.stringify({
+          ...result,
+          ...(result.searchedPlayerNames ? { searchedPlayerNames: result.searchedPlayerNames.filter(name => input.candidateNames.has(name)) } : {}),
+          results: (result.results ?? []).filter(document => typeof document.id === "string" && input.documentIds.has(document.id)),
+        }) }];
+      } catch {
+        return [{ ...entry, content: "球员报告按本批候选范围筛选；无可读取报告正文。" }];
+      }
+    }
+    if (entry.toolName === "read_case_evidence") {
+      try {
+        const result = JSON.parse(entry.content) as Record<string, unknown> & { results?: Array<Record<string, unknown>> };
+        return [{ ...entry, content: JSON.stringify({
+          ...result,
+          results: (result.results ?? []).filter(item => typeof item.ref === "string" && input.evidenceRefs.has(item.ref)),
+        }) }];
+      } catch {
+        return [{ ...entry, content: "已读取的原文引用不在本批范围内。" }];
+      }
+    }
+    return [{ ...entry }];
+  });
+}
+
+/** Keep only the latest page observation needed to decide whether expansion can continue. */
+export function projectPlannerCaseProgress(
+  decisionMode: string | undefined,
+  caseProgress: unknown,
+): unknown {
+  if (decisionMode !== "expand" && decisionMode !== "expand_recovery") return caseProgress;
+  if (!caseProgress || typeof caseProgress !== "object" || Array.isArray(caseProgress)) return caseProgress;
+
+  const progress = caseProgress as Record<string, unknown>;
+  const pages = Array.isArray(progress.currentTurnCandidatePages) ? progress.currentTurnCandidatePages : [];
+  const latestPage = pages.at(-1);
+  return {
+    ...(typeof progress.discoveredCandidateCount === "number" ? { discoveredCandidateCount: progress.discoveredCandidateCount } : {}),
+    ...(latestPage && typeof latestPage === "object" && !Array.isArray(latestPage) ? { currentTurnCandidatePages: [latestPage] } : {}),
+  };
+}
+
+/** Keep expand decisions tied to the full assessed pool without repeating unrelated metrics. */
+export function buildExpansionCandidateEvidence(
+  candidates: readonly { playerId: string; evidenceKeys: readonly CapabilityMetricKey[] }[],
+  requestedMetricKeys: readonly CapabilityMetricKey[],
+) {
+  const requested = new Set(requestedMetricKeys);
+  const projected = candidates.flatMap(candidate => {
+    const evidenceKeys = requested.size
+      ? candidate.evidenceKeys.filter(key => requested.has(key))
+      : [...candidate.evidenceKeys];
+    return evidenceKeys.length || !requested.size ? [{ playerId: candidate.playerId, evidenceKeys }] : [];
+  });
+  return {
+    evaluatedCandidateCount: candidates.length,
+    requestedMetricKeys: [...requested],
+    candidatesWithRequestedEvidenceCount: requested.size ? projected.length : null,
+    candidates: projected,
+  };
+}
+
+/**
+ * A conclusion-stage view of the authoritative evaluator state. It keeps every
+ * eligible candidate, but only the metrics the current brief asks the Planner
+ * to compare. Detailed evidence remains in State and the case evidence index.
+ */
+export function buildConclusionCandidateEvidence(
+  candidates: readonly EvaluatedCandidate[],
+  requestedMetricKeys: readonly CapabilityMetricKey[],
+  metricEvidenceRefs: ReadonlyMap<string, string> = new Map(),
+): ConclusionCandidateEvidence {
+  const requested = new Set(requestedMetricKeys);
+  const metricDefinitionByKey = new Map<CapabilityMetricKey, { key: CapabilityMetricKey; label: string; unit: string }>();
+  for (const candidate of candidates) {
+    for (const metric of candidate.evidence) {
+      if (!requested.has(metric.key) || metricDefinitionByKey.has(metric.key)) continue;
+      metricDefinitionByKey.set(metric.key, { key: metric.key, label: metric.label, unit: metric.unit });
+    }
+  }
+  const requestedRoles = new Set<string>(AbilityMetricDefinitions
+    .filter(definition => requested.has(definition.key))
+    .map(definition => definition.role));
+  return {
+    candidateCount: candidates.length,
+    metricDefinitions: [...metricDefinitionByKey.values()],
+    candidates: candidates.map(({ player, evidence, referenceSimilarity, roleFits }) => {
+      const requestedRoleFits = roleFits?.filter(roleFit => requestedRoles.has(roleFit.role));
+      return {
+        playerId: player.playerId,
+        name: player.name,
+        position: player.position,
+        ...(player.age === undefined ? {} : { age: player.age }),
+        competition: player.competition,
+        season: player.season,
+        minutes: player.minutes,
+        source: player.source,
+        ...(referenceSimilarity ? { referenceSimilarity } : {}),
+        ...(metricEvidenceRefs.has(player.playerId) ? { metricEvidenceRef: metricEvidenceRefs.get(player.playerId) } : {}),
+        metrics: evidence.filter(metric => requested.has(metric.key)).map(metric => conclusionMetric(metric, player)),
+        ...(requestedRoleFits?.length ? { roleFits: requestedRoleFits } : {}),
+      };
+    }),
+  };
+}
+
+/** Omit duplicate metric directory rows when each compact candidate row already carries its metric ref. */
+export function buildConclusionEvidenceDirectory(directory: readonly CaseEvidenceDirectoryEntry[]): Array<Omit<CaseEvidenceDirectoryEntry, "availableFields" | "contentCharacters">> {
+  return directory.flatMap(({ kind, ref, title, playerId, source, timeRange }) => {
+    if (kind === "player_metrics") return [];
+    return [{ ref, kind, title, ...(playerId ? { playerId } : {}), ...(source ? { source } : {}), ...(timeRange ? { timeRange } : {}) }];
+  });
+}
+
+/**
+ * Last-resort conclusion-stage history when the normal context exceeds its
+ * soft input target. Structured brief/constraints and candidate evidence are
+ * supplied separately, so replayable roster/evaluation pages can be omitted.
+ */
+export function reduceConclusionHistoryForBudget(
+  history: readonly ConversationHistoryEntry[],
+  options: { evidenceDirectoryAvailable?: boolean; canReadEvidence?: boolean } = {},
+): ConversationHistoryEntry[] {
+  const latestUserIndex = history.reduce((latest, entry, index) => entry.role === "user" ? index : latest, -1);
+  if (latestUserIndex < 0) return [];
+  const precedingUserIndex = history.reduce((latest, entry, index) => index < latestUserIndex && entry.role === "user" ? index : latest, -1);
+  const latestQuestionIndex = history.reduce((latest, entry, index) => (
+    index > precedingUserIndex && index < latestUserIndex && entry.role === "assistant" && isAskUserContent(entry.content) ? index : latest
+  ), -1);
+  const retainedToolNames = new Set(["previous_shortlist", "inspect_team", "case_summary", "investigation_policy"]);
+  const latestToolIndices = new Map<string, number>();
+  history.forEach((entry, index) => {
+    if (index < latestUserIndex && entry.role === "tool" && retainedToolNames.has(entry.toolName ?? "")) {
+      latestToolIndices.set(entry.toolName!, index);
+    }
+  });
+  const keep = new Set([latestUserIndex, ...(latestQuestionIndex >= 0 ? [latestQuestionIndex] : []), ...latestToolIndices.values()]);
+  return history.flatMap((entry, index) => {
+    if (entry.role !== "tool") return keep.has(index) ? [{ ...entry }] : [];
+    if (entry.toolName === "read_case_evidence") return [{ ...entry }];
+    if (["search_methodology", "search_player_reports"].includes(entry.toolName ?? "")) {
+      const refsCanReplaceHistory = options.evidenceDirectoryAvailable && options.canReadEvidence;
+      return refsCanReplaceHistory ? [] : [{ ...entry }];
+    }
+    return keep.has(index) ? [{ ...entry }] : [];
+  });
+}
+
+function isAskUserContent(content: string): boolean {
+  try { return (JSON.parse(content) as { action?: unknown }).action === "ask_user"; }
+  catch { return false; }
+}
+
+function conclusionMetric(metric: CapabilityEvidence, player: EvaluatedCandidate["player"]) {
+  return {
+    key: metric.key,
+    value: metric.value,
+    ...(metric.basis ? { basis: metric.basis } : {}),
+    peerPercentile: metric.peerPercentile,
+    peerGroupSize: metric.peerGroupSize,
+    ...(metric.peerPercentileUnavailableReason ? { peerPercentileUnavailableReason: metric.peerPercentileUnavailableReason } : {}),
+    ...(metric.minutes === player.minutes ? {} : { sampleMinutes: metric.minutes }),
+    ...(metric.sampleMatches === undefined ? {} : { sampleMatches: metric.sampleMatches }),
+    ...(metric.sampleAttempts === undefined ? {} : { sampleAttempts: metric.sampleAttempts }),
+    ...(metric.sampleAttemptsLabel === undefined ? {} : { sampleAttemptsLabel: metric.sampleAttemptsLabel }),
+    ...(metric.competition === player.competition ? {} : { competition: metric.competition }),
+    ...(metric.season === player.season ? {} : { season: metric.season }),
+    ...(metric.source === player.source ? {} : { source: metric.source }),
+  };
 }
 
 /** Embed structured tool results directly instead of escaping JSON inside JSON. */

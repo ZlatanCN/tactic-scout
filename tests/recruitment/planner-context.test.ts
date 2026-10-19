@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compactExpansionHistory } from "../../src/recruitment/planner-context.js";
+import { buildExpansionCandidateEvidence, compactExpansionHistory } from "../../src/recruitment/planner-context.js";
+
+test("expansion candidate evidence keeps full coverage counts and only exposes the user's requested metrics", () => {
+  const evaluated = Array.from({ length: 20 }, (_, index) => ({
+    playerId: `player-${index}`,
+    evidenceKeys: index % 2 === 0 ? ["goals", "assists", "pressures"] as const : ["assists", "pressures"] as const,
+  }));
+  const projected = buildExpansionCandidateEvidence(evaluated, ["goals"]);
+
+  assert.equal(projected.evaluatedCandidateCount, 20);
+  assert.equal(projected.candidatesWithRequestedEvidenceCount, 10);
+  assert.equal(projected.candidates.length, 10);
+  assert.ok(projected.candidates.every(candidate => candidate.evidenceKeys.length === 1 && candidate.evidenceKeys[0] === "goals"));
+
+  const withoutRequestedMetrics = buildExpansionCandidateEvidence(evaluated, []);
+  assert.equal(withoutRequestedMetrics.candidates.length, 20);
+  assert.deepEqual(withoutRequestedMetrics.candidates[0]?.evidenceKeys, ["goals", "assists", "pressures"]);
+});
 
 test("expansion history keeps the user's conversation and clarification questions, not tool results", () => {
   const userBrief = "为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋";

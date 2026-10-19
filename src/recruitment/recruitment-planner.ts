@@ -5,6 +5,7 @@ import {
   isChatModelTimeout,
   openAIExpansionMaxOutputTokens,
   openAIExpansionRequestTimeoutMs,
+  openAIConclusionMaxOutputTokens,
   openAIMaxOutputTokens,
   openAIRequestTimeoutMs,
   contextSafetyMarginTokens,
@@ -13,6 +14,7 @@ import {
   structuredOutputMethod,
 } from "./chat-model.js";
 import { type DatasetMode } from "../domain/datasets.js";
+import { type CapabilityMetricKey } from "../domain/capabilities.js";
 import { type Position } from "../domain/position-contracts.js";
 import {
   createConstrainedConclusionSchema,
@@ -23,7 +25,7 @@ import {
   type RecruitmentExpansionConstraints,
 } from "./conclusion-policy.js";
 import { RecruitmentActionSchema, type RecruitmentAction, type RecruitmentPlannerAction } from "./recruitment-actions.js";
-import { structuredPlannerHistory, type ConversationHistoryEntry } from "./planner-context.js";
+import { buildExpansionCandidateEvidence, partitionConclusionCandidatesByIdentity, projectConclusionHistoryForBatch, projectPlannerCaseProgress, reduceConclusionHistoryForBudget, structuredPlannerHistory, type ConclusionCandidateEvidence, type ConversationHistoryEntry } from "./planner-context.js";
 import { assertRecruitmentContextFits, buildRecruitmentContext, type RecruitmentContextManifest, withContextModelUsage } from "./context.js";
 import { z } from "zod/v4";
 
@@ -46,6 +48,8 @@ export interface RecruitmentPlanner {
     constraints?: RecruitmentDecisionConstraints;
     expansionConstraints?: RecruitmentExpansionConstraints;
     caseProgress?: unknown;
+    /** Private complete candidate view used only if a verified context window requires batch comparison. */
+    candidateEvidenceForBatching?: ConclusionCandidateEvidence;
     contextRevision?: string;
     omittedHistoryEventIds?: readonly string[];
     onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
@@ -84,6 +88,60 @@ export const methodologySearchInstructions = [
   "若需求未说明具体职责或指标，不猜测具体职责或指标；替代者请求中的参考球员位置属于已有语境，默认沿用，不是需要追问的用户偏好。",
   "若本轮没有方法来源通过 gate，不要改写成更泛或与需求无关的问题反复搜索；继续候选调查，只引用 gate 实际返回的来源。只有用户后续补充新的角色或能力信息时，才按新信息聚焦方法查询。",
 ].join(" ");
+
+function hasProjectedCandidateEvidence(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const evidence = (value as { candidateEvidence?: unknown }).candidateEvidence;
+  return Boolean(evidence && typeof evidence === "object" && !Array.isArray(evidence)
+    && typeof (evidence as { candidateCount?: unknown }).candidateCount === "number"
+    && Array.isArray((evidence as { candidates?: unknown }).candidates));
+}
+
+function hasCaseEvidenceDirectory(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const directory = (value as { evidenceDirectory?: unknown }).evidenceDirectory;
+  return Array.isArray(directory) && directory.length > 0;
+}
+
+function contextWithoutCandidatePool(
+  payload: Record<string, unknown>,
+  history: readonly ConversationHistoryEntry[],
+): Record<string, unknown> {
+  const progress = payload.caseProgress && typeof payload.caseProgress === "object" && !Array.isArray(payload.caseProgress)
+    ? payload.caseProgress as Record<string, unknown>
+    : {};
+  const candidateEvidence = progress.candidateEvidence && typeof progress.candidateEvidence === "object" && !Array.isArray(progress.candidateEvidence)
+    ? progress.candidateEvidence as Record<string, unknown>
+    : undefined;
+  const directory = Array.isArray(progress.evidenceDirectory) ? progress.evidenceDirectory as Array<Record<string, unknown>> : [];
+  const methodologyRefs = new Set(directory.flatMap(entry => entry.kind === "methodology" && typeof entry.ref === "string" ? [entry.ref] : []));
+  const constraints = payload.constraints && typeof payload.constraints === "object" && !Array.isArray(payload.constraints)
+    ? payload.constraints as Record<string, unknown>
+    : undefined;
+  const historyWithoutCandidatePool = projectConclusionHistoryForBatch(history, {
+    candidateIds: new Set(),
+    candidateNames: new Set(),
+    documentIds: new Set(),
+    evidenceRefs: methodologyRefs,
+  });
+  return {
+    ...payload,
+    history: structuredPlannerHistory(historyWithoutCandidatePool),
+    ...(constraints ? {
+      constraints: {
+        ...constraints,
+        evaluatedCandidates: [],
+        reportObservations: [],
+        ...(Array.isArray(constraints.candidateIdentityGroups) ? { candidateIdentityGroups: [] } : {}),
+      },
+    } : {}),
+    caseProgress: {
+      ...progress,
+      ...(candidateEvidence ? { candidateEvidence: { ...candidateEvidence, candidates: [] } } : {}),
+      ...(Array.isArray(progress.evidenceDirectory) ? { evidenceDirectory: directory.filter(entry => entry.kind === "methodology") } : {}),
+    },
+  };
+}
 
 function agentInstructions(dataMode: DatasetMode): string {
   return [
@@ -127,17 +185,21 @@ function agentInstructions(dataMode: DatasetMode): string {
   ].join("\n");
 }
 
-export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidence = false): string {
+export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidence = false, batch?: { index: number; count: number; candidatePoolSize: number }): string {
   return [
-    canReadCaseEvidence
+    batch
+      ? `你负责超出单次上下文容量的候选分批比较。本轮是第 ${batch.index}/${batch.count} 批；全池共 ${batch.candidatePoolSize} 名已评估候选。只比较本批目录，最多给出 1 名本批考察线索；不要声称本批代表全池排名。`
+      : canReadCaseEvidence
       ? "你是足球球探报告撰写员。当前调查已完成；可选择 ask_user、finish，或最多按需调用 read_case_evidence 核对目录中的已取得资料。只能读取给出的 ref 和字段，沿 nextCursor 继续，不得伪造引用或把摘录说成全文。"
       : "你是足球球探报告撰写员。当前调查已经完成；只能选择 ask_user 或 finish。",
-    "只输出 schema 要求的一个 JSON action，不加前言或代码块；字段文字精炼，不复述工具表格。",
+    "只输出 schema 要求的一个 JSON action，不加前言或代码块；字段文字精炼。",
     ...sourceScopeInstructions(dataMode, "conclusion"),
     ...(dataMode === "fpl" ? ["不得把 FPL xG/xA/xGI 当作完整射门技术、创造力或未来表现；合并解围/封堵/拦截不可拆项；身价、合同、预算、伤病、渐进传球、带球和压迫没有接入，须列为数据缺口。"] : []),
     ...(dataMode === "premier_league" ? ["Premier League 当前来源的实测字段只有适配器明确映射的统计项；不得把向前传球当渐进传球、成功盘带当带球推进距离，也不得虚构 xG、压迫或转会资料。"] : []),
     "替代者任务中的参考球员不可推荐；只比较有共同来源、位置、赛事、赛季和指标口径的实际数值，缺失数据不推断。",
-    "只依据用户需求、下方已评估候选的实际比赛指标和本轮球员报告检索结果作答。recommendations 只能包含 evaluate_candidates 已评估的 playerId，并引用该球员真实返回的 evidence key。不要生成综合能力分、潜力判断或虚构事实。使用简体中文。",
+    "只依据用户需求、已评估指标及本轮报告检索结果作答。recommendations 仅含 evaluate_candidates 的 playerId，并引用其真实 evidence key；不生成综合分、潜力判断或虚构事实。使用简体中文。",
+    ...(batch ? ["本批 candidates 只包含本批范围，candidateCount 也仅为本批人数；只可从中选一名有直接证据的候选，或在本批没有对应指标时留空。"] : []),
+    "candidateEvidence.candidates 是完整已评估目录，数量须与 candidateCount 一致；按 metricDefinitions 解读，ref 可按需读取。缺项为未知，显式 0 才是观测值。",
     "如果至少一名已评估候选有指标直接对应用户明确要求的可测能力，必须提供至少一名供球探后续核验的候选线索；名单是建议优先考察的对象，不代表客观能力排名或转会结论。每条推荐的 evidenceKeys 必须直接支持用户明确提出的能力与场上角色；相关指标样本较小仍可作为有限线索，但必须说明样本风险且不得显示百分位。只在所有已评估候选都缺少直接相关数据或没有可评估候选时返回空 recommendations；未观测到的其他要求须作为能力数据缺口披露，不得用无关的可用指标代替。",
     "若上下文含 requestedCapabilityCoverage，按其中的 observedMetricKeys 和覆盖候选人数判断证据覆盖；missing/partial 必须如实披露，不得把相似但不对应的字段描述成该项能力。进球机会指标只代表机会产出/质量，不等同于射门技术或终结能力。",
     "能力画像只描述数据支持的比赛表现。没有报告检索结果时 reportObservations 必须为空；球员观察只能引用本轮检索文档及其实体，不能把相关比赛指标说成已证明观察正确。",
@@ -146,6 +208,87 @@ export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidenc
     ...(dataMode === "curated" ? ["当前 TactiScout 自建快照来自 Wyscout 2017/18 历史比赛数据，不能代表现役球员池；报告说明自建快照版本、历史赛事/赛季边界、CC BY 4.0 来源及缺失指标状态。"] : []),
     ...(dataMode === "skillcorner" ? ["SkillCorner 数据仅为 2024/25 澳大利亚 A-League 历史样例；保留来源指标口径，不推断潜力或综合能力。"] : []),
   ].join("\n");
+}
+
+function isConclusionBatch(value: unknown): value is { index: number; count: number; candidatePoolSize: number } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const batch = (value as { conclusionBatch?: unknown }).conclusionBatch;
+  return Boolean(batch && typeof batch === "object" && !Array.isArray(batch)
+    && Number.isSafeInteger((batch as { index?: unknown }).index)
+    && Number.isSafeInteger((batch as { count?: unknown }).count)
+    && Number.isSafeInteger((batch as { candidatePoolSize?: unknown }).candidatePoolSize));
+}
+
+function constraintsForCandidateBatch(
+  constraints: RecruitmentDecisionConstraints,
+  candidateIds: ReadonlySet<string>,
+): RecruitmentDecisionConstraints {
+  const evaluatedCandidates = constraints.evaluatedCandidates.filter(candidate => candidateIds.has(candidate.playerId));
+  const relevantGroups = constraints.candidateIdentityGroups?.filter(group => group.recordPlayerIds.some(id => candidateIds.has(id))) ?? [];
+  const identityFor = (playerId: string) => relevantGroups.find(group => group.status === "resolved" && group.recordPlayerIds.includes(playerId))?.identityKey ?? `record:${playerId}`;
+  const identityCount = new Set(evaluatedCandidates.map(candidate => identityFor(candidate.playerId))).size;
+  return {
+    ...constraints,
+    evaluatedCandidates,
+    reportObservations: constraints.reportObservations.filter(observation => candidateIds.has(observation.playerId)),
+    ...(constraints.candidateIdentityGroups ? { candidateIdentityGroups: relevantGroups } : {}),
+    requestedCapabilityCoverage: constraints.requestedCapabilityCoverage.map(area => {
+      const withEvidence = new Set(evaluatedCandidates
+        .filter(candidate => candidate.evidenceKeys.some(key => area.requestedMetricKeys.includes(key)))
+        .map(candidate => identityFor(candidate.playerId)));
+      const observedMetricKeys = area.requestedMetricKeys.filter(key => evaluatedCandidates.some(candidate => candidate.evidenceKeys.includes(key)));
+      return {
+        ...area,
+        observedMetricKeys,
+        evaluatedCandidateCount: identityCount,
+        candidatesWithEvidenceCount: withEvidence.size,
+        status: withEvidence.size === 0 ? "missing" as const : withEvidence.size < identityCount ? "partial" as const : "observed" as const,
+      };
+    }),
+  };
+}
+
+function batchInputForConclusion(
+  input: Parameters<RecruitmentPlanner["decide"]>[0],
+  candidateEvidence: ConclusionCandidateEvidence,
+  batch: ConclusionCandidateEvidence["candidates"],
+  index: number,
+  count: number,
+): Parameters<RecruitmentPlanner["decide"]>[0] {
+  const candidateIds = new Set(batch.map(candidate => candidate.playerId));
+  const batchConstraints = constraintsForCandidateBatch(input.constraints!, candidateIds);
+  const progress = input.caseProgress && typeof input.caseProgress === "object" && !Array.isArray(input.caseProgress)
+    ? input.caseProgress as Record<string, unknown> : {};
+  const directory = Array.isArray(progress.evidenceDirectory)
+    ? (progress.evidenceDirectory as Array<{ ref?: unknown; kind?: unknown; playerId?: unknown }>).filter(entry => entry.kind === "methodology" || (typeof entry.playerId === "string" && candidateIds.has(entry.playerId)))
+    : [];
+  const documentIds = new Set(batchConstraints.reportObservations.map(observation => observation.documentId));
+  const metricRefs = batch.flatMap(candidate => typeof candidate.metricEvidenceRef === "string" ? [candidate.metricEvidenceRef] : []);
+  const evidenceRefs = new Set([...metricRefs, ...directory.flatMap(entry => typeof entry.ref === "string" ? [entry.ref] : [])]);
+  const names = new Set(batch.flatMap(candidate => typeof candidate.name === "string" ? [candidate.name] : []));
+  const history = projectConclusionHistoryForBatch(input.history, { candidateIds, candidateNames: names, documentIds, evidenceRefs });
+  return {
+    ...input,
+    constraints: batchConstraints,
+    availableActions: ["finish"],
+    history,
+    candidateEvidenceForBatching: undefined,
+    contextRevision: JSON.stringify([input.contextRevision ?? null, "conclusion_batch", index, count]),
+    caseProgress: {
+      ...progress,
+      evaluatedCandidateCount: batch.length,
+      candidateEvidence: { ...candidateEvidence, candidateCount: batch.length, candidates: batch },
+      ...(Array.isArray(progress.evidenceDirectory) ? { evidenceDirectory: directory } : {}),
+      conclusionBatch: { index: index + 1, count, candidatePoolSize: candidateEvidence.candidateCount },
+    },
+  };
+}
+
+function coverageLabels(constraints: RecruitmentDecisionConstraints): string[] {
+  const statusLabel = (status: string) => status === "observed" ? "有样本" : status === "partial" ? "部分有样本" : "缺少样本";
+  return constraints.requestedCapabilityCoverage.slice(0, 7).map(area => (
+    `${area.name}：${statusLabel(area.status)}（${area.candidatesWithEvidenceCount}/${area.evaluatedCandidateCount}）`.slice(0, 120)
+  ));
 }
 
 function sourceScopeInstructions(dataMode: DatasetMode, phase: "investigation" | "conclusion" = "investigation"): string[] {
@@ -204,6 +347,7 @@ export function expansionInstructions(options: {
     `本批候选已评估，所需球员报告检索已完成，来源提供了下一页游标。${actionChoices}`,
     "若选择 search_candidates，必须原样使用结构化上下文中的 nextOffset 与全部原筛选条件（位置、姓名、年龄、最低分钟、赛事、赛季）；只读取一页。LangGraph 会自动评估新增候选并补查其报告；不要重查本页、评估旧候选、搜索方法资料或重复检索报告。",
     "是否扩展样本取决于 requestedCapabilityCoverage：只有用户明确要求的指标键非空，且当前已评估样本对该指标为 missing/partial 时，才可为检查覆盖读取下一页；若状态已 observed，可基于现有有限样本结束。requestedMetricKeys 为空表示当前数据无法测量，不能仅为该项要求扩样，也不得靠分页消除该缺口或承诺下一页一定有证据。",
+    "evaluatedCandidateEvidence 的 candidates 只列出有用户所需指标的候选；总已评估人数另列，未列出不等于未评估，缺失指标也不等于 0。",
     "若选择 ask_user，只询问此前未解决且答案会实质改变候选方向的问题；不得重问已经回答的问题或已批准的位置扩展，也不要加入年龄、预算、联赛等问卷。",
     "若选择 finish，只能推荐受限结构化上下文中的已评估候选与直接支持用户能力要求的 evidence key；说明样本和指标缺口，不推断当前效力、预算、合同、转会可行性或未检索到的报告内容。输出符合受限 schema 的精简 JSON action，不复述工具表格。",
     ...(options.positionBroadeningApproved ? ["用户已经同意扩大位置范围，不得再次询问是否扩大；只有出现其他此前未提及、且答案会实质改变候选方向的重要歧义时，才可以追问。"] : []),
@@ -222,8 +366,11 @@ export function reorientationInstructions(dataMode: DatasetMode = "demo", canRea
 }
 
 class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
-  private readonly model;
+  private readonly investigationModel: ReturnType<typeof createChatModel>;
   private readonly expansionModel;
+  private readonly conclusionModel;
+  private readonly expansionOutputBudgetTokens: number;
+  private readonly conclusionOutputBudgetTokens: number;
   private readonly timeoutMs: number;
   private readonly expansionTimeoutMs: number;
 
@@ -233,16 +380,26 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
     if (!apiKey || !modelName) throw new RecruitmentModelUnavailableError();
     this.timeoutMs = openAIRequestTimeoutMs();
     this.expansionTimeoutMs = openAIExpansionRequestTimeoutMs();
-    this.model = createChatModel(apiKey, modelName);
+    this.expansionOutputBudgetTokens = openAIExpansionMaxOutputTokens();
+    this.conclusionOutputBudgetTokens = openAIConclusionMaxOutputTokens();
+    this.investigationModel = createChatModel(apiKey, modelName);
     this.expansionModel = createChatModel(apiKey, modelName, {
-      maxOutputTokens: openAIExpansionMaxOutputTokens(),
+      maxOutputTokens: this.expansionOutputBudgetTokens,
       timeoutMs: this.expansionTimeoutMs,
+    });
+    this.conclusionModel = createChatModel(apiKey, modelName, {
+      maxOutputTokens: this.conclusionOutputBudgetTokens,
+      timeoutMs: this.timeoutMs,
     });
   }
 
   async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentAction> {
+    const candidateBatch = isConclusionBatch(input.caseProgress) ? input.caseProgress : undefined;
     const schema = input.decisionMode === "conclude" && input.constraints
-      ? createConstrainedConclusionSchema(input.constraints, { allowReadCaseEvidence: input.availableActions?.includes("read_case_evidence") ?? false })
+      ? createConstrainedConclusionSchema(input.constraints, {
+        allowReadCaseEvidence: !candidateBatch && (input.availableActions?.includes("read_case_evidence") ?? false),
+        ...(candidateBatch ? { allowAskUser: false, maxRecommendations: 1 } : {}),
+      })
       : (input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints && input.expansionConstraints
         ? createConstrainedExpansionSchema(input.constraints, input.expansionConstraints, {
           allowAskUser: input.decisionMode !== "expand_recovery",
@@ -253,7 +410,9 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           ? createConstrainedInvestigationSchema(input.availableActions)
           : RecruitmentActionSchema;
     const isExpansion = input.decisionMode === "expand" || input.decisionMode === "expand_recovery";
-    const actionModel = (isExpansion ? this.expansionModel : this.model).withStructuredOutput(schema, {
+    const isFinalReport = input.decisionMode === "conclude";
+    const plannerCaseProgress = projectPlannerCaseProgress(input.decisionMode, input.caseProgress);
+    const actionModel = (isExpansion ? this.expansionModel : isFinalReport ? this.conclusionModel : this.investigationModel).withStructuredOutput(schema, {
       name: "recruitment_action",
       method: structuredOutputMethod(),
       includeRaw: true,
@@ -270,16 +429,19 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       positionBroadeningApproved: input.positionBroadeningApproved ?? false,
       ...(input.constraints ? { requestedCapabilityCoverage: input.constraints.requestedCapabilityCoverage } : {}),
       ...((input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints ? {
-        evaluatedCandidateEvidence: input.constraints.evaluatedCandidates,
+        evaluatedCandidateEvidence: buildExpansionCandidateEvidence(
+          input.constraints.evaluatedCandidates,
+          input.constraints.requestedCapabilityCoverage.flatMap(area => area.requestedMetricKeys),
+        ),
         reportObservations: input.constraints.reportObservations,
       } : {}),
       ...(input.expansionConstraints ? { expansionConstraints: input.expansionConstraints } : {}),
-      ...(input.caseProgress ? { caseProgress: input.caseProgress } : {}),
+      ...(plannerCaseProgress ? { caseProgress: plannerCaseProgress } : {}),
       history: structuredPlannerHistory(input.history),
     };
     try {
       const baseInstructions = input.decisionMode === "conclude"
-        ? conclusionInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false)
+        ? conclusionInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false, candidateBatch)
         : input.decisionMode === "expand" || input.decisionMode === "expand_recovery"
           ? expansionInstructions({
             blockedQuestionRecovery: input.decisionMode === "expand_recovery",
@@ -290,20 +452,75 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         ...(input.availableActions ? [`本次可用 action 列表：${input.availableActions.join("、")}。只选择列表中动作；其他动作本阶段不可用。`] : []),
         input.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
         abilityProfileInstructions(input.abilityProfilesEnabled)].filter(Boolean).join("\n");
-      const contextRequest = buildRecruitmentContext({
+      const contextOptions = {
         stage: input.decisionMode ?? "investigate",
         systemInstructions,
-        payload: contextPayload,
         responseSchema: z.toJSONSchema(schema),
-        outputBudgetTokens: isExpansion ? openAIExpansionMaxOutputTokens() : openAIMaxOutputTokens(),
+        outputBudgetTokens: isExpansion ? this.expansionOutputBudgetTokens
+          : isFinalReport ? this.conclusionOutputBudgetTokens : openAIMaxOutputTokens(),
         ...(modelContextWindowTokens() === undefined ? {} : { contextWindowTokens: modelContextWindowTokens() }),
         softInputBudgetTokens: contextSoftInputBudgetTokens(),
         safetyMarginTokens: contextSafetyMarginTokens(),
         contextRevision: input.contextRevision,
+        ...(candidateBatch ? { budgetStrategy: "conclusion_candidate_batch" as const } : {}),
         omittedHistoryEventIds: input.omittedHistoryEventIds,
         omittedHistoryEntries: input.caseProgress && typeof input.caseProgress === "object" && "omittedHistoryEntries" in input.caseProgress
           ? Number((input.caseProgress as { omittedHistoryEntries?: unknown }).omittedHistoryEntries) || 0 : 0,
-      });
+      } as const;
+      let activeHistory = input.history;
+      let activePayload: Record<string, unknown> = contextPayload;
+      let contextRequest = buildRecruitmentContext({ ...contextOptions, payload: activePayload });
+      if (contextRequest.manifest.status === "over_budget"
+        && (input.decisionMode === "conclude" || input.decisionMode === "reorient")
+        && hasProjectedCandidateEvidence(input.caseProgress)) {
+        const reducedHistory = reduceConclusionHistoryForBudget(input.history, {
+          evidenceDirectoryAvailable: hasCaseEvidenceDirectory(input.caseProgress),
+          canReadEvidence: input.availableActions?.includes("read_case_evidence") ?? false,
+        });
+        if (reducedHistory.length < input.history.length) {
+          const retainedEventIds = new Set(reducedHistory.flatMap(entry => entry.eventId ? [entry.eventId] : []));
+          const additionallyOmittedEventIds = input.history.flatMap(entry => entry.eventId && !retainedEventIds.has(entry.eventId) ? [entry.eventId] : []);
+          const progress = input.caseProgress as Record<string, unknown>;
+          const baseOmittedEntries = typeof progress.omittedHistoryEntries === "number" ? progress.omittedHistoryEntries : 0;
+          const reducedPayload = {
+            ...contextPayload,
+            history: structuredPlannerHistory(reducedHistory),
+            caseProgress: { ...progress, omittedHistoryEntries: baseOmittedEntries + input.history.length - reducedHistory.length },
+          };
+          const reducedRequest = buildRecruitmentContext({
+            ...contextOptions,
+            payload: reducedPayload,
+            omittedHistoryEntries: baseOmittedEntries + input.history.length - reducedHistory.length,
+            omittedHistoryEventIds: [...(input.omittedHistoryEventIds ?? []), ...additionallyOmittedEventIds],
+            budgetStrategy: candidateBatch ? "conclusion_candidate_batch" : "conclusion_history_reduced",
+          });
+          if (reducedRequest.manifest.estimatedInputTokens < contextRequest.manifest.estimatedInputTokens) {
+            contextRequest = reducedRequest;
+            activeHistory = reducedHistory;
+            activePayload = reducedPayload;
+          }
+        }
+      }
+      if (contextRequest.manifest.exceedsVerifiedWindow
+        && input.decisionMode === "conclude"
+        && hasProjectedCandidateEvidence(activePayload.caseProgress)
+        && input.constraints
+        && input.candidateEvidenceForBatching
+        && input.candidateEvidenceForBatching.candidates.length > 1) {
+        const candidateFreeSchema = createConstrainedConclusionSchema({
+          ...input.constraints,
+          evaluatedCandidates: [],
+          reportObservations: [],
+        }, { allowReadCaseEvidence: input.availableActions?.includes("read_case_evidence") ?? false });
+        const withoutCandidatePool = buildRecruitmentContext({
+          ...contextOptions,
+          responseSchema: z.toJSONSchema(candidateFreeSchema),
+          payload: contextWithoutCandidatePool(activePayload, activeHistory),
+        });
+        if (!withoutCandidatePool.manifest.exceedsVerifiedWindow) {
+          return await this.decideConclusionInBatches(input, input.candidateEvidenceForBatching);
+        }
+      }
       try {
         assertRecruitmentContextFits(contextRequest);
       } catch (error) {
@@ -407,6 +624,45 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       throw error;
     }
   }
+
+  private async decideConclusionInBatches(
+    input: Parameters<RecruitmentPlanner["decide"]>[0],
+    candidateEvidence: ConclusionCandidateEvidence,
+  ): Promise<RecruitmentAction> {
+    const batches = partitionConclusionCandidatesByIdentity(candidateEvidence.candidates, input.constraints?.candidateIdentityGroups);
+    const recommendations: Array<{ playerId: string; evidenceKeys: CapabilityMetricKey[] }> = [];
+    const reportObservations: Array<{ playerId: string; documentId: string; summary: string; linkedMetricKeys: CapabilityMetricKey[] }> = [];
+    const batchCoverage: Array<{ candidateCount: number; hasDirectEvidenceLead: boolean }> = [];
+    for (const [index, batch] of batches.entries()) {
+      const result = await this.decide(batchInputForConclusion(input, candidateEvidence, batch, index, batches.length));
+      if (result.action !== "finish") return result;
+      const leader = result.recommendations[0];
+      batchCoverage.push({ candidateCount: batch.length, hasDirectEvidenceLead: Boolean(leader) });
+      if (leader && !recommendations.some(candidate => candidate.playerId === leader.playerId)) {
+        recommendations.push({ playerId: leader.playerId, evidenceKeys: [...leader.evidenceKeys] });
+      }
+      for (const observation of result.reportObservations ?? []) {
+        if (reportObservations.length >= 10) break;
+        if (!reportObservations.some(existing => existing.playerId === observation.playerId && existing.documentId === observation.documentId)) {
+          reportObservations.push({ ...observation, linkedMetricKeys: [...observation.linkedMetricKeys] });
+        }
+      }
+    }
+    const candidatePoolSize = candidateEvidence.candidateCount;
+    const coverageSummary = batchCoverage.map((batch, index) => (
+      `第 ${index + 1} 批 ${batch.candidateCount} 人（${batch.hasDirectEvidenceLead ? "有直接证据线索" : "无直接证据线索"}）`
+    )).join("；");
+    const needSummary = `本轮已将 ${candidatePoolSize} 名已评估候选分成 ${batches.length} 批逐批比较，覆盖情况：${coverageSummary}。下列候选各自是所属批次的考察线索；批次之间没有做统一排序，不代表全池排名。`;
+    return RecruitmentActionSchema.parse({
+      action: "finish",
+      targetTeam: input.constraints?.targetTeam ?? input.targetTeam,
+      needSummary,
+      capabilityProfile: input.constraints ? coverageLabels(input.constraints) : [],
+      recommendations: recommendations.slice(0, 5),
+      limitationKeys: ["other"],
+      reportObservations,
+    });
+  }
 }
 
 export class RecruitmentPlannerOutputError extends Error {
@@ -417,7 +673,9 @@ export class RecruitmentPlannerOutputError extends Error {
     super(diagnostics.finishReason === "length"
       ? decisionMode === "expand" || decisionMode === "expand_recovery"
         ? "候选扩展决策达到本阶段生成长度上限，未完成本次调查。可提高 OPENAI_EXPANSION_MAX_OUTPUT_TOKENS 后重试。"
-        : "模型输出达到本次生成长度上限，最终报告没有完成。请提高服务端 OPENAI_MAX_OUTPUT_TOKENS 后重试。"
+        : decisionMode === "conclude"
+          ? "模型输出达到最终报告生成上限，报告没有完成。可提高 OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS 后重试。"
+          : "模型输出达到本次生成长度上限，本轮没有完成。可提高 OPENAI_MAX_OUTPUT_TOKENS 后重试。"
       : "模型未返回符合要求的规划结果，请检查模型兼容性设置后重试。");
     this.name = "RecruitmentPlannerOutputError";
   }

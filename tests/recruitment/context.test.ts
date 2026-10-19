@@ -21,12 +21,27 @@ test("buildRecruitmentContext returns the complete staged request and a privacy-
   assert.equal(context.manifest.outputBudgetTokens, 1_024);
   assert.equal(context.manifest.contextWindowTokens, 16_384);
   assert.equal(context.manifest.status, "within_budget");
+  assert.equal(context.manifest.version, 3);
+  assert.equal(context.manifest.budgetStrategy, "assembled");
   assert.doesNotMatch(JSON.stringify(context.manifest), /巴萨|后卫|brief/);
   assert.match(context.manifest.promptFingerprint, /^[a-f0-9]{16}$/);
   assert.match(context.manifest.schemaFingerprint, /^[a-f0-9]{16}$/);
   assert.match(context.manifest.payloadFingerprint, /^[a-f0-9]{16}$/);
   assert.equal(context.manifest.componentBytes.system + context.manifest.componentBytes.payload + context.manifest.componentBytes.schema + context.manifest.componentBytes.framing, context.manifest.requestBytes);
   assert.deepEqual(context.manifest.evidenceRefs, []);
+});
+
+test("context manifest records when the conclusion-specific budget fallback was selected", () => {
+  const context = buildRecruitmentContext({
+    stage: "conclude",
+    systemInstructions: "fixed",
+    payload: { history: [{ role: "user", content: "current request" }] },
+    responseSchema: {},
+    outputBudgetTokens: 32,
+    budgetStrategy: "conclusion_history_reduced",
+  });
+
+  assert.equal(context.manifest.budgetStrategy, "conclusion_history_reduced");
 });
 
 test("buildRecruitmentContext records case revision and evidence references without retaining request text", () => {
@@ -41,6 +56,18 @@ test("buildRecruitmentContext records case revision and evidence references with
   assert.match(context.manifest.caseRevisionFingerprint ?? "", /^[a-f0-9]{16}$/);
   assert.deepEqual(context.manifest.evidenceRefs, ["ev.0123456789ab.abcdef012345.player_report.aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb"]);
   assert.doesNotMatch(JSON.stringify(context.manifest), /private user text|fixed instructions|case-1/);
+});
+
+test("context manifests discover metric evidence refs embedded in candidate rows", () => {
+  const ref = "ev.0123456789ab.abcdef012345.player_metrics.aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb";
+  const context = buildRecruitmentContext({
+    stage: "conclude",
+    systemInstructions: "fixed",
+    payload: { candidateEvidence: { candidates: [{ playerId: "candidate-a", metricEvidenceRef: ref }] } },
+    responseSchema: {},
+    outputBudgetTokens: 64,
+  });
+  assert.deepEqual(context.manifest.evidenceRefs, [ref]);
 });
 
 test("context manifests count only the verified historical excerpts present in a case summary", () => {
@@ -227,10 +254,10 @@ test("understanding preserves clarification context and reports only the history
       },
       knowledgeBase: { async search() { return []; } },
       planner: { async decide(input) {
-        const tools = new Set(input.history.filter(entry => entry.role === "tool").map(entry => entry.toolName));
-        if (!tools.has("search_methodology")) return { action: "search_methodology", query: "中场推进能力的可观察指标" };
-        if (!tools.has("search_candidates")) return { action: "search_candidates", position: "MID", minimumMinutes: 0, limit: 10 };
-        if (!tools.has("search_player_reports")) return { action: "search_player_reports", query: "中场比赛观察", playerNames: [candidate.name] };
+        const progress = input.caseProgress as { toolUses?: Record<string, number> } | undefined;
+        if (!progress?.toolUses?.search_methodology) return { action: "search_methodology", query: "中场推进能力的可观察指标" };
+        if (!progress?.toolUses?.search_candidates) return { action: "search_candidates", position: "MID", minimumMinutes: 0, limit: 10 };
+        if (!progress?.toolUses?.search_player_reports) return { action: "search_player_reports", query: "中场比赛观察", playerNames: [candidate.name] };
         const answered = input.history.some(entry => entry.role === "user" && entry.content.includes("向前传球"));
         if (!answered) return { action: "ask_user", question: "你更看重向前传球还是持球推进？", reason: "这会改变中场候选人的职责优先级。" };
         return {

@@ -5,6 +5,7 @@ export const DEFAULT_OPENAI_TIMEOUT_MS = 180_000;
 export const DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 8_192;
 export const DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS = 60_000;
 export const DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = 1_024;
+export const DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = 4_096;
 export const DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS = 8_192;
 export const DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS = 1_024;
 
@@ -109,15 +110,31 @@ export function openAIMaxOutputTokens(value = process.env.OPENAI_MAX_OUTPUT_TOKE
   return maxOutputTokens;
 }
 
+function boundedStageOutputTokens(
+  value: string | undefined,
+  envName: string,
+  defaultBudget: number,
+  generalBudget: string | undefined,
+): number {
+  const maxOutputTokens = value?.trim() ? Number(value) : defaultBudget;
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 256 || maxOutputTokens > DEFAULT_OPENAI_MAX_OUTPUT_TOKENS) {
+    throw new Error(`${envName} must be an integer between 256 and ${DEFAULT_OPENAI_MAX_OUTPUT_TOKENS}.`);
+  }
+  return Math.min(maxOutputTokens, openAIMaxOutputTokens(generalBudget));
+}
+
+export function openAIConclusionMaxOutputTokens(
+  value = process.env.OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS,
+  generalBudget = process.env.OPENAI_MAX_OUTPUT_TOKENS,
+): number {
+  return boundedStageOutputTokens(value, "OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS", DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS, generalBudget);
+}
+
 export function openAIExpansionMaxOutputTokens(
   value = process.env.OPENAI_EXPANSION_MAX_OUTPUT_TOKENS,
   generalBudget = process.env.OPENAI_MAX_OUTPUT_TOKENS,
 ): number {
-  const maxOutputTokens = value?.trim() ? Number(value) : DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS;
-  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 256 || maxOutputTokens > DEFAULT_OPENAI_MAX_OUTPUT_TOKENS) {
-    throw new Error(`OPENAI_EXPANSION_MAX_OUTPUT_TOKENS must be an integer between 256 and ${DEFAULT_OPENAI_MAX_OUTPUT_TOKENS}.`);
-  }
-  return Math.min(maxOutputTokens, openAIMaxOutputTokens(generalBudget));
+  return boundedStageOutputTokens(value, "OPENAI_EXPANSION_MAX_OUTPUT_TOKENS", DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS, generalBudget);
 }
 
 export function isChatModelTimeout(error: unknown): boolean {

@@ -1,6 +1,6 @@
 # TactiScout 上下文管理落地方案
 
-Status: implementation complete behind the legacy default; five-arm local-model ablation remains to be run
+Status: implementation updated behind the legacy default; five-arm local-model ablation is still pending
 
 日期：2026-10-19。本文记录上下文管理的研究、设计与当前实现边界。新策略保持实验开关，默认不切换到未经实测的投影或摘要模式。
 
@@ -17,11 +17,11 @@ Status: implementation complete behind the legacy default; five-arm local-model 
 | 位置 | 代码事实 | 影响与待验证假设 |
 | --- | --- | --- |
 | `src/recruitment/conversation/state.ts` | history 追加保存；brief、候选、评估、位置证据、检索资料、游标另有结构化字段 | 已有足够事实基础；多处内容又进入历史，造成重复与旧信息竞争的可能 |
-| `src/recruitment/conversation/planning-node.ts` | expand/recovery 用 compactExpansionHistory；conclude/reorient 用 compactConclusionHistory；investigate 使用整个 history | 不同阶段压缩口径不统一；调查阶段和长对话缺少统一请求预算 |
+| `src/recruitment/conversation/planning-node.ts` | projection 模式的结论/重定向由 State 构造完整候选指标目录，并移除可从 State 重建的搜索/评估流水；其他阶段沿用对应历史策略 | 减少重复事实竞争；仍需本机真实整图数据验证收益和事实保真 |
 | `src/recruitment/planner-context.ts` | 保留全部用户消息与 ask_user；部分检索正文固定截前 900 字符；工具 JSON 转对象避免二次转义 | 需要保留的引文没有独立来源索引；固定前缀可能遗漏靠后的限定、反证；并非 token 感知 |
 | `src/recruitment/conversation/understanding-node.ts` | legacy 臂把全部旧用户消息交给需求解析器；projection 臂投影近期用户发言及其已回答的助手追问，同时传 previous brief | legacy 输入随轮次增加；投影臂须确保问答配对且不会把受保护旧引文当近期上下文 |
 | `src/recruitment/brief-interpreter.ts` 与 `brief.ts` | 需求有用户原话引文，验证器检查原文、硬条件、可见候选指代 | 这是正确性边界；不能为了缩短模型输入而删掉验证器核对历史引文的能力 |
-| `src/recruitment/recruitment-planner.ts` | contextChars 统计序列化案件长度；system、schema 和 context 分别构造；服务端 token 有独立归一化 | 缺少完整请求的分类体积与调用前预算；字符数不等于 token |
+| `src/recruitment/recruitment-planner.ts` | 完整请求清单计入 system、payload、schema；结论阶段先减少可重建历史，若仍超过已验证窗口，则将完整候选池拆成最多 5 批逐批筛选，每批最多选 1 个线索 | 批次按数据发现顺序，不构成跨批统一排名；每个候选恰好进入一批，某批仍超窗则安全报错；估算 token 仍需与本机 usage 校准 |
 | `src/recruitment/chat-model.ts` 与 `config/ollama/Modelfile` | 普通输出默认 8192、扩页 1024；仓库 Ollama profile 为 num_ctx=16384 | 输出保留空间必须纳入总预算；配置文件不证明本机运行实例已采用相同窗口 |
 | `src/recruitment/checkpoint-store.ts` | `.data/recruitment-cases.sqlite` 保存案件 checkpoint | 案件持久化已经存在；精简发给模型的请求不需要先删除 checkpoint 历史 |
 
@@ -76,7 +76,7 @@ projection 模式按最近 3 个用户回合保留完整问答：当前最新发
 
 模型所有引用仍经现有服务端白名单与 Reviewer 校验。ref 的存在不表示资料被模型读过；输出只能引用已提供的证据片段或现有可核验的结构化指标。
 
-候选目录不能为省 token 静默只保留前 N 名。保留当前有资格的已评估候选的完整精简目录、每名候选关键依据/缺口与总计数；详细证据分批读取。必要目录本身也超预算时，转为有记录的分批比较并保留每批覆盖；只能交付实际比较过的范围，不声称全池已经比较。
+候选目录不能为省 token 静默只保留前 N 名。先保留当前有资格的已评估候选的完整精简目录、每名候选关键依据/缺口与总计数；长篇证据按 ref 读取。只有候选目录及其候选 ID 约束 schema 本身造成硬窗口溢出，且移除候选数据和候选 ID 枚举后的同一请求可以放入窗口时，才将完整候选池平均分成不超过 5 批；每个候选只进入一批，每批最多选择 1 名有直接指标支持的考察线索。批次只允许完成比较，不能用局部候选集追问用户或提前结束。输出明确显示各批次覆盖，批次之间不声称统一排序；某批最小上下文仍放不下时安全返回容量错误，不能静默省略或让模型自行截断。
 
 ## 4. 请求前预算与渐进降载
 
@@ -89,11 +89,11 @@ inputLimit = min(providerInputLimit,
 
 供应商若独立限制输入和总窗口，分别遵守。兼容接口暴露的字段要实测，不能从返回 usage 缺失推断 token 为零。
 
-在仓库 16K profile 下，以下只是待验证的起始保留值，不在本次直接改配置：understand 输出 3072，investigate/reorient 2048，expand 1024，conclude 4096；安全余量先取 1024。需要用最复杂合法需求/完整报告校准，若 structured output 达到上限，则重新调整分配，而非截断 JSON。优先观测为何当前普通调用需要 8192，再决定降低输出上限。
+在仓库 16K profile 下，目前 understanding/investigate/reorient 继续使用原来的通用 8192 输出上限，expand 继续使用原来的 1024 上限；只为受限且最复杂的 conclude 报告新增默认 4096 上限，并由实际 wire 请求与对应 manifest 共用该值。这个结论上限仍是待真实模型完整报告验证的起始值；若 structured output 达到上限，再调整分配，而非截断 JSON。安全余量继续为 1024。尚未用证据支持普通调用降到 3072/2048，后续先观察它们的实际输出和用量。
 
 精确 tokenizer/服务端计数可用时使用它；否则使用注明估算性质的模型适配计数器，并按实际 usage 校准保守余量。OpenAI tokenizer 不能直接当作 Qwen 精确计数器。实际运行窗口未知时保留诊断状态并要求部署配置给出可信上限，不能把宣传窗口当运行窗口。
 
-降载顺序：去重和字段投影 → 省略过期过程记录 → 长证据换可读取 ref → 相关片段选择 → 旧动态轨迹摘要 → 必要证据分批。系统指令、当前原话、有效硬条件、未解决问题、确认身份、准确游标和引用所需单位/样本不可静默删除。
+降载顺序：去重和字段投影 → 省略过期过程记录 → 长证据换可读取 ref → 相关片段选择 → 旧动态轨迹摘要 → 必要目录分批。结论分批只在候选目录与候选 ID schema 导致超窗、而候选数据和候选 ID schema 同时移除后其余请求可放入窗口时启用；无关的历史或其他 payload 超窗不能借分批绕过。每批独立选一条线索，报告明确不具备跨批排序。若证据读取次数已耗尽，所有已经读出的原文、报告和方法证据都必须保留；压缩后仍超窗时返回可恢复容量错误。系统指令、当前原话、有效硬条件、未解决问题、确认身份、准确游标和引用所需单位/样本不可静默删除。
 
 设置低于硬上限的软目标来控制本机延迟，初始以 6–8K 输入作为实验范围，最终由本机分布决定。软目标不是正确性硬门槛，不为满足它牺牲必要事实。
 
@@ -113,11 +113,13 @@ inputLimit = min(providerInputLimit,
 
 ## 6. 持久化、缓存与长期记忆
 
-完整案件状态和原始历史继续由 SQLite checkpointer 保存；请求投影不删历史。新的 summary 为可选 State 字段，旧 checkpoint 默认无摘要；ref 绑定案件、需求范围指纹和证据内容版本，恢复后重新检查。取消、重启和旧 checkpoint 恢复仍遵守既有生命周期。
+完整案件状态和原始历史继续由 SQLite checkpointer 保存；请求投影不删历史。它是同一球探案件的持久工作状态，不是跨案件的用户画像。新的 summary 为可选 State 字段，旧 checkpoint 默认无摘要；ref 绑定案件、需求范围指纹和证据内容版本，恢复后重新检查。取消、重启和旧 checkpoint 恢复仍遵守既有生命周期。
 
 system 的稳定规则放前面，阶段与数据放后面；固定字段顺序和 schema 版本，减少无意义变化。候选 ID 与证据白名单继续动态约束，不为提高缓存命中而放松。记录实际支持的 cache usage；Ollama prefill/cache 数据不等同于 Claude 的计费缓存。收益没有实测前不声称“缓存已优化”。
 
-长期记忆的产品入口是“将此偏好设为以后默认”，保存明确偏好、来源与更新时间；当前案件明确要求优先于默认值。一次案件的年龄/预算/球队不自动跨案继承。单机原型可以复用已有浏览器偏好存储；要跨设备或多用户时，再用稳定 user ID 与 server Store namespace。足球知识库、身份映射与用户偏好维持各自范围。
+持久状态按所有权分为三个已有/可选范围：SQLite checkpoint 保存案件原始历史和结构化进度；共享知识库保存可复用的足球资料、指标方法与带来源的身份映射；跨案件用户偏好只有用户明确选择“设为以后默认”后才保存来源与更新时间。当前案件明确要求优先于默认值，一次案件的年龄、预算、球队和球员不自动跨案继承。
+
+不把对话自动提炼成预测用户下一步需求的画像，也不在首期实现情景/语义/程序记忆三套存储、记忆重要性衰减或聚类压缩。球探案件中的用户修正和被撤销条件需要可追溯；原始事件与当前权威 brief 保持可核验，导航摘要只能辅助恢复上下文。只有出现明确的跨案件默认偏好需求后，再做显式保存、查看和清除入口；单机可用浏览器存储，多用户/跨设备再采用稳定 user ID 对应的 Store namespace。足球知识库、身份映射与用户偏好维持各自范围。
 
 程序规则仍按代码/配置版本发布并经过 Harness。网页正文和摘要无权写系统规则、确认身份或新增用户偏好；外部文本作为低信任证据传入，不能因为被摘要就升级为可信控制信息。
 
@@ -193,8 +195,20 @@ src/recruitment/
 
 已在招聘模块内落地统一请求组装与预算观测、包含组件字节和版本指纹的隐私安全上下文清单、Provider 实际 token 用量状态、稳定案件事件 ID、Planner 历史投影、案件证据目录和受限读取，以及现有 Harness 的五臂长对话消融入口。摘要模型只能挑选旧对话中的逐字片段；程序验证事件 ID、片段存在、严格顺序和长度后，才形成导航摘录。完整覆盖账本只在验证时使用，checkpoint 与 Planner 只携带有界摘录、引用 ID 和覆盖轮次。摘录仍可能遗漏有用信息，因此它不是当前需求、球员事实或推荐证据；权威 brief、指标和资格仍来自结构化状态与 Reviewer。旧 checkpoint 的自由文本摘要不会再被当作已核验摘录传给 Planner。
 
+本轮新增结论投影：从案件 State 为所有符合当前范围的已评估候选构造完整目录，只携带需求相关且实际观测到的指标、样本、单位及可用百分位；未知值保持缺席，显式零值保留。projection/unified/summarized 的结论上下文因此不再重放旧候选搜索页和多批评估结果；所有原始记录仍在 LangGraph State/checkpoint。若结论请求仍超过已验证窗口，且移除候选数据与响应 schema 中的候选 ID 枚举后其余请求能够适配，则 Planner 使用完整 State 候选目录构造最多 5 个平衡批次；每批 schema 只允许 finish，防止局部候选池触发追问并中断后续批次。每个批次只从自己的完整候选切片中输出一名线索，最后报告批次数、逐批覆盖人数和有无直接证据线索，并明确没有跨批统一排名。无关用户背景导致的超窗不会触发候选分批；单批仍放不下时返回容量错误。读取预算耗尽时，各批仍保留已读原文。整 Planner HTTP 模拟覆盖候选全覆盖、候选 ID schema 过大但分批可容纳、非候选上下文仍超限时拒绝分批；独立 schema 测试验证批次拒绝 ask_user。尚未通过真实模型实验验证选择质量或延迟。
+
 `legacy` 仍为默认策略。`projection`、`evidence`、`unified` 与 `summarized` 仅在显式 Harness 选项下运行。CLI 固定 Barcelona U23 中场 curated 场景和 20 条范围保持压力消息，报告各臂候选顺序、证据顺序、通过率、各阶段上下文 token/字节清单、Provider 实际用量、摘要调用与端到端耗时。压力脚本用于增加历史长度，不等同于自然用户对话分布。测试句使用明确且可连续引用的能力描述，避免评测被不相关的转述引文错误提前终止。
 
-实现验证包含上下文组装纯函数、完整 LangGraph 的独立投影/证据读取行为、逐字摘要验证、Harness CLI 和五臂轮换入口。第一次本机 Ollama 冒烟因固定场景中的引文表达不清而安全停止；调整场景句后，第二次单次场景完整生成了报告，但 Harness 未通过：扩页 Planner 约 60 秒超时，结论 Planner 约 180 秒超时，请求估算约 20,640 输入 token，高于 8,192 的软目标；失败调用没有 Provider 实际 token 用量。此结果来自 `legacy` 模式，说明长请求和当前本机模型耗时值得进一步处理，但不能归因于新上下文策略，也不能证明它们有效或无效。完整五轮、20 条压力对话的本机模型消融尚未完成；摘要触发仍基于旧对话长度启发式，不能据此称为 token 压缩或延迟优化。实际消融达成第 8 节登记的正确性与收益门槛之前，维持 `legacy` 默认。
+实现验证包含上下文组装纯函数、Planner 本机 HTTP 请求预算兜底、超窗结论分批、完整 LangGraph 候选与证据投影行为、逐字摘要验证、Harness CLI 和五臂轮换入口。新增聚焦测试验证每名合格候选均保留、只传请求指标、缺失与显式 0 区分、读取预算耗尽时证据不丢、追问/短名单/证据被保留、重复搜索/评估流水被移除。实际 Ollama preflight 和完整五臂仍待重跑；此前五臂失败结果发生在 `legacy` 模式，不能归因于新上下文策略，也不能证明它们有效或无效。摘要触发仍基于旧对话长度启发式，不能据此称为 token 压缩或延迟优化。实际消融达成第 8 节登记的正确性与收益门槛之前，维持 `legacy` 默认。
+
+2026-10-19 的实现前真实运行诊断进一步区分了两个问题：一轮 `unified` 整图请求中，understand 请求为 12,371 bytes、估算 4,751 tokens，Provider 返回的该次 prompt usage 为 1,475 tokens；这个单样本可能受结构化输出 schema 计数口径影响，不能据此直接校准估算比例。后续 expand Planner 请求为 15,881 bytes、估算 6,096 tokens，在 60 秒时限失败；这是本机模型推理延迟问题，随后按既有确定性扩页回退继续。旧版本结论请求为 42,572 bytes、估算 16,328 tokens；结论历史降载已触发，但在当时 16K 窗口、8,192 输出预留和 1,024 安全余量下仍被挡在模型调用之前。它说明旧结论视图或预算边界需要处理，不能说“摘要已经解决超窗”，也不能把 Planner 超时归因于上下文压缩。
+
+实现已针对①减少结论目录中的重复字段、按需读取证据，并在必要时完整分批；针对②增加独立结论模型输出上限（默认 4,096 tokens），与请求 manifest 的预算共用同一设置。聚焦回归覆盖了 wire 请求、输入预算和批次候选覆盖。③仍未解决：Ollama 官方 API 文档公开最终响应的 `prompt_eval_count`，但不能据此声称存在可用的请求前 tokenizer 计数 API；仍需积累多种中文/JSON/schema 请求样本，不能用单次 usage 比值改写 16K 硬窗口规则。[Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md#generate-a-completion)
+
+消融状态分成两次记录：早期一次实验在 `legacy` 的 expand Planner 阶段约 60 秒超时，没有进入 20 轮脚本，不能比较上下文策略；最近一次按五臂、每臂五轮运行的命令持续超过 25 分钟，因没有逐轮进度而人工中止。后者也没有有效结果。现有自动测试和本机 HTTP 模拟证明请求构造与保护规则，不证明真实模型的任务正确性、用量节省或延迟收益。因此保持 `legacy` 默认；正式消融仍待建立可观察进度、先通过短任务预检后再运行完整配对实验。
+
+后续请求投影审查发现扩页 Planner 的 `caseProgress` 还重复携带了工具预算计数、保护引文索引、完整证据目录和整轮候选页列表；其中剩余工具动作已由 `availableActions` 表示，确切筛选和下一页游标也由 `expansionConstraints` 表示。现在扩页与扩页恢复阶段只传已发现候选数和最新候选页观察；历史裁剪计数继续进入隐私安全 manifest，但不进入模型提示词。真实 API wire 回归验证：模型仍收到最新页、已发现数量和候选总评估数，旧页、证据目录、引文原文及重复预算信息已移除。该改动尚未证明本机模型延迟改善；需在重新运行的五臂实验中观察。
+
+本轮最终本机验证：全量 `pnpm test` 为 712/712 通过，`pnpm build` 与 `git diff --check` 通过。它们验证软件行为与类型完整性，不替代尚未完成的 Ollama 五臂消融。
 
 原有 `.scratch/planner-context-serialization/` 下的四份未跟踪实验脚本保留，未修改。

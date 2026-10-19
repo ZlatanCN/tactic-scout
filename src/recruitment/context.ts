@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude" | "summarize";
 
 export interface RecruitmentContextManifest {
-  version: 2;
+  version: 3;
   stage: RecruitmentContextStage;
   requestBytes: number;
   componentBytes: { system: number; payload: number; schema: number; framing: number };
@@ -24,6 +24,7 @@ export interface RecruitmentContextManifest {
   safetyMarginTokens: number;
   contextWindowTokens: number | null;
   status: "within_budget" | "over_budget";
+  budgetStrategy: "assembled" | "conclusion_history_reduced" | "conclusion_candidate_batch";
   exceedsVerifiedWindow: boolean;
   exceedsSoftTarget: boolean;
   omittedHistoryEntries: number;
@@ -51,6 +52,7 @@ export interface BuildRecruitmentContextInput {
   includedHistoryEventIds?: readonly string[];
   omittedHistoryEventIds?: readonly string[];
   evidenceRefs?: readonly string[];
+  budgetStrategy?: RecruitmentContextManifest["budgetStrategy"];
 }
 
 export interface RecruitmentContextRequest {
@@ -134,7 +136,7 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       { role: "human", content: humanContent },
     ],
     manifest: {
-      version: 2,
+      version: 3,
       stage: input.stage,
       requestBytes,
       componentBytes: {
@@ -158,6 +160,7 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       safetyMarginTokens,
       contextWindowTokens: input.contextWindowTokens ?? null,
       status: estimatedInputTokens <= inputBudgetTokens ? "within_budget" : "over_budget",
+      budgetStrategy: input.budgetStrategy ?? "assembled",
       exceedsVerifiedWindow,
       exceedsSoftTarget,
       omittedHistoryEntries: input.omittedHistoryEntries ?? 0,
@@ -178,9 +181,8 @@ function collectEvidenceRefs(value: unknown): string[] {
   if (!value || typeof value !== "object") return [];
   if (Array.isArray(value)) return value.flatMap(collectEvidenceRefs);
   const record = value as Record<string, unknown>;
-  const found = typeof record.ref === "string" && /^ev\.[a-f0-9]{12}\.[a-f0-9]{12}\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.test(record.ref)
-    ? [record.ref]
-    : [];
+  const found = [record.ref, record.metricEvidenceRef]
+    .filter((ref): ref is string => typeof ref === "string" && /^ev\.[a-f0-9]{12}\.[a-f0-9]{12}\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.test(ref));
   return [...found, ...Object.values(record).flatMap(collectEvidenceRefs)];
 }
 

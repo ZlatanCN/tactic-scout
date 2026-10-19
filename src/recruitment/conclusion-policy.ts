@@ -91,7 +91,7 @@ export function summarizeRequestedCapabilityCoverage(input: {
 
 export function createConstrainedConclusionSchema(
   constraints: RecruitmentDecisionConstraints,
-  options: { allowReadCaseEvidence?: boolean } = {},
+  options: { allowAskUser?: boolean; allowReadCaseEvidence?: boolean; maxRecommendations?: number } = {},
 ) {
   const requestedMetricKeys = new Set(constraints.requestedCapabilityCoverage.flatMap(({ requestedMetricKeys }) => requestedMetricKeys));
   const requestedCapabilitiesExist = requestedMetricKeys.size > 0;
@@ -144,7 +144,7 @@ export function createConstrainedConclusionSchema(
     capabilityProfile: z.array(z.string().trim().min(1).max(160)).max(8),
     recommendations: z.array(recommendationItemSchema)
       .min(recommendationPlayerIds.length ? 1 : 0)
-      .max(recommendationPlayerIds.length ? 5 : 0)
+      .max(recommendationPlayerIds.length ? options.maxRecommendations ?? 5 : 0)
       .describe(requireEvidenceBackedLead
         ? "给出有用户所述能力直接指标支持的后续考察线索；候选人和指标需经复核。"
         : "需求能力没有可测量项时，可依据已有统计给出待核实的考察线索；必须明确能力尚未核实，不能声称这些统计证明战术适配。没有任何表现证据时才为空。"),
@@ -155,9 +155,23 @@ export function createConstrainedConclusionSchema(
     question: z.string().trim().min(1).max(300),
     reason: z.string().trim().min(1).max(300),
   });
+  if (options.allowAskUser === false) {
+    return options.allowReadCaseEvidence
+      ? z.discriminatedUnion("action", [constrainedFinishActionSchema, ReadCaseEvidenceActionSchema])
+      : constrainedFinishActionSchema;
+  }
   return options.allowReadCaseEvidence
     ? z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema, ReadCaseEvidenceActionSchema])
     : z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
+}
+
+function constrainedFinishSchemaFrom(schema: unknown): typeof FinishActionSchema | undefined {
+  const options = (schema as { options?: readonly { shape: { action: unknown } }[] }).options ?? [];
+  const finish = options.find(option => {
+    const action = option.shape.action;
+    return action instanceof z.ZodLiteral && action.value === "finish";
+  });
+  return finish as unknown as typeof FinishActionSchema | undefined;
 }
 
 export function createConstrainedInvestigationSchema(availableActions: readonly RecruitmentPlannerAction[]) {
@@ -178,10 +192,7 @@ export function createConstrainedExpansionSchema(
   options: { allowAskUser?: boolean } = {},
 ) {
   const conclusionSchema = createConstrainedConclusionSchema(decisionConstraints);
-  const constrainedFinishActionSchema = conclusionSchema.options.find((option) => {
-    const action = option.shape.action;
-    return action instanceof z.ZodLiteral && action.value === "finish";
-  });
+  const constrainedFinishActionSchema = constrainedFinishSchemaFrom(conclusionSchema);
   if (!constrainedFinishActionSchema) throw new Error("Constrained finish action schema is missing.");
   // Zod's .find() returns a union of both action schemas; runtime selection above
   // guarantees this is the constrained finish shape while retaining its refinements.
@@ -348,10 +359,7 @@ export function createConstrainedReorientationSchema(
   options: { allowReadCaseEvidence?: boolean } = {},
 ) {
   const conclusionSchema = createConstrainedConclusionSchema(constraints, options);
-  const constrainedFinishActionSchema = conclusionSchema.options.find((option) => {
-    const action = option.shape.action;
-    return action instanceof z.ZodLiteral && action.value === "finish";
-  });
+  const constrainedFinishActionSchema = constrainedFinishSchemaFrom(conclusionSchema);
   if (!constrainedFinishActionSchema) throw new Error("Constrained finish action schema is missing.");
   return options.allowReadCaseEvidence ? z.discriminatedUnion("action", [
     SearchCandidatesActionSchema,

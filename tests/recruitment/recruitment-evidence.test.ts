@@ -788,10 +788,12 @@ test("policy report retrieval covers every evaluated candidate before Planner sy
   ];
   let actualReportNames: string[] = [];
   let reorientationHistory: Parameters<RecruitmentPlanner["decide"]>[0]["history"] = [];
+  let reorientationCaseProgress: unknown;
   const decisionModes: Array<"investigate" | "expand" | "expand_recovery" | "reorient" | "conclude" | undefined> = [];
   let conclusionConstraints: Parameters<RecruitmentPlanner["decide"]>[0]["constraints"];
   const events: RecruitmentTraceEvent[] = [];
   const conversation = createRecruitmentConversation({
+    experimentalContextManagementMode: "unified",
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
       async decide(input) {
@@ -799,6 +801,7 @@ test("policy report retrieval covers every evaluated candidate before Planner sy
         if (input.decisionMode === "conclude" || input.decisionMode === "reorient") {
           conclusionConstraints = input.constraints;
           reorientationHistory = input.history;
+          reorientationCaseProgress = input.caseProgress;
         }
         const action = actions.shift();
         assert.ok(action);
@@ -822,23 +825,22 @@ test("policy report retrieval covers every evaluated candidate before Planner sy
   assert.equal(response.status, "completed");
   assert.deepEqual(new Set(actualReportNames), new Set(players.map((player) => player.name)));
   assert.equal(decisionModes.at(-1), "reorient");
-  const candidateSearch = reorientationHistory.find(({ role, toolName }) =>
-    role === "tool" && toolName === "search_candidates",
-  );
-  assert.ok(candidateSearch);
-  const searchResult = JSON.parse(candidateSearch.content) as {
-    candidates: Array<Record<string, unknown>>;
-    nextOffset: number | null;
-  };
-  assert.deepEqual(new Set(searchResult.candidates.map(player => player.name)), new Set(players.map(player => player.name)));
-  assert.equal(searchResult.nextOffset, null);
-  const evaluationEntry = reorientationHistory.find(({ role, toolName }) => role === "tool" && toolName === "evaluate_candidates");
-  assert.ok(evaluationEntry);
-  const evaluationSummary = JSON.parse(evaluationEntry.content) as {
-    evaluations: Array<{ metrics: Array<{ key: string }> }>;
-  };
+  const projectedCandidateEvidence = (reorientationCaseProgress as {
+    candidateEvidence?: { candidateCount: number; candidates: Array<{ playerId: string; metrics: Array<{ key: string }> }> };
+    currentTurnCandidatePages?: Array<{ nextOffset: number | null; discoveredRecordCount: number }>;
+  } | undefined)?.candidateEvidence;
+  const currentTurnCandidatePages = (reorientationCaseProgress as {
+    currentTurnCandidatePages?: Array<{ nextOffset: number | null; discoveredRecordCount: number }>;
+  } | undefined)?.currentTurnCandidatePages;
   const requestedMetricKeys = new Set<string>(conclusionConstraints?.requestedCapabilityCoverage.flatMap(({ requestedMetricKeys: keys }) => keys));
-  assert.ok(evaluationSummary.evaluations.every(({ metrics }) => metrics.every(({ key }) => requestedMetricKeys.has(key))));
+  assert.ok(projectedCandidateEvidence);
+  assert.equal(projectedCandidateEvidence.candidateCount, players.length);
+  assert.deepEqual(new Set(projectedCandidateEvidence.candidates.map(({ playerId }) => playerId)), new Set(players.map(({ playerId }) => playerId)));
+  assert.ok(projectedCandidateEvidence.candidates.every(({ metrics }) => metrics.every(({ key }) => requestedMetricKeys.has(key))));
+  assert.equal(currentTurnCandidatePages?.at(-1)?.nextOffset, null);
+  assert.equal(currentTurnCandidatePages?.at(-1)?.discoveredRecordCount, players.length);
+  assert.equal(reorientationHistory.some(({ role, toolName }) => role === "tool" && ["search_candidates", "evaluate_candidates"].includes(toolName ?? "")), false,
+    "the projected conclusion should use authoritative state summaries instead of replaying search/evaluation tool dumps");
   assert.ok(reorientationHistory.some(({ role, toolName }) => role === "tool" && toolName === "search_player_reports"));
   assert.equal(conclusionConstraints?.targetTeam, "巴萨");
   assert.deepEqual(new Set(conclusionConstraints?.evaluatedCandidates.map(({ playerId }) => playerId)), new Set(players.map((player) => player.playerId)));

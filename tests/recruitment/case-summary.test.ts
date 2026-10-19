@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { caseSummaryEvents, caseSummaryHistoryEntry, validateCaseSummaryOutput, type CaseSummaryEvent } from "../../src/recruitment/case-summary.js";
+import { caseSummaryEvents, caseSummaryHistoryEntry, createCaseSummaryGenerator, validateCaseSummaryOutput, type CaseSummaryEvent } from "../../src/recruitment/case-summary.js";
 import { createRecruitmentConversation, type RecruitmentAction, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
@@ -72,6 +72,46 @@ test("summary validation accepts only exact source quotes and requires the compl
     ],
     coveredEventIds: events.map(event => event.id),
   }, events), /按原文事件顺序/);
+});
+
+test("case summary stays within its existing cap and records the matching context budget", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS", "OPENAI_EXPANSION_MAX_OUTPUT_TOKENS"] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const event = { id: "evt.0123456789abcdef.user.1", kind: "user_message" as const, text: "为巴萨找中卫" };
+  let requestBody: { max_tokens?: number } | undefined;
+  let manifest: { outputBudgetTokens?: number } | undefined;
+  process.env.OPENAI_API_KEY = "fixture";
+  process.env.OPENAI_MODEL = "fixture";
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "8192";
+  process.env.OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = "768";
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requestBody = JSON.parse(String(init?.body)) as typeof requestBody;
+    return Response.json({
+      id: "fixture", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({
+        claims: [{ eventId: event.id, quote: "为巴萨找中卫" }], coveredEventIds: [event.id],
+      }) } }],
+      usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 },
+    });
+  }) as typeof fetch;
+  try {
+    const summary = await createCaseSummaryGenerator().summarize({
+      events: [event],
+      onUsage: usage => { manifest = usage.contextManifest as unknown as typeof manifest; },
+    });
+    assert.equal(summary.claims[0]?.quote, event.text);
+    assert.equal(requestBody?.max_tokens, 768);
+    assert.equal(manifest?.outputBudgetTokens, requestBody?.max_tokens);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
 });
 
 test("planner-facing case summaries omit the growing audit ledger but retain cited event IDs", () => {
