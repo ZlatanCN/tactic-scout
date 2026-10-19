@@ -21,6 +21,7 @@ export const usage = [
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --scenario understat-five-league-xg-creation --compare-historical-archive --runs 3",
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --scenario understat-five-league-xg-creation --compare-understat-research --runs 3",
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --message \"为巴萨寻找一个新的后卫，要能参与出球和高位防守\" --expected-position DEF --compare-expansion-sufficiency --runs 3",
+  "  TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- --scenario barcelona-under-23-midfielder --compare-context-management --runs 5",
   "  pnpm eval:local-agent -- --message \"自定义球探需求\" [--answer \"补充回答\"] [--expected-position ST]",
   "  pnpm eval:local-agent -- --message \"我想给拜仁补强阵容，但位置还没定\" --expect-position-clarification",
   "",
@@ -41,6 +42,7 @@ export const usage = [
   "  --compare-historical-archive 在 Understat 或 mosaic 场景配对开关历史 Wyscout 报告旁注；须预先启用展示与本地保留",
   "  --compare-understat-research 在同一 Understat 候选调查整图中比较目录、固定四组资料和动态调查（至少 3 轮）",
   "  --compare-expansion-sufficiency 在同一整图配对比较证据充分时的确定性收束与保留扩页 Planner（至少 3 对）",
+  "  --compare-context-management 在同一长对话整图比较旧阶段裁剪、统一投影和按需摘要（至少 5 组三臂配对；仅 curated 数据）",
   "  --help               显示本帮助",
 ].join("\n");
 
@@ -146,10 +148,11 @@ export async function parseLocalAgentOptions() {
   const compareHistoricalArchive = process.argv.includes("--compare-historical-archive");
   const compareEvidenceEvaluator = process.argv.includes("--compare-evidence-evaluator");
   const compareExpansionSufficiency = process.argv.includes("--compare-expansion-sufficiency");
-  if ([compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency].filter(Boolean).length > 1) {
+  const compareContextManagement = process.argv.includes("--compare-context-management");
+  if ([compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency, compareContextManagement].filter(Boolean).length > 1) {
     throw new Error("比较实验选项一次只能使用一个。");
   }
-  if (summaryOutputPath && [compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency].some(Boolean)) {
+  if (summaryOutputPath && [compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency, compareContextManagement].some(Boolean)) {
     throw new Error("--summary-output 目前只支持普通 Harness 运行，不能与消融实验选项一起使用。");
   }
   if (summaryOutputPath) await assertIdentityFreeSummaryPathAvailable(summaryOutputPath);
@@ -270,6 +273,21 @@ export async function parseLocalAgentOptions() {
       throw new Error("--compare-expansion-sufficiency 需要 TACTISCOUT_DATA_MODE=understat，以固定单一 Understat 来源。");
     }
   }
+  if (compareContextManagement) {
+    const scenarioId = option("--scenario");
+    if (scenarioId !== "barcelona-under-23-midfielder") {
+      throw new Error("--compare-context-management 必须使用固定场景 --scenario barcelona-under-23-midfielder。");
+    }
+    if (option("--message") || options("--answer").length || option("--expected-position")) {
+      throw new Error("--compare-context-management 使用固定场景和 20 轮压力脚本，不能与自定义输入或补答一起使用。");
+    }
+    if (runsPerScenario < 5) {
+      throw new Error("--compare-context-management 至少需要 --runs 5，才能完成五组三臂交错配对复跑。");
+    }
+    if (configuredDataMode !== "curated") {
+      throw new Error("--compare-context-management 需要 TACTISCOUT_DATA_MODE=curated，以固定候选数据快照。");
+    }
+  }
   let historicalArchivePreflight: Awaited<ReturnType<typeof preflightConfiguredHistoricalArchive>> | null = null;
   if (compareHistoricalArchive) {
     const scenarioId = option("--scenario");
@@ -295,6 +313,6 @@ export async function parseLocalAgentOptions() {
     }
   }
 
-  const comparison = compareReviewer ? "reviewer" as const : compareInteraction ? "interaction" as const : compareAskPolicy ? "ask_policy" as const : compareMethodologyRag ? "methodology_rag" as const : compareInvestigationPlanning ? "investigation_planning" as const : compareHistoricalArchive ? "historical_archive" as const : compareEvidenceEvaluator ? "evidence_evaluator" as const : compareUnderstatResearch ? "understat_research" as const : compareExpansionSufficiency ? "expansion_sufficiency" as const : null;
+  const comparison = compareReviewer ? "reviewer" as const : compareInteraction ? "interaction" as const : compareAskPolicy ? "ask_policy" as const : compareMethodologyRag ? "methodology_rag" as const : compareInvestigationPlanning ? "investigation_planning" as const : compareHistoricalArchive ? "historical_archive" as const : compareEvidenceEvaluator ? "evidence_evaluator" as const : compareUnderstatResearch ? "understat_research" as const : compareExpansionSufficiency ? "expansion_sufficiency" as const : compareContextManagement ? "context_management" as const : null;
   return { scenarios, runsPerScenario, summaryOutputPath, comparison, historicalArchivePreflight };
 }

@@ -2,6 +2,7 @@ import { RecruitmentBriefSchema, type RecruitmentBrief } from "../domain/recruit
 import { normalizeSearchText } from "../domain/text-matching.js";
 import { positionFamilyFor, positionMatches } from "../domain/positions.js";
 import { PositionSchema } from "../domain/position-contracts.js";
+import { explicitCapabilityPrioritiesFromMessages } from "../domain/recruitment-capabilities.js";
 import { explicitPositionState, resolveCandidateSearchIntent } from "./candidate-search-intent.js";
 export { RecruitmentBriefSchema, type RecruitmentBrief } from "../domain/recruitment-brief.js";
 
@@ -10,10 +11,12 @@ export interface RecruitmentBriefInterpreter {
     message: string;
     previous: RecruitmentBrief | null;
     recentMessages: readonly string[];
+    /** Full immutable message archive for validating quotes/explicit facts; never sent by default. */
+    validationMessages?: readonly string[];
     visibleCandidates?: readonly VisibleRecruitmentCandidate[];
     clarificationQuestion?: string;
     signal?: AbortSignal;
-    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }) => void;
+    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number }) => void;
   }): Promise<RecruitmentBrief>;
 }
 
@@ -63,6 +66,13 @@ export class RecruitmentBriefOutputLimitError extends Error {
 /** Reject fabricated explicit evidence before it can become a search condition. */
 export function validateRecruitmentBrief(value: unknown, userMessages: readonly string[], visibleCandidates: readonly VisibleRecruitmentCandidate[] = []): RecruitmentBrief {
   const brief = RecruitmentBriefSchema.parse(value);
+  const representedPriorities = new Set(brief.priorities.map(priority => normalizeSearchText(priority.value)));
+  for (const priority of explicitCapabilityPrioritiesFromMessages(userMessages)) {
+    const key = normalizeSearchText(priority.value);
+    if (representedPriorities.has(key)) continue;
+    brief.priorities.push(priority);
+    representedPriorities.add(key);
+  }
   if (brief.filters.maxAge !== null
     && !brief.constraints.some(item => item.kind === "age" && item.strength === "required" && item.requirement.basis === "explicit")) {
     const quote = explicitAgeQuote(userMessages, brief.filters.maxAge);

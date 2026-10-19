@@ -1,4 +1,5 @@
 import { createUnderstandingNode } from "./conversation/understanding-node.js";
+import { createContextCompactionNode, type ContextManagementMode } from "./conversation/context-compaction-node.js";
 import { createRecruitmentBriefInterpreter } from "./brief-interpreter.js";
 import type { RecruitmentBriefInterpreter } from "./brief.js";
 import type { RecruitmentRetrievalMode } from "./conversation/retrieval-policy.js";
@@ -27,6 +28,7 @@ import { type State, maxDecisionsPerTurn, RecruitmentState } from "./conversatio
 import { createToolNode } from "./conversation/tool-node.js";
 import { createRecordUserTurnNode, waitForUser } from "./conversation/turn-nodes.js";
 import { type RecruitmentEvidenceEvaluator, createRecruitmentEvidenceEvaluator } from "./recruitment-evidence-evaluator.js";
+import { createCaseSummaryGenerator, type CaseSummaryGenerator } from "./case-summary.js";
 import { type RecruitmentPlanner, createRecruitmentPlanner, RecruitmentModelTimeoutError, RecruitmentModelUnavailableError } from "./recruitment-planner.js";
 
 export { RecruitmentCaseStateExpiredError } from "./conversation/contracts.js";
@@ -69,6 +71,8 @@ export function createRecruitmentConversation(input: {
   experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
+  experimentalContextManagementMode?: ContextManagementMode;
+  caseSummaryGenerator?: CaseSummaryGenerator;
 }): RecruitmentConversation {
   const { repository, planner, observer } = input;
   const groupCandidateRecords = input.candidateIdentityGrouper
@@ -79,6 +83,10 @@ export function createRecruitmentConversation(input: {
   const candidatePolicyMode = input.experimentalCandidatePolicyMode ?? "enabled";
   const candidateSearchFreshnessMode = input.experimentalCandidateSearchFreshnessMode ?? "enabled";
   const expansionSufficiencyMode = input.experimentalExpansionSufficiencyMode ?? "enabled";
+  const contextManagementMode = input.experimentalContextManagementMode ?? "legacy";
+  // Keep graph construction side-effect free; configured callers inject the
+  // model-backed generator explicitly, tests can supply a deterministic one.
+  const caseSummaryGenerator = input.caseSummaryGenerator;
   const enforceCurrentTurnObservation = candidateSearchFreshnessMode === "enabled";
   const knowledgeBase = input.knowledgeBase ?? createLocalKnowledgeBase();
   const playerEloSetup = createConfiguredPlayerEloReportClient();
@@ -89,7 +97,8 @@ export function createRecruitmentConversation(input: {
   const workflow = new StateGraph(RecruitmentState)
     .addNode("record_user_turn", createRecordUserTurnNode({ disabledPlayerEloCoverage, historicalArchiveSetup, abilityProfilesEnabled: repository.supportsAbilityProfiles }))
     .addNode("understand_request", createUnderstandingNode({ interpreter: input.briefInterpreter, repository, resolver: input.referenceNameResolver, observer, referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed" }))
-    .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled", previousShortlistContextEnabled: input.experimentalPreviousShortlistContextMode !== "bypassed", shortlistComparisonEnabled: input.experimentalShortlistComparisonMode !== "bypassed", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode }))
+    .addNode("compact_case_context", createContextCompactionNode({ mode: contextManagementMode, ...(caseSummaryGenerator ? { generator: caseSummaryGenerator } : {}), observer }))
+    .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled", previousShortlistContextEnabled: input.experimentalPreviousShortlistContextMode !== "bypassed", shortlistComparisonEnabled: input.experimentalShortlistComparisonMode !== "bypassed", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode, contextManagementMode }))
     .addNode("execute_tool", createToolNode({ repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords, methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed", ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}), referenceNameResolver: input.referenceNameResolver }))
     .addNode("wait_for_user", waitForUser)
     .addNode("review_recommendation", createReviewNode({ observer, reviewerMode }))
@@ -98,7 +107,8 @@ export function createRecruitmentConversation(input: {
     .addNode("deliver_recommendation", createReportProjection({ repository, evidenceEvaluator, groupCandidateRecords, candidateComparisonEnabled: input.experimentalCandidateComparisonMode !== "bypassed", referenceProfileEnabled: input.experimentalReferenceProfileMode !== "bypassed" }))
     .addEdge(START, "record_user_turn")
     .addEdge("record_user_turn", "understand_request")
-    .addEdge("understand_request", "choose_next_action")
+    .addEdge("understand_request", "compact_case_context")
+    .addEdge("compact_case_context", "choose_next_action")
     .addConditionalEdges("choose_next_action", (state: State) => {
       if (state.forcedLimitReached || state.policyLoopStopped) return "review";
       if (state.policyBlocked) return "replan";
@@ -117,7 +127,7 @@ export function createRecruitmentConversation(input: {
       }
       return "tool";
     }, { ask: "wait_for_user", replan: "choose_next_action", review: "review_recommendation", tool: "execute_tool" })
-    .addEdge("execute_tool", "choose_next_action")
+    .addEdge("execute_tool", "compact_case_context")
     .addConditionalEdges("review_recommendation", (state: State) => {
       if (state.reviewResult === "retry") return "retry";
       if ((state.reviewResult === "valid" || state.reviewResult === "bypassed")
@@ -199,6 +209,8 @@ export interface ConfiguredRecruitmentConversationOptions {
   experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
+  experimentalContextManagementMode?: ContextManagementMode;
+  caseSummaryGenerator?: CaseSummaryGenerator;
 }
 
 export function configuredRecruitmentConversation(
@@ -215,6 +227,7 @@ export function configuredRecruitmentConversation(
     evidenceEvaluator,
   } = options;
   try {
+    const contextManagementMode = options.experimentalContextManagementMode ?? "legacy";
     return createRecruitmentConversation({
       repository,
       planner: plannerFactory(),
@@ -236,6 +249,9 @@ export function configuredRecruitmentConversation(
       experimentalReviewerMode,
       experimentalAskUserMode,
       ...(evidenceEvaluator ? { evidenceEvaluator } : {}),
+      experimentalContextManagementMode: contextManagementMode,
+      ...(options.caseSummaryGenerator ? { caseSummaryGenerator: options.caseSummaryGenerator }
+        : contextManagementMode === "summarized" ? { caseSummaryGenerator: createCaseSummaryGenerator() } : {}),
     });
   } catch (error) {
     if (error instanceof RecruitmentModelUnavailableError) return unavailableRecruitmentConversation();

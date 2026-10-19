@@ -449,6 +449,7 @@ const progressStageByTool: Record<ToolActionName, RecruitmentProgressStage> = {
   search_candidates: "candidate_search",
   evaluate_candidates: "player_evaluation",
   search_player_reports: "report_search",
+  read_case_evidence: "evidence_read",
 };
 
 function progressTurnForTool(input: ScenarioEvaluationInput, target: CandidateSearchEvent): number | null {

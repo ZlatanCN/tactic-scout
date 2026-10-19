@@ -3,6 +3,8 @@ import { RecruitmentBriefReferenceClueSchema, RecruitmentBriefReferenceRecheckSc
 import { RecruitmentBriefOutputLimitError, RecruitmentBriefSchema, RecruitmentBriefValidationError, validateRecruitmentBrief, type RecruitmentBrief, type RecruitmentBriefInterpreter } from "./brief.js";
 import { normalizeModelTokenUsage, structuredModelText } from "./model-output.js";
 import { z } from "zod/v4";
+import { assertRecruitmentContextFits, buildRecruitmentContext } from "./context.js";
+import { contextSafetyMarginTokens, contextSoftInputBudgetTokens, modelContextWindowTokens } from "./chat-model.js";
 
 export const briefInterpretationInstructions = [
   "你负责理解足球招募需求，输出结构化需求，不推荐球员、不声明球员事实、不调用调查工具。",
@@ -76,22 +78,38 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
     async interpret(input) {
       let correction: string | undefined;
       let previousAttempt: unknown;
+      const configuredContextWindow = modelContextWindowTokens();
+      const payload = () => ({ previous: input.previous, recentMessages: input.recentMessages, visibleCandidates: input.visibleCandidates ?? [], clarificationQuestion: input.clarificationQuestion, message: input.message, previousAttempt, correction });
+      const request = () => buildRecruitmentContext({
+        stage: "understand",
+        systemInstructions: briefInterpretationInstructions,
+        payload: payload(),
+        responseSchema: z.toJSONSchema(RecruitmentBriefModelSchema),
+        outputBudgetTokens: maxOutputTokens,
+        ...(configuredContextWindow === undefined ? {} : { contextWindowTokens: configuredContextWindow }),
+        softInputBudgetTokens: contextSoftInputBudgetTokens(),
+        safetyMarginTokens: contextSafetyMarginTokens(),
+        omittedHistoryEntries: Math.max(0, (input.validationMessages?.length ?? input.recentMessages.length + 1) - input.recentMessages.length - 1),
+      });
       for (let attempt = 0; attempt < 2; attempt++) {
-        const result = await model.invoke([
-          ["system", briefInterpretationInstructions],
-          ["human", JSON.stringify({ previous: input.previous, recentMessages: input.recentMessages, visibleCandidates: input.visibleCandidates ?? [], clarificationQuestion: input.clarificationQuestion, message: input.message, previousAttempt, correction })],
-        ], input.signal ? { signal: input.signal } : undefined).catch(error => {
-          input.onUsage?.({ outcome: "failed" });
+        const assembled = request();
+        try { assertRecruitmentContextFits(assembled); }
+        catch (error) {
+          input.onUsage?.({ outcome: "failed", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries });
+          throw error;
+        }
+        const result = await model.invoke(assembled.messages, input.signal ? { signal: input.signal } : undefined).catch(error => {
+          input.onUsage?.({ outcome: "failed", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries });
           if (isStructuredOutputLengthLimit(error)) throw new RecruitmentBriefOutputLimitError(maxOutputTokens, { cause: error });
           throw error;
         });
-        input.onUsage?.({ outcome: "response", ...normalizeModelTokenUsage(result) });
+        input.onUsage?.({ outcome: "response", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, ...normalizeModelTokenUsage(result) });
         let candidate: unknown = result.parsed;
         if (!candidate) {
           try { candidate = JSON.parse(structuredModelText(result.raw.content)); } catch { /* The schema validator records a failed structured response. */ }
         }
         candidate = preserveBriefDuringIdentityRecheck(candidate, input.previous, input.message);
-        try { return validateRecruitmentBrief(candidate, [...input.recentMessages, input.message], input.visibleCandidates); }
+        try { return validateRecruitmentBrief(candidate, input.validationMessages ?? [...input.recentMessages, input.message], input.visibleCandidates); }
         catch (error) {
           if (attempt > 0) throw error;
           previousAttempt = candidate;

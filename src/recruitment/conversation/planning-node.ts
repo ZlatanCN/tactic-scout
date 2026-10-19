@@ -11,6 +11,10 @@ import {
   expansionPlannerFallback,
 } from "../conclusion-policy.js";
 import { compactConclusionHistory, compactExpansionHistory } from "../planner-context.js";
+import { projectRecruitmentHistory } from "../context.js";
+import { createCaseEvidenceIndex } from "../case-evidence.js";
+import { caseSummaryHistoryEntry } from "../case-summary.js";
+import { type ContextManagementMode } from "./context-compaction-node.js";
 import { type ParsedRecruitmentAction, type RecruitmentAction, type RecruitmentPlannerAction, emptyDecision, RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
 import { type RecruitmentPlanner, type RecruitmentPlannerUsageObservation, RecruitmentModelTimeoutError, RecruitmentPlannerOutputError } from "../recruitment-planner.js";
 import { candidateIdentityGroupReferencesFor, confirmedPositionSearchObservation, userMessages } from "./candidate-context.js";
@@ -24,11 +28,22 @@ import { preserveExplicitShortlistComparison } from "./shortlist-comparison.js";
 
 type PlanningMode = NonNullable<Parameters<RecruitmentPlanner["decide"]>[0]["decisionMode"]>;
 
-function availablePlannerActions(state: State, repository: PlayerRepository, decisionMode: PlanningMode): RecruitmentPlannerAction[] {
-  if (decisionMode === "conclude") return ["ask_user", "finish"];
+function availablePlannerActions(state: State, repository: PlayerRepository, decisionMode: PlanningMode, contextManagementMode: ContextManagementMode): RecruitmentPlannerAction[] {
+  if (decisionMode === "conclude") return [
+    ...(contextManagementMode !== "legacy" && (Object.keys(state.evaluatedPlayers).length || Object.keys(state.retrievedKnowledge).length)
+      ? (state.toolUses.read_case_evidence ?? 0) < toolBudgets.read_case_evidence ? ["read_case_evidence" as const] : []
+      : []),
+    "ask_user", "finish",
+  ];
   if (decisionMode === "expand") return ["search_candidates", "ask_user", "finish"];
   if (decisionMode === "expand_recovery") return ["search_candidates", "finish"];
-  if (decisionMode === "reorient") return ["search_candidates", "ask_user", "finish"];
+  if (decisionMode === "reorient") return [
+    "search_candidates",
+    ...(contextManagementMode !== "legacy" && (Object.keys(state.evaluatedPlayers).length || Object.keys(state.retrievedKnowledge).length)
+      ? (state.toolUses.read_case_evidence ?? 0) < toolBudgets.read_case_evidence ? ["read_case_evidence" as const] : []
+      : []),
+    "ask_user", "finish",
+  ];
 
   const actions: RecruitmentPlannerAction[] = [
     ...(repository.inspectTeam || repository.loadPlayers ? ["inspect_team" as const] : []),
@@ -59,6 +74,7 @@ export function createPlanningNode(input: {
   candidatePolicyMode: RecruitmentCandidatePolicyMode;
   enforceCurrentTurnObservation: boolean;
   understatResearchMode?: UnderstatResearchMode;
+  contextManagementMode?: ContextManagementMode;
 }) {
   const { repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation } = input;
   return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
@@ -182,6 +198,50 @@ export function createPlanningNode(input: {
         }),
       });
     }
+    const protectedQuotes = [
+      state.brief?.targetTeam?.quote,
+      state.brief?.referencePlayer?.quote,
+      ...(state.brief?.referenceClues?.map(clue => clue.quote) ?? []),
+      ...(state.brief?.constraints.map(constraint => constraint.requirement.quote) ?? []),
+    ].filter((quote): quote is string => Boolean(quote));
+    const contextManagementMode = input.contextManagementMode ?? "unified";
+    if (contextManagementMode === "summarized" && state.caseSummary) plannerHistory.unshift(caseSummaryHistoryEntry(state.caseSummary));
+    const projectedHistory = contextManagementMode === "legacy"
+      ? { entries: plannerHistory, userEventIds: [], manifest: { omittedEntryCount: 0, protectedQuoteCount: 0 } }
+      : projectRecruitmentHistory(plannerHistory, {
+        recentUserTurns: 3,
+        protectedQuotes,
+        preserveAllTools: decisionMode === "conclude" || decisionMode === "reorient",
+      });
+    const projectedPlannerHistory = projectedHistory.entries.map((entry) => ({ ...entry }));
+    const currentTurnObservations = state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex);
+    const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
+    const turnNumber = state.history.filter(entry => entry.role === "user").length;
+    const evidenceIndex = caseId ? createCaseEvidenceIndex({
+      caseId,
+      turnNumber,
+      evaluations: Object.values(eligibleEvaluatedPlayers),
+      documents: Object.values(state.retrievedKnowledge),
+    }) : null;
+    const caseProgress = {
+      toolUses: state.toolUses,
+      currentTurnCandidatePages: currentTurnObservations.map(observation => ({
+        offset: observation.actualOffset,
+        nextOffset: observation.nextOffset,
+        position: observation.request.position,
+        positions: observation.request.positions ?? [],
+        matchingRecordCount: observation.matchingRecordCount,
+        discoveredRecordCount: observation.discoveredSourceRecordIds.length,
+      })),
+      evaluatedCandidateCount: Object.keys(eligibleEvaluatedPlayers).length,
+      discoveredCandidateCount: Object.keys(state.discoveredPlayers).length,
+      hasSearchedMethodology: state.hasSearchedMethodology,
+      hasSearchedPlayerReports: state.hasSearchedPlayerReports,
+      searchedReportPlayerCount: state.searchedReportPlayerNames.length,
+      omittedHistoryEntries: projectedHistory.manifest.omittedEntryCount,
+      protectedQuoteCount: projectedHistory.manifest.protectedQuoteCount,
+      ...(contextManagementMode !== "legacy" && (decisionMode === "conclude" || decisionMode === "reorient") && evidenceIndex ? { evidenceDirectory: evidenceIndex.directory } : {}),
+    };
     try {
       let modelAction: RecruitmentAction;
       if (input.expansionSufficiencyEnabled !== false
@@ -195,19 +255,20 @@ export function createPlanningNode(input: {
       } else try {
         modelAction = await planner.decide({
           brief: state.brief,
-          history: plannerHistory,
+          history: projectedPlannerHistory,
           dataMode: repository.mode,
           dataSource: repository.sourceName,
           abilityProfilesEnabled: state.abilityProfilesEnabled,
           targetTeam: state.targetTeam,
           decisionMode,
-          availableActions: availablePlannerActions(state, repository, decisionMode),
+          availableActions: availablePlannerActions(state, repository, decisionMode, contextManagementMode),
           confirmedPosition: state.confirmedPosition,
           confirmedPositions: state.confirmedPositions,
           positionBroadeningApproved: state.positionBroadeningApproved,
           ...(config.signal ? { signal: config.signal } : {}),
           ...(decisionConstraints ? { constraints: decisionConstraints } : {}),
           ...(expansionConstraints ? { expansionConstraints } : {}),
+          caseProgress,
           ...(observer ? { onTokenUsage: (usage: RecruitmentPlannerUsageObservation) => observer({ phase: "model_usage", ...usage }) } : {}),
         });
       } catch (error) {

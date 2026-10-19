@@ -24,7 +24,7 @@ function progressMessageForUser(stage: RecruitmentProgress["stage"], message: st
   const stageMessages: Record<RecruitmentProgress["stage"], string> = {
     understanding: "正在理解你的找人需求", reference_identity: "正在确认参考球员并读取画像",
     starting: "正在准备本轮调查", planning: "正在梳理需求并安排调查", methodology: "正在查找角色与能力评估的参考资料",
-    team_sample: "正在查看目标球队已有的球员资料", player_detail: "正在读取候选的位置记录和近期表现", match_detail: "正在读取一场比赛的名单和射门记录", candidate_search: "正在按当前需求查找球员", player_evaluation: "正在比较球员在重点能力上的比赛表现",
+    team_sample: "正在查看目标球队已有的球员资料", player_detail: "正在读取候选的位置记录和近期表现", match_detail: "正在读取一场比赛的名单和射门记录", candidate_search: "正在按当前需求查找球员", player_evaluation: "正在比较球员在重点能力上的比赛表现", evidence_read: "正在核对已找到的证据原文", context_compaction: "正在整理较早的对话进展",
     external_signal: "正在补充可用的外部表现参考", historical_archive: "正在查看候选球员的历史赛季记录", report_search: "正在查找球员报告和观察资料",
     synthesizing: "正在整理候选人、数据依据和待核实项", review: "正在核对推荐结论是否有数据支持", team_roster_context: "正在补充目标球队的公开阵容信息",
     asking_user: "正在整理需要你确认的问题", completed: "本轮调查已完成", cancelling: "正在结束本轮调查", cancelled: "本轮调查已停止", failed: "本轮调查暂未完成",

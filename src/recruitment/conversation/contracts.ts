@@ -6,8 +6,10 @@ import { type RecruitmentPlannerUsageObservation } from "../recruitment-planner.
 
 export type RecruitmentTraceEvent =
   | { phase: "brief_failure"; failureKind: string; outputLimitTokens?: number; validationFailure?: string; issuePaths?: string[] }
-  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number }
   | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  | { phase: "summary_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number }
+  | { phase: "summary_failure"; failureKind: string }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
   | { phase: "tool_reuse"; toolName: "search_methodology"; resultCount: number; reason: "successful_same_turn_query" }
   | {

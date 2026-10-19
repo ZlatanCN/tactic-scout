@@ -3,6 +3,7 @@ import type { PlayerRepository } from "../../players/repository.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import type { RecruitmentBriefInterpreter } from "../brief.js";
 import { RecruitmentBriefOutputLimitError, RecruitmentBriefValidationError } from "../brief.js";
+import { RecruitmentContextCapacityError } from "../context.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../recruitment-comparison.js";
 import { throwIfTurnCancelled } from "../turn-cancellation.js";
@@ -32,9 +33,9 @@ export function createUnderstandingNode(input: {
       emitProgress(config, { stage: "understanding", message: "正在理解你的找人需求", completedSteps: 0 });
       const startedAt = performance.now();
       try {
-        brief = await input.interpreter.interpret({ message: latest, previous: brief, recentMessages: messages.slice(0, -1), visibleCandidates: state.briefCandidates,
+        brief = await input.interpreter.interpret({ message: latest, previous: brief, recentMessages: messages.slice(0, -1).slice(-3), validationMessages: messages, visibleCandidates: state.briefCandidates,
           ...(state.briefQuestionContext ? { clarificationQuestion: state.briefQuestionContext } : {}), signal: config.signal,
-          onUsage: usage => input.observer?.({ phase: "brief_usage", outcome: "response", elapsedMs: performance.now() - startedAt, ...usage }) });
+          onUsage: usage => input.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }) });
         emitProgress(config, { stage: "understanding", status: "completed", message: brief.task === "similarity" ? "已理解：以参考球员的特点寻找相似人选" : brief.task === "replacement" ? "已理解：寻找能承担参考职责的替代者" : "已理解：按位置与能力特点寻找人选", completedSteps: 0 });
       } catch (error) {
         throwIfTurnCancelled(config.signal);
@@ -44,7 +45,8 @@ export function createUnderstandingNode(input: {
           ...(error instanceof RecruitmentBriefValidationError ? { validationFailure: error.message } : {}) });
         return { briefFailure: error instanceof RecruitmentBriefOutputLimitError
           ? `模型在 ${error.maxOutputTokens} 个输出 token 的预算内未能完成需求解析，调查尚未开始。原始输入已保留，可以重试。`
-          : "这次没能完成需求理解，调查尚未开始。原始输入已保留，可以直接重试。",
+          : error instanceof RecruitmentContextCapacityError ? `${error.message} 原始输入已保留。`
+            : "这次没能完成需求理解，调查尚未开始。原始输入已保留，可以直接重试。",
           briefFailureKind: error instanceof Error ? error.name : "unknown", briefInterpretedThrough: messages.length };
       }
     }

@@ -59,6 +59,8 @@ type LocalAgentRunOptions = {
   evidenceEvaluatorMode?: "enabled" | "withheld";
   expansionSufficiencyMode?: "enabled" | "bypassed";
   understatResearchMode?: UnderstatResearchMode;
+  contextManagementMode?: "legacy" | "unified" | "summarized";
+  contextStressTurns?: number;
   suppressTraceOutput?: boolean;
   suppressProgressOutput?: boolean;
 };
@@ -165,7 +167,7 @@ type ModelUsageMetricSummary = {
   requestCount: number;
 };
 
-type ModelUsageSummary = {
+export type ModelUsageSummary = {
   requestCount: number;
   responseCount: number;
   failedRequestCount: number;
@@ -175,8 +177,8 @@ type ModelUsageSummary = {
 };
 
 export function summarizeModelUsage(events: readonly RecruitmentTraceEvent[]): ModelUsageSummary {
-  const requests = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "model_usage" | "brief_usage" | "identity_usage" }> => (
-    event.phase === "model_usage" || event.phase === "brief_usage" || event.phase === "identity_usage"
+  const requests = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "model_usage" | "brief_usage" | "identity_usage" | "summary_usage" }> => (
+    event.phase === "model_usage" || event.phase === "brief_usage" || event.phase === "identity_usage" || event.phase === "summary_usage"
   ));
   const metric = (name: ModelUsageMetricName): ModelUsageMetricSummary => {
     const values = requests.flatMap((event) => typeof event[name] === "number" ? [event[name]!] : []);
@@ -276,6 +278,7 @@ export async function runScenarioOnce(
       experimentalExpansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       ...(options.understatResearchMode ? { experimentalDeterministicSearchMode: "bypassed" as const } : {}),
       experimentalUnderstatResearchMode: options.understatResearchMode,
+      experimentalContextManagementMode: options.contextManagementMode ?? "legacy",
       plannerFactory: () => {
         const modelPlanner = createRecruitmentPlanner();
         const observedModelPlanner: RecruitmentPlanner = {
@@ -344,6 +347,19 @@ export async function runScenarioOnce(
       currentTurn += 1;
       response = await conversation.turn({ threadId, message: answer, expectsExistingState: true, onProgress: captureProgress });
       answersUsed += 1;
+    }
+    if (response.status === "completed" && options.contextStressTurns) {
+      const repeatedScopeReminder = "继续当前调查。保留已经确认的球队、位置和能力条件，不增加也不删除任何筛选项；继续沿用目前案件和已查看的候选，结论中说明仍然缺少哪些证据。".repeat(6);
+      for (let index = 0; index < options.contextStressTurns; index += 1) {
+        currentTurn += 1;
+        response = await conversation.turn({
+          threadId,
+          message: repeatedScopeReminder,
+          expectsExistingState: true,
+          onProgress: captureProgress,
+        });
+        if (response.status !== "completed") break;
+      }
     }
     const elapsedMs = Math.round(performance.now() - startedAt);
     const continuedEvents = events.slice(firstTurnEventCount);
@@ -417,6 +433,8 @@ export async function runScenarioOnce(
       askUserMode,
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
+      contextManagementMode: options.contextManagementMode ?? "legacy",
+      contextStressTurns: options.contextStressTurns ?? 0,
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
       expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
@@ -447,6 +465,8 @@ export async function runScenarioOnce(
       askUserMode,
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
+      contextManagementMode: options.contextManagementMode ?? "legacy",
+      contextStressTurns: options.contextStressTurns ?? 0,
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
       expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,

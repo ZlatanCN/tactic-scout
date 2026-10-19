@@ -20,6 +20,7 @@ import { type State } from "./state.js";
 import { projectToolResult } from "./tool-results.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import { replacementTargetMention } from "../replacement-target.js";
+import { createCaseEvidenceIndex, readCaseEvidence } from "../case-evidence.js";
 
 function providerErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object" || !("code" in error)) return undefined;
@@ -68,6 +69,7 @@ export function createToolNode(input: {
           : "正在计算候选球员的可观察比赛表现",
       },
       search_player_reports: { stage: "report_search", message: "正在检索候选球员的报告资料" },
+      read_case_evidence: { stage: "evidence_read", message: "正在核对已找到的证据原文" },
     };
     emitProgress(config, { ...progressByTool[action.action], completedSteps: state.decisionSteps });
     const completeToolProgress = (message: string, status: RecruitmentProgressEventStatus = "completed") => emitProgress(config, {
@@ -92,6 +94,31 @@ export function createToolNode(input: {
       })),
       state.decisionSteps,
     );
+    if (action.action === "read_case_evidence") {
+      const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
+      const turnNumber = state.history.filter(entry => entry.role === "user").length;
+      const index = createCaseEvidenceIndex({
+        caseId,
+        turnNumber,
+        evaluations: Object.values(evaluatedPlayersForConstraint(state)),
+        documents: Object.values(state.retrievedKnowledge),
+      });
+      const result = readCaseEvidence(index, action);
+      const toolUses = { ...state.toolUses, read_case_evidence: (state.toolUses.read_case_evidence ?? 0) + 1 };
+      const filters = {
+        requestedReferenceCount: action.refs.length,
+        requestedFields: action.fields,
+        limit: action.limit,
+        cursorProvided: action.cursor !== null,
+      };
+      observer?.({ phase: "tool", toolName: "read_case_evidence", elapsedMs: Math.round(performance.now() - toolStartedAt), ok: true, filters, resultCount: result.results.filter(item => item.status === "ok").length });
+      completeToolProgress(`已核对 ${result.results.filter(item => item.status === "ok").length} 份已取得的证据`);
+      return {
+        toolUses,
+        hasInvestigated: true,
+        history: [{ role: "tool", toolName: "read_case_evidence", content: JSON.stringify(result) }],
+      };
+    }
     const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
     const alreadySearchedReportNames = new Set(state.searchedReportPlayerNames.map(normalizeSearchText));
     const reportNames = action.action === "search_player_reports"

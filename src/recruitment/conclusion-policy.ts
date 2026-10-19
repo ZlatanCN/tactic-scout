@@ -8,6 +8,7 @@ import {
   AskUserActionSchema,
   FinishActionSchema,
   SearchCandidatesActionSchema,
+  ReadCaseEvidenceActionSchema,
   RecruitmentActionSchema,
   type RecruitmentPlannerAction,
   type ParsedRecruitmentAction,
@@ -88,7 +89,10 @@ export function summarizeRequestedCapabilityCoverage(input: {
   });
 }
 
-export function createConstrainedConclusionSchema(constraints: RecruitmentDecisionConstraints) {
+export function createConstrainedConclusionSchema(
+  constraints: RecruitmentDecisionConstraints,
+  options: { allowReadCaseEvidence?: boolean } = {},
+) {
   const requestedMetricKeys = new Set(constraints.requestedCapabilityCoverage.flatMap(({ requestedMetricKeys }) => requestedMetricKeys));
   const requestedCapabilitiesExist = requestedMetricKeys.size > 0;
   const candidateHasRequestedEvidence = (candidate: RecruitmentDecisionConstraints["evaluatedCandidates"][number]) => (
@@ -151,7 +155,9 @@ export function createConstrainedConclusionSchema(constraints: RecruitmentDecisi
     question: z.string().trim().min(1).max(300),
     reason: z.string().trim().min(1).max(300),
   });
-  return z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
+  return options.allowReadCaseEvidence
+    ? z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema, ReadCaseEvidenceActionSchema])
+    : z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
 }
 
 export function createConstrainedInvestigationSchema(availableActions: readonly RecruitmentPlannerAction[]) {
@@ -337,14 +343,22 @@ function coverageStatusLabel(status: RequestedCapabilityCoverage["status"]): str
   }
 }
 
-export function createConstrainedReorientationSchema(constraints: RecruitmentDecisionConstraints) {
-  const conclusionSchema = createConstrainedConclusionSchema(constraints);
+export function createConstrainedReorientationSchema(
+  constraints: RecruitmentDecisionConstraints,
+  options: { allowReadCaseEvidence?: boolean } = {},
+) {
+  const conclusionSchema = createConstrainedConclusionSchema(constraints, options);
   const constrainedFinishActionSchema = conclusionSchema.options.find((option) => {
     const action = option.shape.action;
     return action instanceof z.ZodLiteral && action.value === "finish";
   });
   if (!constrainedFinishActionSchema) throw new Error("Constrained finish action schema is missing.");
-  return z.discriminatedUnion("action", [
+  return options.allowReadCaseEvidence ? z.discriminatedUnion("action", [
+    SearchCandidatesActionSchema,
+    AskUserActionSchema,
+    constrainedFinishActionSchema,
+    ReadCaseEvidenceActionSchema,
+  ]) : z.discriminatedUnion("action", [
     SearchCandidatesActionSchema,
     AskUserActionSchema,
     constrainedFinishActionSchema,

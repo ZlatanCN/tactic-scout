@@ -4,7 +4,7 @@ import { createLocalKnowledgeBase } from "../knowledge/index.js";
 import { createWebSearchKnowledgeRepository } from "../knowledge/web-player-report-search.js";
 import { summarizeEvaluationRuns } from "./harness-run-summary.js";
 import { createIdentityFreeHarnessSummary, writeIdentityFreeHarnessSummary } from "./harness-summary-export.js";
-import { historicalArchivePair, sameRecommendationEvidenceOrder, sameRecommendationOrder, summarizeAblationArm, summarizeAblationRun, summarizeAskPolicyArm, summarizeAskPolicyRun, summarizeEvidenceEvaluatorArm, summarizeEvidenceEvaluatorPair, summarizeExpansionSufficiencyArm, summarizeExpansionSufficiencyRun, summarizeInteractionArm, summarizeInteractionRun, summarizeInvestigationPlanningArm, summarizeInvestigationPlanningRun, summarizeMethodologyRagArm, summarizeMethodologyRagRun, summarizeUnderstatResearchArm, suppressMethodologyCorpus } from "./local-agent-comparisons.js";
+import { historicalArchivePair, sameRecommendationEvidenceOrder, sameRecommendationOrder, summarizeAblationArm, summarizeAblationRun, summarizeAskPolicyArm, summarizeAskPolicyRun, summarizeContextManagementArm, summarizeEvidenceEvaluatorArm, summarizeEvidenceEvaluatorPair, summarizeExpansionSufficiencyArm, summarizeExpansionSufficiencyRun, summarizeInteractionArm, summarizeInteractionRun, summarizeInvestigationPlanningArm, summarizeInvestigationPlanningRun, summarizeMethodologyRagArm, summarizeMethodologyRagRun, summarizeUnderstatResearchArm, suppressMethodologyCorpus } from "./local-agent-comparisons.js";
 import { curatedDatasetSha256, getDataRepository, prepareUnderstatResearchSnapshot, safeEndpoint } from "./local-agent-environment.js";
 import { parseLocalAgentOptions, usage } from "./local-agent-options.js";
 import { operationLatencySamplesFromTrace, runScenarioOnce } from "./local-agent-run.js";
@@ -90,6 +90,80 @@ if (process.argv.includes("--help")) {
               catalogVsFixed: sameRecommendationEvidenceOrder(catalogRun, fixedRuns[index]!),
               catalogVsAdaptive: sameRecommendationEvidenceOrder(catalogRun, adaptiveRuns[index]!),
               fixedVsAdaptive: sameRecommendationEvidenceOrder(fixedRuns[index]!, adaptiveRuns[index]!),
+            },
+          })),
+        });
+        continue;
+      }
+      if (comparison === "context_management") {
+        process.stderr.write("[harness] 正在用同一登记需求和固定 20 轮补充对话，交错运行三种上下文策略；模型请求串行执行。\n");
+        const runsByArm = await runCounterbalancedTriples(runsPerScenario, [
+          {
+            id: "legacy",
+            run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
+              contextManagementMode: "legacy",
+              contextStressTurns: 20,
+              suppressTraceOutput: true,
+              suppressProgressOutput: true,
+            }),
+          },
+          {
+            id: "unified",
+            run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
+              contextManagementMode: "unified",
+              contextStressTurns: 20,
+              suppressTraceOutput: true,
+              suppressProgressOutput: true,
+            }),
+          },
+          {
+            id: "summarized",
+            run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
+              contextManagementMode: "summarized",
+              contextStressTurns: 20,
+              suppressTraceOutput: true,
+              suppressProgressOutput: true,
+            }),
+          },
+        ]);
+        const legacyRuns = runsByArm.legacy!;
+        const unifiedRuns = runsByArm.unified!;
+        const summarizedRuns = runsByArm.summarized!;
+        const arms = [
+          summarizeContextManagementArm("legacy", legacyRuns),
+          summarizeContextManagementArm("unified", unifiedRuns),
+          summarizeContextManagementArm("summarized", summarizedRuns),
+        ];
+        baselinePassRates.push(arms[1]!.summary.passRate);
+        ablationPassRates.push(Math.min(...arms.map(arm => arm.summary.passRate)));
+        outputs.push({
+          id: scenario.id,
+          comparison: {
+            arms: [
+              { id: "legacy", change: "保留按调查阶段划分的既有历史裁剪策略。" },
+              { id: "unified", change: "采用按 Planner 职责投影的近期问答、当前结构化事实与案件证据引用，不调用摘要模型。" },
+              { id: "summarized", change: "在统一投影之上，仅在长对话达到触发门槛时调用摘要模型整理旧导航事件。" },
+            ],
+            controls: ["同一登记场景与固定候选数据快照", "同一模型、提示词工具、Reviewer 和预算", "同一首轮需求及 20 条重复确认当前范围的压力消息", "AB/BC/CA 轮换顺序，单机串行执行"],
+            order: "三组策略按 legacy→unified→summarized、unified→summarized→legacy、summarized→legacy→unified 轮换。每轮创建独立 LangGraph thread。",
+            stressScript: "每轮在场景完成后附加 20 个相同、较长的范围保持消息，测试历史增长时对话状态与报告是否仍然稳定；它是上下文压力测试，不代表自然用户对话分布。",
+            caveat: "比较的是固定场景中的对话正确性、报告一致性、实际模型用量、摘要调用与延迟。没有球探排序金标，不据此声称推荐质量提升；少于五对或未实际运行模型时不作效果结论。",
+          },
+          arms,
+          pairedRuns: unifiedRuns.map((unifiedRun, index) => ({
+            run: index + 1,
+            legacy: summarizeInvestigationPlanningRun(legacyRuns[index]!),
+            unified: summarizeInvestigationPlanningRun(unifiedRun),
+            summarized: summarizeInvestigationPlanningRun(summarizedRuns[index]!),
+            recommendationOrderSame: {
+              legacyVsUnified: sameRecommendationOrder(legacyRuns[index]!, unifiedRun),
+              unifiedVsSummarized: sameRecommendationOrder(unifiedRun, summarizedRuns[index]!),
+              legacyVsSummarized: sameRecommendationOrder(legacyRuns[index]!, summarizedRuns[index]!),
+            },
+            recommendationEvidenceOrderSame: {
+              legacyVsUnified: sameRecommendationEvidenceOrder(legacyRuns[index]!, unifiedRun),
+              unifiedVsSummarized: sameRecommendationEvidenceOrder(unifiedRun, summarizedRuns[index]!),
+              legacyVsSummarized: sameRecommendationEvidenceOrder(legacyRuns[index]!, summarizedRuns[index]!),
             },
           })),
         });
@@ -363,7 +437,7 @@ if (process.argv.includes("--help")) {
     }
 
     const output = {
-      datasetVersion: (comparison === "understat_research") ? 13 : (comparison === "expansion_sufficiency") ? 12 : (comparison === "evidence_evaluator") ? 10 : (comparison === "historical_archive") ? 9 : (comparison === "investigation_planning") ? 8 : (comparison === "methodology_rag") ? 7 : (comparison === "ask_policy") ? 6 : (comparison === "interaction") ? 5 : (comparison === "reviewer") ? 4 : 3,
+      datasetVersion: (comparison === "context_management") ? 14 : (comparison === "understat_research") ? 13 : (comparison === "expansion_sufficiency") ? 12 : (comparison === "evidence_evaluator") ? 10 : (comparison === "historical_archive") ? 9 : (comparison === "investigation_planning") ? 8 : (comparison === "methodology_rag") ? 7 : (comparison === "ask_policy") ? 6 : (comparison === "interaction") ? 5 : (comparison === "reviewer") ? 4 : 3,
       model: process.env.OPENAI_MODEL ?? null,
       endpoint: safeEndpoint(process.env.OPENAI_BASE_URL),
       apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
@@ -371,7 +445,7 @@ if (process.argv.includes("--help")) {
       datasetSnapshotSha256: understatResearchSnapshot?.snapshotSha256 ?? datasetSnapshotSha256,
       ...(understatResearchSnapshot ? { understatResearchSnapshot } : {}),
       repeatsPerScenario: runsPerScenario,
-      experiment: (comparison === "understat_research") ? "understat-research-strategy-ablation" : (comparison === "expansion_sufficiency") ? "expansion-sufficiency-ablation"
+      experiment: (comparison === "context_management") ? "context-management-ablation" : (comparison === "understat_research") ? "understat-research-strategy-ablation" : (comparison === "expansion_sufficiency") ? "expansion-sufficiency-ablation"
         : (comparison === "evidence_evaluator") ? "recruitment-evidence-evaluator-ablation"
         : (comparison === "historical_archive") ? "historical-archive-report-sidecar-ablation"
           : (comparison === "investigation_planning") ? "dynamic-investigation-planning-ablation"

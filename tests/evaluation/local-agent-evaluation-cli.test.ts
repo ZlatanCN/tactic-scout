@@ -27,10 +27,35 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /--compare-investigation-planning/);
   assert.match(result.stdout, /--compare-understat-research/);
   assert.match(result.stdout, /--compare-expansion-sufficiency/);
+  assert.match(result.stdout, /--compare-context-management/);
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
   assert.match(result.stdout, /--summary-output <path>/);
   assert.match(result.stdout, /--expect-position-clarification/);
+});
+
+test("the context-management comparison requires a fixed curated scenario and five paired triples", () => {
+  const tooFew = runCli([
+    "--scenario", "barcelona-under-23-midfielder",
+    "--compare-context-management",
+    "--runs", "4",
+  ], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "curated",
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+  });
+  assert.equal(tooFew.status, 2);
+  assert.match(tooFew.stderr, /至少需要 --runs 5/);
+  assert.doesNotMatch(tooFew.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const wrongMode = runCli([
+    "--scenario", "barcelona-under-23-midfielder",
+    "--compare-context-management",
+    "--runs", "5",
+  ], { ...process.env, TACTISCOUT_DATA_MODE: "demo" });
+  assert.equal(wrongMode.status, 2);
+  assert.match(wrongMode.stderr, /需要 TACTISCOUT_DATA_MODE=curated/);
+  assert.doesNotMatch(wrongMode.stderr, /ECONNREFUSED|fetch failed/i);
 });
 
 test("the local evaluation CLI requires a custom message for expected position clarification", () => {

@@ -5,7 +5,11 @@ import {
   isChatModelTimeout,
   openAIExpansionMaxOutputTokens,
   openAIExpansionRequestTimeoutMs,
+  openAIMaxOutputTokens,
   openAIRequestTimeoutMs,
+  contextSafetyMarginTokens,
+  contextSoftInputBudgetTokens,
+  modelContextWindowTokens,
   structuredOutputMethod,
 } from "./chat-model.js";
 import { type DatasetMode } from "../domain/datasets.js";
@@ -20,6 +24,8 @@ import {
 } from "./conclusion-policy.js";
 import { RecruitmentActionSchema, type RecruitmentAction, type RecruitmentPlannerAction } from "./recruitment-actions.js";
 import { structuredPlannerHistory, type ConversationHistoryEntry } from "./planner-context.js";
+import { assertRecruitmentContextFits, buildRecruitmentContext } from "./context.js";
+import { z } from "zod/v4";
 
 export type { ConversationHistoryEntry } from "./planner-context.js";
 
@@ -39,6 +45,7 @@ export interface RecruitmentPlanner {
     signal?: AbortSignal;
     constraints?: RecruitmentDecisionConstraints;
     expansionConstraints?: RecruitmentExpansionConstraints;
+    caseProgress?: unknown;
     onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
   }): Promise<RecruitmentAction>;
 }
@@ -61,6 +68,10 @@ export interface RecruitmentPlannerUsageObservation extends NormalizedModelToken
   outcome: "response" | "failed";
   /** Size of the structured case context sent to the Planner; never the prompt text. */
   contextChars?: number;
+  estimatedInputTokens?: number;
+  inputBudgetTokens?: number;
+  contextStatus?: "within_budget" | "over_budget";
+  omittedHistoryEntries?: number;
 }
 
 export const methodologySearchInstructions = [
@@ -113,9 +124,11 @@ function agentInstructions(dataMode: DatasetMode): string {
   ].join("\n");
 }
 
-export function conclusionInstructions(dataMode: DatasetMode): string {
+export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidence = false): string {
   return [
-    "你是足球球探报告撰写员。当前调查已经完成；只能选择 ask_user 或 finish。",
+    canReadCaseEvidence
+      ? "你是足球球探报告撰写员。当前调查已完成；可选择 ask_user、finish，或最多按需调用 read_case_evidence 核对目录中的已取得资料。只能读取给出的 ref 和字段，沿 nextCursor 继续，不得伪造引用或把摘录说成全文。"
+      : "你是足球球探报告撰写员。当前调查已经完成；只能选择 ask_user 或 finish。",
     "只输出 schema 要求的一个 JSON action，不加前言或代码块；字段文字精炼，不复述工具表格。",
     ...sourceScopeInstructions(dataMode, "conclusion"),
     ...(dataMode === "fpl" ? ["不得把 FPL xG/xA/xGI 当作完整射门技术、创造力或未来表现；合并解围/封堵/拦截不可拆项；身价、合同、预算、伤病、渐进传球、带球和压迫没有接入，须列为数据缺口。"] : []),
@@ -195,10 +208,12 @@ export function expansionInstructions(options: {
   ].join("\n");
 }
 
-export function reorientationInstructions(dataMode: DatasetMode = "demo"): string {
+export function reorientationInstructions(dataMode: DatasetMode = "demo", canReadCaseEvidence = false): string {
   return [
     investigationInstructions(dataMode),
-    "当前候选页没有可继续读取的游标，或本轮球员报告检索预算已用尽。不得请求已耗尽的报告检索；只能选择 search_candidates、ask_user 或 finish。",
+    canReadCaseEvidence
+      ? "当前候选页没有可继续读取的游标，或本轮球员报告检索预算已用尽。不得请求已耗尽的报告检索；可选择 search_candidates、read_case_evidence、ask_user 或 finish。read_case_evidence 只读取上下文目录中的当前案件 ref，不重新联网。"
+      : "当前候选页没有可继续读取的游标，或本轮球员报告检索预算已用尽。不得请求已耗尽的报告检索；只能选择 search_candidates、ask_user 或 finish。",
     "如果要继续调查，可以改变用户未明确限定的候选筛选范围；必须遵守用户确认的位置、年龄等硬条件。不要重复搜索报告，也不要重复评估已经评估的球员。不能把当前搜索范围的末页当成整个数据源没有其他候选。",
   ].join("\n");
 }
@@ -224,13 +239,13 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
 
   async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentAction> {
     const schema = input.decisionMode === "conclude" && input.constraints
-      ? createConstrainedConclusionSchema(input.constraints)
+      ? createConstrainedConclusionSchema(input.constraints, { allowReadCaseEvidence: input.availableActions?.includes("read_case_evidence") ?? false })
       : (input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints && input.expansionConstraints
         ? createConstrainedExpansionSchema(input.constraints, input.expansionConstraints, {
           allowAskUser: input.decisionMode !== "expand_recovery",
         })
         : input.decisionMode === "reorient" && input.constraints
-          ? createConstrainedReorientationSchema(input.constraints)
+          ? createConstrainedReorientationSchema(input.constraints, { allowReadCaseEvidence: input.availableActions?.includes("read_case_evidence") ?? false })
         : input.decisionMode === "investigate" && input.availableActions
           ? createConstrainedInvestigationSchema(input.availableActions)
           : RecruitmentActionSchema;
@@ -240,7 +255,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       method: structuredOutputMethod(),
       includeRaw: true,
     });
-    const context = JSON.stringify({
+    const contextPayload = {
       brief: "brief" in input ? input.brief : undefined,
       dataMode: input.dataMode,
       dataSource: input.dataSource,
@@ -256,39 +271,58 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         reportObservations: input.constraints.reportObservations,
       } : {}),
       ...(input.expansionConstraints ? { expansionConstraints: input.expansionConstraints } : {}),
+      ...(input.caseProgress ? { caseProgress: input.caseProgress } : {}),
       history: structuredPlannerHistory(input.history),
-    });
+    };
     try {
       const baseInstructions = input.decisionMode === "conclude"
-        ? conclusionInstructions(input.dataMode)
+        ? conclusionInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false)
         : input.decisionMode === "expand" || input.decisionMode === "expand_recovery"
           ? expansionInstructions({
             blockedQuestionRecovery: input.decisionMode === "expand_recovery",
             positionBroadeningApproved: input.positionBroadeningApproved,
           })
-          : input.decisionMode === "reorient" ? reorientationInstructions(input.dataMode) : investigationInstructions(input.dataMode);
+          : input.decisionMode === "reorient" ? reorientationInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false) : investigationInstructions(input.dataMode);
       const systemInstructions = [baseInstructions,
         ...(input.availableActions ? [`本次可用 action 列表：${input.availableActions.join("、")}。只选择列表中动作；其他动作本阶段不可用。`] : []),
         input.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
         abilityProfileInstructions(input.abilityProfilesEnabled)].filter(Boolean).join("\n");
+      const contextRequest = buildRecruitmentContext({
+        stage: input.decisionMode ?? "investigate",
+        systemInstructions,
+        payload: contextPayload,
+        responseSchema: z.toJSONSchema(schema),
+        outputBudgetTokens: isExpansion ? openAIExpansionMaxOutputTokens() : openAIMaxOutputTokens(),
+        ...(modelContextWindowTokens() === undefined ? {} : { contextWindowTokens: modelContextWindowTokens() }),
+        softInputBudgetTokens: contextSoftInputBudgetTokens(),
+        safetyMarginTokens: contextSafetyMarginTokens(),
+        omittedHistoryEntries: input.caseProgress && typeof input.caseProgress === "object" && "omittedHistoryEntries" in input.caseProgress
+          ? Number((input.caseProgress as { omittedHistoryEntries?: unknown }).omittedHistoryEntries) || 0 : 0,
+      });
+      assertRecruitmentContextFits(contextRequest);
       let response: { raw?: unknown; parsed?: unknown };
       try {
-        response = await actionModel.invoke([
-          ["system", systemInstructions],
-          ["human", `案件对话与工具结果（请据此选择一个下一步 action）：\n${context}`],
-        ], input.signal ? { signal: input.signal } : undefined) as { raw?: unknown; parsed?: unknown };
+        response = await actionModel.invoke(contextRequest.messages, input.signal ? { signal: input.signal } : undefined) as { raw?: unknown; parsed?: unknown };
       } catch (error) {
         input.onTokenUsage?.({
           callPhase: input.decisionMode ?? "investigate",
           outcome: "failed",
-          contextChars: context.length,
+          contextChars: contextRequest.manifest.requestBytes,
+          estimatedInputTokens: contextRequest.manifest.estimatedInputTokens,
+          inputBudgetTokens: contextRequest.manifest.inputBudgetTokens,
+          contextStatus: contextRequest.manifest.status,
+          omittedHistoryEntries: contextRequest.manifest.omittedHistoryEntries,
         });
         throw error;
       }
       input.onTokenUsage?.({
         callPhase: input.decisionMode ?? "investigate",
         outcome: "response",
-        contextChars: context.length,
+        contextChars: contextRequest.manifest.requestBytes,
+        estimatedInputTokens: contextRequest.manifest.estimatedInputTokens,
+        inputBudgetTokens: contextRequest.manifest.inputBudgetTokens,
+        contextStatus: contextRequest.manifest.status,
+        omittedHistoryEntries: contextRequest.manifest.omittedHistoryEntries,
         ...normalizeModelTokenUsage(response),
       });
       let action = response.parsed;

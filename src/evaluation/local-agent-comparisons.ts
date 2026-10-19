@@ -147,6 +147,26 @@ export function summarizeAblationRun(run: LocalAgentRun) {
   };
 }
 
+export function summarizeContextManagementArm(id: "legacy" | "unified" | "summarized", runs: readonly LocalAgentRun[]) {
+  const summary = summarizeEvaluationRuns(runs.map(run => ({
+    checks: run.checks,
+    elapsedMs: run.elapsedMs,
+    operationLatencySamples: operationLatencySamplesFromTrace(run.trace),
+  })));
+  const modelUsage = summarizeModelUsageAcrossRuns(runs.map(run => run.modelUsage));
+  return {
+    id,
+    summary,
+    modelUsage,
+    contextStressTurns: runs.map(run => run.contextStressTurns),
+    summaryRequests: runs.map(run => run.trace.filter(event => event.phase === "summary_usage").length),
+    summaryFailures: runs.map(run => run.trace.filter(event => event.phase === "summary_failure").length),
+    compactionProgressEvents: runs.map(run => run.progress.filter(event => event.stage === "context_compaction").length),
+    toolCallCounts: runs.map(run => run.toolCallCount),
+    plannerRequestAttempts: runs.map(run => run.plannerRequestAttempts),
+  };
+}
+
 function evidenceEvaluatorEvents(run: LocalAgentRun): Array<{
   evidenceAvailability: unknown;
   evaluatedMetricKeys: string[];

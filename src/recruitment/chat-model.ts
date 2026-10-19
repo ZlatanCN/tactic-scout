@@ -5,6 +5,35 @@ export const DEFAULT_OPENAI_TIMEOUT_MS = 180_000;
 export const DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 8_192;
 export const DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS = 60_000;
 export const DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = 1_024;
+export const DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS = 8_192;
+export const DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS = 1_024;
+
+export function modelContextWindowTokens(value = process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS): number | undefined {
+  if (!value?.trim()) return undefined;
+  const tokens = Number(value);
+  if (!Number.isSafeInteger(tokens) || tokens < 4_096 || tokens > 131_072) {
+    throw new Error("TACTISCOUT_CONTEXT_WINDOW_TOKENS must be an integer between 4096 and 131072.");
+  }
+  return tokens;
+}
+
+export function contextSoftInputBudgetTokens(value = process.env.TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS): number {
+  if (!value?.trim()) return DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS;
+  const tokens = Number(value);
+  if (!Number.isSafeInteger(tokens) || tokens < 1_024 || tokens > 131_072) {
+    throw new Error("TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS must be an integer between 1024 and 131072.");
+  }
+  return tokens;
+}
+
+export function contextSafetyMarginTokens(value = process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS): number {
+  if (!value?.trim()) return DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS;
+  const tokens = Number(value);
+  if (!Number.isSafeInteger(tokens) || tokens < 0 || tokens > 32_768) {
+    throw new Error("TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS must be an integer between 0 and 32768.");
+  }
+  return tokens;
+}
 
 export type StructuredOutputMethod = "functionCalling" | "jsonSchema" | "jsonMode";
 
