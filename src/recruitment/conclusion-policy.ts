@@ -8,11 +8,14 @@ import {
   AskUserActionSchema,
   FinishActionSchema,
   SearchCandidatesActionSchema,
+  RecruitmentActionSchema,
+  type RecruitmentPlannerAction,
   type ParsedRecruitmentAction,
 } from "./recruitment-actions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
 import type { CandidateIdentityGroupReference } from "../players/identity/candidate-groups.js";
+import type { RecruitmentBrief } from "../domain/recruitment-brief.js";
 
 export interface RecruitmentDecisionConstraints {
   targetTeam: string | null;
@@ -34,15 +37,23 @@ export interface RecruitmentExpansionConstraints {
   season: string | null;
 }
 
-import { requestedCapabilityEvidenceAreas } from "../domain/recruitment-capabilities.js";
-export { requestedCapabilityEvidenceAreas } from "../domain/recruitment-capabilities.js";
+import { requestedCapabilityEvidenceAreasForInput } from "../domain/recruitment-capabilities.js";
+export { requestedCapabilityEvidenceAreas, requestedCapabilityEvidenceAreasFromBrief } from "../domain/recruitment-capabilities.js";
+
+function resolveRequestedEvidenceAreas(input: {
+  brief?: RecruitmentBrief | null;
+  userMessages?: readonly string[];
+}, position: Position | null | undefined, includeAbilityProfiles: boolean) {
+  return requestedCapabilityEvidenceAreasForInput({ brief: input.brief, userMessages: input.userMessages ?? [] }, position, includeAbilityProfiles);
+}
 
 export function summarizeRequestedCapabilityCoverage(input: {
-  userMessages: readonly string[];
+  userMessages?: readonly string[];
+  brief?: RecruitmentBrief | null;
   evaluatedPlayers: EvaluatedCandidate[];
   candidateIdentityGroups?: readonly CandidateIdentityGroupReference[];
 }): RequestedCapabilityCoverage[] {
-  const eligibleAreas = requestedCapabilityEvidenceAreas(input.userMessages,
+  const eligibleAreas = resolveRequestedEvidenceAreas(input,
     input.evaluatedPlayers.length > 0 && input.evaluatedPlayers.every(candidate => candidate.player.position === "GK") ? "GK" : undefined,
     input.evaluatedPlayers.some(candidate => candidate.player.abilityProfile !== undefined));
   const identityGroupByPlayerId = new Map(input.candidateIdentityGroups?.flatMap((group) => (
@@ -141,6 +152,18 @@ export function createConstrainedConclusionSchema(constraints: RecruitmentDecisi
     reason: z.string().trim().min(1).max(300),
   });
   return z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
+}
+
+export function createConstrainedInvestigationSchema(availableActions: readonly RecruitmentPlannerAction[]) {
+  const allowedActions = new Set<RecruitmentPlannerAction>([...availableActions, "ask_user", "finish"]);
+  const options = RecruitmentActionSchema.options.filter((option) => {
+    const discriminator = option.shape.action;
+    return discriminator instanceof z.ZodLiteral
+      && allowedActions.has(discriminator.value as RecruitmentPlannerAction);
+  });
+  if (options.length < 2) throw new Error("Investigation action schema must leave a safe ask-or-finish choice.");
+  type ActionOption = (typeof RecruitmentActionSchema.options)[number];
+  return z.discriminatedUnion("action", options as unknown as [ActionOption, ActionOption, ...ActionOption[]]);
 }
 
 export function createConstrainedExpansionSchema(
@@ -355,6 +378,7 @@ function reportMatchesCandidate(
 
 export function buildDecisionConstraints(input: {
   targetTeam: string | null;
+  brief?: RecruitmentBrief | null;
   confirmedPosition?: Position | null;
   confirmedPositions?: readonly Position[];
   userMessages?: readonly string[];
@@ -382,6 +406,7 @@ export function buildDecisionConstraints(input: {
         evidenceKeys: evidence.map((item) => item.key),
       }))),
     requestedCapabilityCoverage: summarizeRequestedCapabilityCoverage({
+      ...(input.brief !== undefined ? { brief: input.brief } : {}),
       userMessages: input.userMessages ?? [],
       evaluatedPlayers: eligiblePlayers,
       ...(input.candidateIdentityGroups ? { candidateIdentityGroups: input.candidateIdentityGroups } : {}),
@@ -392,11 +417,12 @@ export function buildDecisionConstraints(input: {
 
 export function alignRecommendationEvidenceToRequestedCapabilities(input: {
   action: ParsedRecruitmentAction | undefined;
+  brief?: RecruitmentBrief | null;
   userMessages: readonly string[];
   evaluatedPlayers: Record<string, EvaluatedCandidate>;
 }): { action: ParsedRecruitmentAction | undefined; repairedReferenceCount: number } {
   if (input.action?.action !== "finish") return { action: input.action, repairedReferenceCount: 0 };
-  const areas = requestedCapabilityEvidenceAreas(input.userMessages, undefined, Object.values(input.evaluatedPlayers).some(candidate => candidate.player.abilityProfile !== undefined));
+  const areas = resolveRequestedEvidenceAreas(input, undefined, Object.values(input.evaluatedPlayers).some(candidate => candidate.player.abilityProfile !== undefined));
   let repairedReferenceCount = 0;
   const recommendations = input.action.recommendations.map((recommendation) => {
     const candidate = input.evaluatedPlayers[recommendation.playerId];
@@ -431,6 +457,7 @@ export function alignRecommendationEvidenceToRequestedCapabilities(input: {
 
 export function validateConclusion(input: {
   action: ParsedRecruitmentAction | undefined;
+  brief?: RecruitmentBrief | null;
   confirmedPosition?: Position | null;
   confirmedPositions?: readonly Position[];
   userMessages?: readonly string[];
@@ -446,7 +473,7 @@ export function validateConclusion(input: {
     group.recordPlayerIds.map((playerId) => [playerId, group] as const)
   )) ?? []);
   const recommendedIdentityKeys = new Set<string>();
-  const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(input.userMessages ?? [], undefined, Object.values(input.evaluatedPlayers).some(candidate => candidate.player.abilityProfile !== undefined));
+  const requestedEvidenceAreas = resolveRequestedEvidenceAreas(input, undefined, Object.values(input.evaluatedPlayers).some(candidate => candidate.player.abilityProfile !== undefined));
   for (const recommendation of action.recommendations) {
     if (ids.has(recommendation.playerId)) problems.push(`球员 ${recommendation.playerId} 被重复推荐。`);
     ids.add(recommendation.playerId);

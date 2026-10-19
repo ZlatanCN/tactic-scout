@@ -29,11 +29,13 @@ export function createReviewNode(input: {
     emitProgress(config, { stage: "review", message: "正在核对推荐是否有对应的数据证据", completedSteps: state.decisionSteps });
     const alignment = alignRecommendationEvidenceToRequestedCapabilities({
       action: state.action,
+      brief: state.brief,
       userMessages: userMessages(state.history),
       evaluatedPlayers: state.evaluatedPlayers,
     });
     const problems = validateConclusion({
       action: alignment.action,
+      brief: state.brief,
       confirmedPosition: state.confirmedPosition,
       confirmedPositions: state.confirmedPositions,
       userMessages: userMessages(state.history),
@@ -100,6 +102,7 @@ export function createReviewNode(input: {
       const candidateAction = { ...finish, recommendations: [...retained, recommendation], reportObservations: [] };
       if (validateConclusion({ action: candidateAction, confirmedPosition: state.confirmedPosition,
       confirmedPositions: state.confirmedPositions,
+        brief: state.brief,
         userMessages: userMessages(state.history), evaluatedPlayers: state.evaluatedPlayers,
         retrievedKnowledge: state.retrievedKnowledge, candidateIdentityGroups: state.candidateIdentityGroups }).length === 0) retained.push(recommendation);
     }

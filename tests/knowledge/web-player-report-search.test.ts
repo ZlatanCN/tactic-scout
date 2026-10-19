@@ -97,6 +97,115 @@ test("Web Search stays off unless processing, display, retention, key, and domai
   assert.equal(calls, 0);
 });
 
+test("local report evidence survives a Web Search outage", async () => {
+  const localReport = {
+    id: "local:jonas-report",
+    documentId: "jonas-report",
+    corpus: "player_report" as const,
+    text: "Jonas Vale at Example FC links play by receiving with his back to goal and laying the ball off.",
+    title: "Local scouting note",
+    url: "https://example.org/local-jonas-report",
+    sourceId: "local-scouting-notes",
+    sourceName: "Local scouting notes",
+    publisher: "TactiScout",
+    author: "Scout",
+    publishedAt: null,
+    license: "User-authored",
+    attribution: "Local scouting note.",
+    entityIds: [],
+    entityNames: ["Jonas Vale"],
+    competition: null,
+    season: null,
+    displayAllowed: true,
+  };
+  const knowledge = createWebSearchKnowledgeRepository({
+    async search() { return [localReport]; },
+  }, {
+    ...enabled,
+    fetcher: async () => { throw new Error("Tavily is unavailable"); },
+  });
+
+  assert.deepEqual(await knowledge.search(request), [localReport]);
+});
+
+test("local and verified web reports both fit within the requested result limit", async () => {
+  const localReports = [1, 2].map((index) => ({
+    id: `local:report-${index}`,
+    documentId: `local-report-${index}`,
+    corpus: "player_report" as const,
+    text: `Local scouting evidence ${index}.`,
+    title: `Local report ${index}`,
+    url: `https://example.org/local-report-${index}`,
+    sourceId: "local-scouting-notes",
+    sourceName: "Local scouting notes",
+    publisher: "TactiScout",
+    author: "Scout",
+    publishedAt: null,
+    license: "User-authored",
+    attribution: "Local scouting note.",
+    entityIds: [],
+    entityNames: ["Jonas Vale"],
+    competition: null,
+    season: null,
+    displayAllowed: true,
+  }));
+  const limitedRequest = { ...request, limit: 2 };
+  const knowledge = createWebSearchKnowledgeRepository({
+    async search() { return localReports; },
+  }, {
+    ...enabled,
+    fetcher: async () => Response.json({ results: [1, 2].map((index) => ({
+      title: `Jonas Vale at Example FC: link-up play report ${index}`,
+      url: `https://example.org/web-report-${index}`,
+      content: `In the 2025/26 Open League, Jonas Vale at Example FC links play and lays the ball off to create a chance. Report ${index}.`,
+      published_date: "2025-12-01",
+    })) }),
+  });
+
+  const results = await knowledge.search(limitedRequest);
+
+  assert.equal(results.length, 2);
+  assert.equal(results.filter(({ sourceId }) => sourceId === "local-scouting-notes").length, 1);
+  assert.equal(results.filter(({ sourceId }) => sourceId.startsWith("web-search:")).length, 1);
+});
+
+test("a local report wins when Web Search returns the same URL", async () => {
+  const localReport = {
+    id: "local:jonas-report",
+    documentId: "jonas-report",
+    corpus: "player_report" as const,
+    text: "Local scouting evidence about Jonas Vale.",
+    title: "Local report",
+    url: "https://example.org/jonas-report",
+    sourceId: "local-scouting-notes",
+    sourceName: "Local scouting notes",
+    publisher: "TactiScout",
+    author: "Scout",
+    publishedAt: null,
+    license: "User-authored",
+    attribution: "Local scouting note.",
+    entityIds: [],
+    entityNames: ["Jonas Vale"],
+    competition: null,
+    season: null,
+    displayAllowed: true,
+  };
+  const knowledge = createWebSearchKnowledgeRepository({ async search() { return [localReport]; } }, {
+    ...enabled,
+    fetcher: async () => Response.json({ results: [{
+      title: "Jonas Vale scouting report",
+      url: localReport.url,
+      content: "Jonas Vale links play and creates chances for Example FC.",
+      published_date: "2025-12-01",
+    }] }),
+  });
+
+  const results = await knowledge.search({ ...request, limit: 5 });
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0]?.sourceId, "local-scouting-notes");
+});
+
 test("Web Search never follows redirects or accepts results outside the explicit domain scope", async () => {
   let redirectMode: RequestRedirect | undefined;
   const knowledge = createWebSearchKnowledgeRepository({ async search() { return []; } }, {

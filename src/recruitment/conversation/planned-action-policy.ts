@@ -67,6 +67,7 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
         ? RecruitmentActionSchema.parse({ action: "evaluate_candidates", targetTeam: state.targetTeam, playerIds: pendingCandidateIds })
         : conclusionPlannerOutputFallback(buildDecisionConstraints({
           targetTeam: state.targetTeam,
+          brief: state.brief,
           confirmedPosition: state.confirmedPosition,
           confirmedPositions: state.confirmedPositions,
           userMessages: userMessages(state.history),

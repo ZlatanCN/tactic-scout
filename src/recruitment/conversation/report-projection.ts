@@ -11,7 +11,8 @@ import { RecruitmentReportSchema } from "../../domain/reports.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { summarizeCandidateIdentityGroupReferences, type CandidateIdentityGroup } from "../../players/identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../players/identity/source-player-key.js";
-import { requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
+import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
+import { summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import { collectMethodologySourceReferences } from "../methodology-sources.js";
 import { emptyDecision, toolBudgets, type FinishRecruitmentAction } from "../recruitment-actions.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
@@ -168,7 +169,7 @@ function limitationsFor(
   evaluator: RecruitmentEvidenceEvaluator,
 ): string[] {
   const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
-  const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), resolvedCandidateSearchIntent(state).position, state.abilityProfilesEnabled);
+  const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, resolvedCandidateSearchIntent(state).position, state.abilityProfilesEnabled);
   const limitations = action.limitationKeys.map((key) => limitationDescriptions[key]);
   const identityCoverage = summarizeCandidateIdentityGroupReferences(state.candidateIdentityGroups);
   const identityStatusCount = (status: CandidateIdentityResolutionStatus) => (
@@ -320,7 +321,7 @@ export function createReportProjection(input: {
     const requestedPosition = state.confirmedPositions.length > 1 ? null : resolvedCandidateSearchIntent(state).position;
     const allPositionLeadRecords = positionLeadRecords(state);
     const positionLeads = allPositionLeadRecords.slice(0, 12);
-    const requestedEvidenceAreas = requestedCapabilityEvidenceAreas(userMessages(state.history), requestedPosition, state.abilityProfilesEnabled);
+    const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, requestedPosition, state.abilityProfilesEnabled);
     const backgroundOnly = !state.referenceProfiles.length && requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
     const recommendedIds = new Set(action.recommendations.map(({ playerId }) => playerId));
     const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && (requestedPosition || state.confirmedPositions.length > 1)
@@ -464,6 +465,7 @@ export function createReportProjection(input: {
     });
     const retrievedDocuments = Object.values(state.retrievedKnowledge);
     const requestedCapabilityCoverage = summarizeRequestedCapabilityCoverage({
+      brief: state.brief,
       userMessages: userMessages(state.history),
       evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),
       candidateIdentityGroups,

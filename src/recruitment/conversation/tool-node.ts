@@ -7,7 +7,8 @@ import { type PlayerProfile } from "../../domain/players.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { type CandidateIdentityGroup } from "../../players/identity/candidate-groups.js";
 import { type KnowledgeRepository } from "../../knowledge/index.js";
-import { requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
+import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
+import { summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import { type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
 import { type RecruitmentToolExecutionRequest, executeRecruitmentToolAction } from "../recruitment-tool-executor.js";
@@ -117,6 +118,7 @@ export function createToolNode(input: {
     const currentEvaluations = Object.values(evaluatedPlayersForConstraint(state));
     const currentUserMessages = userMessages(state.history);
     const currentCoverage = summarizeRequestedCapabilityCoverage({
+      brief: state.brief,
       userMessages: currentUserMessages,
       evaluatedPlayers: currentEvaluations,
       candidateIdentityGroups: state.candidateIdentityGroups,
@@ -154,7 +156,7 @@ export function createToolNode(input: {
             : {}),
         }
         : action.action === "search_candidates"
-          ? { ...action, ...(state.brief?.filters.excludedCompetitions.length ? { excludedCompetitions: state.brief.filters.excludedCompetitions } : {}), ...(similarityReference ? { referenceRoles: { snapshotId: similarityReference.abilitySnapshotId!, values: similarityReference.abilityRolePriorities! } } : {}), discoveryMetricGroups: requestedCapabilityEvidenceAreas(currentUserMessages, undefined, state.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
+          ? { ...action, ...(state.brief?.filters.excludedCompetitions.length ? { excludedCompetitions: state.brief.filters.excludedCompetitions } : {}), ...(similarityReference ? { referenceRoles: { snapshotId: similarityReference.abilitySnapshotId!, values: similarityReference.abilityRolePriorities! } } : {}), discoveryMetricGroups: requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, undefined, state.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
           : action.action === "inspect_team"
             ? {
               ...action,

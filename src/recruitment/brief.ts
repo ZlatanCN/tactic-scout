@@ -34,6 +34,20 @@ function visibleNamesUnique(candidate: VisibleRecruitmentCandidate, candidates: 
   return candidates.filter(item => normalizeSearchText(item.name) === normalizeSearchText(candidate.name)).length === 1;
 }
 
+function explicitAgeQuote(messages: readonly string[], age: number): string | null {
+  const patterns = [
+    new RegExp(`${age}\\s*岁\\s*(?:及以下|以下|以内|及以内|不超过|之内)`, "u"),
+    new RegExp(`(?:under|below|younger than|at most|no older than)\\s*${age}(?:\\s*(?:years? old)?)?`, "iu"),
+  ];
+  for (const message of messages) {
+    for (const pattern of patterns) {
+      const quote = message.match(pattern)?.[0];
+      if (quote) return quote;
+    }
+  }
+  return null;
+}
+
 export class RecruitmentBriefValidationError extends Error {
   override name = "RecruitmentBriefValidationError";
 }
@@ -49,6 +63,15 @@ export class RecruitmentBriefOutputLimitError extends Error {
 /** Reject fabricated explicit evidence before it can become a search condition. */
 export function validateRecruitmentBrief(value: unknown, userMessages: readonly string[], visibleCandidates: readonly VisibleRecruitmentCandidate[] = []): RecruitmentBrief {
   const brief = RecruitmentBriefSchema.parse(value);
+  if (brief.filters.maxAge !== null
+    && !brief.constraints.some(item => item.kind === "age" && item.strength === "required" && item.requirement.basis === "explicit")) {
+    const quote = explicitAgeQuote(userMessages, brief.filters.maxAge);
+    if (quote) brief.constraints.push({
+      kind: "age",
+      strength: "required",
+      requirement: { value: quote, basis: "explicit", quote },
+    });
+  }
   if (brief.referenceRecheck && !userMessages.at(-1)?.includes(brief.referenceRecheck.quote)) throw new RecruitmentBriefValidationError("身份重查必须引用本轮用户的原话，不继承旧轮次的重查要求。");
   const explicitPositions = explicitPositionState(userMessages);
   brief.positions = explicitPositions.positions;

@@ -1,6 +1,7 @@
 import { activeReferenceMessages } from "./replacement-reference.js";
 import { type CapabilityMetricKey } from "./capabilities.js";
 import { type Position } from "./position-contracts.js";
+import type { RecruitmentBrief } from "./recruitment-brief.js";
 
 const abilityEvidenceByCapability: Readonly<Record<string, readonly CapabilityMetricKey[]>> = {
   "射门终结": ["abilityFinishing"],
@@ -56,7 +57,7 @@ const requestedCapabilityEvidenceMappings: readonly {
   },
   {
     name: "创造机会",
-    pattern: /创造机会|机会创造|关键传球|射门助攻|chance creation|key passes?|shot assists?/i,
+    pattern: /创造机会|机会创造|关键传球|射门助攻|喂饼|chance creation|key passes?|shot assists?/i,
     metricKeys: ["assists", "shotAssists", "keyPasses", "asaExpectedAssistsPer90", "fplExpectedAssistsPer90", "premierLeagueAssistsPer90", "premierLeagueKeyPassesPer90", "understatExpectedAssistsPer90", "understatKeyPassesPer90"],
   },
   {
@@ -126,7 +127,7 @@ const requestedCapabilityEvidenceMappings: readonly {
   },
 ];
 
-function userExplicitlyRequestsCapability(userMessages: readonly string[], name: string, pattern: RegExp): boolean {
+function explicitCapabilityQuote(userMessages: readonly string[], name: string, pattern: RegExp): string | null {
   const allText = userMessages.join("\n");
   const matcher = new RegExp(pattern.source, `${pattern.flags.replace(/[gy]/g, "")}g`);
   for (const match of allText.matchAll(matcher)) {
@@ -143,23 +144,40 @@ function userExplicitlyRequestsCapability(userMessages: readonly string[], name:
       || /^\s*(?:by\s+)?(?:carry(?:ing)?|dribbl(?:e|ing))\b/i.test(suffix)
     );
     if (!negatedBefore && !negatedAfter && !meansPressResistance && !meansHighPressing && !meansCarryingProgression) {
-      return true;
+      return match[0];
     }
   }
-  return false;
+  return null;
 }
 
-export function requestedCapabilityEvidenceAreas(userMessages: readonly string[], position?: Position | null, includeAbilityProfiles = false): Array<{
-  name: string;
-  metricKeys: readonly CapabilityMetricKey[];
-}> {
+function userExplicitlyRequestsCapability(userMessages: readonly string[], name: string, pattern: RegExp): boolean {
+  return explicitCapabilityQuote(userMessages, name, pattern) !== null;
+}
+
+function activeCapabilityMessages(userMessages: readonly string[]): readonly string[] {
   const roleMessages = activeReferenceMessages(userMessages);
   const replacementIndex = roleMessages.reduce((latest, message, index) => (
     /改(?:成|为).*(?:重点|优先|主要|侧重)/s.test(message)
       && requestedCapabilityEvidenceMappings.some(({ name, pattern }) => userExplicitlyRequestsCapability([message], name, pattern))
       ? index : latest
   ), -1);
-  const activeMessages = replacementIndex >= 0 ? roleMessages.slice(replacementIndex) : roleMessages;
+  return replacementIndex >= 0 ? roleMessages.slice(replacementIndex) : roleMessages;
+}
+
+/** Canonical explicit capabilities used to complete a model-produced brief once, at the parse boundary. */
+export function explicitCapabilityPrioritiesFromMessages(userMessages: readonly string[]) {
+  const activeMessages = activeCapabilityMessages(userMessages);
+  return requestedCapabilityEvidenceMappings.flatMap(({ name, pattern }) => {
+    const quote = explicitCapabilityQuote(activeMessages, name, pattern);
+    return quote ? [{ value: name, basis: "explicit" as const, quote }] : [];
+  });
+}
+
+export function requestedCapabilityEvidenceAreas(userMessages: readonly string[], position?: Position | null, includeAbilityProfiles = false): Array<{
+  name: string;
+  metricKeys: readonly CapabilityMetricKey[];
+}> {
+  const activeMessages = activeCapabilityMessages(userMessages);
   const requested = requestedCapabilityEvidenceMappings.flatMap(({ name, pattern, metricKeys }) => (
     userExplicitlyRequestsCapability(activeMessages, name, pattern) ? [{ name, metricKeys }] : []
   ));
@@ -169,4 +187,36 @@ export function requestedCapabilityEvidenceAreas(userMessages: readonly string[]
   const explicitlyRequestsCarryingProgression = requested.some(({ name }) => name === "带球推进");
   return requested.filter(({ name }) => !(explicitlyRequestsCarryingProgression && name === "推进"))
     .map((area) => ({ ...area, metricKeys: [...new Set([...area.metricKeys, ...(includeAbilityProfiles ? abilityEvidenceByCapability[area.name] ?? [] : [])])] }));
+}
+
+/** Resolve requested evidence from the normalized brief, without reinterpreting conversation history. */
+export function requestedCapabilityEvidenceAreasFromBrief(
+  brief: Pick<RecruitmentBrief, "priorities" | "positions">,
+  position?: Position | null,
+  includeAbilityProfiles = false,
+): Array<{ name: string; metricKeys: readonly CapabilityMetricKey[] }> {
+  const explicitPriorities = brief.priorities.filter((priority) => priority.basis === "explicit");
+  const requested = requestedCapabilityEvidenceMappings.flatMap(({ name, pattern, metricKeys }) => (
+    explicitPriorities.some(({ value }) => pattern.test(value)) ? [{ name, metricKeys }] : []
+  ));
+  const isGoalkeeperRequest = position === "GK"
+    || brief.positions.includes("GK")
+    || explicitPriorities.some(({ value }) => /\bGK\b|goalkeeper|门将|守门员/i.test(value));
+  if (isGoalkeeperRequest) requested.push({ name: "门将专项能力", metricKeys: [] });
+  const explicitlyRequestsCarryingProgression = requested.some(({ name }) => name === "带球推进");
+  return requested.filter(({ name }) => !(explicitlyRequestsCarryingProgression && name === "推进"))
+    .map((area) => ({
+      ...area,
+      metricKeys: [...new Set([...area.metricKeys, ...(includeAbilityProfiles ? abilityEvidenceByCapability[area.name] ?? [] : [])])],
+    }));
+}
+
+/** Prefer normalized requirements when available; keep legacy/test callers functional before interpretation. */
+export function requestedCapabilityEvidenceAreasForInput(input: {
+  brief?: RecruitmentBrief | null;
+  userMessages: readonly string[];
+}, position?: Position | null, includeAbilityProfiles = false) {
+  return input.brief
+    ? requestedCapabilityEvidenceAreasFromBrief(input.brief, position, includeAbilityProfiles)
+    : requestedCapabilityEvidenceAreas(input.userMessages, position, includeAbilityProfiles);
 }

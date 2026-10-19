@@ -212,11 +212,11 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
 
  test("configured production conversation uses on-demand retrieval and deterministic first search", async () => {
   let calls = 0;
-  let searches = 0;
+  const searchedCorpora: string[] = [];
   const conversation = configuredRecruitmentConversation({
-    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, positions: ["ST"], priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] }); } },
+    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, positions: ["ST"], priorities: [{ value: "进球产出", basis: "explicit", quote: "进球产出" }], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] }); } },
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
-    knowledgeBase: { search: async () => { searches++; return []; } },
+    knowledgeBase: { search: async input => { searchedCorpora.push(input.corpus); return []; } },
     plannerFactory: () => ({ async decide(input) {
       calls++;
       assert.notEqual(input.decisionMode, "investigate");
@@ -226,7 +226,7 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
   const result = await conversation.turn({ threadId: "production-default-policy", message: "为拜仁找中锋，重点看进球产出" });
   assert.equal(result.status, "completed");
   assert.equal(calls, 1);
-  assert.equal(searches, 0);
+  assert.deepEqual(searchedCorpora, []);
   assert.equal(result.report?.recommendations.length, 1);
 });
 

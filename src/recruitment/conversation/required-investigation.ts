@@ -6,7 +6,7 @@ import { canProvideDetailedPositionEvidence } from "../../players/position-evide
 import { type Position } from "../../domain/position-contracts.js";
 import { hasAbilityPositionEvidence, playerPositionMatches, positionFamilyFor } from "../../domain/positions.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
-import { buildDecisionConstraints, conclusionPlannerOutputFallback, requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
+import { buildDecisionConstraints, conclusionPlannerOutputFallback, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import type { ConversationHistoryEntry } from "../planner-context.js";
 import { emptyDecision, FinishActionSchema, RecruitmentActionSchema, toolBudgets, type ParsedRecruitmentAction } from "../recruitment-actions.js";
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
@@ -44,6 +44,7 @@ function reportLookup(state: State, playerNames: string[]) {
   const messages = userMessages(state.history);
   const candidates = Object.values(evaluatedPlayersForConstraint(state));
   const coverage = summarizeRequestedCapabilityCoverage({
+    brief: state.brief,
     userMessages: messages,
     evaluatedPlayers: candidates,
     candidateIdentityGroups: state.candidateIdentityGroups,
@@ -359,6 +360,7 @@ export function nextRequiredInvestigation(
       && (inspectionCapabilityExists || Object.keys(eligibleEvaluatedPlayers).length === 0)) {
       const action = conclusionPlannerOutputFallback(buildDecisionConstraints({
         targetTeam: state.targetTeam,
+        brief: state.brief,
         confirmedPosition: state.confirmedPosition ?? understatFinePosition,
         userMessages: userMessages(state.history),
         evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),

@@ -1,6 +1,6 @@
 import { activeReferenceMessages } from "../domain/replacement-reference.js";
 import { competitionNamesMatch } from "../domain/competition-names.js";
-import { requestedCapabilityEvidenceAreas } from "../domain/recruitment-capabilities.js";
+import { requestedCapabilityEvidenceAreasForInput } from "../domain/recruitment-capabilities.js";
 import { playerPositionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
 import { type PlayerProfile } from "../domain/players.js";
@@ -285,10 +285,11 @@ export function resolveCandidateSearchIntent(input: {
     : input.brief?.positions.length ? input.brief.positions : input.brief?.referencePlayer ? input.referencePositions ?? [] : [];
   const position = selectedPositions.length ? selectedPositions[0]! : allowsAnyPosition ? null : effectiveConfirmedPosition ?? explicitPosition
     ?? (replacementRequest ? replacementReferencePosition : null);
+  const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: input.brief, userMessages }, undefined, input.abilityProfilesEnabled);
   return {
     position,
     ...(selectedPositions.length ? { positions: selectedPositions } : {}),
-    discoveryMetricGroups: requestedCapabilityEvidenceAreas(userMessages, undefined, input.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
+    discoveryMetricGroups: requestedEvidenceAreas.filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
     positionBasis: position === null ? null : effectiveConfirmedPosition !== null || explicitPosition !== null ? "user" : "reference",
     maxAge: input.brief ? input.brief.filters.maxAge : explicitMaxAge(userMessages),
     minimumMinutes: input.brief ? input.brief.filters.minimumMinutes : explicitMinimumMinutes(userMessages),

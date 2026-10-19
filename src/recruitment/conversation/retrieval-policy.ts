@@ -1,4 +1,5 @@
-import { requestedCapabilityEvidenceAreas, summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
+import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
+import { summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import { evaluatedPlayersForConstraint, userMessages } from "./candidate-context.js";
 import type { State } from "./state.js";
 
@@ -8,11 +9,11 @@ export type RecruitmentRetrievalMode = "fixed" | "on_demand";
 export function recruitmentRetrievalNeeds(state: State, mode: RecruitmentRetrievalMode) {
   if (mode === "fixed") return { methodology: true, playerReports: true };
   const messages = userMessages(state.history);
-  const areas = requestedCapabilityEvidenceAreas(messages, undefined, state.abilityProfilesEnabled);
+  const areas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: messages }, undefined, state.abilityProfilesEnabled);
   const interpretiveGap = areas.length === 0 || areas.some(area => area.metricKeys.length === 0);
   const explicitReports = messages.some(message => /球探报告|比赛录像|定性|scouting report|video/i.test(message));
   const candidates = Object.values(evaluatedPlayersForConstraint(state));
-  const missingEvidence = candidates.length > 0 && summarizeRequestedCapabilityCoverage({ userMessages: messages, evaluatedPlayers: candidates, candidateIdentityGroups: state.candidateIdentityGroups })
+  const missingEvidence = candidates.length > 0 && summarizeRequestedCapabilityCoverage({ brief: state.brief, userMessages: messages, evaluatedPlayers: candidates, candidateIdentityGroups: state.candidateIdentityGroups })
     .some(area => area.status !== "observed");
   return {
     methodology: interpretiveGap,

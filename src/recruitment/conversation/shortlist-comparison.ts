@@ -1,5 +1,5 @@
 import { normalizeSearchText } from "../../domain/text-matching.js";
-import { requestedCapabilityEvidenceAreas } from "../conclusion-policy.js";
+import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
 import type { ParsedRecruitmentAction } from "../recruitment-actions.js";
 import { evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
 import type { State } from "./state.js";
@@ -38,9 +38,8 @@ export function preserveExplicitShortlistComparison(action: ParsedRecruitmentAct
     needSummary: `${action.needSummary.trim()} ${note}`,
   });
 
-  const requestedMetricKeys = new Set(requestedCapabilityEvidenceAreas(
-    userMessages(state.history), resolvedCandidateSearchIntent(state).position, state.abilityProfilesEnabled,
-  ).flatMap(({ metricKeys }) => metricKeys));
+  const requestedMetricKeys = new Set(requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, resolvedCandidateSearchIntent(state).position, state.abilityProfilesEnabled)
+    .flatMap(({ metricKeys }) => metricKeys));
   if (requestedMetricKeys.size === 0) return {
     action: updateSummary(`用户要求比较上轮的 ${requestedCandidates.length} 名候选，但当前调查没有可用于本轮比较的直接指标，因此未生成能力对照。`),
     preservedCandidateIds: [], handled: true,

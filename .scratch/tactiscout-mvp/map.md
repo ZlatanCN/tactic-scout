@@ -222,6 +222,7 @@ Labels: wayfinder:map
 - 2026-10-18：[issue 211](issues/211-local-model-investigation-reliability.md) 的 Qwen 3.5 9B 原始输入重跑完成且无长度上限错误，首次追问与同案续跑均通过 Harness；原始 `finish_reason` 未直接暴露，不阻塞产品行为验收。
 - 2026-10-18：[issue 219](issues/219-preserve-english-fine-position-intent.md) 已解决：英文 left-back 等细分位置由用户原文确定性保留；模型漏填位置时整图仍按 LB 检索。真实 Qwen 整图场景 Harness 全通过；本轮 90.8 秒，其中扩页 Planner 触发既有 60 秒超时回退。该场景未评估候选排序质量。
 - 2026-10-18：[issue 220](issues/220-single-capability-expansion-sufficiency.md) 已解决：普通扩页在所有请求能力可测、且至少三名独立候选都有每项能力的直接证据时确定性收束；不满足仍调用 Planner。Understat/Qwen 整图配对消融 3/3 次同序同证据，Harness 全通过；中位耗时由 78.674 秒降至 35.072 秒（-55.4%）。该固定案例验证延迟与控制流，不证明一般候选排序质量。
+- 2026-10-19：[issue 221](issues/221-agent-policy-and-evidence-audit.md) 已解决：显式能力意图在需求校验边界归一化，Planner 的结构化 action schema 受当前图阶段/工具预算约束，Tavily 失败时保留本地报告证据。670/670 测试、API/Web 构建和 diff check 通过。Understat 三对扩页充分性消融全部通过，p50 28.587 秒 vs 86.744 秒，候选/证据顺序一致；当前 Reviewer 配对运行两臂结果相同，因此不据此宣称新增 Reviewer 收益，历史窄范围证据见 issue 132。
 
 - 2026-10-16: [issue 215](issues/215-deepen-app-and-harness-modules.md) 已解决：`createApp()` 留作组合根，API 路由按能力注册，应用级进度与回合协调仍每实例共享；Harness 保留整图评估器，只拆 trace 脱敏和脚本追问匹配；3,777 行招募集成测试拆成六组并共享 fixture；报告候选卡从主面板抽出。KnowledgeBase 和来源 research 保持高内聚模块。API/Web 构建、561/561 测试和 diff check 通过；对外接口与界面行为不变。
 

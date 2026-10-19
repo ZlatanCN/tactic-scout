@@ -121,6 +121,7 @@ export const toolBudgets = {
 } as const;
 
 export type ToolActionName = keyof typeof toolBudgets;
+export type RecruitmentPlannerAction = ToolActionName | "ask_user" | "finish";
 export type ToolUseCounts = Record<ToolActionName, number>;
 
 export function emptyToolUseCounts(): ToolUseCounts {

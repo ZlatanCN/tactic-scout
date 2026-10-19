@@ -19,6 +19,59 @@ test("similarity intent inherits an observed reference position without requirin
   assert.ok(intent.replacementTargetNames.includes("切尔基"));
 });
 
+test("brief validation grounds an explicit numeric age filter in the user's exact quote", () => {
+  const candidate = { ...makeBrief(), filters: { ...makeBrief().filters, maxAge: 23 } };
+
+  const brief = validateRecruitmentBrief(candidate, ["推荐类似切尔基的球员，23 岁以下"]);
+
+  assert.deepEqual(brief.constraints, [{
+    kind: "age",
+    strength: "required",
+    requirement: { value: "23 岁以下", basis: "explicit", quote: "23 岁以下" },
+  }]);
+});
+
+test("brief validation preserves every explicit capability omitted by the model summary", () => {
+  const candidate = { ...makeBrief(), priorities: [
+    { value: "前场压迫", basis: "explicit" as const, quote: "前场压迫" },
+  ] };
+
+  const brief = validateRecruitmentBrief(candidate, ["推荐类似切尔基的球员，重点看推进和前场压迫"]);
+  const intent = resolveCandidateSearchIntent({ brief, userMessages: ["推荐类似切尔基的球员，重点看推进和前场压迫"], confirmedPosition: null });
+
+  assert.ok(brief.priorities.some(({ value, basis }) => value === "推进" && basis === "explicit"));
+  assert.ok(intent.discoveryMetricGroups.some((group) => group.includes("wyscoutProgressivePassesPer90")));
+});
+
+test("a structured brief is the source of requested capability discovery groups", () => {
+  const brief = { ...makeBrief(), priorities: [
+    { value: "创造机会", basis: "explicit" as const, quote: "给队友喂饼" },
+    { value: "进球产出", basis: "inferred" as const, quote: "" },
+  ] };
+  const validatedBrief = validateRecruitmentBrief(brief, ["推荐类似切尔基的球员，给队友喂饼"]);
+
+  const intent = resolveCandidateSearchIntent({
+    brief: validatedBrief,
+    userMessages: ["推荐类似切尔基的球员，给队友喂饼"],
+    confirmedPosition: null,
+  });
+
+  assert.equal(intent.discoveryMetricGroups.length, 1);
+  assert.ok(intent.discoveryMetricGroups[0]?.includes("shotAssists"));
+  assert.ok(!intent.discoveryMetricGroups.some((group) => group.includes("goals")), "an inferred capability must not become a requested search dimension");
+});
+
+test("capability discovery falls back to the original request before a brief exists", () => {
+  const intent = resolveCandidateSearchIntent({
+    brief: null,
+    userMessages: ["找一个能进球、也能给队友喂饼的前锋"],
+    confirmedPosition: null,
+  });
+
+  assert.ok(intent.discoveryMetricGroups.some((group) => group.includes("goals")));
+  assert.ok(intent.discoveryMetricGroups.some((group) => group.includes("shotAssists")));
+});
+
 test("an explicit fine position cannot be broadened by model output", () => {
   const brief = { ...makeBrief(), task: "reinforcement", referencePlayer: null, positions: ["MID"] };
   assert.deepEqual(validateRecruitmentBrief(brief, ["找一个能拿球推进的中前卫"]).positions, ["CM"]);
@@ -165,6 +218,55 @@ test("the full graph keeps an explicit English fine position when the model omit
   assert.ok(searches.length > 0, "the graph must actually run candidate search");
   assert.ok(searches.every(query => query.position === "LB" || query.positions?.length === 1 && query.positions[0] === "LB"),
     `every search must stay scoped to left-back; got ${JSON.stringify(searches.map(({ position, positions }) => ({ position, positions })))}`);
+});
+
+test("the full graph uses normalized capability intent for search, review, and report coverage", async () => {
+  const candidate = roleConstraintPlayer("chance-creator", "Chance Creator", "ST");
+  const message = "给拜仁找个中锋，要能给队友喂饼";
+  const searches: PlayerSearchQuery[] = [];
+  const plannerRequests: Array<Record<string, unknown>> = [];
+  const trace: Array<Record<string, unknown>> = [];
+  const modelBrief = { ...makeBrief(), task: "reinforcement" as const,
+    targetTeam: { value: "拜仁", basis: "explicit" as const, quote: "拜仁" },
+    referencePlayer: null,
+    positions: ["ST" as const],
+    priorities: [{ value: "创造机会", basis: "explicit" as const, quote: "给队友喂饼" }],
+  };
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      return validateRecruitmentBrief(modelBrief, [...input.recentMessages, input.message]);
+    } },
+    repository: {
+      mode: "demo",
+      sourceName: "Fixture",
+      async loadPlayers() { return [candidate]; },
+      async searchCandidates(query) {
+        searches.push(query);
+        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    knowledgeBase: { async search() { return []; } },
+    observer: event => trace.push(event as unknown as Record<string, unknown>),
+    planner: { async decide(input) {
+      plannerRequests.push(input as unknown as Record<string, unknown>);
+      return { action: "finish", targetTeam: "拜仁", needSummary: "寻找能创造机会的中锋", capabilityProfile: [],
+        recommendations: [{ playerId: candidate.playerId, evidenceKeys: ["goals"] }], limitationKeys: [] };
+    } },
+  });
+
+  const response = await conversation.turn({ threadId: "normalized-capability-intent", message });
+
+  assert.equal(response.status, "completed", response.message);
+  assert.equal(plannerRequests[0]?.decisionMode, "reorient");
+  assert.deepEqual(plannerRequests[0]?.availableActions, ["search_candidates", "ask_user", "finish"]);
+  assert.ok(trace.some(event => event.phase === "tool" && event.toolName === "search_candidates"));
+  assert.ok(trace.some(event => event.phase === "tool" && event.toolName === "evaluate_candidates"));
+  assert.ok(!trace.some(event => event.phase === "tool" && event.toolName === "search_methodology"), "on-demand retrieval should not run a fixed methodology lookup for an observable capability");
+  assert.ok(searches.some((query) => query.discoveryMetricGroups?.some((group) => group.includes("shotAssists"))));
+  assert.equal(response.report?.requestedCapabilityCoverage.find(({ name }) => name === "创造机会")?.status, "observed");
+  assert.ok(response.report?.recommendations[0]?.focusEvidenceKeys.some((key) => key === "shotAssists" || key === "keyPasses" || key === "assists"));
 });
 
 test("an undecided position is not converted into unrestricted acceptance", () => {

@@ -11,7 +11,7 @@ import {
   expansionPlannerFallback,
 } from "../conclusion-policy.js";
 import { compactConclusionHistory, compactExpansionHistory } from "../planner-context.js";
-import { type ParsedRecruitmentAction, type RecruitmentAction, emptyDecision, RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
+import { type ParsedRecruitmentAction, type RecruitmentAction, type RecruitmentPlannerAction, emptyDecision, RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
 import { type RecruitmentPlanner, type RecruitmentPlannerUsageObservation, RecruitmentModelTimeoutError, RecruitmentPlannerOutputError } from "../recruitment-planner.js";
 import { candidateIdentityGroupReferencesFor, confirmedPositionSearchObservation, userMessages } from "./candidate-context.js";
 import { type RecruitmentAskUserMode, type RecruitmentCandidatePolicyMode, type RecruitmentTraceObserver, type UnderstatResearchMode } from "./contracts.js";
@@ -21,6 +21,29 @@ import { emitProgress } from "./progress.js";
 import { investigationCandidates, nextRequiredInvestigation } from "./required-investigation.js";
 import { type State } from "./state.js";
 import { preserveExplicitShortlistComparison } from "./shortlist-comparison.js";
+
+type PlanningMode = NonNullable<Parameters<RecruitmentPlanner["decide"]>[0]["decisionMode"]>;
+
+function availablePlannerActions(state: State, repository: PlayerRepository, decisionMode: PlanningMode): RecruitmentPlannerAction[] {
+  if (decisionMode === "conclude") return ["ask_user", "finish"];
+  if (decisionMode === "expand") return ["search_candidates", "ask_user", "finish"];
+  if (decisionMode === "expand_recovery") return ["search_candidates", "finish"];
+  if (decisionMode === "reorient") return ["search_candidates", "ask_user", "finish"];
+
+  const actions: RecruitmentPlannerAction[] = [
+    ...(repository.inspectTeam || repository.loadPlayers ? ["inspect_team" as const] : []),
+    ...(repository.inspectCandidateGroup ? ["inspect_candidate_group" as const] : []),
+    ...(repository.inspectPlayer ? ["inspect_player" as const] : []),
+    ...(repository.inspectMatch ? ["inspect_match" as const] : []),
+    ...(repository.searchCandidates || repository.loadPlayers ? ["search_candidates" as const] : []),
+    "search_methodology",
+    "evaluate_candidates",
+    "search_player_reports",
+    "ask_user",
+    "finish",
+  ];
+  return actions.filter((action) => action === "ask_user" || action === "finish" || state.toolUses[action] < toolBudgets[action]);
+}
 
 export function createPlanningNode(input: {
   deterministicSearchEnabled: boolean;
@@ -100,6 +123,7 @@ export function createPlanningNode(input: {
       : "investigate" as const;
     const decisionConstraints = decisionMode === "investigate" ? undefined : buildDecisionConstraints({
       targetTeam: state.targetTeam,
+      brief: state.brief,
       confirmedPosition: state.confirmedPosition,
       confirmedPositions: state.confirmedPositions,
       userMessages: userMessages(state.history),
@@ -177,6 +201,7 @@ export function createPlanningNode(input: {
           abilityProfilesEnabled: state.abilityProfilesEnabled,
           targetTeam: state.targetTeam,
           decisionMode,
+          availableActions: availablePlannerActions(state, repository, decisionMode),
           confirmedPosition: state.confirmedPosition,
           confirmedPositions: state.confirmedPositions,
           positionBroadeningApproved: state.positionBroadeningApproved,

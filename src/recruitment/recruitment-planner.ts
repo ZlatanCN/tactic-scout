@@ -13,11 +13,12 @@ import { type Position } from "../domain/position-contracts.js";
 import {
   createConstrainedConclusionSchema,
   createConstrainedExpansionSchema,
+  createConstrainedInvestigationSchema,
   createConstrainedReorientationSchema,
   type RecruitmentDecisionConstraints,
   type RecruitmentExpansionConstraints,
 } from "./conclusion-policy.js";
-import { RecruitmentActionSchema, type RecruitmentAction } from "./recruitment-actions.js";
+import { RecruitmentActionSchema, type RecruitmentAction, type RecruitmentPlannerAction } from "./recruitment-actions.js";
 import { structuredPlannerHistory, type ConversationHistoryEntry } from "./planner-context.js";
 
 export type { ConversationHistoryEntry } from "./planner-context.js";
@@ -31,6 +32,7 @@ export interface RecruitmentPlanner {
     abilityProfilesEnabled?: boolean;
     targetTeam: string | null;
     decisionMode?: RecruitmentDecisionMode;
+    availableActions?: readonly RecruitmentPlannerAction[];
     confirmedPosition: Position | null;
     confirmedPositions?: readonly Position[];
     positionBroadeningApproved?: boolean;
@@ -73,10 +75,10 @@ function agentInstructions(dataMode: DatasetMode): string {
   return [
     "你是一个对话式足球球探。用户通常只会用一句自然语言描述阵容问题；你负责先调查可用证据，再形成目标能力画像、比较候选人并提出有依据的推荐。",
     "结构化 brief 是当前用户需求的权威摘要。similarity 任务无需目标球队：先读取参考画像，比较相同职责下的能力特点与表现，并排除参考本人。不得把相似理解成仅同位置，也不能把高分自动视为相似。replacement 沿用参考职责，除非用户明确改变。缺少球队、预算、年龄不构成追问理由。只执行 required 条件，preferred 用于排序解释；未支持的约束需明确说明，不宣称已经满足。",
-    "每次只选择一个下一步 action。可调用 inspect_team、inspect_candidate_group、inspect_player、inspect_match、search_methodology、search_candidates、evaluate_candidates、search_player_reports；数据工具是否可用以当前来源和工具结果为准。调用内部数据工具不需要用户许可，禁止询问用户是否要调用某个工具（例如‘要不要读取这组球员资料’），应直接调用并继续调查。只有答案会实质改变候选范围、且不能通过已有数据或工具解决时，才调用 ask_user；证据足够时调用 finish。每轮总决策最多 16 步，并另有独立工具上限：inspect_team 2 次、inspect_candidate_group 4 次、inspect_player 3 次、inspect_match 2 次、search_methodology 2 次、search_candidates 4 次、evaluate_candidates 3 次、search_player_reports 3 次。必须根据每次工具结果重新决定下一步。",
+    "每次只选择一个下一步 action。当前阶段可用 action 会随结构化上下文传入，输出 schema 也只允许该集合；只选择可用列表中的动作。缺失的动作代表本阶段、数据源能力或调用预算不支持。调用可用的数据工具不需要用户许可，禁止询问用户是否要调用某个工具；只有答案会实质改变候选范围、且已有数据与可用工具无法解决时，才调用 ask_user。每轮总决策最多 16 步，并遵循各工具独立调用上限。必须依据本轮实际工具结果重新决定下一步。",
     methodologySearchInstructions,
     "当决策上下文标记为 conclude 时，只能在 ask_user 与 finish 之间选择；这代表当前调查完成，且球员报告索引没有新证据。",
-    "先检索角色/战术方法资料，帮助把自然语言需求转成可观察维度；随后完成结构化候选筛选和比赛表现评估，再检索球员报告作定性补充。没有至少一名已评估候选人时，不得搜索球员报告；已有已评估候选人时，完成球员报告检索后再 finish。若报告引出新名字，可用 search_candidates 的 playerName 查本地结构化数据，再评估后决定是否推荐。",
+    "LangGraph 的阶段策略负责安排方法资料、候选搜索、比赛评估和球员报告检索；不要无视上下文中已经完成的策略步骤，也不要固定要求先查方法资料。没有至少一名已评估候选人时，不得搜索球员报告；已有已评估候选人时，只有当前策略要求或用户明确要求时才检索球员报告。若报告引出新名字，可用 search_candidates 的 playerName 查结构化数据，再评估后决定是否推荐。",
     "球员报告检索应一次包含所有已评估候选人的姓名。若检索无结果且没有新候选人需要核验，不要重复检索相同报告范围；说明索引无结果后继续完成报告。",
     "在至少调用一个球队/候选/评估数据工具前，不得向用户提问或提交最终报告；如信息不足，先调查可用证据再决定是否提问。不能因为年龄、预算或位置未说明就开场发送问卷。只有关键角色歧义会改变候选集时才提出一个简短问题，并说明原因。用户回答后继续原案件。",
     "普通补强请求没有位置时，才在先完成有界宽范围调查后询问希望补强的位置。替代者请求例外：足球引援默认按参考球员的同位置/主要场上角色寻找接班人；先从球队名单、该球员表现记录和可用的稳定球员位置知识识别参考球员，再按对应位置搜索。绝不能把‘延续参考球员角色还是考虑不同位置’作为默认问题。只有检查过可用资料后仍无法可靠识别参考球员或其位置，才问一个针对具体缺失身份/位置的问题。只有用户明确提出换位置时才按不同位置搜索；同位置查询无候选时，再基于真实空结果询问是否扩大范围。",
@@ -229,7 +231,9 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         })
         : input.decisionMode === "reorient" && input.constraints
           ? createConstrainedReorientationSchema(input.constraints)
-        : RecruitmentActionSchema;
+        : input.decisionMode === "investigate" && input.availableActions
+          ? createConstrainedInvestigationSchema(input.availableActions)
+          : RecruitmentActionSchema;
     const isExpansion = input.decisionMode === "expand" || input.decisionMode === "expand_recovery";
     const actionModel = (isExpansion ? this.expansionModel : this.model).withStructuredOutput(schema, {
       name: "recruitment_action",
@@ -242,6 +246,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       dataSource: input.dataSource,
       targetTeam: input.targetTeam,
       decisionMode: input.decisionMode ?? "investigate",
+      ...(input.availableActions ? { availableActions: input.availableActions } : {}),
       confirmedPosition: input.confirmedPosition,
       confirmedPositions: input.confirmedPositions,
       positionBroadeningApproved: input.positionBroadeningApproved ?? false,
@@ -263,6 +268,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           })
           : input.decisionMode === "reorient" ? reorientationInstructions(input.dataMode) : investigationInstructions(input.dataMode);
       const systemInstructions = [baseInstructions,
+        ...(input.availableActions ? [`本次可用 action 列表：${input.availableActions.join("、")}。只选择列表中动作；其他动作本阶段不可用。`] : []),
         input.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
         abilityProfileInstructions(input.abilityProfilesEnabled)].filter(Boolean).join("\n");
       let response: { raw?: unknown; parsed?: unknown };

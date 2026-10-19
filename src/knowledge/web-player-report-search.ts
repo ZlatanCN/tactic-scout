@@ -195,6 +195,29 @@ function mapResults(input: {
   return rows;
 }
 
+function mergeSearchResults(
+  localResults: readonly KnowledgeSearchResult[],
+  webResults: readonly KnowledgeSearchResult[],
+  limit: number,
+): KnowledgeSearchResult[] {
+  const seenUrls = new Set<string>();
+  const unique = (results: readonly KnowledgeSearchResult[]) => results.filter((result) => {
+    if (seenUrls.has(result.url)) return false;
+    seenUrls.add(result.url);
+    return true;
+  });
+  const local = unique(localResults);
+  const web = unique(webResults);
+  const merged: KnowledgeSearchResult[] = [];
+  let localIndex = 0;
+  let webIndex = 0;
+  while (merged.length < limit && (localIndex < local.length || webIndex < web.length)) {
+    if (localIndex < local.length) merged.push(local[localIndex++]!);
+    if (merged.length < limit && webIndex < web.length) merged.push(web[webIndex++]!);
+  }
+  return merged;
+}
+
 export function createWebSearchKnowledgeRepository(
   localRepository: KnowledgeRepository,
   options: WebSearchKnowledgeOptions = configuredOptionsFromEnvironment(),
@@ -217,36 +240,36 @@ export function createWebSearchKnowledgeRepository(
       const timeoutSignal = AbortSignal.timeout(12_000);
       const signal = searchOptions?.signal ? AbortSignal.any([searchOptions.signal, timeoutSignal]) : timeoutSignal;
       throwIfAborted(signal);
-      const response = await fetcher(tavilyEndpoint, {
-        method: "POST",
-        redirect: "error",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: queryFor(unparsedRequest),
-          search_depth: "basic",
-          topic: "general",
-          max_results: Math.min(unparsedRequest.limit, maxSearchResults),
-          include_answer: false,
-          include_raw_content: false,
-          include_domains: allowedDomains,
-        }),
-        signal,
-      });
-      if (!response.ok) throw new Error(`Web Search 请求失败（HTTP ${response.status}）。`);
-      const webResults = mapResults({
-        response: await response.json() as unknown,
-        request: unparsedRequest,
-        allowedDomains,
-      });
-      throwIfAborted(searchOptions?.signal);
-      const seenUrls = new Set<string>();
-      return [...localResults, ...webResults]
-        .filter((result) => {
-          if (seenUrls.has(result.url)) return false;
-          seenUrls.add(result.url);
-          return true;
-        })
-        .slice(0, unparsedRequest.limit);
+      try {
+        const response = await fetcher(tavilyEndpoint, {
+          method: "POST",
+          redirect: "error",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: queryFor(unparsedRequest),
+            search_depth: "basic",
+            topic: "general",
+            max_results: Math.min(unparsedRequest.limit, maxSearchResults),
+            include_answer: false,
+            include_raw_content: false,
+            include_domains: allowedDomains,
+          }),
+          signal,
+        });
+        if (!response.ok) throw new Error(`Web Search 请求失败（HTTP ${response.status}）。`);
+        const webResults = mapResults({
+          response: await response.json() as unknown,
+          request: unparsedRequest,
+          allowedDomains,
+        });
+        throwIfAborted(searchOptions?.signal);
+        return mergeSearchResults(localResults, webResults, unparsedRequest.limit);
+      } catch {
+        // A failed optional web lookup must not discard usable local evidence.
+        // Preserve caller cancellation while treating Tavily failure as a partial result.
+        throwIfAborted(searchOptions?.signal);
+        return localResults.slice(0, unparsedRequest.limit);
+      }
     },
   };
 }

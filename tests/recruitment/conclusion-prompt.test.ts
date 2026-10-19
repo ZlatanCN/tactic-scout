@@ -6,8 +6,8 @@ test("the Understat investigation prompt sends the Agent to internal research to
   const prompt = investigationInstructions("understat");
 
   assert.match(prompt, /inspect_candidate_group/);
-  assert.match(prompt, /inspect_player/);
   assert.match(prompt, /inspect_match/);
+  assert.match(prompt, /当前阶段可用 action 会随结构化上下文传入/);
   assert.match(prompt, /禁止询问用户是否要调用某个工具/);
   assert.match(prompt, /用户明确要求.*或目录证据缺口.*调用 inspect_candidate_group/);
   assert.doesNotMatch(prompt, /默认读取 positions\/history\/recent\/shotProfile/);
