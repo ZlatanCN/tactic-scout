@@ -1,4 +1,5 @@
 import type { ConversationHistoryEntry } from "./planner-context.js";
+import { DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS, DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS } from "./chat-model.js";
 
 export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude" | "summarize";
 
@@ -36,9 +37,6 @@ export interface RecruitmentContextRequest {
   messages: [{ role: "system"; content: string }, { role: "human"; content: string }];
   manifest: RecruitmentContextManifest;
 }
-
-const DEFAULT_SOFT_INPUT_BUDGET_TOKENS = 8_192;
-const DEFAULT_SAFETY_MARGIN_TOKENS = 1_024;
 
 export class RecruitmentContextCapacityError extends Error {
   constructor(readonly stage: RecruitmentContextStage, readonly estimatedInputTokens: number, readonly inputBudgetTokens: number) {
@@ -79,8 +77,8 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
   const requestBytes = Buffer.byteLength(wireView, "utf8");
   const estimatedInputTokens = estimateRecruitmentInputTokens(wireView);
   const outputBudgetTokens = Math.max(0, Math.floor(input.outputBudgetTokens));
-  const safetyMarginTokens = input.safetyMarginTokens ?? DEFAULT_SAFETY_MARGIN_TOKENS;
-  const softBudget = input.softInputBudgetTokens ?? DEFAULT_SOFT_INPUT_BUDGET_TOKENS;
+  const safetyMarginTokens = input.safetyMarginTokens ?? DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS;
+  const softBudget = input.softInputBudgetTokens ?? DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS;
   const inputBudgetTokens = input.contextWindowTokens === undefined
     ? softBudget
     : Math.max(0, Math.min(softBudget, input.contextWindowTokens - outputBudgetTokens - safetyMarginTokens));

@@ -300,6 +300,7 @@ export async function runScenarioOnce(
     else process.env.TACTISCOUT_WYSCOUT_HISTORICAL_REPORT_DISPLAY_ALLOWED = previousArchiveDisplayPermission;
   }
   let currentTurn = 0;
+  let contextStressTurnsCompleted = 0;
   const captureProgress = (update: Omit<EvaluationProgressEvent, "sequence" | "turn">) => {
     const event = { sequence: progressEvents.length + 1, turn: currentTurn, ...update };
     progressEvents.push(event);
@@ -359,6 +360,7 @@ export async function runScenarioOnce(
           onProgress: captureProgress,
         });
         if (response.status !== "completed") break;
+        contextStressTurnsCompleted += 1;
       }
     }
     const elapsedMs = Math.round(performance.now() - startedAt);
@@ -416,9 +418,14 @@ export async function runScenarioOnce(
           && answersUsed === 0,
       }
       : {};
+    const contextStressChecks: Record<string, boolean> = {};
+    if (options.contextStressTurns) {
+      contextStressChecks.contextStressScriptCompleted = contextStressTurnsCompleted === options.contextStressTurns;
+    }
     const checks: Record<string, boolean> = {
       ...evaluation.checks,
       ...interactionChecks,
+      ...contextStressChecks,
       methodologyCitationsOnlyUseReturnedSources,
     };
     return {
@@ -434,7 +441,8 @@ export async function runScenarioOnce(
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
       contextManagementMode: options.contextManagementMode ?? "legacy",
-      contextStressTurns: options.contextStressTurns ?? 0,
+      contextStressTurnsRequested: options.contextStressTurns ?? 0,
+      contextStressTurnsCompleted,
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
       expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
@@ -466,7 +474,8 @@ export async function runScenarioOnce(
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
       contextManagementMode: options.contextManagementMode ?? "legacy",
-      contextStressTurns: options.contextStressTurns ?? 0,
+      contextStressTurnsRequested: options.contextStressTurns ?? 0,
+      contextStressTurnsCompleted,
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
       expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
@@ -480,7 +489,10 @@ export async function runScenarioOnce(
       ...decisionMetrics(),
       ...progressMetrics(),
       toolCallCount: events.filter((event) => event.phase === "tool").length,
-      checks: { conversationCompleted: false },
+      checks: {
+        conversationCompleted: false,
+        ...(options.contextStressTurns ? { contextStressScriptCompleted: false } : {}),
+      },
       allPassed: false,
       report: null,
       methodologySearchReturnedSourceUrls: [...methodologySearchReturnedSourceUrls],

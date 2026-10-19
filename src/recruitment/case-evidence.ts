@@ -23,18 +23,19 @@ interface StoredCaseEvidence extends CaseEvidenceDirectoryEntry {
 
 export interface CaseEvidenceIndex {
   caseKey: string;
-  turnNumber: number;
+  scopeKey: string;
   directory: CaseEvidenceDirectoryEntry[];
   byRef: ReadonlyMap<string, StoredCaseEvidence>;
 }
 
 export function createCaseEvidenceIndex(input: {
   caseId: string;
-  turnNumber: number;
+  scopeRevision: string;
   evaluations: readonly EvaluatedCandidate[];
   documents: readonly KnowledgeSearchResult[];
 }): CaseEvidenceIndex {
   const caseKey = hash(input.caseId).slice(0, 12);
+  const scopeKey = hash(input.scopeRevision).slice(0, 12);
   const entries: StoredCaseEvidence[] = [];
   for (const candidate of input.evaluations) {
     const body = JSON.stringify({
@@ -61,7 +62,7 @@ export function createCaseEvidenceIndex(input: {
       minutes: candidate.player.minutes,
       metricKeys: candidate.evidence.map(metric => metric.key),
     };
-    entries.push(makeEntry({ caseKey, turnNumber: input.turnNumber, resourceKey: `player:${candidate.player.playerId}`, kind: "player_metrics", title: candidate.player.name, playerId: candidate.player.playerId, source: candidate.player.source, timeRange: `${candidate.player.competition} · ${candidate.player.season}`, body, metadata }));
+    entries.push(makeEntry({ caseKey, scopeKey, resourceKey: `player:${candidate.player.playerId}`, kind: "player_metrics", title: candidate.player.name, playerId: candidate.player.playerId, source: candidate.player.source, timeRange: `${candidate.player.competition} · ${candidate.player.season}`, body, metadata }));
   }
   for (const document of input.documents) {
     const kind = document.corpus === "player_report" ? "player_report" : "methodology";
@@ -84,15 +85,32 @@ export function createCaseEvidenceIndex(input: {
       displayAllowed: document.displayAllowed,
       ...(document.matchedCapabilityGaps ? { matchedCapabilityGaps: document.matchedCapabilityGaps } : {}),
     };
-    entries.push(makeEntry({ caseKey, turnNumber: input.turnNumber, resourceKey: `${kind}:${document.id}`, kind, title: document.title, source: document.sourceName, timeRange: [document.competition, document.season].filter(Boolean).join(" · ") || undefined, body: document.text, metadata }));
+    entries.push(makeEntry({ caseKey, scopeKey, resourceKey: `${kind}:${document.id}`, kind, title: document.title, source: document.sourceName, timeRange: [document.competition, document.season].filter(Boolean).join(" · ") || undefined, body: document.text, metadata }));
   }
   const byRef = new Map(entries.map(entry => [entry.ref, entry]));
   return {
     caseKey,
-    turnNumber: input.turnNumber,
+    scopeKey,
     directory: entries.map(({ body: _body, metadata: _metadata, ...entry }) => entry),
     byRef,
   };
+}
+
+/** Stable for follow-up turns with the same active recruitment scope. */
+export function caseEvidenceScopeRevision(input: {
+  brief: unknown;
+  confirmedPositions: readonly string[];
+  replacementReferencePosition: string | null;
+  positionBroadeningApproved: boolean;
+  datasetScope?: unknown;
+}): string {
+  return hash(JSON.stringify([
+    input.brief,
+    input.confirmedPositions,
+    input.replacementReferencePosition,
+    input.positionBroadeningApproved,
+    input.datasetScope ?? null,
+  ]));
 }
 
 export function readCaseEvidence(index: CaseEvidenceIndex, input: {
@@ -109,7 +127,7 @@ export function readCaseEvidence(index: CaseEvidenceIndex, input: {
     const refParts = parseRef(ref);
     if (!refParts) return { ref, status: "not_found" as const, content: "该引用格式无效或不存在于本案。", nextCursor: null };
     if (refParts.caseKey !== index.caseKey) return { ref, status: "foreign_case" as const, content: "该证据引用属于其他案件，无法读取。", nextCursor: null };
-    if (refParts.turnNumber !== index.turnNumber) return { ref, status: "stale" as const, content: "该证据引用来自较早案件轮次，当前轮次不再接受；请使用当前证据目录中的引用。", nextCursor: null };
+    if (refParts.scopeKey === null || refParts.scopeKey !== index.scopeKey) return { ref, status: "stale" as const, content: "该证据引用来自旧版本或不同的需求范围，当前范围不再接受；请使用当前证据目录中的引用。", nextCursor: null };
     const entry = index.byRef.get(ref);
     if (!entry) return { ref, status: "stale" as const, content: "该证据版本已不在当前案件证据目录中。", nextCursor: null };
     if (!cursorIsValid) return { ref, status: "not_found" as const, content: "读取游标无效。", nextCursor: null };
@@ -137,7 +155,7 @@ export function readCaseEvidence(index: CaseEvidenceIndex, input: {
 
 function makeEntry(input: {
   caseKey: string;
-  turnNumber: number;
+  scopeKey: string;
   resourceKey: string;
   kind: CaseEvidenceKind;
   title: string;
@@ -150,7 +168,7 @@ function makeEntry(input: {
   const version = hash(JSON.stringify([input.resourceKey, input.body, input.metadata])).slice(0, 16);
   const resource = hash(input.resourceKey).slice(0, 16);
   return {
-    ref: `ev.${input.caseKey}.${input.turnNumber}.${input.kind}.${resource}.${version}`,
+    ref: `ev.${input.caseKey}.${input.scopeKey}.${input.kind}.${resource}.${version}`,
     kind: input.kind,
     title: input.title,
     ...(input.playerId ? { playerId: input.playerId } : {}),
@@ -163,11 +181,11 @@ function makeEntry(input: {
   };
 }
 
-function parseRef(ref: string): { caseKey: string; turnNumber: number } | null {
-  const match = /^ev\.([a-f0-9]{12})\.(\d+)\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.exec(ref);
-  if (!match) return null;
-  const turnNumber = Number(match[2]);
-  return Number.isSafeInteger(turnNumber) && turnNumber >= 0 ? { caseKey: match[1]!, turnNumber } : null;
+function parseRef(ref: string): { caseKey: string; scopeKey: string | null } | null {
+  const match = /^ev\.([a-f0-9]{12})\.([a-f0-9]{12})\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.exec(ref);
+  if (match) return { caseKey: match[1]!, scopeKey: match[2]! };
+  const legacyMatch = /^ev\.([a-f0-9]{12})\.\d+\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.exec(ref);
+  return legacyMatch ? { caseKey: legacyMatch[1]!, scopeKey: null } : null;
 }
 
 function hash(value: string): string {

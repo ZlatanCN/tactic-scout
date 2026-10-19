@@ -20,7 +20,7 @@ import { type State } from "./state.js";
 import { projectToolResult } from "./tool-results.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import { replacementTargetMention } from "../replacement-target.js";
-import { createCaseEvidenceIndex, readCaseEvidence } from "../case-evidence.js";
+import { caseEvidenceScopeRevision, createCaseEvidenceIndex, readCaseEvidence } from "../case-evidence.js";
 
 function providerErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object" || !("code" in error)) return undefined;
@@ -96,10 +96,15 @@ export function createToolNode(input: {
     );
     if (action.action === "read_case_evidence") {
       const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
-      const turnNumber = state.history.filter(entry => entry.role === "user").length;
       const index = createCaseEvidenceIndex({
         caseId,
-        turnNumber,
+        scopeRevision: caseEvidenceScopeRevision({
+          brief: state.brief,
+          confirmedPositions: state.confirmedPositions,
+          replacementReferencePosition: state.replacementReferencePosition,
+          positionBroadeningApproved: state.positionBroadeningApproved,
+          datasetScope: state.datasetScope,
+        }),
         evaluations: Object.values(evaluatedPlayersForConstraint(state)),
         documents: Object.values(state.retrievedKnowledge),
       });

@@ -15,6 +15,7 @@ import { SelectablePositionSchema } from "../../domain/position-contracts.js";
 import { z } from "zod/v4";
 import { identityRecordKey } from "../../players/identity/player-identity-resolver.js";
 import type { PlayerProfile } from "../../domain/players.js";
+import type { ContextManagementMode } from "./context-compaction-node.js";
 
 export function createUnderstandingNode(input: {
   interpreter?: RecruitmentBriefInterpreter;
@@ -22,18 +23,22 @@ export function createUnderstandingNode(input: {
   resolver?: PlayerNameResolver;
   observer?: RecruitmentTraceObserver;
   referenceComparisonEnabled?: boolean;
+  contextManagementMode?: ContextManagementMode;
 }) {
   return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
     if (!input.interpreter) return {};
     const messages = state.history.filter(entry => entry.role === "user").map(entry => entry.content);
     const latest = messages.at(-1) ?? state.userMessage;
+    const contextManagementMode = input.contextManagementMode ?? "legacy";
     const structuredAnswer = state.briefAnswerKind !== null;
     let brief = state.brief;
     if (state.briefInterpretedThrough !== messages.length && !structuredAnswer) {
       emitProgress(config, { stage: "understanding", message: "正在理解你的找人需求", completedSteps: 0 });
       const startedAt = performance.now();
       try {
-        brief = await input.interpreter.interpret({ message: latest, previous: brief, recentMessages: messages.slice(0, -1).slice(-3), validationMessages: messages, visibleCandidates: state.briefCandidates,
+        brief = await input.interpreter.interpret({ message: latest, previous: brief,
+          recentMessages: contextManagementMode === "legacy" ? messages.slice(0, -1) : messages.slice(0, -1).slice(-3),
+          validationMessages: messages, visibleCandidates: state.briefCandidates,
           ...(state.briefQuestionContext ? { clarificationQuestion: state.briefQuestionContext } : {}), signal: config.signal,
           onUsage: usage => input.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }) });
         emitProgress(config, { stage: "understanding", status: "completed", message: brief.task === "similarity" ? "已理解：以参考球员的特点寻找相似人选" : brief.task === "replacement" ? "已理解：寻找能承担参考职责的替代者" : "已理解：按位置与能力特点寻找人选", completedSteps: 0 });

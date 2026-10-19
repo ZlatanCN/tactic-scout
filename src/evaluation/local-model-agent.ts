@@ -20,7 +20,10 @@ if (process.argv.includes("--help")) {
       ? await prepareUnderstatResearchSnapshot()
       : null;
     const datasetSnapshotSha256 = await curatedDatasetSha256();
-    const knowledgeBase = createWebSearchKnowledgeRepository(createLocalKnowledgeBase());
+    const localKnowledgeBase = createLocalKnowledgeBase();
+    const knowledgeBase = comparison === "context_management"
+      ? localKnowledgeBase
+      : createWebSearchKnowledgeRepository(localKnowledgeBase);
     const outputs: Array<Record<string, unknown>> = [];
     const baselinePassRates: number[] = [];
     const ablationPassRates: number[] = [];
@@ -144,7 +147,7 @@ if (process.argv.includes("--help")) {
               { id: "unified", change: "采用按 Planner 职责投影的近期问答、当前结构化事实与案件证据引用，不调用摘要模型。" },
               { id: "summarized", change: "在统一投影之上，仅在长对话达到触发门槛时调用摘要模型整理旧导航事件。" },
             ],
-            controls: ["同一登记场景与固定候选数据快照", "同一模型、提示词工具、Reviewer 和预算", "同一首轮需求及 20 条重复确认当前范围的压力消息", "AB/BC/CA 轮换顺序，单机串行执行"],
+            controls: ["同一登记场景与固定候选数据快照", "同一模型、提示词工具、Reviewer、本地知识库和预算；禁用实时 Web Search", "同一首轮需求及 20 条重复确认当前范围的压力消息；只有实际完成全部消息的运行计为通过", "AB/BC/CA 轮换顺序，单机串行执行"],
             order: "三组策略按 legacy→unified→summarized、unified→summarized→legacy、summarized→legacy→unified 轮换。每轮创建独立 LangGraph thread。",
             stressScript: "每轮在场景完成后附加 20 个相同、较长的范围保持消息，测试历史增长时对话状态与报告是否仍然稳定；它是上下文压力测试，不代表自然用户对话分布。",
             caveat: "比较的是固定场景中的对话正确性、报告一致性、实际模型用量、摘要调用与延迟。没有球探排序金标，不据此声称推荐质量提升；少于五对或未实际运行模型时不作效果结论。",

@@ -12,7 +12,7 @@ import {
 } from "../conclusion-policy.js";
 import { compactConclusionHistory, compactExpansionHistory } from "../planner-context.js";
 import { projectRecruitmentHistory } from "../context.js";
-import { createCaseEvidenceIndex } from "../case-evidence.js";
+import { caseEvidenceScopeRevision, createCaseEvidenceIndex } from "../case-evidence.js";
 import { caseSummaryHistoryEntry } from "../case-summary.js";
 import { type ContextManagementMode } from "./context-compaction-node.js";
 import { type ParsedRecruitmentAction, type RecruitmentAction, type RecruitmentPlannerAction, emptyDecision, RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
@@ -216,10 +216,15 @@ export function createPlanningNode(input: {
     const projectedPlannerHistory = projectedHistory.entries.map((entry) => ({ ...entry }));
     const currentTurnObservations = state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex);
     const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
-    const turnNumber = state.history.filter(entry => entry.role === "user").length;
     const evidenceIndex = caseId ? createCaseEvidenceIndex({
       caseId,
-      turnNumber,
+      scopeRevision: caseEvidenceScopeRevision({
+        brief: state.brief,
+        confirmedPositions: state.confirmedPositions,
+        replacementReferencePosition: state.replacementReferencePosition,
+        positionBroadeningApproved: state.positionBroadeningApproved,
+        datasetScope: state.datasetScope,
+      }),
       evaluations: Object.values(eligibleEvaluatedPlayers),
       documents: Object.values(state.retrievedKnowledge),
     }) : null;

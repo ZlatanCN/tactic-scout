@@ -37,6 +37,48 @@ test("summary validation requires a complete event-ID ledger and bounds navigati
   assert.throws(() => validateCaseSummaryOutput({ summary: "x".repeat(2_001), coveredEventIds: events.map(event => event.id) }, events), /2000|Too big/);
 });
 
+test("the legacy context arm keeps full prior user history while unified mode applies the recent-turn window", async () => {
+  const candidate = roleConstraintPlayer("context-mode-candidate", "Context Mode Candidate", "CB");
+  const brief: RecruitmentBrief = {
+    task: "reinforcement", targetTeam: null, referencePlayer: null, referenceClues: [], referenceRecheck: null,
+    selectedCandidateId: null, positions: ["CB"], allowsAnyPosition: false,
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [], constraints: [], unresolved: [],
+  };
+  const previousMessageCounts: Record<"legacy" | "unified", number[]> = { legacy: [], unified: [] };
+  for (const mode of ["legacy", "unified"] as const) {
+    const conversation = createRecruitmentConversation({
+      briefInterpreter: { async interpret(input) {
+        previousMessageCounts[mode].push(input.recentMessages.length);
+        return validateRecruitmentBrief(brief, input.validationMessages ?? [...input.recentMessages, input.message]);
+      } },
+      repository: {
+        mode: "demo", sourceName: "Fixture",
+        async loadPlayers() { return [candidate]; },
+        async searchCandidates(query) {
+          return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+        },
+      },
+      planner: { async decide() {
+        return { action: "finish", targetTeam: null, needSummary: "按当前需求完成调查", capabilityProfile: [], recommendations: [], limitationKeys: [] };
+      } },
+      experimentalDeterministicSearchMode: "enabled",
+      experimentalContextManagementMode: mode,
+      knowledgeBase: { async search() { return []; } },
+    });
+    for (let turn = 0; turn < 5; turn += 1) {
+      const response = await conversation.turn({
+        threadId: `context-mode-${mode}`,
+        message: turn === 0 ? "为巴萨找一名中卫" : `继续调查第 ${turn + 1} 轮`,
+        ...(turn > 0 ? { expectsExistingState: true } : {}),
+      });
+      assert.equal(response.status, "completed", `${mode}, turn ${turn + 1}: ${response.message}`);
+    }
+  }
+  assert.equal(previousMessageCounts.legacy.at(-1), 4);
+  assert.equal(previousMessageCounts.unified.at(-1), 3);
+});
+
 test("the full LangGraph retains the authoritative case while summarized mode resumes from a validated navigation summary", async () => {
   const candidate = roleConstraintPlayer("context-summary-candidate", "Context Summary Candidate", "CB");
   const brief: RecruitmentBrief = {
