@@ -28,13 +28,14 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /--compare-understat-research/);
   assert.match(result.stdout, /--compare-expansion-sufficiency/);
   assert.match(result.stdout, /--compare-context-management/);
+  assert.match(result.stdout, /历史投影、证据读取/);
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
   assert.match(result.stdout, /--summary-output <path>/);
   assert.match(result.stdout, /--expect-position-clarification/);
 });
 
-test("the context-management comparison requires a fixed curated scenario and five paired triples", () => {
+test("the context-management comparison requires a fixed curated scenario and five counterbalanced arms", () => {
   const tooFew = runCli([
     "--scenario", "barcelona-under-23-midfielder",
     "--compare-context-management",

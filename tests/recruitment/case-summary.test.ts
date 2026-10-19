@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { caseSummaryEvents, validateCaseSummaryOutput, type CaseSummaryEvent } from "../../src/recruitment/case-summary.js";
+import { caseSummaryEvents, caseSummaryHistoryEntry, validateCaseSummaryOutput, type CaseSummaryEvent } from "../../src/recruitment/case-summary.js";
 import { createRecruitmentConversation, type RecruitmentAction, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
 
-test("caseSummaryEvents selects only turns before the recent window and keeps paired clarification questions", () => {
+test("caseSummaryEvents assigns stable case-scoped IDs to old user turns and clarification questions", () => {
   const history = [
     { role: "user" as const, content: "为拜仁找凯恩替代者" },
     { role: "assistant" as const, content: JSON.stringify({ action: "ask_user", question: "年龄上限？" }) },
@@ -16,25 +16,77 @@ test("caseSummaryEvents selects only turns before the recent window and keeps pa
     { role: "user" as const, content: "再年轻一点" },
   ];
 
-  assert.deepEqual(caseSummaryEvents(history, { coveredUserTurnCount: 0, throughUserTurnCount: 3 }), [
-    { id: "user-1", kind: "user_message", text: "为拜仁找凯恩替代者" },
-    { id: "assistant-after-user-1-1", kind: "clarification_question", text: "年龄上限？" },
-    { id: "user-2", kind: "user_message", text: "25 岁以下" },
-    { id: "user-3", kind: "user_message", text: "改成 23 岁以下" },
+  const options = { caseId: "case-42", coveredUserTurnCount: 0, throughUserTurnCount: 3 };
+  const events = caseSummaryEvents(history, options);
+  assert.deepEqual(events.map(({ kind, text }) => ({ kind, text })), [
+    { kind: "user_message", text: "为拜仁找凯恩替代者" },
+    { kind: "clarification_question", text: "年龄上限？" },
+    { kind: "user_message", text: "25 岁以下" },
+    { kind: "user_message", text: "改成 23 岁以下" },
   ]);
+  assert.deepEqual(events.map(event => event.id), caseSummaryEvents(history, options).map(event => event.id));
+  assert.match(events[0]!.id, /^evt\.[a-f0-9]{16}\.user\.1$/);
+  assert.notEqual(events[0]!.id, caseSummaryEvents(history, { ...options, caseId: "another-case" })[0]!.id);
 });
 
-test("summary validation requires a complete event-ID ledger and bounds navigation text", () => {
+test("summary validation accepts only exact source quotes and requires the complete event ledger", () => {
   const events: CaseSummaryEvent[] = [
-    { id: "user-1", kind: "user_message", text: "原话" },
-    { id: "assistant-after-user-1", kind: "clarification_question", text: "问题" },
+    { id: "evt.0123456789abcdef.user.1", kind: "user_message", text: "用户提出的完整原话" },
+    { id: "evt.0123456789abcdef.question.1.1", kind: "clarification_question", text: "需要补充的预算上限是多少？" },
   ];
-  assert.deepEqual(validateCaseSummaryOutput({ summary: "用户补充过范围；当前条件以结构化需求为准。", coveredEventIds: events.map(event => event.id) }, events), {
-    summary: "用户补充过范围；当前条件以结构化需求为准。",
+  const result = validateCaseSummaryOutput({
+    claims: [
+      { eventId: events[0]!.id, quote: "完整原话" },
+      { eventId: events[1]!.id, quote: "预算上限是多少？" },
+    ],
     coveredEventIds: events.map(event => event.id),
+  }, events);
+  assert.deepEqual(result, {
+    claims: [
+      { eventId: events[0]!.id, kind: "user_message", quote: "完整原话" },
+      { eventId: events[1]!.id, kind: "clarification_question", quote: "预算上限是多少？" },
+    ],
+    coveredEventIds: events.map(event => event.id),
+    text: `用户原话（${events[0]!.id}）：「完整原话」\n曾提出的问题（${events[1]!.id}）：「预算上限是多少？」`,
   });
-  assert.throws(() => validateCaseSummaryOutput({ summary: "遗漏", coveredEventIds: ["user-1"] }, events), /全部事件/);
-  assert.throws(() => validateCaseSummaryOutput({ summary: "x".repeat(2_001), coveredEventIds: events.map(event => event.id) }, events), /2000|Too big/);
+  assert.throws(() => validateCaseSummaryOutput({
+    claims: [{ eventId: events[0]!.id, quote: "用户希望预算低于两千万" }],
+    coveredEventIds: events.map(event => event.id),
+  }, events), /原文摘录/);
+  assert.throws(() => validateCaseSummaryOutput({
+    claims: [{ eventId: "evt.ffffffffffffffff.user.1", quote: "完整原话" }],
+    coveredEventIds: events.map(event => event.id),
+  }, events), /未知事件/);
+  assert.throws(() => validateCaseSummaryOutput({
+    claims: [{ eventId: events[0]!.id, quote: "完整原话" }],
+    coveredEventIds: [events[0]!.id],
+  }, events), /全部事件/);
+  assert.throws(() => validateCaseSummaryOutput({
+    claims: [{ eventId: events[0]!.id, quote: "x".repeat(2_001) }],
+    coveredEventIds: events.map(event => event.id),
+  }, events), /2000|Too big/);
+  assert.throws(() => validateCaseSummaryOutput({
+    claims: [
+      { eventId: events[1]!.id, quote: "预算上限是多少？" },
+      { eventId: events[0]!.id, quote: "完整原话" },
+    ],
+    coveredEventIds: events.map(event => event.id),
+  }, events), /按原文事件顺序/);
+});
+
+test("planner-facing case summaries omit the growing audit ledger but retain cited event IDs", () => {
+  const claimEventId = "evt.0123456789abcdef.user.1";
+  const entry = caseSummaryHistoryEntry({
+    version: 2,
+    text: `用户原话（${claimEventId}）：「为巴萨找中卫」`,
+    claims: [{ eventId: claimEventId, kind: "user_message", quote: "为巴萨找中卫" }],
+    coveredUserTurnCount: 4_000,
+  });
+  const payload = JSON.parse(entry.content);
+
+  assert.deepEqual(payload.claimEventIds, [claimEventId]);
+  assert.equal("coveredEventIds" in payload, false);
+  assert.ok(entry.content.length < 1_000);
 });
 
 test("the legacy context arm keeps full prior user history while unified mode applies the recent-turn window", async () => {
@@ -45,8 +97,10 @@ test("the legacy context arm keeps full prior user history while unified mode ap
     filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
     priorities: [], constraints: [], unresolved: [],
   };
-  const previousMessageCounts: Record<"legacy" | "unified", number[]> = { legacy: [], unified: [] };
-  for (const mode of ["legacy", "unified"] as const) {
+  const previousMessageCounts: Record<"legacy" | "projection" | "evidence" | "unified", number[]> = {
+    legacy: [], projection: [], evidence: [], unified: [],
+  };
+  for (const mode of ["legacy", "projection", "evidence", "unified"] as const) {
     const conversation = createRecruitmentConversation({
       briefInterpreter: { async interpret(input) {
         previousMessageCounts[mode].push(input.recentMessages.length);
@@ -76,6 +130,8 @@ test("the legacy context arm keeps full prior user history while unified mode ap
     }
   }
   assert.equal(previousMessageCounts.legacy.at(-1), 4);
+  assert.equal(previousMessageCounts.evidence.at(-1), 4);
+  assert.equal(previousMessageCounts.projection.at(-1), 3);
   assert.equal(previousMessageCounts.unified.at(-1), 3);
 });
 
@@ -91,7 +147,10 @@ test("the full LangGraph retains the authoritative case while summarized mode re
     calls: [] as CaseSummaryEvent[][],
     async summarize(input: { events: readonly CaseSummaryEvent[] }) {
       this.calls.push([...input.events]);
-      return { summary: "用户要求继续原定调查；当前需求仍由结构化条件决定。", coveredEventIds: input.events.map(event => event.id) };
+      return {
+        claims: input.events.map(event => ({ eventId: event.id, quote: event.text.slice(0, 32) })),
+        coveredEventIds: input.events.map(event => event.id),
+      };
     },
   };
   const plannerCalls: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];
@@ -127,7 +186,13 @@ test("the full LangGraph retains the authoritative case while summarized mode re
   }
 
   assert.ok(fakeSummaryGenerator.calls.length > 0, "the summary gate should run after sufficient old dialogue accumulates");
-  assert.ok(plannerCalls.some(call => call.history.some(entry => entry.role === "tool" && entry.toolName === "case_summary")));
+  const summaryPlannerCall = plannerCalls.find(call => call.history.some(entry => entry.role === "tool" && entry.toolName === "case_summary"));
+  assert.ok(summaryPlannerCall, "the Planner should receive the verified navigation summary");
+  const summaryEntry = summaryPlannerCall.history.find(entry => entry.role === "tool" && entry.toolName === "case_summary")!;
+  const summaryPayload = JSON.parse(summaryEntry.content) as { claimEventIds: string[] };
+  assert.ok(summaryPayload.claimEventIds.length > 0);
+  assert.ok(summaryPayload.claimEventIds.every(id => !summaryPlannerCall.omittedHistoryEventIds?.includes(id)),
+    "events represented by verified excerpts are not reported as omitted from the request");
   assert.equal(response.brief?.positions[0], "CB");
   assert.ok(response.report?.recommendations.some(item => item.player.playerId === candidate.playerId));
 });

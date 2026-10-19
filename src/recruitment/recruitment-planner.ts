@@ -24,7 +24,7 @@ import {
 } from "./conclusion-policy.js";
 import { RecruitmentActionSchema, type RecruitmentAction, type RecruitmentPlannerAction } from "./recruitment-actions.js";
 import { structuredPlannerHistory, type ConversationHistoryEntry } from "./planner-context.js";
-import { assertRecruitmentContextFits, buildRecruitmentContext } from "./context.js";
+import { assertRecruitmentContextFits, buildRecruitmentContext, type RecruitmentContextManifest, withContextModelUsage } from "./context.js";
 import { z } from "zod/v4";
 
 export type { ConversationHistoryEntry } from "./planner-context.js";
@@ -46,6 +46,8 @@ export interface RecruitmentPlanner {
     constraints?: RecruitmentDecisionConstraints;
     expansionConstraints?: RecruitmentExpansionConstraints;
     caseProgress?: unknown;
+    contextRevision?: string;
+    omittedHistoryEventIds?: readonly string[];
     onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
   }): Promise<RecruitmentAction>;
 }
@@ -72,6 +74,7 @@ export interface RecruitmentPlannerUsageObservation extends NormalizedModelToken
   inputBudgetTokens?: number;
   contextStatus?: "within_budget" | "over_budget";
   omittedHistoryEntries?: number;
+  contextManifest?: RecruitmentContextManifest;
 }
 
 export const methodologySearchInstructions = [
@@ -296,10 +299,26 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         ...(modelContextWindowTokens() === undefined ? {} : { contextWindowTokens: modelContextWindowTokens() }),
         softInputBudgetTokens: contextSoftInputBudgetTokens(),
         safetyMarginTokens: contextSafetyMarginTokens(),
+        contextRevision: input.contextRevision,
+        omittedHistoryEventIds: input.omittedHistoryEventIds,
         omittedHistoryEntries: input.caseProgress && typeof input.caseProgress === "object" && "omittedHistoryEntries" in input.caseProgress
           ? Number((input.caseProgress as { omittedHistoryEntries?: unknown }).omittedHistoryEntries) || 0 : 0,
       });
-      assertRecruitmentContextFits(contextRequest);
+      try {
+        assertRecruitmentContextFits(contextRequest);
+      } catch (error) {
+        input.onTokenUsage?.({
+          callPhase: input.decisionMode ?? "investigate",
+          outcome: "failed",
+          contextChars: contextRequest.manifest.requestBytes,
+          estimatedInputTokens: contextRequest.manifest.estimatedInputTokens,
+          inputBudgetTokens: contextRequest.manifest.inputBudgetTokens,
+          contextStatus: contextRequest.manifest.status,
+          omittedHistoryEntries: contextRequest.manifest.omittedHistoryEntries,
+          contextManifest: contextRequest.manifest,
+        });
+        throw error;
+      }
       let response: { raw?: unknown; parsed?: unknown };
       try {
         response = await actionModel.invoke(contextRequest.messages, input.signal ? { signal: input.signal } : undefined) as { raw?: unknown; parsed?: unknown };
@@ -312,9 +331,11 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           inputBudgetTokens: contextRequest.manifest.inputBudgetTokens,
           contextStatus: contextRequest.manifest.status,
           omittedHistoryEntries: contextRequest.manifest.omittedHistoryEntries,
+          contextManifest: withContextModelUsage(contextRequest.manifest, {}),
         });
         throw error;
       }
+      const tokenUsage = normalizeModelTokenUsage(response);
       input.onTokenUsage?.({
         callPhase: input.decisionMode ?? "investigate",
         outcome: "response",
@@ -323,7 +344,8 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         inputBudgetTokens: contextRequest.manifest.inputBudgetTokens,
         contextStatus: contextRequest.manifest.status,
         omittedHistoryEntries: contextRequest.manifest.omittedHistoryEntries,
-        ...normalizeModelTokenUsage(response),
+        contextManifest: withContextModelUsage(contextRequest.manifest, tokenUsage),
+        ...tokenUsage,
       });
       let action = response.parsed;
       if (!action) {

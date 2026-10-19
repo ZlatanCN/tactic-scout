@@ -1,12 +1,22 @@
 import type { ConversationHistoryEntry } from "./planner-context.js";
 import { DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS, DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS } from "./chat-model.js";
+import { createHash } from "node:crypto";
 
 export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude" | "summarize";
 
 export interface RecruitmentContextManifest {
-  version: 1;
+  version: 2;
   stage: RecruitmentContextStage;
   requestBytes: number;
+  componentBytes: { system: number; payload: number; schema: number; framing: number };
+  requestFingerprint: string;
+  promptFingerprint: string;
+  payloadFingerprint: string;
+  schemaFingerprint: string;
+  caseRevisionFingerprint: string | null;
+  includedHistoryEventIds: string[];
+  omittedHistoryEventIds: string[];
+  evidenceRefs: string[];
   estimatedInputTokens: number;
   estimateMethod: "utf8-bytes-divided-by-three-plus-15-percent";
   inputBudgetTokens: number;
@@ -18,6 +28,12 @@ export interface RecruitmentContextManifest {
   exceedsSoftTarget: boolean;
   omittedHistoryEntries: number;
   protectedQuoteCount: number;
+  actualTokenUsage?: {
+    status: "reported" | "partial" | "unavailable";
+    inputTokens: number | null;
+    outputTokens: number | null;
+    totalTokens: number | null;
+  };
 }
 
 export interface BuildRecruitmentContextInput {
@@ -31,6 +47,10 @@ export interface BuildRecruitmentContextInput {
   safetyMarginTokens?: number;
   omittedHistoryEntries?: number;
   protectedQuoteCount?: number;
+  contextRevision?: string;
+  includedHistoryEventIds?: readonly string[];
+  omittedHistoryEventIds?: readonly string[];
+  evidenceRefs?: readonly string[];
 }
 
 export interface RecruitmentContextRequest {
@@ -65,6 +85,24 @@ export function estimateRecruitmentInputTokens(value: string): number {
   return Math.ceil(rawEstimate * 1.15) + 8;
 }
 
+export function withContextModelUsage(
+  manifest: RecruitmentContextManifest,
+  usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number },
+): RecruitmentContextManifest {
+  const reported = [usage.inputTokens, usage.outputTokens, usage.totalTokens].map(value =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null);
+  const presentCount = reported.filter(value => value !== null).length;
+  return {
+    ...manifest,
+    actualTokenUsage: {
+      status: presentCount === 3 ? "reported" : presentCount > 0 ? "partial" : "unavailable",
+      inputTokens: reported[0]!,
+      outputTokens: reported[1]!,
+      totalTokens: reported[2]!,
+    },
+  };
+}
+
 export function buildRecruitmentContext(input: BuildRecruitmentContextInput): RecruitmentContextRequest {
   const payload = JSON.stringify(input.payload);
   const schema = JSON.stringify(input.responseSchema);
@@ -75,6 +113,10 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
     { response_schema: schema },
   ]);
   const requestBytes = Buffer.byteLength(wireView, "utf8");
+  const systemBytes = serializedContentBytes(input.systemInstructions);
+  const payloadBytes = serializedContentBytes(payload);
+  const schemaBytes = serializedContentBytes(schema);
+  const evidenceRefs = [...new Set([...(input.evidenceRefs ?? []), ...collectEvidenceRefs(input.payload)])];
   const estimatedInputTokens = estimateRecruitmentInputTokens(wireView);
   const outputBudgetTokens = Math.max(0, Math.floor(input.outputBudgetTokens));
   const safetyMarginTokens = input.safetyMarginTokens ?? DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS;
@@ -92,9 +134,23 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       { role: "human", content: humanContent },
     ],
     manifest: {
-      version: 1,
+      version: 2,
       stage: input.stage,
       requestBytes,
+      componentBytes: {
+        system: systemBytes,
+        payload: payloadBytes,
+        schema: schemaBytes,
+        framing: requestBytes - systemBytes - payloadBytes - schemaBytes,
+      },
+      requestFingerprint: fingerprint(wireView),
+      promptFingerprint: fingerprint(input.systemInstructions),
+      payloadFingerprint: fingerprint(payload),
+      schemaFingerprint: fingerprint(schema),
+      caseRevisionFingerprint: input.contextRevision ? fingerprint(input.contextRevision) : null,
+      includedHistoryEventIds: [...new Set([...(input.includedHistoryEventIds ?? []), ...collectHistoryEventIds(input.payload)])],
+      omittedHistoryEventIds: [...new Set(input.omittedHistoryEventIds ?? [])],
+      evidenceRefs,
       estimatedInputTokens,
       estimateMethod: "utf8-bytes-divided-by-three-plus-15-percent",
       inputBudgetTokens,
@@ -110,10 +166,73 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
   };
 }
 
+function serializedContentBytes(value: string): number {
+  return Buffer.byteLength(JSON.stringify(value), "utf8") - 2;
+}
+
+function fingerprint(value: string): string {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+function collectEvidenceRefs(value: unknown): string[] {
+  if (!value || typeof value !== "object") return [];
+  if (Array.isArray(value)) return value.flatMap(collectEvidenceRefs);
+  const record = value as Record<string, unknown>;
+  const found = typeof record.ref === "string" && /^ev\.[a-f0-9]{12}\.[a-f0-9]{12}\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.test(record.ref)
+    ? [record.ref]
+    : [];
+  return [...found, ...Object.values(record).flatMap(collectEvidenceRefs)];
+}
+
+function collectHistoryEventIds(value: unknown): string[] {
+  if (!value || typeof value !== "object") return [];
+  if (Array.isArray(value)) return value.flatMap(collectHistoryEventIds);
+  const record = value as Record<string, unknown>;
+  const summaryClaims = Array.isArray(record.claimEventIds)
+    ? record.claimEventIds.filter((eventId): eventId is string => typeof eventId === "string" && /^evt\.[a-f0-9]{16}\.(?:user\.\d+|question\.\d+\.\d+)$/.test(eventId))
+    : [];
+  const found = typeof record.eventId === "string" && /^evt\.[a-f0-9]{16}\.(?:user\.\d+|question\.\d+\.\d+)$/.test(record.eventId)
+    ? [record.eventId]
+    : [];
+  return [...found, ...summaryClaims, ...Object.entries(record)
+    .filter(([key]) => key !== "coveredEventIds")
+    .flatMap(([, nested]) => collectHistoryEventIds(nested))];
+}
+
 export interface ProjectedRecruitmentHistory {
   entries: ConversationHistoryEntry[];
   userEventIds: string[];
-  manifest: { omittedEntryCount: number; protectedQuoteCount: number };
+  manifest: {
+    omittedEntryCount: number;
+    protectedQuoteCount: number;
+    includedEventIds: string[];
+    omittedEventIds: string[];
+    protectedQuoteReferences: Array<{ quote: string; eventId: string }>;
+  };
+}
+
+export interface ProjectedRecruitmentDialogueEntry {
+  role: "user" | "assistant";
+  content: string;
+  eventId?: string;
+}
+
+export function selectTransmittedHistoryEventIds(input: {
+  retainedEventIds: readonly string[];
+  legacyUserEventIds?: readonly string[];
+  projectedDialogueEventIds?: readonly string[];
+  protectedQuoteEventIds?: readonly string[];
+  currentMessageEventId?: string;
+  clarificationQuestionEventId?: string;
+}): string[] {
+  const transmitted = new Set([
+    ...(input.legacyUserEventIds ?? []),
+    ...(input.projectedDialogueEventIds ?? []),
+    ...(input.protectedQuoteEventIds ?? []),
+    ...(input.currentMessageEventId ? [input.currentMessageEventId] : []),
+    ...(input.clarificationQuestionEventId ? [input.clarificationQuestionEventId] : []),
+  ]);
+  return input.retainedEventIds.filter(eventId => transmitted.has(eventId));
 }
 
 /**
@@ -123,22 +242,42 @@ export interface ProjectedRecruitmentHistory {
  */
 export function projectRecruitmentHistory(
   history: readonly ConversationHistoryEntry[],
-  options: { recentUserTurns?: number; protectedQuotes?: readonly string[]; preserveAllTools?: boolean } = {},
+  options: { caseId?: string; recentUserTurns?: number; protectedQuotes?: readonly string[]; preserveAllTools?: boolean } = {},
 ): ProjectedRecruitmentHistory {
   const userIndices = history.flatMap((entry, index) => entry.role === "user" ? [index] : []);
+  const caseKey = fingerprint(options.caseId ?? "unscoped");
+  const eventIdByIndex = new Map<number, string>();
+  const userIdByIndex = new Map<number, string>();
+  let userNumber = 0;
+  const questionCountByUser = new Map<number, number>();
+  let latestUserNumber = 0;
+  history.forEach((entry, index) => {
+    if (entry.role === "user") {
+      userNumber += 1;
+      latestUserNumber = userNumber;
+      const eventId = `evt.${caseKey}.user.${userNumber}`;
+      eventIdByIndex.set(index, eventId);
+      userIdByIndex.set(index, eventId);
+      return;
+    }
+    if (entry.role !== "assistant" || !isAskUserEntry(entry.content)) return;
+    const parentNumber = latestUserNumber;
+    const questionNumber = (questionCountByUser.get(parentNumber) ?? 0) + 1;
+    questionCountByUser.set(parentNumber, questionNumber);
+    eventIdByIndex.set(index, `evt.${caseKey}.question.${parentNumber}.${questionNumber}`);
+  });
   const protectedQuotes = [...new Set((options.protectedQuotes ?? []).filter(quote => quote.trim().length > 0))];
   const keep = new Set<number>();
   const recentTurns = Math.max(1, Math.floor(options.recentUserTurns ?? 3));
-  for (const index of userIndices.slice(-recentTurns)) keep.add(index);
+  const recentIndices = new Set(userIndices.slice(-recentTurns));
+  for (const index of recentIndices) keep.add(index);
 
   const userEventIds: string[] = [];
-  let userNumber = 0;
   userIndices.forEach(index => {
-    userNumber += 1;
     const content = history[index]!.content;
-    if (userIndices.slice(-recentTurns).includes(index) || protectedQuotes.some(quote => content.includes(quote))) {
+    if (recentIndices.has(index) || protectedQuotes.some(quote => content.includes(quote))) {
       keep.add(index);
-      userEventIds.push(`user-${userNumber}`);
+      userEventIds.push(userIdByIndex.get(index)!);
     }
   });
 
@@ -165,15 +304,57 @@ export function projectRecruitmentHistory(
     for (const index of latestToolIndices.values()) keep.add(index);
   }
 
-  const entries = history.filter((_entry, index) => keep.has(index));
+  const entries = history.flatMap((entry, index) => keep.has(index)
+    ? [{ ...entry, ...(eventIdByIndex.has(index) ? { eventId: eventIdByIndex.get(index)! } : {}) }]
+    : []);
+  const protectedQuoteReferences = protectedQuotes.flatMap(quote => {
+    const sourceIndex = [...userIndices].reverse().find(index => history[index]!.content.includes(quote));
+    const eventId = sourceIndex === undefined ? undefined : userIdByIndex.get(sourceIndex);
+    return eventId ? [{ quote, eventId }] : [];
+  });
+  const includedEventIds = history.flatMap((_entry, index) => keep.has(index) && eventIdByIndex.has(index) ? [eventIdByIndex.get(index)!] : []);
+  const omittedEventIds = history.flatMap((_entry, index) => !keep.has(index) && eventIdByIndex.has(index) ? [eventIdByIndex.get(index)!] : []);
   return {
     entries,
     userEventIds,
     manifest: {
       omittedEntryCount: history.length - entries.length,
       protectedQuoteCount: protectedQuotes.filter(quote => history.some((entry, index) => entry.role === "user" && keep.has(index) && entry.content.includes(quote))).length,
+      includedEventIds,
+      omittedEventIds,
+      protectedQuoteReferences,
     },
   };
+}
+
+/**
+ * Keep the last user-turn window as readable dialogue. The current user
+ * message is supplied separately to requirement understanding, while an
+ * assistant clarification is kept only with a retained answer.
+ */
+export function projectRecentRecruitmentDialogue(
+  history: readonly ConversationHistoryEntry[],
+  recentUserTurns = 3,
+): ProjectedRecruitmentDialogueEntry[] {
+  const userEntries = history.filter(entry => entry.role === "user");
+  const retainedUserIds = new Set(userEntries.slice(-Math.max(1, Math.floor(recentUserTurns)))
+    .flatMap(entry => entry.eventId ? [entry.eventId] : []));
+  const latestUserId = userEntries.at(-1)?.eventId;
+  return history.flatMap<ProjectedRecruitmentDialogueEntry>((entry, index) => {
+    if (entry.role === "user") {
+      return entry.eventId && retainedUserIds.has(entry.eventId) && entry.eventId !== latestUserId
+        ? [{ role: "user" as const, content: entry.content, eventId: entry.eventId }]
+        : [];
+    }
+    if (entry.role !== "assistant") return [];
+    let action: { action?: unknown; question?: unknown };
+    try { action = JSON.parse(entry.content) as typeof action; }
+    catch { return []; }
+    if (action.action !== "ask_user" || typeof action.question !== "string") return [];
+    const answer = history.slice(index + 1).find(candidate => candidate.role === "user");
+    if (!answer?.eventId || !retainedUserIds.has(answer.eventId)) return [];
+    return [{ role: "assistant" as const, content: action.question, ...(entry.eventId ? { eventId: entry.eventId } : {}) }];
+  });
 }
 
 function isActionEntry(content: string): boolean {

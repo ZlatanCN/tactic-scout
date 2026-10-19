@@ -1,5 +1,5 @@
-// Run each pair sequentially, alternating arm order to limit systematic order effects.
-// Arrays contain complete pairs in repetition order; a failed arm aborts the experiment.
+// Execute paired runs sequentially, alternating arm order to limit systematic order effects.
+// A failed arm aborts the experiment before an unmatched later run starts.
 export async function runCounterbalancedPairs<T>(
   repetitions: number,
   baseline: (repetition: number) => Promise<T>,
@@ -31,9 +31,18 @@ export async function runCounterbalancedTriples<T>(
     { id: string; run: (repetition: number) => Promise<T> },
   ],
 ): Promise<Record<string, T[]>> {
-  if (!Number.isInteger(repetitions) || repetitions < 3) throw new Error("At least three repetitions are required to counterbalance three arms.");
-  if (new Set(arms.map(({ id }) => id)).size !== 3 || arms.some(({ id }) => !id.trim())) {
-    throw new Error("Three counterbalanced arms require distinct, non-empty IDs.");
+  return runCounterbalancedArms(repetitions, arms);
+}
+
+export async function runCounterbalancedArms<T>(
+  repetitions: number,
+  arms: readonly { id: string; run: (repetition: number) => Promise<T> }[],
+): Promise<Record<string, T[]>> {
+  if (!Number.isInteger(repetitions) || repetitions < arms.length || arms.length < 2) {
+    throw new Error(`At least ${arms.length} repetitions are required to counterbalance ${arms.length} arms.`);
+  }
+  if (new Set(arms.map(({ id }) => id)).size !== arms.length || arms.some(({ id }) => !id.trim())) {
+    throw new Error(`Counterbalanced arms require ${arms.length} distinct, non-empty IDs.`);
   }
   const results = Object.fromEntries(arms.map(({ id }) => [id, [] as T[]])) as Record<string, T[]>;
   for (let repetition = 1; repetition <= repetitions; repetition += 1) {

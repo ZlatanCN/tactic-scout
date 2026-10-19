@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runCounterbalancedPairs, runCounterbalancedTriples } from "../../src/evaluation/paired-runs.js";
+import { runCounterbalancedArms, runCounterbalancedPairs, runCounterbalancedTriples } from "../../src/evaluation/paired-runs.js";
 
 test("paired experiments alternate execution order while retaining the matching repetition in each arm", async () => {
   const order: string[] = [];
@@ -47,4 +47,22 @@ test("counterbalanced triples rotate every arm through first, middle, and last p
     fixed: ["fixed-1", "fixed-2", "fixed-3"],
     adaptive: ["adaptive-1", "adaptive-2", "adaptive-3"],
   });
+});
+
+test("five-arm counterbalancing rotates every context strategy through each execution position", async () => {
+  const ids = ["legacy", "projection", "evidence", "unified", "summarized"];
+  const order: string[][] = [];
+  const result = await runCounterbalancedArms(5, ids.map(id => ({
+    id,
+    run: async (repetition: number) => {
+      order[repetition - 1] ??= [];
+      order[repetition - 1]!.push(id);
+      return `${id}-${repetition}`;
+    },
+  })));
+
+  assert.deepEqual(order, Array.from({ length: 5 }, (_, repetition) =>
+    ids.map((_, position) => ids[(position + repetition) % ids.length]!)));
+  for (const id of ids) assert.equal(result[id]?.length, 5);
+  await assert.rejects(runCounterbalancedArms(4, ids.map(id => ({ id, run: async () => id }))), /At least 5 repetitions/);
 });

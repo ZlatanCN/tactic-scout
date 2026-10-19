@@ -3,7 +3,7 @@ import type { PlayerRepository } from "../../players/repository.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import type { RecruitmentBriefInterpreter } from "../brief.js";
 import { RecruitmentBriefOutputLimitError, RecruitmentBriefValidationError } from "../brief.js";
-import { RecruitmentContextCapacityError } from "../context.js";
+import { projectRecentRecruitmentDialogue, projectRecruitmentHistory, RecruitmentContextCapacityError, selectTransmittedHistoryEventIds } from "../context.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { createReferencePlayerProfiles, resolveReplacementReferencePosition } from "../recruitment-comparison.js";
 import { throwIfTurnCancelled } from "../turn-cancellation.js";
@@ -15,7 +15,7 @@ import { SelectablePositionSchema } from "../../domain/position-contracts.js";
 import { z } from "zod/v4";
 import { identityRecordKey } from "../../players/identity/player-identity-resolver.js";
 import type { PlayerProfile } from "../../domain/players.js";
-import type { ContextManagementMode } from "./context-compaction-node.js";
+import { contextManagementFeatures, type ContextManagementMode } from "./context-compaction-node.js";
 
 export function createUnderstandingNode(input: {
   interpreter?: RecruitmentBriefInterpreter;
@@ -30,6 +30,52 @@ export function createUnderstandingNode(input: {
     const messages = state.history.filter(entry => entry.role === "user").map(entry => entry.content);
     const latest = messages.at(-1) ?? state.userMessage;
     const contextManagementMode = input.contextManagementMode ?? "legacy";
+    const contextFeatures = contextManagementFeatures(contextManagementMode);
+    const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
+    const protectedQuotes = [
+      state.brief?.targetTeam?.quote,
+      state.brief?.referencePlayer?.quote,
+      ...(state.brief?.referenceClues?.map(clue => clue.quote) ?? []),
+      ...(state.brief?.constraints.map(constraint => constraint.requirement.quote) ?? []),
+    ].filter((quote): quote is string => Boolean(quote));
+    const historyProjection = projectRecruitmentHistory(state.history, {
+      caseId,
+      recentUserTurns: contextFeatures.historyProjection ? 3 : messages.length + 1,
+      protectedQuotes,
+    });
+    const recentDialogue = contextFeatures.historyProjection
+      ? projectRecentRecruitmentDialogue(historyProjection.entries, 3)
+      : undefined;
+    const clarificationQuestionEventId = state.briefQuestionContext
+      ? historyProjection.entries.flatMap(entry => {
+          if (entry.role !== "assistant" || !entry.eventId) return [];
+          try {
+            const action = JSON.parse(entry.content) as { action?: unknown; question?: unknown };
+            return action.action === "ask_user" && action.question === state.briefQuestionContext ? [entry.eventId] : [];
+          } catch { return []; }
+        }).at(-1)
+      : undefined;
+    const latestUserEventId = historyProjection.entries
+      .filter(entry => entry.role === "user" && entry.content === latest)
+      .at(-1)?.eventId;
+    const includedHistoryEventIds = selectTransmittedHistoryEventIds({
+      retainedEventIds: historyProjection.manifest.includedEventIds,
+      ...(contextFeatures.historyProjection
+        ? {
+            projectedDialogueEventIds: recentDialogue?.flatMap(entry => entry.eventId ? [entry.eventId] : []),
+            protectedQuoteEventIds: historyProjection.manifest.protectedQuoteReferences.map(reference => reference.eventId),
+          }
+        : {
+            legacyUserEventIds: historyProjection.entries.flatMap(entry => entry.role === "user" && entry.eventId ? [entry.eventId] : []),
+          }),
+      ...(latestUserEventId ? { currentMessageEventId: latestUserEventId } : {}),
+      ...(clarificationQuestionEventId ? { clarificationQuestionEventId } : {}),
+    });
+    const includedHistoryEventIdSet = new Set(includedHistoryEventIds);
+    const omittedHistoryEventIds = [
+      ...historyProjection.manifest.omittedEventIds,
+      ...historyProjection.manifest.includedEventIds.filter(eventId => !includedHistoryEventIdSet.has(eventId)),
+    ];
     const structuredAnswer = state.briefAnswerKind !== null;
     let brief = state.brief;
     if (state.briefInterpretedThrough !== messages.length && !structuredAnswer) {
@@ -37,8 +83,13 @@ export function createUnderstandingNode(input: {
       const startedAt = performance.now();
       try {
         brief = await input.interpreter.interpret({ message: latest, previous: brief,
-          recentMessages: contextManagementMode === "legacy" ? messages.slice(0, -1) : messages.slice(0, -1).slice(-3),
+          recentMessages: contextFeatures.historyProjection ? messages.slice(0, -1).slice(-3) : messages.slice(0, -1),
+          ...(recentDialogue ? { recentDialogue } : {}),
           validationMessages: messages, visibleCandidates: state.briefCandidates,
+          contextRevision: JSON.stringify([config.configurable?.thread_id ?? null, messages.length, brief]),
+          ...(contextFeatures.historyProjection ? { protectedQuoteReferences: historyProjection.manifest.protectedQuoteReferences } : {}),
+          includedHistoryEventIds,
+          omittedHistoryEventIds,
           ...(state.briefQuestionContext ? { clarificationQuestion: state.briefQuestionContext } : {}), signal: config.signal,
           onUsage: usage => input.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }) });
         emitProgress(config, { stage: "understanding", status: "completed", message: brief.task === "similarity" ? "已理解：以参考球员的特点寻找相似人选" : brief.task === "replacement" ? "已理解：寻找能承担参考职责的替代者" : "已理解：按位置与能力特点寻找人选", completedSteps: 0 });

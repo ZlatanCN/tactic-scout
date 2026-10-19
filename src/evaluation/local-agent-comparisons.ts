@@ -147,7 +147,7 @@ export function summarizeAblationRun(run: LocalAgentRun) {
   };
 }
 
-export function summarizeContextManagementArm(id: "legacy" | "unified" | "summarized", runs: readonly LocalAgentRun[]) {
+export function summarizeContextManagementArm(id: "legacy" | "projection" | "evidence" | "unified" | "summarized", runs: readonly LocalAgentRun[]) {
   const summary = summarizeEvaluationRuns(runs.map(run => ({
     checks: run.checks,
     elapsedMs: run.elapsedMs,
@@ -158,6 +158,7 @@ export function summarizeContextManagementArm(id: "legacy" | "unified" | "summar
     id,
     summary,
     modelUsage,
+    contextRequests: summarizeContextRequests(runs),
     contextStressTurnsRequested: runs.map(run => run.contextStressTurnsRequested),
     contextStressTurnsCompleted: runs.map(run => run.contextStressTurnsCompleted),
     summaryRequests: runs.map(run => run.trace.filter(event => event.phase === "summary_usage").length),
@@ -165,6 +166,48 @@ export function summarizeContextManagementArm(id: "legacy" | "unified" | "summar
     compactionProgressEvents: runs.map(run => run.progress.filter(event => event.stage === "context_compaction").length),
     toolCallCounts: runs.map(run => run.toolCallCount),
     plannerRequestAttempts: runs.map(run => run.plannerRequestAttempts),
+  };
+}
+
+function summarizeContextRequests(runs: readonly LocalAgentRun[]) {
+  const requests = runs.flatMap(run => run.trace.flatMap(event => {
+    const value = event.contextManifest;
+    return value && typeof value === "object" ? [value as Record<string, unknown>] : [];
+  }));
+  const metric = (select: (manifest: Record<string, unknown>) => unknown) => {
+    const values = requests.map(select);
+    const numbers = values.filter((value): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+    const status = requests.length === 0 || numbers.length === 0 ? "unavailable"
+      : numbers.length === requests.length ? "complete" : "partial";
+    return { status, total: status === "complete" ? numbers.reduce((sum, value) => sum + value, 0) : null, observed: numbers.length, requestCount: requests.length };
+  };
+  const actualUsageStatus: Record<string, number> = {};
+  for (const request of requests) {
+    const usage = typeof request.actualTokenUsage === "object" && request.actualTokenUsage !== null
+      ? request.actualTokenUsage as Record<string, unknown> : null;
+    const status = typeof usage?.status === "string" ? usage.status : "not_observed";
+    actualUsageStatus[status] = (actualUsageStatus[status] ?? 0) + 1;
+  }
+  const stages = [...new Set(requests.flatMap(request => typeof request.stage === "string" ? [request.stage] : []))].sort();
+  const byStage = Object.fromEntries(stages.map(stage => {
+    const subset = requests.filter(request => request.stage === stage);
+    const total = (field: string) => {
+      const values = subset.map(request => request[field]);
+      const numbers = values.filter((value): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+      return { total: numbers.length === subset.length ? numbers.reduce((sum, value) => sum + value, 0) : null, observed: numbers.length, requestCount: subset.length };
+    };
+    return [stage, { requestCount: subset.length, estimatedInputTokens: total("estimatedInputTokens"), requestBytes: total("requestBytes") }];
+  }));
+  return {
+    requestCount: requests.length,
+    estimatedInputTokens: metric(manifest => manifest.estimatedInputTokens),
+    requestBytes: metric(manifest => manifest.requestBytes),
+    overBudgetRequests: requests.filter(manifest => manifest.status === "over_budget").length,
+    includedHistoryEventCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.includedHistoryEventIds) ? manifest.includedHistoryEventIds.length : 0), 0),
+    omittedHistoryEventCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.omittedHistoryEventIds) ? manifest.omittedHistoryEventIds.length : 0), 0),
+    evidenceReferenceCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.evidenceRefs) ? manifest.evidenceRefs.length : 0), 0),
+    actualUsageStatus,
+    byStage,
   };
 }
 

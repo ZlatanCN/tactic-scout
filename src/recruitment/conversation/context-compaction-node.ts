@@ -1,13 +1,21 @@
 import type { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { estimateRecruitmentInputTokens } from "../context.js";
 import type { CaseSummaryGenerator } from "../case-summary.js";
-import { caseSummaryEvents } from "../case-summary.js";
+import { caseSummaryEvents, renderCaseSummaryClaims } from "../case-summary.js";
 import type { RecruitmentTraceObserver } from "./contracts.js";
 import { emitProgress } from "./progress.js";
 import type { State } from "./state.js";
 import { throwIfTurnCancelled } from "../turn-cancellation.js";
 
-export type ContextManagementMode = "legacy" | "unified" | "summarized";
+export type ContextManagementMode = "legacy" | "projection" | "evidence" | "unified" | "summarized";
+
+export function contextManagementFeatures(mode: ContextManagementMode) {
+  return {
+    historyProjection: mode === "projection" || mode === "unified" || mode === "summarized",
+    evidenceReads: mode === "evidence" || mode === "unified" || mode === "summarized",
+    summaries: mode === "summarized",
+  };
+}
 
 export function createContextCompactionNode(input: {
   mode: ContextManagementMode;
@@ -15,19 +23,19 @@ export function createContextCompactionNode(input: {
   observer?: RecruitmentTraceObserver;
 }) {
   return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
-    if (input.mode !== "summarized" || !input.generator) return {};
+    if (!contextManagementFeatures(input.mode).summaries || !input.generator) return {};
     const userTurnCount = state.history.filter(entry => entry.role === "user").length;
     const throughUserTurnCount = Math.max(0, userTurnCount - 3);
-    const covered = Math.max(state.caseSummary?.coveredUserTurnCount ?? 0, state.caseSummaryAttemptedThrough);
+    const verifiedSummary = state.caseSummary?.version === 2 ? state.caseSummary : null;
+    const covered = Math.max(verifiedSummary?.coveredUserTurnCount ?? 0, state.caseSummaryAttemptedThrough);
     if (userTurnCount < 12 || throughUserTurnCount <= covered) return {};
+    const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "unscoped";
     const events = caseSummaryEvents(state.history, {
-      coveredUserTurnCount: state.caseSummary?.coveredUserTurnCount ?? 0,
+      caseId,
+      coveredUserTurnCount: verifiedSummary?.coveredUserTurnCount ?? 0,
       throughUserTurnCount,
     });
-    const estimatedInputTokens = estimateRecruitmentInputTokens(JSON.stringify({
-      previousSummary: state.caseSummary?.text ?? null,
-      events,
-    }));
+    const estimatedInputTokens = estimateRecruitmentInputTokens(JSON.stringify({ events }));
     // Summaries add a model call; only use them when older user dialogue is a
     // material share of the request. Candidate facts and evidence are excluded.
     if (estimatedInputTokens < 2_048 || !events.length) return {};
@@ -40,8 +48,8 @@ export function createContextCompactionNode(input: {
     const startedAt = performance.now();
     try {
       const result = await input.generator.summarize({
-        previousSummary: state.caseSummary?.text ?? null,
         events,
+        contextRevision: JSON.stringify([caseId, userTurnCount]),
         ...(config.signal ? { signal: config.signal } : {}),
         onUsage: usage => input.observer?.({
           phase: "summary_usage",
@@ -50,7 +58,8 @@ export function createContextCompactionNode(input: {
         }),
       });
       throwIfTurnCancelled(config.signal);
-      const coveredEventIds = [...(state.caseSummary?.coveredEventIds ?? []), ...result.coveredEventIds];
+      const claims = [...(verifiedSummary?.claims ?? []), ...result.claims];
+      while (claims.length > 0 && renderCaseSummaryClaims(claims).length > 2_000) claims.shift();
       emitProgress(config, {
         stage: "context_compaction",
         status: "completed",
@@ -59,10 +68,10 @@ export function createContextCompactionNode(input: {
       });
       return {
         caseSummary: {
-          version: 1,
-          text: result.summary,
+          version: 2,
+          text: renderCaseSummaryClaims(claims),
+          claims,
           coveredUserTurnCount: throughUserTurnCount,
-          coveredEventIds,
         },
         caseSummaryAttemptedThrough: throughUserTurnCount,
       };

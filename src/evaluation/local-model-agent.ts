@@ -8,7 +8,7 @@ import { historicalArchivePair, sameRecommendationEvidenceOrder, sameRecommendat
 import { curatedDatasetSha256, getDataRepository, prepareUnderstatResearchSnapshot, safeEndpoint } from "./local-agent-environment.js";
 import { parseLocalAgentOptions, usage } from "./local-agent-options.js";
 import { operationLatencySamplesFromTrace, runScenarioOnce } from "./local-agent-run.js";
-import { runCounterbalancedPairs, runCounterbalancedTriples } from "./paired-runs.js";
+import { runCounterbalancedArms, runCounterbalancedPairs, runCounterbalancedTriples } from "./paired-runs.js";
 
 if (process.argv.includes("--help")) {
   process.stdout.write(`${usage}\n`);
@@ -99,75 +99,63 @@ if (process.argv.includes("--help")) {
         continue;
       }
       if (comparison === "context_management") {
-        process.stderr.write("[harness] 正在用同一登记需求和固定 20 轮补充对话，交错运行三种上下文策略；模型请求串行执行。\n");
-        const runsByArm = await runCounterbalancedTriples(runsPerScenario, [
-          {
-            id: "legacy",
-            run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
-              contextManagementMode: "legacy",
-              contextStressTurns: 20,
-              suppressTraceOutput: true,
-              suppressProgressOutput: true,
-            }),
-          },
-          {
-            id: "unified",
-            run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
-              contextManagementMode: "unified",
-              contextStressTurns: 20,
-              suppressTraceOutput: true,
-              suppressProgressOutput: true,
-            }),
-          },
-          {
-            id: "summarized",
-            run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
-              contextManagementMode: "summarized",
-              contextStressTurns: 20,
-              suppressTraceOutput: true,
-              suppressProgressOutput: true,
-            }),
-          },
-        ]);
-        const legacyRuns = runsByArm.legacy!;
-        const unifiedRuns = runsByArm.unified!;
-        const summarizedRuns = runsByArm.summarized!;
-        const arms = [
-          summarizeContextManagementArm("legacy", legacyRuns),
-          summarizeContextManagementArm("unified", unifiedRuns),
-          summarizeContextManagementArm("summarized", summarizedRuns),
+        process.stderr.write("[harness] 正在用同一登记需求和固定 20 轮补充对话，分别运行五种上下文策略；模型请求串行执行。\n");
+        const contextStrategies = [
+          { id: "legacy", mode: "legacy" as const, change: "保留既有历史策略和完整案件状态。" },
+          { id: "projection", mode: "projection" as const, change: "只启用近期历史投影和原话事件引用。" },
+          { id: "evidence", mode: "evidence" as const, change: "只启用案件证据目录与受限按需读取，保留既有历史策略。" },
+          { id: "unified", mode: "unified" as const, change: "同时启用历史投影和案件证据读取，不使用摘要。" },
+          { id: "summarized", mode: "summarized" as const, change: "在组合策略上增加带原话来源校验的导航摘要。" },
         ];
-        baselinePassRates.push(arms[1]!.summary.passRate);
+        const runsByArm = await runCounterbalancedArms(runsPerScenario, contextStrategies.map(strategy => ({
+          id: strategy.id,
+          run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
+            contextManagementMode: strategy.mode,
+            contextStressTurns: 20,
+            suppressTraceOutput: true,
+            suppressProgressOutput: true,
+          }),
+        })));
+        const runsFor = Object.fromEntries(contextStrategies.map(strategy => [strategy.id, runsByArm[strategy.id]!]));
+        const armById = new Map(contextStrategies.map(strategy => [
+          strategy.id,
+          summarizeContextManagementArm(strategy.id as "legacy" | "projection" | "evidence" | "unified" | "summarized", runsFor[strategy.id]!),
+        ]));
+        const arms = contextStrategies.map(strategy => armById.get(strategy.id)!);
+        baselinePassRates.push(armById.get("unified")!.summary.passRate);
         ablationPassRates.push(Math.min(...arms.map(arm => arm.summary.passRate)));
+        const strategyPairs = contextStrategies.flatMap((left, index) => contextStrategies.slice(index + 1).map(right => [left, right] as const));
         outputs.push({
           id: scenario.id,
           comparison: {
-            arms: [
-              { id: "legacy", change: "保留按调查阶段划分的既有历史裁剪策略。" },
-              { id: "unified", change: "采用按 Planner 职责投影的近期问答、当前结构化事实与案件证据引用，不调用摘要模型。" },
-              { id: "summarized", change: "在统一投影之上，仅在长对话达到触发门槛时调用摘要模型整理旧导航事件。" },
+            arms: contextStrategies.map(({ id, change }) => ({ id, change })),
+            causalComparisons: [
+              { comparison: "projection_vs_legacy", isolates: "历史投影的单独效果" },
+              { comparison: "evidence_vs_legacy", isolates: "案件证据读取的单独效果" },
+              { comparison: "unified_vs_projection", isolates: "证据读取加入历史投影后的增量效果" },
+              { comparison: "unified_vs_evidence", isolates: "历史投影加入证据读取后的增量效果" },
+              { comparison: "summarized_vs_unified", isolates: "带原话校验的导航摘要的增量效果" },
             ],
-            controls: ["同一登记场景与固定候选数据快照", "同一模型、提示词工具、Reviewer、本地知识库和预算；禁用实时 Web Search", "同一首轮需求及 20 条重复确认当前范围的压力消息；只有实际完成全部消息的运行计为通过", "AB/BC/CA 轮换顺序，单机串行执行"],
-            order: "三组策略按 legacy→unified→summarized、unified→summarized→legacy、summarized→legacy→unified 轮换。每轮创建独立 LangGraph thread。",
+            controls: ["同一登记场景与固定候选数据快照", "同一模型、提示词工具、Reviewer、本地知识库和预算；禁用实时 Web Search", "同一首轮需求及 20 条重复确认当前范围的压力消息；只有实际完成全部消息的运行计为通过", "五臂轮换起始顺序，单机串行执行"],
+            order: "五种策略每轮轮换起始顺序；五轮中每种策略各处于每个执行位置一次。每轮创建独立 LangGraph thread。",
             stressScript: "每轮在场景完成后附加 20 个相同、较长的范围保持消息，测试历史增长时对话状态与报告是否仍然稳定；它是上下文压力测试，不代表自然用户对话分布。",
             caveat: "比较的是固定场景中的对话正确性、报告一致性、实际模型用量、摘要调用与延迟。没有球探排序金标，不据此声称推荐质量提升；少于五对或未实际运行模型时不作效果结论。",
           },
           arms,
-          pairedRuns: unifiedRuns.map((unifiedRun, index) => ({
+          pairedRuns: runsFor.unified!.map((_unifiedRun, index) => ({
             run: index + 1,
-            legacy: summarizeInvestigationPlanningRun(legacyRuns[index]!),
-            unified: summarizeInvestigationPlanningRun(unifiedRun),
-            summarized: summarizeInvestigationPlanningRun(summarizedRuns[index]!),
-            recommendationOrderSame: {
-              legacyVsUnified: sameRecommendationOrder(legacyRuns[index]!, unifiedRun),
-              unifiedVsSummarized: sameRecommendationOrder(unifiedRun, summarizedRuns[index]!),
-              legacyVsSummarized: sameRecommendationOrder(legacyRuns[index]!, summarizedRuns[index]!),
-            },
-            recommendationEvidenceOrderSame: {
-              legacyVsUnified: sameRecommendationEvidenceOrder(legacyRuns[index]!, unifiedRun),
-              unifiedVsSummarized: sameRecommendationEvidenceOrder(unifiedRun, summarizedRuns[index]!),
-              legacyVsSummarized: sameRecommendationEvidenceOrder(legacyRuns[index]!, summarizedRuns[index]!),
-            },
+            strategies: Object.fromEntries(contextStrategies.map(strategy => [
+              strategy.id,
+              summarizeInvestigationPlanningRun(runsFor[strategy.id]![index]!),
+            ])),
+            pairwise: Object.fromEntries(strategyPairs.map(([left, right]) => {
+              const leftRun = runsFor[left.id]![index]!;
+              const rightRun = runsFor[right.id]![index]!;
+              return [`${left.id}_vs_${right.id}`, {
+                recommendationOrderSame: sameRecommendationOrder(leftRun, rightRun),
+                recommendationEvidenceOrderSame: sameRecommendationEvidenceOrder(leftRun, rightRun),
+              }];
+            })),
           })),
         });
         continue;

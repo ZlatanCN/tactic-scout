@@ -3,12 +3,13 @@ import { type PlayerIdentityQuestion, type PositionSelectionQuestion } from "../
 import { type RecruitmentTurnInput } from "../conversation-turn-runtime.js";
 import { type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentPlannerUsageObservation } from "../recruitment-planner.js";
+import type { RecruitmentContextManifest } from "../context.js";
 
 export type RecruitmentTraceEvent =
   | { phase: "brief_failure"; failureKind: string; outputLimitTokens?: number; validationFailure?: string; issuePaths?: string[] }
-  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number }
-  | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number }
-  | { phase: "summary_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number }
+  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
+  | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
+  | { phase: "summary_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
   | { phase: "summary_failure"; failureKind: string }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
   | { phase: "tool_reuse"; toolName: "search_methodology"; resultCount: number; reason: "successful_same_turn_query" }

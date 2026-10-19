@@ -5,6 +5,8 @@ export interface ConversationHistoryEntry {
   role: "user" | "assistant" | "tool";
   content: string;
   toolName?: string;
+  /** Added to model-facing history views; never required in persisted checkpoints. */
+  eventId?: string;
 }
 
 /** Embed structured tool results directly instead of escaping JSON inside JSON. */

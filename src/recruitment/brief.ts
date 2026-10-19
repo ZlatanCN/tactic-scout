@@ -11,12 +11,18 @@ export interface RecruitmentBriefInterpreter {
     message: string;
     previous: RecruitmentBrief | null;
     recentMessages: readonly string[];
+    /** Recent chronological user turns and the assistant clarification questions they answer. */
+    recentDialogue?: readonly { role: "user" | "assistant"; content: string; eventId?: string }[];
     /** Full immutable message archive for validating quotes/explicit facts; never sent by default. */
     validationMessages?: readonly string[];
     visibleCandidates?: readonly VisibleRecruitmentCandidate[];
     clarificationQuestion?: string;
+    contextRevision?: string;
+    protectedQuoteReferences?: readonly { quote: string; eventId: string }[];
+    includedHistoryEventIds?: readonly string[];
+    omittedHistoryEventIds?: readonly string[];
     signal?: AbortSignal;
-    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number }) => void;
+    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number; contextManifest?: import("./context.js").RecruitmentContextManifest }) => void;
   }): Promise<RecruitmentBrief>;
 }
 

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { configuredRecruitmentConversation, type RecruitmentAskUserMode, type RecruitmentPlanner, type RecruitmentPlannerResponseDiagnostics, type RecruitmentReviewerMode, type RecruitmentTraceEvent, type UnderstatResearchMode } from "../recruitment/conversation.js";
+import { configuredRecruitmentConversation, type ContextManagementMode, type RecruitmentAskUserMode, type RecruitmentPlanner, type RecruitmentPlannerResponseDiagnostics, type RecruitmentReviewerMode, type RecruitmentTraceEvent, type UnderstatResearchMode } from "../recruitment/conversation.js";
 import { createRecruitmentEvidenceEvaluator } from "../recruitment/recruitment-evidence-evaluator.js";
 import { createRecruitmentPlanner } from "../recruitment/recruitment-planner.js";
 import { type KnowledgeRepository } from "../knowledge/index.js";
@@ -59,7 +59,7 @@ type LocalAgentRunOptions = {
   evidenceEvaluatorMode?: "enabled" | "withheld";
   expansionSufficiencyMode?: "enabled" | "bypassed";
   understatResearchMode?: UnderstatResearchMode;
-  contextManagementMode?: "legacy" | "unified" | "summarized";
+  contextManagementMode?: ContextManagementMode;
   contextStressTurns?: number;
   suppressTraceOutput?: boolean;
   suppressProgressOutput?: boolean;

@@ -55,7 +55,7 @@ export type EvaluationScenario = {
 export const localAgentEvaluationScenarios: readonly EvaluationScenario[] = [
   {
     id: "barcelona-under-23-midfielder",
-    message: "为巴萨找一名 23 岁以下、能踢中场、推进和前场压迫能力强的球员。",
+    message: "为巴萨找一名 23 岁以下的中场球员，要求推进能力强，前场压迫能力强。",
     answers: [],
     kind: "shortlist",
     targetTeamAliases: ["巴萨", "Barcelona", "FC Barcelona"],

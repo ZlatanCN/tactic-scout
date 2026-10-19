@@ -14,7 +14,7 @@ import { compactConclusionHistory, compactExpansionHistory } from "../planner-co
 import { projectRecruitmentHistory } from "../context.js";
 import { caseEvidenceScopeRevision, createCaseEvidenceIndex } from "../case-evidence.js";
 import { caseSummaryHistoryEntry } from "../case-summary.js";
-import { type ContextManagementMode } from "./context-compaction-node.js";
+import { contextManagementFeatures, type ContextManagementMode } from "./context-compaction-node.js";
 import { type ParsedRecruitmentAction, type RecruitmentAction, type RecruitmentPlannerAction, emptyDecision, RecruitmentActionSchema, toolBudgets } from "../recruitment-actions.js";
 import { type RecruitmentPlanner, type RecruitmentPlannerUsageObservation, RecruitmentModelTimeoutError, RecruitmentPlannerOutputError } from "../recruitment-planner.js";
 import { candidateIdentityGroupReferencesFor, confirmedPositionSearchObservation, userMessages } from "./candidate-context.js";
@@ -29,8 +29,9 @@ import { preserveExplicitShortlistComparison } from "./shortlist-comparison.js";
 type PlanningMode = NonNullable<Parameters<RecruitmentPlanner["decide"]>[0]["decisionMode"]>;
 
 function availablePlannerActions(state: State, repository: PlayerRepository, decisionMode: PlanningMode, contextManagementMode: ContextManagementMode): RecruitmentPlannerAction[] {
+  const features = contextManagementFeatures(contextManagementMode);
   if (decisionMode === "conclude") return [
-    ...(contextManagementMode !== "legacy" && (Object.keys(state.evaluatedPlayers).length || Object.keys(state.retrievedKnowledge).length)
+    ...(features.evidenceReads && (Object.keys(state.evaluatedPlayers).length || Object.keys(state.retrievedKnowledge).length)
       ? (state.toolUses.read_case_evidence ?? 0) < toolBudgets.read_case_evidence ? ["read_case_evidence" as const] : []
       : []),
     "ask_user", "finish",
@@ -39,7 +40,7 @@ function availablePlannerActions(state: State, repository: PlayerRepository, dec
   if (decisionMode === "expand_recovery") return ["search_candidates", "finish"];
   if (decisionMode === "reorient") return [
     "search_candidates",
-    ...(contextManagementMode !== "legacy" && (Object.keys(state.evaluatedPlayers).length || Object.keys(state.retrievedKnowledge).length)
+    ...(features.evidenceReads && (Object.keys(state.evaluatedPlayers).length || Object.keys(state.retrievedKnowledge).length)
       ? (state.toolUses.read_case_evidence ?? 0) < toolBudgets.read_case_evidence ? ["read_case_evidence" as const] : []
       : []),
     "ask_user", "finish",
@@ -205,17 +206,23 @@ export function createPlanningNode(input: {
       ...(state.brief?.constraints.map(constraint => constraint.requirement.quote) ?? []),
     ].filter((quote): quote is string => Boolean(quote));
     const contextManagementMode = input.contextManagementMode ?? "unified";
-    if (contextManagementMode === "summarized" && state.caseSummary) plannerHistory.unshift(caseSummaryHistoryEntry(state.caseSummary));
-    const projectedHistory = contextManagementMode === "legacy"
-      ? { entries: plannerHistory, userEventIds: [], manifest: { omittedEntryCount: 0, protectedQuoteCount: 0 } }
+    const contextFeatures = contextManagementFeatures(contextManagementMode);
+    const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
+    if (contextFeatures.summaries && state.caseSummary) plannerHistory.unshift(caseSummaryHistoryEntry(state.caseSummary));
+    const projectedHistory = !contextFeatures.historyProjection
+      ? { entries: plannerHistory, userEventIds: [], manifest: { omittedEntryCount: 0, protectedQuoteCount: 0, includedEventIds: [], omittedEventIds: [], protectedQuoteReferences: [] } }
       : projectRecruitmentHistory(plannerHistory, {
+        caseId,
         recentUserTurns: 3,
         protectedQuotes,
         preserveAllTools: decisionMode === "conclude" || decisionMode === "reorient",
       });
+    const summarizedEventIds = new Set(contextFeatures.summaries && state.caseSummary?.version === 2
+      ? state.caseSummary.claims.map(claim => claim.eventId)
+      : []);
+    const omittedHistoryEventIds = projectedHistory.manifest.omittedEventIds.filter(eventId => !summarizedEventIds.has(eventId));
     const projectedPlannerHistory = projectedHistory.entries.map((entry) => ({ ...entry }));
     const currentTurnObservations = state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex);
-    const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
     const evidenceIndex = caseId ? createCaseEvidenceIndex({
       caseId,
       scopeRevision: caseEvidenceScopeRevision({
@@ -245,7 +252,9 @@ export function createPlanningNode(input: {
       searchedReportPlayerCount: state.searchedReportPlayerNames.length,
       omittedHistoryEntries: projectedHistory.manifest.omittedEntryCount,
       protectedQuoteCount: projectedHistory.manifest.protectedQuoteCount,
-      ...(contextManagementMode !== "legacy" && (decisionMode === "conclude" || decisionMode === "reorient") && evidenceIndex ? { evidenceDirectory: evidenceIndex.directory } : {}),
+      omittedHistoryEventIds,
+      protectedQuoteReferences: projectedHistory.manifest.protectedQuoteReferences,
+      ...(contextFeatures.evidenceReads && (decisionMode === "conclude" || decisionMode === "reorient") && evidenceIndex ? { evidenceDirectory: evidenceIndex.directory } : {}),
     };
     try {
       let modelAction: RecruitmentAction;
@@ -274,6 +283,15 @@ export function createPlanningNode(input: {
           ...(decisionConstraints ? { constraints: decisionConstraints } : {}),
           ...(expansionConstraints ? { expansionConstraints } : {}),
           caseProgress,
+          omittedHistoryEventIds,
+          contextRevision: JSON.stringify([
+            caseId,
+            state.history.length,
+            state.brief,
+            state.datasetScope ?? null,
+            Object.keys(eligibleEvaluatedPlayers).sort(),
+            Object.keys(state.retrievedKnowledge).sort(),
+          ]),
           ...(observer ? { onTokenUsage: (usage: RecruitmentPlannerUsageObservation) => observer({ phase: "model_usage", ...usage }) } : {}),
         });
       } catch (error) {

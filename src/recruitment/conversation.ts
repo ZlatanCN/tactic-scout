@@ -33,6 +33,7 @@ import { type RecruitmentPlanner, createRecruitmentPlanner, RecruitmentModelTime
 
 export { RecruitmentCaseStateExpiredError } from "./conversation/contracts.js";
 export type { RecruitmentAskUserMode, RecruitmentCandidatePolicyMode, RecruitmentConversation, RecruitmentReviewerMode, RecruitmentTraceEvent, RecruitmentTraceObserver, UnderstatResearchMode } from "./conversation/contracts.js";
+export type { ContextManagementMode } from "./conversation/context-compaction-node.js";
 
 export { type RecruitmentAction } from "./recruitment-actions.js";
 
