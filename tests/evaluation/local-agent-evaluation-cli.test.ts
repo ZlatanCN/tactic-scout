@@ -28,6 +28,7 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /--compare-understat-research/);
   assert.match(result.stdout, /--compare-expansion-sufficiency/);
   assert.match(result.stdout, /--compare-context-management/);
+  assert.match(result.stdout, /--context-preflight-only/);
   assert.match(result.stdout, /历史投影、证据读取/);
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
@@ -52,11 +53,67 @@ test("the context-management comparison requires a fixed curated scenario and fi
   const wrongMode = runCli([
     "--scenario", "barcelona-under-23-midfielder",
     "--compare-context-management",
+    "--context-preflight-only",
     "--runs", "5",
   ], { ...process.env, TACTISCOUT_DATA_MODE: "demo" });
   assert.equal(wrongMode.status, 2);
   assert.match(wrongMode.stderr, /需要 TACTISCOUT_DATA_MODE=curated/);
   assert.doesNotMatch(wrongMode.stderr, /ECONNREFUSED|fetch failed/i);
+});
+
+test("the context-management comparison stops after a failed single-run legacy preflight", () => {
+  const result = runCli([
+    "--scenario", "barcelona-under-23-midfielder",
+    "--compare-context-management",
+    "--context-preflight-only",
+  ], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "curated",
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+    OPENAI_TIMEOUT_MS: "1000",
+    OPENAI_EXPANSION_TIMEOUT_MS: "1000",
+  });
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /"preflightStatus":\s*"failed"/);
+  assert.match(result.stdout, /"experimentInformative":\s*false/);
+  assert.match(result.stdout, /"experiment":\s*"context-management-preflight"/);
+  assert.match(result.stdout, /"ablationAllPassed":\s*null/);
+  assert.match(result.stderr, /context-management preflight.*failed/i);
+  assert.doesNotMatch(result.stderr, /context-management round=/);
+  assert.doesNotMatch(result.stdout, /"pairedRuns"\s*:/);
+});
+
+test("a failed preflight skips all strategy arms and does not report an ablation result", () => {
+  const result = runCli([
+    "--scenario", "barcelona-under-23-midfielder",
+    "--compare-context-management",
+    "--runs", "5",
+  ], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "curated",
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+    OPENAI_TIMEOUT_MS: "1000",
+    OPENAI_EXPANSION_TIMEOUT_MS: "1000",
+  });
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /"preflightStatus":\s*"failed"/);
+  assert.match(result.stdout, /"armsRun":\s*0/);
+  assert.match(result.stdout, /"ablationAllPassed":\s*null/);
+  assert.match(result.stderr, /context-management preflight.*failed/i);
+  assert.doesNotMatch(result.stderr, /context-management round=/);
+});
+
+test("context preflight-only mode requires the context-management comparison", () => {
+  const result = runCli(["--context-preflight-only"], {
+    ...process.env,
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+  });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /必须与 --compare-context-management 一起使用/);
+  assert.doesNotMatch(result.stderr, /ECONNREFUSED|fetch failed/i);
 });
 
 test("the local evaluation CLI requires a custom message for expected position clarification", () => {

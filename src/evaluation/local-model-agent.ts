@@ -14,7 +14,7 @@ if (process.argv.includes("--help")) {
   process.stdout.write(`${usage}\n`);
 } else {
   try {
-    const { scenarios, runsPerScenario, summaryOutputPath, comparison, historicalArchivePreflight } = await parseLocalAgentOptions();
+    const { scenarios, runsPerScenario, summaryOutputPath, comparison, historicalArchivePreflight, contextManagementPreflightOnly } = await parseLocalAgentOptions();
     if (comparison === "understat_research") process.stderr.write("[harness] 正在加载 Understat 五大联赛目录，并为本场景首轮 12 名同位置候选预热资料快照。\n");
     const understatResearchSnapshot = comparison === "understat_research"
       ? await prepareUnderstatResearchSnapshot()
@@ -27,6 +27,7 @@ if (process.argv.includes("--help")) {
     const outputs: Array<Record<string, unknown>> = [];
     const baselinePassRates: number[] = [];
     const ablationPassRates: number[] = [];
+    let contextPreflightFailed = false;
 
     for (const scenario of scenarios) {
       if (comparison === "understat_research") {
@@ -99,7 +100,68 @@ if (process.argv.includes("--help")) {
         continue;
       }
       if (comparison === "context_management") {
-        process.stderr.write("[harness] 正在用同一登记需求和固定 20 轮补充对话，分别运行五种上下文策略；模型请求串行执行。\n");
+        process.stderr.write("[harness] context-management preflight started arm=legacy stress_turns=0\n");
+        const preflightStartedAt = Date.now();
+        const preflightHeartbeat = setInterval(() => {
+          process.stderr.write(`[harness] context-management preflight running elapsed_seconds=${Math.floor((Date.now() - preflightStartedAt) / 1_000)}\n`);
+        }, 30_000);
+        preflightHeartbeat.unref();
+        let preflight: Awaited<ReturnType<typeof runScenarioOnce>>;
+        try {
+          preflight = await runScenarioOnce(scenario, 0, knowledgeBase, {
+            contextManagementMode: "legacy",
+            suppressTraceOutput: true,
+            suppressProgressOutput: true,
+          });
+        } finally {
+          clearInterval(preflightHeartbeat);
+        }
+        const preflightFailedChecks = Object.entries(preflight.checks)
+          .filter(([, passed]) => !passed)
+          .map(([check]) => check);
+        const preflightErrors = "errors" in preflight
+          ? preflight.errors.map(({ category, code, status }) => ({ category, ...(code ? { code } : {}), ...(status ? { status } : {}) }))
+          : [];
+        const preflightSummary = {
+          status: preflight.allPassed ? "passed" : "failed",
+          finalStatus: preflight.finalStatus,
+          failedChecks: preflightFailedChecks,
+          errors: preflightErrors,
+          modelRequests: {
+            requests: preflight.modelUsage.requestCount,
+            responses: preflight.modelUsage.responseCount,
+            failures: preflight.modelUsage.failedRequestCount,
+            inputTokens: preflight.modelUsage.inputTokens,
+          },
+          elapsedMs: preflight.elapsedMs,
+        };
+        process.stderr.write(`[harness] context-management preflight finished status=${preflightSummary.status} final_status=${preflightSummary.finalStatus ?? "error"} failed_checks=${preflightFailedChecks.join(",") || "none"} errors=${preflightErrors.map(({ category, code, status }) => `${category}${code ? `:${code}` : ""}${status ? `:${status}` : ""}`).join(",") || "none"} requests=${preflight.modelUsage.requestCount} responses=${preflight.modelUsage.responseCount} elapsed_ms=${preflight.elapsedMs}\n`);
+        if (!preflight.allPassed) {
+          contextPreflightFailed = true;
+          baselinePassRates.push(0);
+          outputs.push({
+            id: scenario.id,
+            preflightStatus: "failed",
+            preflight: preflightSummary,
+            experimentInformative: false,
+            armsRun: 0,
+            reason: "The legacy baseline failed before the context stress script; no strategy comparison was run.",
+          });
+          continue;
+        }
+        if (contextManagementPreflightOnly) {
+          baselinePassRates.push(1);
+          outputs.push({
+            id: scenario.id,
+            preflightStatus: "passed",
+            preflight: preflightSummary,
+            experimentInformative: false,
+            armsRun: 0,
+            reason: "Preflight-only mode; no strategy comparison was run.",
+          });
+          continue;
+        }
+        process.stderr.write("[harness] preflight passed; beginning counterbalanced 5-arm context-stress runs.\n");
         const contextStrategies = [
           { id: "legacy", mode: "legacy" as const, change: "保留既有历史策略和完整案件状态。" },
           { id: "projection", mode: "projection" as const, change: "只启用近期历史投影和原话事件引用。" },
@@ -109,12 +171,39 @@ if (process.argv.includes("--help")) {
         ];
         const runsByArm = await runCounterbalancedArms(runsPerScenario, contextStrategies.map(strategy => ({
           id: strategy.id,
-          run: runNumber => runScenarioOnce(scenario, runNumber, knowledgeBase, {
-            contextManagementMode: strategy.mode,
-            contextStressTurns: 20,
-            suppressTraceOutput: true,
-            suppressProgressOutput: true,
-          }),
+          run: async runNumber => {
+            const label = `[harness] context-management round=${runNumber}/${runsPerScenario} arm=${strategy.id}`;
+            const startedAt = Date.now();
+            process.stderr.write(`${label} started\n`);
+            const heartbeat = setInterval(() => {
+              const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1_000);
+              process.stderr.write(`${label} running elapsed_seconds=${elapsedSeconds}\n`);
+            }, 30_000);
+            heartbeat.unref();
+            try {
+              const result = await runScenarioOnce(scenario, runNumber, knowledgeBase, {
+                contextManagementMode: strategy.mode,
+                contextStressTurns: 20,
+                suppressTraceOutput: true,
+                suppressProgressOutput: true,
+              });
+              const failedChecks = Object.entries(result.checks)
+                .filter(([, passed]) => !passed)
+                .map(([check]) => check);
+              const errorKinds = "errors" in result
+                ? result.errors.map(({ category, code, status }) => `${category}${code ? `:${code}` : ""}${status ? `:${status}` : ""}`)
+                : [];
+              const inputUsage = result.modelUsage.inputTokens;
+              process.stderr.write(`${label} finished status=${result.finalStatus ?? "error"} passed=${result.allPassed} failed_checks=${failedChecks.join(",") || "none"} errors=${errorKinds.join(",") || "none"} input_usage=${inputUsage.status}:${inputUsage.total ?? "unknown"}/${inputUsage.requestsWithUsage}/${inputUsage.requestCount} stress_turns=${result.contextStressTurnsCompleted}/${result.contextStressTurnsRequested} elapsed_ms=${result.elapsedMs}\n`);
+              return result;
+            } catch (error) {
+              const elapsedMs = Date.now() - startedAt;
+              process.stderr.write(`${label} failed elapsed_ms=${elapsedMs} error=${error instanceof Error ? error.message : String(error)}\n`);
+              throw error;
+            } finally {
+              clearInterval(heartbeat);
+            }
+          },
         })));
         const runsFor = Object.fromEntries(contextStrategies.map(strategy => [strategy.id, runsByArm[strategy.id]!]));
         const armById = new Map(contextStrategies.map(strategy => [
@@ -127,6 +216,9 @@ if (process.argv.includes("--help")) {
         const strategyPairs = contextStrategies.flatMap((left, index) => contextStrategies.slice(index + 1).map(right => [left, right] as const));
         outputs.push({
           id: scenario.id,
+          preflightStatus: "passed",
+          preflight: preflightSummary,
+          experimentInformative: arms.every(arm => arm.summary.runCount === runsPerScenario),
           comparison: {
             arms: contextStrategies.map(({ id, change }) => ({ id, change })),
             causalComparisons: [
@@ -436,7 +528,7 @@ if (process.argv.includes("--help")) {
       datasetSnapshotSha256: understatResearchSnapshot?.snapshotSha256 ?? datasetSnapshotSha256,
       ...(understatResearchSnapshot ? { understatResearchSnapshot } : {}),
       repeatsPerScenario: runsPerScenario,
-      experiment: (comparison === "context_management") ? "context-management-ablation" : (comparison === "understat_research") ? "understat-research-strategy-ablation" : (comparison === "expansion_sufficiency") ? "expansion-sufficiency-ablation"
+      experiment: contextManagementPreflightOnly ? "context-management-preflight" : (comparison === "context_management") ? "context-management-ablation" : (comparison === "understat_research") ? "understat-research-strategy-ablation" : (comparison === "expansion_sufficiency") ? "expansion-sufficiency-ablation"
         : (comparison === "evidence_evaluator") ? "recruitment-evidence-evaluator-ablation"
         : (comparison === "historical_archive") ? "historical-archive-report-sidecar-ablation"
           : (comparison === "investigation_planning") ? "dynamic-investigation-planning-ablation"
@@ -450,7 +542,9 @@ if (process.argv.includes("--help")) {
         ragRelevance: "separate author-labeled regressions are available: immutable v2 covers 34 fixed queries and two sources; v3 covers 10 fixed queries and three sources including role-aware methodology. Online-query generalization and answer faithfulness are not validated",
       },
       allPassed: baselinePassRates.every((passRate) => passRate === 1),
-      ablationAllPassed: comparison ? ablationPassRates.every((passRate) => passRate === 1) : null,
+      ablationAllPassed: comparison && !contextManagementPreflightOnly && !contextPreflightFailed
+        ? ablationPassRates.every((passRate) => passRate === 1)
+        : null,
     };
     if (summaryOutputPath) {
       const summary = createIdentityFreeHarnessSummary(output);
