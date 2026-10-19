@@ -8,9 +8,10 @@ import {
   type EvaluationProgressEvent,
 } from "../../src/evaluation/harness-evaluation.js";
 import { privacySafeTraceEvent } from "../../src/evaluation/trace-privacy.js";
-import { operationLatencySamplesFromTrace } from "../../src/evaluation/local-agent-run.js";
+import { createObservedPlanner, operationLatencySamplesFromTrace } from "../../src/evaluation/local-agent-run.js";
 import type { RecruitmentTraceEvent } from "../../src/recruitment/conversation.js";
-import { conclusionInstructions } from "../../src/recruitment/conversation.js";
+import { conclusionInstructions, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
+import { buildRecruitmentContext } from "../../src/recruitment/context.js";
 import { type ConversationTurnResponse } from "../../src/domain/conversation.js";
 import { type HistoricalArchiveSample } from "../../src/domain/external-evidence.js";
 
@@ -86,6 +87,34 @@ function progressForTurns(turns: Array<{
   }
   return events;
 }
+
+test("Harness planner instrumentation preserves prototype context preflight methods", async () => {
+  const expected = buildRecruitmentContext({
+    stage: "investigate", systemInstructions: "fixture", payload: {}, responseSchema: {}, outputBudgetTokens: 1,
+  }).manifest;
+  const input: Parameters<RecruitmentPlanner["decide"]>[0] = {
+    history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: null, confirmedPosition: null,
+  };
+  let preflightCalls = 0;
+  let requestAttempts = 0;
+  class PrototypePlanner implements RecruitmentPlanner {
+    preflightContext() {
+      preflightCalls += 1;
+      return expected;
+    }
+
+    async decide() {
+      return { action: "finish", targetTeam: null, needSummary: "完成", capabilityProfile: [], recommendations: [], limitationKeys: [] };
+    }
+  }
+
+  const observed = createObservedPlanner(new PrototypePlanner(), () => { requestAttempts += 1; });
+  assert.deepEqual(await observed.preflightContext?.(input), expected);
+  assert.equal(preflightCalls, 1);
+  assert.equal(requestAttempts, 0, "a context preflight is not a model decision request");
+  assert.equal((await observed.decide(input)).action, "finish");
+  assert.equal(requestAttempts, 1);
+});
 
 function recommendation(position = "CM") {
   return {
@@ -236,6 +265,7 @@ test("the evaluation dataset fixes known tasks without claiming a correct player
   assert.equal(shortlistScenario.kind, "shortlist");
   assert.equal(shortlistScenario.expectedMaxAge, 23);
   assert.equal(shortlistScenario.requireBroadPositionSearch, true);
+  assert.equal(shortlistScenario.message, "为巴萨找一名 23 岁以下的中场候选，CM、DM、AM 等子位置都可以，不限定具体子位置；重点看推进和前场压迫能力，暂不增加预算、国籍或联赛限制。");
   assert.deepEqual(shortlistScenario.requiredTools, ["search_methodology", "search_candidates"]);
   assert.equal(clarificationScenario.kind, "clarification-resume");
   assert.equal(clarificationScenario.expectedPosition, "ST");

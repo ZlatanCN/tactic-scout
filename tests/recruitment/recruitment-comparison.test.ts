@@ -116,6 +116,28 @@ test("season-position aggregates remain visible but are excluded from reference 
   ))));
 });
 
+test("single-pass evaluation planner forwards the delegated Planner context preflight", async () => {
+  const expected = { status: "over_budget" as const, estimatedInputTokens: 20_000 };
+  const input = {
+    history: [], dataMode: "demo" as const, dataSource: "Fixture", targetTeam: null,
+    confirmedPosition: null,
+  };
+  let received: Parameters<RecruitmentPlanner["decide"]>[0] | undefined;
+  const planner = createSinglePassInvestigationPlanner({
+    async decide() {
+      return { action: "finish", targetTeam: null, needSummary: "完成", capabilityProfile: [], recommendations: [], limitationKeys: [] };
+    },
+    async preflightContext(value) {
+      received = value;
+      return expected;
+    },
+  });
+
+  assert.ok(planner.preflightContext);
+  assert.deepEqual(await planner.preflightContext(input), expected);
+  assert.equal(received, input);
+});
+
 for (const arm of ["enabled", "reference-off", "comparison-off"] as const) {
   test(`complete graph independently projects reference and candidate comparison evidence: ${arm}`, async () => {
     const inputs: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];

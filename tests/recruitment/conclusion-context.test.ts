@@ -1,7 +1,68 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildConclusionCandidateEvidence, buildConclusionEvidenceDirectory, compactConclusionHistory, partitionConclusionCandidatesByIdentity, reduceConclusionHistoryForBudget } from "../../src/recruitment/planner-context.js";
+import { KnowledgeSearchResultSchema } from "../../src/knowledge/schemas.js";
+import { createCaseEvidenceIndex, readCaseEvidence } from "../../src/recruitment/case-evidence.js";
+import { buildConclusionCandidateEvidence, buildConclusionEvidenceDirectory, compactConclusionHistory, partitionConclusionCandidatesByIdentity, reduceConclusionHistoryForBudget, selectRelevantDocumentExcerpt } from "../../src/recruitment/planner-context.js";
 import type { EvaluatedCandidate } from "../../src/recruitment/recruitment-evidence-evaluator.js";
+
+test("document context selects a complete relevant passage beyond the opening and identifies its source range", () => {
+  const relevantPassage = "Player X repeatedly found the progressive passing lane, but his forward pass completion fell under pressure.";
+  const text = `${"An irrelevant opening sentence about an unrelated match. ".repeat(25)}${relevantPassage}${" Additional unrelated report details follow. ".repeat(25)}`;
+  const excerpt = selectRelevantDocumentExcerpt({
+    text,
+    title: "Player X scouting report",
+    entityNames: ["Player X"],
+    matchedCapabilityGaps: ["progressive passing"],
+  });
+
+  assert.equal(excerpt.text.includes(relevantPassage), true, "the complete claim and its qualifier should be retained");
+  assert.equal(excerpt.text, text.slice(excerpt.startOffset, excerpt.endOffset), "the excerpt must remain a verifiable contiguous source passage");
+  assert.ok(excerpt.startOffset > 0);
+  assert.equal(excerpt.sourceCharacters, text.length);
+  assert.equal(excerpt.strategy, "relevance_window");
+});
+
+test("conclusion excerpts retain the exact case ref for same-title document chunks", () => {
+  const relevantPassage = "Player X repeatedly found the progressive passing lane, but his forward pass completion fell under pressure.";
+  const sourceText = `${"An unrelated match detail. ".repeat(60)}${relevantPassage}${" More unrelated match details. ".repeat(60)}`;
+  const documents = [
+    KnowledgeSearchResultSchema.parse({
+      id: "document-chunk-x", documentId: "report-x", corpus: "player_report", text: sourceText,
+      title: "Player scouting report", url: "https://example.test/report-x", sourceId: "publisher",
+      sourceName: "Report source", publisher: "Publisher", author: "Author", publishedAt: null,
+      license: "CC BY", attribution: "Publisher", entityIds: ["player-x"], entityNames: ["Player X"],
+      competition: "League", season: "2025/26", matchedCapabilityGaps: ["progressive passing"], displayAllowed: true,
+    }),
+    KnowledgeSearchResultSchema.parse({
+      id: "document-chunk-y", documentId: "report-y", corpus: "player_report", text: sourceText,
+      title: "Player scouting report", url: "https://example.test/report-y", sourceId: "publisher",
+      sourceName: "Report source", publisher: "Publisher", author: "Author", publishedAt: null,
+      license: "CC BY", attribution: "Publisher", entityIds: ["player-y"], entityNames: ["Player Y"],
+      competition: "League", season: "2025/26", matchedCapabilityGaps: ["progressive passing"], displayAllowed: true,
+    }),
+  ];
+  const index = createCaseEvidenceIndex({ caseId: "same-title-reports", scopeRevision: "brief-v1", evaluations: [], documents });
+  const evidenceRefsByChunkId = new Map(index.directory.flatMap(entry => entry.chunkId ? [[entry.chunkId, entry.ref] as const] : []));
+  const compacted = compactConclusionHistory([{
+    role: "tool",
+    toolName: "search_player_reports",
+    content: JSON.stringify({ results: documents }),
+  }], undefined, { evidenceRefsByChunkId });
+  const results = JSON.parse(compacted[0]!.content).results as Array<{ id: string; evidenceRef?: string; text: string; textExcerpt: { strategy: string; note: string } }>;
+
+  assert.equal(results[0]?.id, "document-chunk-x");
+  assert.equal(results[0]?.evidenceRef, evidenceRefsByChunkId.get("document-chunk-x"));
+  assert.equal(results[1]?.evidenceRef, evidenceRefsByChunkId.get("document-chunk-y"));
+  assert.notEqual(results[0]?.evidenceRef, results[1]?.evidenceRef);
+  assert.deepEqual(index.directory.map(({ chunkId, documentId, entityNames }) => ({ chunkId, documentId, entityNames })), [
+    { chunkId: "document-chunk-x", documentId: "report-x", entityNames: ["Player X"] },
+    { chunkId: "document-chunk-y", documentId: "report-y", entityNames: ["Player Y"] },
+  ]);
+  assert.ok(results[0]?.text.includes(relevantPassage));
+  assert.equal(results[0]?.textExcerpt.strategy, "relevance_window");
+  assert.match(results[0]?.textExcerpt.note ?? "", /evidenceRef/);
+  assert.equal(readCaseEvidence(index, { refs: [results[0]!.evidenceRef!], fields: ["body"], limit: 4_000 }).results[0]?.content, sourceText);
+});
 
 test("conclusion evidence projects every candidate and only requested metrics without turning missing values into zero", () => {
   const candidates: EvaluatedCandidate[] = [
@@ -93,9 +154,9 @@ test("conclusion batches keep resolved source records for the same candidate tog
 test("combined context exposes document refs once and leaves metric refs attached to their candidate", () => {
   const directory = buildConclusionEvidenceDirectory([
     { ref: "metric-ref", kind: "player_metrics", title: "Candidate A", playerId: "candidate-a", availableFields: ["metadata", "body"], contentCharacters: 2_000, source: "Fixture", timeRange: "League · 2026/27" },
-    { ref: "report-ref", kind: "player_report", title: "Candidate report", playerId: "candidate-a", availableFields: ["metadata", "body"], contentCharacters: 6_000, source: "Report source", timeRange: "2025/26" },
+    { ref: "report-ref", kind: "player_report", title: "Candidate report", playerId: "candidate-a", chunkId: "chunk-1", documentId: "doc-1", entityNames: ["Candidate A"], availableFields: ["metadata", "body"], contentCharacters: 6_000, source: "Report source", timeRange: "2025/26" },
   ]);
-  assert.deepEqual(directory, [{ ref: "report-ref", kind: "player_report", title: "Candidate report", playerId: "candidate-a", source: "Report source", timeRange: "2025/26" }]);
+  assert.deepEqual(directory, [{ ref: "report-ref", kind: "player_report", title: "Candidate report", playerId: "candidate-a", chunkId: "chunk-1", documentId: "doc-1", entityNames: ["Candidate A"], source: "Report source", timeRange: "2025/26" }]);
 });
 
 test("budget fallback keeps the current dialogue and case evidence while removing replayable search logs", () => {

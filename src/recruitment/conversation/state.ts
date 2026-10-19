@@ -136,6 +136,8 @@ export const RecruitmentState = Annotation.Root({
   candidateSearchCursorAdjustment: replaceable<{ requestedOffset: number; effectiveOffset: number } | null>(() => null),
   caseSummary: replaceable<CaseSummary | null>(() => null),
   caseSummaryAttemptedThrough: replaceable<number>(() => 0),
+  contextCompactionRequest: replaceable<"none" | "project" | "summarize">(() => "none"),
+  contextProjectionThroughUserTurnCount: replaceable<number | null>(() => null),
 });
 
 export type State = typeof RecruitmentState.State;

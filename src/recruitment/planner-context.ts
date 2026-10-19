@@ -18,6 +18,140 @@ export interface ConclusionCandidateEvidence {
   candidates: Array<Record<string, unknown> & { playerId: string }>;
 }
 
+export interface SelectedDocumentExcerpt {
+  text: string;
+  startOffset: number;
+  endOffset: number;
+  sourceCharacters: number;
+  strategy: "complete" | "relevance_window" | "opening_fallback";
+  completeSentences: boolean;
+}
+
+/**
+ * Keep a contiguous passage from a retrieved document chunk. Prefer complete
+ * sentences matching the result's capability gaps or entity context; the
+ * opening is only a fallback when the chunk carries no usable relevance terms.
+ */
+export function selectRelevantDocumentExcerpt(
+  document: { text: string; title?: string; entityNames?: readonly string[]; matchedCapabilityGaps?: readonly string[] },
+  maxCharacters = 900,
+): SelectedDocumentExcerpt {
+  const { text } = document;
+  const limit = Math.max(1, Math.floor(maxCharacters));
+  if (text.length <= limit) {
+    return { text, startOffset: 0, endOffset: text.length, sourceCharacters: text.length, strategy: "complete", completeSentences: isSentenceAligned(text, 0, text.length) };
+  }
+
+  const sentences = sentenceRanges(text);
+  const gapTerms = relevanceTerms(document.matchedCapabilityGaps ?? []);
+  const contextTerms = relevanceTerms([document.title ?? "", ...(document.entityNames ?? [])]);
+  const ranked = sentences.map((sentence, index) => ({
+    ...sentence,
+    index,
+    score: scoreSentence(sentence.text, gapTerms, 5) + scoreSentence(sentence.text, contextTerms, 1),
+  }));
+  const best = ranked.reduce<(typeof ranked)[number] | undefined>((current, sentence) =>
+    !current || sentence.score > current.score ? sentence : current, undefined);
+
+  if (best && best.score > 0) {
+    if (best.end - best.start > limit) {
+      const matchingTerm = [...gapTerms, ...contextTerms].find(term => normalizeExcerptText(text.slice(best.start, best.end)).includes(term.value));
+      const rawMatch = matchingTerm?.raw ? text.toLocaleLowerCase().indexOf(matchingTerm.raw.toLocaleLowerCase(), best.start) : -1;
+      const center = rawMatch >= best.start && rawMatch < best.end ? rawMatch + matchingTerm!.raw.length / 2 : (best.start + best.end) / 2;
+      const startOffset = Math.max(best.start, Math.min(best.end - limit, Math.floor(center - limit / 2)));
+      const endOffset = Math.min(text.length, startOffset + limit);
+      return { text: text.slice(startOffset, endOffset), startOffset, endOffset, sourceCharacters: text.length, strategy: "relevance_window", completeSentences: false };
+    }
+
+    let first = best.index;
+    let last = best.index;
+    while (true) {
+      const left = ranked[first - 1];
+      const right = ranked[last + 1];
+      const leftFits = Boolean(left && best.end - left.start <= limit);
+      const rightFits = Boolean(right && right.end - ranked[first]!.start <= limit);
+      if (!leftFits && !rightFits) break;
+      if (leftFits && rightFits) {
+        if (right!.score > left!.score) last += 1;
+        else first -= 1;
+      } else if (leftFits) first -= 1;
+      else last += 1;
+    }
+    const startOffset = ranked[first]!.start;
+    const endOffset = ranked[last]!.end;
+    return { text: text.slice(startOffset, endOffset), startOffset, endOffset, sourceCharacters: text.length, strategy: "relevance_window", completeSentences: isSentenceAligned(text, startOffset, endOffset) };
+  }
+
+  let endOffset = 0;
+  for (const sentence of sentences) {
+    if (sentence.end > limit) break;
+    endOffset = sentence.end;
+  }
+  if (endOffset > 0) {
+    return { text: text.slice(0, endOffset), startOffset: 0, endOffset, sourceCharacters: text.length, strategy: "opening_fallback", completeSentences: isSentenceAligned(text, 0, endOffset) };
+  }
+  return { text: text.slice(0, limit), startOffset: 0, endOffset: limit, sourceCharacters: text.length, strategy: "opening_fallback", completeSentences: false };
+}
+
+interface TextRange { start: number; end: number; text: string }
+interface RelevanceTerm { value: string; raw: string }
+
+function sentenceRanges(text: string): TextRange[] {
+  const ranges: TextRange[] = [];
+  const boundary = /[.!?。！？]+|\n+/gu;
+  let start = 0;
+  for (const match of text.matchAll(boundary)) {
+    const rawEnd = match.index! + match[0].length;
+    const range = trimTextRange(text, start, rawEnd);
+    if (range) ranges.push(range);
+    start = rawEnd;
+  }
+  const tail = trimTextRange(text, start, text.length);
+  if (tail) ranges.push(tail);
+  return ranges;
+}
+
+function trimTextRange(text: string, start: number, end: number): TextRange | null {
+  while (start < end && /\s/u.test(text[start]!)) start += 1;
+  while (end > start && /\s/u.test(text[end - 1]!)) end -= 1;
+  return start < end ? { start, end, text: text.slice(start, end) } : null;
+}
+
+function isSentenceAligned(text: string, start: number, end: number): boolean {
+  const leftBoundary = start === 0 || /[.!?。！？\n]\s*$/u.test(text.slice(0, start));
+  const rightBoundary = /[.!?。！？]\s*$/u.test(text.slice(0, end))
+    || (end < text.length && /^\s*\n/u.test(text.slice(end)));
+  return leftBoundary && rightBoundary;
+}
+
+function relevanceTerms(values: readonly string[]): RelevanceTerm[] {
+  const terms = new Map<string, RelevanceTerm>();
+  const add = (raw: string) => {
+    const value = normalizeExcerptText(raw);
+    if (value.length >= 2 && !terms.has(value)) terms.set(value, { value, raw });
+  };
+  for (const raw of values) {
+    add(raw);
+    for (const match of raw.matchAll(/[\p{Script=Latin}\p{N}]{3,}|[\p{Script=Han}]{2,}/gu)) {
+      const token = match[0];
+      if (/^[\p{Script=Han}]+$/u.test(token) && [...token].length > 2) {
+        const characters = [...token];
+        for (let index = 0; index < characters.length - 1; index++) add(characters.slice(index, index + 2).join(""));
+      } else add(token);
+    }
+  }
+  return [...terms.values()];
+}
+
+function normalizeExcerptText(value: string): string {
+  return value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function scoreSentence(sentence: string, terms: readonly RelevanceTerm[], weight: number): number {
+  const normalized = normalizeExcerptText(sentence);
+  return terms.reduce((score, term) => normalized.includes(term.value) ? score + weight + Math.min(8, term.value.length) / 8 : score, 0);
+}
+
 /** Keep exact, resolved source records for one player inside the same comparison batch. */
 export function partitionConclusionCandidatesByIdentity<T extends { playerId: string }>(
   candidates: readonly T[],
@@ -180,9 +314,19 @@ export function buildConclusionCandidateEvidence(
 
 /** Omit duplicate metric directory rows when each compact candidate row already carries its metric ref. */
 export function buildConclusionEvidenceDirectory(directory: readonly CaseEvidenceDirectoryEntry[]): Array<Omit<CaseEvidenceDirectoryEntry, "availableFields" | "contentCharacters">> {
-  return directory.flatMap(({ kind, ref, title, playerId, source, timeRange }) => {
+  return directory.flatMap(({ kind, ref, title, playerId, chunkId, documentId, entityNames, source, timeRange }) => {
     if (kind === "player_metrics") return [];
-    return [{ ref, kind, title, ...(playerId ? { playerId } : {}), ...(source ? { source } : {}), ...(timeRange ? { timeRange } : {}) }];
+    return [{
+      ref,
+      kind,
+      title,
+      ...(playerId ? { playerId } : {}),
+      ...(chunkId ? { chunkId } : {}),
+      ...(documentId ? { documentId } : {}),
+      ...(entityNames ? { entityNames } : {}),
+      ...(source ? { source } : {}),
+      ...(timeRange ? { timeRange } : {}),
+    }];
   });
 }
 
@@ -287,7 +431,7 @@ export function compactExpansionHistory(
 export function compactConclusionHistory(
   history: ConversationHistoryEntry[],
   requestedCapabilityCoverage?: readonly Pick<RequestedCapabilityCoverage, "requestedMetricKeys">[],
-  options: { preserveAllMethodology?: boolean } = {},
+  options: { preserveAllMethodology?: boolean; evidenceRefsByChunkId?: ReadonlyMap<string, string> } = {},
 ): ConversationHistoryEntry[] {
   const hasRequestedCapabilities = (requestedCapabilityCoverage?.length ?? 0) > 0;
   const requestedMetricKeys = new Set(requestedCapabilityCoverage?.flatMap(({ requestedMetricKeys: keys }) => keys) ?? []);
@@ -395,10 +539,30 @@ export function compactConclusionHistory(
           ...entry,
           content: JSON.stringify({
             ...result,
-            results: (result.results ?? []).map((document) => ({
-              ...document,
-              text: typeof document.text === "string" ? document.text.slice(0, 900) : "",
-            })),
+            results: (result.results ?? []).map((document) => {
+              const excerpt = selectRelevantDocumentExcerpt({
+                text: typeof document.text === "string" ? document.text : "",
+                title: typeof document.title === "string" ? document.title : undefined,
+                entityNames: Array.isArray(document.entityNames) ? document.entityNames.filter((value): value is string => typeof value === "string") : undefined,
+                matchedCapabilityGaps: Array.isArray(document.matchedCapabilityGaps) ? document.matchedCapabilityGaps.filter((value): value is string => typeof value === "string") : undefined,
+              });
+              const evidenceRef = typeof document.id === "string" ? options.evidenceRefsByChunkId?.get(document.id) : undefined;
+              return {
+                ...document,
+                ...(evidenceRef ? { evidenceRef } : {}),
+                text: excerpt.text,
+                textExcerpt: {
+                  strategy: excerpt.strategy,
+                  startOffset: excerpt.startOffset,
+                  endOffset: excerpt.endOffset,
+                  sourceCharacters: excerpt.sourceCharacters,
+                  completeSentences: excerpt.completeSentences,
+                  note: evidenceRef
+                    ? "检索片段不代表全文；evidenceRef 可按需回读原文。"
+                    : "检索片段不代表全文；其余内容未读取。",
+                },
+              };
+            }),
           }),
         }];
       } catch {

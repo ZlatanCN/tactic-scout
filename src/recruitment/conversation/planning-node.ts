@@ -181,24 +181,6 @@ export function createPlanningNode(input: {
     let candidateSearchCursorAdjustment: { requestedOffset: number; effectiveOffset: number } | null = null;
     let candidateSearchExhausted = false;
     let shortlistComparisonApplied = false;
-    const plannerHistory = (decisionMode === "expand" || decisionMode === "expand_recovery"
-      ? compactExpansionHistory(state.history, { includeLatestPolicyFeedback: decisionMode === "expand_recovery" })
-      : decisionMode === "conclude" || decisionMode === "reorient"
-        ? compactConclusionHistory(state.history, decisionConstraints?.requestedCapabilityCoverage, {
-          preserveAllMethodology: decisionMode === "reorient",
-        })
-        : state.history).map((entry) => ({ ...entry }));
-    if (input.previousShortlistContextEnabled !== false && state.briefCandidates.length > 0) {
-      const latestUserIndex = plannerHistory.reduce((latest, entry, index) => entry.role === "user" ? index : latest, -1);
-      plannerHistory.splice(latestUserIndex < 0 ? plannerHistory.length : latestUserIndex, 0, {
-        role: "tool",
-        toolName: "previous_shortlist",
-        content: JSON.stringify({
-          candidates: state.briefCandidates,
-          note: "这是上一轮实际展示给用户的短名单，仅用于解析‘这些候选’等指代和保持可见顺序。若用户明确要求在现有考察范围内继续比较，应优先复用仍符合当前条件且有真实评估证据的候选；若候选因当前硬条件或缺少所需证据而不能延续，必须说明具体原因。此快照本身不代表本轮推荐，不得据此补造指标或资格。",
-        }),
-      });
-    }
     const protectedQuotes = [
       state.brief?.targetTeam?.quote,
       state.brief?.referencePlayer?.quote,
@@ -208,26 +190,6 @@ export function createPlanningNode(input: {
     const contextManagementMode = input.contextManagementMode ?? "unified";
     const contextFeatures = contextManagementFeatures(contextManagementMode);
     const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
-    if (contextFeatures.summaries && state.caseSummary) plannerHistory.unshift(caseSummaryHistoryEntry(state.caseSummary));
-    const conclusionMode = decisionMode === "conclude" || decisionMode === "reorient";
-    const replacedToolResults = contextFeatures.historyProjection && conclusionMode
-      ? new Set(["search_candidates", "evaluate_candidates"])
-      : new Set<string>();
-    const historyForProjection = plannerHistory.filter(entry => entry.role !== "tool" || !replacedToolResults.has(entry.toolName ?? ""));
-    const replacedHistoryEntries = plannerHistory.length - historyForProjection.length;
-    const projectedHistory = !contextFeatures.historyProjection
-      ? { entries: plannerHistory, userEventIds: [], manifest: { omittedEntryCount: 0, protectedQuoteCount: 0, includedEventIds: [], omittedEventIds: [], protectedQuoteReferences: [] } }
-      : projectRecruitmentHistory(historyForProjection, {
-        caseId,
-        recentUserTurns: 3,
-        protectedQuotes,
-      });
-    const summarizedEventIds = new Set(contextFeatures.summaries && state.caseSummary?.version === 2
-      ? state.caseSummary.claims.map(claim => claim.eventId)
-      : []);
-    const omittedHistoryEventIds = projectedHistory.manifest.omittedEventIds.filter(eventId => !summarizedEventIds.has(eventId));
-    const projectedPlannerHistory = projectedHistory.entries.map((entry) => ({ ...entry }));
-    const currentTurnObservations = state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex);
     const evidenceIndex = caseId ? createCaseEvidenceIndex({
       caseId,
       scopeRevision: caseEvidenceScopeRevision({
@@ -240,6 +202,70 @@ export function createPlanningNode(input: {
       evaluations: Object.values(eligibleEvaluatedPlayers),
       documents: Object.values(state.retrievedKnowledge),
     }) : null;
+    const evidenceRefsByChunkId = contextFeatures.evidenceReads && evidenceIndex
+      ? new Map(evidenceIndex.directory.flatMap(entry => entry.chunkId ? [[entry.chunkId, entry.ref] as const] : []))
+      : new Map<string, string>();
+    const userTurnCount = state.history.filter(entry => entry.role === "user").length;
+    const summaryCoveredUserTurnCount = contextFeatures.summaries && state.caseSummary?.version === 2
+      ? state.caseSummary.coveredUserTurnCount
+      : 0;
+    const coveredHistoryProjection = summaryCoveredUserTurnCount > 0
+      ? projectRecruitmentHistory(state.history, {
+        caseId,
+        recentUserTurns: Number.MAX_SAFE_INTEGER,
+        protectedQuotes,
+        preserveAllTools: true,
+        coveredUserTurnsThrough: summaryCoveredUserTurnCount,
+      })
+      : undefined;
+    const historyForContext = coveredHistoryProjection?.entries ?? state.history;
+    const plannerHistory = (decisionMode === "expand" || decisionMode === "expand_recovery"
+      ? compactExpansionHistory(historyForContext, { includeLatestPolicyFeedback: decisionMode === "expand_recovery" })
+      : decisionMode === "conclude" || decisionMode === "reorient"
+        ? compactConclusionHistory(historyForContext, decisionConstraints?.requestedCapabilityCoverage, {
+          preserveAllMethodology: decisionMode === "reorient",
+          evidenceRefsByChunkId,
+        })
+        : historyForContext).map((entry) => ({ ...entry }));
+    if (input.previousShortlistContextEnabled !== false && state.briefCandidates.length > 0) {
+      const latestUserIndex = plannerHistory.reduce((latest, entry, index) => entry.role === "user" ? index : latest, -1);
+      plannerHistory.splice(latestUserIndex < 0 ? plannerHistory.length : latestUserIndex, 0, {
+        role: "tool",
+        toolName: "previous_shortlist",
+        content: JSON.stringify({
+          candidates: state.briefCandidates,
+          note: "这是上一轮实际展示给用户的短名单，仅用于解析‘这些候选’等指代和保持可见顺序。若用户明确要求在现有考察范围内继续比较，应优先复用仍符合当前条件且有真实评估证据的候选；若候选因当前硬条件或缺少所需证据而不能延续，必须说明具体原因。此快照本身不代表本轮推荐，不得据此补造指标或资格。",
+        }),
+      });
+    }
+    if (contextFeatures.summaries && state.caseSummary) plannerHistory.unshift(caseSummaryHistoryEntry(state.caseSummary));
+    const conclusionMode = decisionMode === "conclude" || decisionMode === "reorient";
+    const historyProjectionEnabled = contextFeatures.historyProjection
+      && (contextManagementMode !== "summarized" || state.contextProjectionThroughUserTurnCount === userTurnCount);
+    const replacedToolResults = historyProjectionEnabled && conclusionMode
+      ? new Set(["search_candidates", "evaluate_candidates"])
+      : new Set<string>();
+    const historyForProjection = plannerHistory.filter(entry => entry.role !== "tool" || !replacedToolResults.has(entry.toolName ?? ""));
+    const replacedHistoryEntries = plannerHistory.length - historyForProjection.length;
+    const projectedHistory = !historyProjectionEnabled
+      ? {
+        ...(coveredHistoryProjection ?? { entries: plannerHistory, userEventIds: [], manifest: { omittedEntryCount: 0, protectedQuoteCount: 0, includedEventIds: [], omittedEventIds: [], protectedQuoteReferences: [] } }),
+        entries: plannerHistory,
+      }
+      : projectRecruitmentHistory(historyForProjection, {
+        caseId,
+        recentUserTurns: 3,
+        protectedQuotes,
+      });
+    const summarizedEventIds = new Set(contextFeatures.summaries && state.caseSummary?.version === 2
+      ? state.caseSummary.claims.map(claim => claim.eventId)
+      : []);
+    const omittedHistoryEventIds = projectedHistory.manifest.omittedEventIds.filter(eventId => (
+      !summarizedEventIds.has(eventId)
+      && !isCaseSummaryCoveredEvent(eventId, summaryCoveredUserTurnCount)
+    ));
+    const projectedPlannerHistory = projectedHistory.entries.map((entry) => ({ ...entry }));
+    const currentTurnObservations = state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex);
     const metricEvidenceRefs = contextFeatures.historyProjection && contextFeatures.evidenceReads && evidenceIndex
       ? new Map(evidenceIndex.directory.flatMap(entry => entry.kind === "player_metrics" && entry.playerId ? [[entry.playerId, entry.ref] as const] : []))
       : new Map<string, string>();
@@ -277,6 +303,34 @@ export function createPlanningNode(input: {
         candidateEvidence: conclusionCandidateEvidence,
       } : {}),
     };
+    const plannerInput: Parameters<RecruitmentPlanner["decide"]>[0] = {
+      brief: state.brief,
+      history: projectedPlannerHistory,
+      dataMode: repository.mode,
+      dataSource: repository.sourceName,
+      abilityProfilesEnabled: state.abilityProfilesEnabled,
+      targetTeam: state.targetTeam,
+      decisionMode,
+      availableActions: availablePlannerActions(state, repository, decisionMode, contextManagementMode),
+      confirmedPosition: state.confirmedPosition,
+      confirmedPositions: state.confirmedPositions,
+      positionBroadeningApproved: state.positionBroadeningApproved,
+      ...(config.signal ? { signal: config.signal } : {}),
+      ...(decisionConstraints ? { constraints: decisionConstraints } : {}),
+      ...(expansionConstraints ? { expansionConstraints } : {}),
+      ...(candidateEvidenceForBatching ? { candidateEvidenceForBatching } : {}),
+      caseProgress,
+      omittedHistoryEventIds,
+      contextRevision: JSON.stringify([
+        caseId,
+        state.history.length,
+        state.brief,
+        state.datasetScope ?? null,
+        Object.keys(eligibleEvaluatedPlayers).sort(),
+        Object.keys(state.retrievedKnowledge).sort(),
+      ]),
+      ...(observer ? { onTokenUsage: (usage: RecruitmentPlannerUsageObservation) => observer({ phase: "model_usage", ...usage }) } : {}),
+    };
     try {
       let modelAction: RecruitmentAction;
       if (input.expansionSufficiencyEnabled !== false
@@ -288,34 +342,46 @@ export function createPlanningNode(input: {
         policyOverrodePlanner = true;
         deterministicExpansion = true;
       } else try {
-        modelAction = await planner.decide({
-          brief: state.brief,
-          history: projectedPlannerHistory,
-          dataMode: repository.mode,
-          dataSource: repository.sourceName,
-          abilityProfilesEnabled: state.abilityProfilesEnabled,
-          targetTeam: state.targetTeam,
-          decisionMode,
-          availableActions: availablePlannerActions(state, repository, decisionMode, contextManagementMode),
-          confirmedPosition: state.confirmedPosition,
-          confirmedPositions: state.confirmedPositions,
-          positionBroadeningApproved: state.positionBroadeningApproved,
-          ...(config.signal ? { signal: config.signal } : {}),
-          ...(decisionConstraints ? { constraints: decisionConstraints } : {}),
-          ...(expansionConstraints ? { expansionConstraints } : {}),
-          ...(candidateEvidenceForBatching ? { candidateEvidenceForBatching } : {}),
-          caseProgress,
-          omittedHistoryEventIds,
-          contextRevision: JSON.stringify([
+        if (contextFeatures.summaries && !historyProjectionEnabled && planner.preflightContext) {
+          const projectionCandidate = projectRecruitmentHistory(historyForProjection, {
             caseId,
-            state.history.length,
-            state.brief,
-            state.datasetScope ?? null,
-            Object.keys(eligibleEvaluatedPlayers).sort(),
-            Object.keys(state.retrievedKnowledge).sort(),
-          ]),
-          ...(observer ? { onTokenUsage: (usage: RecruitmentPlannerUsageObservation) => observer({ phase: "model_usage", ...usage }) } : {}),
-        });
+            recentUserTurns: 3,
+            protectedQuotes,
+            ...(summaryCoveredUserTurnCount > 0 ? {
+              coveredUserTurnsThrough: summaryCoveredUserTurnCount,
+              userTurnOffset: summaryCoveredUserTurnCount,
+            } : {}),
+          });
+          if (projectionCandidate.manifest.omittedEntryCount > 0) {
+            const contextManifest = await planner.preflightContext(plannerInput);
+            if (contextManifest.status === "over_budget") {
+              const projectedOmittedHistoryEventIds = [...new Set([
+                ...omittedHistoryEventIds,
+                ...projectionCandidate.manifest.omittedEventIds,
+              ])];
+              const projectedCaseProgress = {
+                ...caseProgress,
+                omittedHistoryEntries: replacedHistoryEntries + projectionCandidate.manifest.omittedEntryCount,
+                protectedQuoteCount: projectionCandidate.manifest.protectedQuoteCount,
+                omittedHistoryEventIds: projectedOmittedHistoryEventIds,
+                protectedQuoteReferences: projectionCandidate.manifest.protectedQuoteReferences,
+              };
+              const projectedPlannerInput = {
+                ...plannerInput,
+                history: projectionCandidate.entries,
+                caseProgress: projectedCaseProgress,
+                omittedHistoryEventIds: projectedOmittedHistoryEventIds,
+              };
+              const projectedContextManifest = await planner.preflightContext(projectedPlannerInput);
+              if (projectedContextManifest.estimatedInputTokens < contextManifest.estimatedInputTokens) {
+                return {
+                  contextCompactionRequest: projectedContextManifest.status === "over_budget" ? "summarize" : "project",
+                };
+              }
+            }
+          }
+        }
+        modelAction = await planner.decide(plannerInput);
       } catch (error) {
         if (error instanceof RecruitmentModelTimeoutError
           && (decisionMode === "expand" || decisionMode === "expand_recovery")
@@ -539,4 +605,10 @@ export function createPlanningNode(input: {
       ],
     };
   };
+}
+
+function isCaseSummaryCoveredEvent(eventId: string, coveredUserTurnCount: number): boolean {
+  const match = /^evt\.[a-f0-9]{16}\.(?:user\.(\d+)|question\.(\d+)\.\d+)$/.exec(eventId);
+  const userTurn = Number(match?.[1] ?? match?.[2]);
+  return Number.isSafeInteger(userTurn) && userTurn > 0 && userTurn <= coveredUserTurnCount;
 }

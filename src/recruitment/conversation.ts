@@ -111,6 +111,7 @@ export function createRecruitmentConversation(input: {
     .addEdge("understand_request", "compact_case_context")
     .addEdge("compact_case_context", "choose_next_action")
     .addConditionalEdges("choose_next_action", (state: State) => {
+      if (state.contextCompactionRequest !== "none") return "compact";
       if (state.forcedLimitReached || state.policyLoopStopped) return "review";
       if (state.policyBlocked) return "replan";
       if (state.action?.action === "ask_user" || state.action?.action === "finish") {
@@ -127,7 +128,7 @@ export function createRecruitmentConversation(input: {
         return state.action.action === "ask_user" ? "ask" : "review";
       }
       return "tool";
-    }, { ask: "wait_for_user", replan: "choose_next_action", review: "review_recommendation", tool: "execute_tool" })
+    }, { ask: "wait_for_user", compact: "compact_case_context", replan: "choose_next_action", review: "review_recommendation", tool: "execute_tool" })
     .addEdge("execute_tool", "compact_case_context")
     .addConditionalEdges("review_recommendation", (state: State) => {
       if (state.reviewResult === "retry") return "retry";

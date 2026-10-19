@@ -31,29 +31,33 @@ import { z } from "zod/v4";
 
 export type { ConversationHistoryEntry } from "./planner-context.js";
 
+export interface RecruitmentPlannerInput {
+  brief?: import("./brief.js").RecruitmentBrief | null;
+  history: ConversationHistoryEntry[];
+  dataMode: DatasetMode;
+  dataSource: string;
+  abilityProfilesEnabled?: boolean;
+  targetTeam: string | null;
+  decisionMode?: RecruitmentDecisionMode;
+  availableActions?: readonly RecruitmentPlannerAction[];
+  confirmedPosition: Position | null;
+  confirmedPositions?: readonly Position[];
+  positionBroadeningApproved?: boolean;
+  signal?: AbortSignal;
+  constraints?: RecruitmentDecisionConstraints;
+  expansionConstraints?: RecruitmentExpansionConstraints;
+  caseProgress?: unknown;
+  /** Private complete candidate view used only if a verified context window requires batch comparison. */
+  candidateEvidenceForBatching?: ConclusionCandidateEvidence;
+  contextRevision?: string;
+  omittedHistoryEventIds?: readonly string[];
+  onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
+}
+
 export interface RecruitmentPlanner {
-  decide(input: {
-    brief?: import("./brief.js").RecruitmentBrief | null;
-    history: ConversationHistoryEntry[];
-    dataMode: DatasetMode;
-    dataSource: string;
-    abilityProfilesEnabled?: boolean;
-    targetTeam: string | null;
-    decisionMode?: RecruitmentDecisionMode;
-    availableActions?: readonly RecruitmentPlannerAction[];
-    confirmedPosition: Position | null;
-    confirmedPositions?: readonly Position[];
-    positionBroadeningApproved?: boolean;
-    signal?: AbortSignal;
-    constraints?: RecruitmentDecisionConstraints;
-    expansionConstraints?: RecruitmentExpansionConstraints;
-    caseProgress?: unknown;
-    /** Private complete candidate view used only if a verified context window requires batch comparison. */
-    candidateEvidenceForBatching?: ConclusionCandidateEvidence;
-    contextRevision?: string;
-    omittedHistoryEventIds?: readonly string[];
-    onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
-  }): Promise<RecruitmentAction>;
+  /** Build the same request as decide() without invoking the model. */
+  preflightContext?(input: RecruitmentPlannerInput): RecruitmentContextManifest | Promise<RecruitmentContextManifest>;
+  decide(input: RecruitmentPlannerInput): Promise<RecruitmentAction>;
 }
 
 export type RecruitmentDecisionMode = "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
@@ -190,7 +194,7 @@ export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidenc
     batch
       ? `你负责超出单次上下文容量的候选分批比较。本轮是第 ${batch.index}/${batch.count} 批；全池共 ${batch.candidatePoolSize} 名已评估候选。只比较本批目录，最多给出 1 名本批考察线索；不要声称本批代表全池排名。`
       : canReadCaseEvidence
-      ? "你是足球球探报告撰写员。当前调查已完成；可选择 ask_user、finish，或最多按需调用 read_case_evidence 核对目录中的已取得资料。只能读取给出的 ref 和字段，沿 nextCursor 继续，不得伪造引用或把摘录说成全文。"
+      ? "你是足球球探报告撰写员。当前调查已完成；可选择 ask_user、finish，或按需调用 read_case_evidence。仅读取给定 ref/字段并沿 nextCursor 继续，不伪造引用。"
       : "你是足球球探报告撰写员。当前调查已经完成；只能选择 ask_user 或 finish。",
     "只输出 schema 要求的一个 JSON action，不加前言或代码块；字段文字精炼。",
     ...sourceScopeInstructions(dataMode, "conclusion"),
@@ -203,6 +207,7 @@ export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidenc
     "如果至少一名已评估候选有指标直接对应用户明确要求的可测能力，必须提供至少一名供球探后续核验的候选线索；名单是建议优先考察的对象，不代表客观能力排名或转会结论。每条推荐的 evidenceKeys 必须直接支持用户明确提出的能力与场上角色；相关指标样本较小仍可作为有限线索，但必须说明样本风险且不得显示百分位。只在所有已评估候选都缺少直接相关数据或没有可评估候选时返回空 recommendations；未观测到的其他要求须作为能力数据缺口披露，不得用无关的可用指标代替。",
     "若上下文含 requestedCapabilityCoverage，按其中的 observedMetricKeys 和覆盖候选人数判断证据覆盖；missing/partial 必须如实披露，不得把相似但不对应的字段描述成该项能力。进球机会指标只代表机会产出/质量，不等同于射门技术或终结能力。",
     "能力画像只描述数据支持的比赛表现。没有报告检索结果时 reportObservations 必须为空；球员观察只能引用本轮检索文档及其实体，不能把相关比赛指标说成已证明观察正确。",
+    "片段可用 evidenceRef 调 read_case_evidence 回读；未读勿推断。",
     "不得凭记忆声称现役俱乐部、联赛、当前年龄、转会可行性或合同预算；目标球队仅是引援语境。",
     ...(dataMode === "wyscout" ? ["Wyscout 数据仅为 2017/18 历史样本，不能代表现役球员池；报告说明 CC BY 4.0 来源。"] : []),
     ...(dataMode === "curated" ? ["当前 TactiScout 自建快照来自 Wyscout 2017/18 历史比赛数据，不能代表现役球员池；报告说明自建快照版本、历史赛事/赛季边界、CC BY 4.0 来源及缺失指标状态。"] : []),
@@ -393,7 +398,11 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
     });
   }
 
-  async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentAction> {
+  preflightContext(input: Parameters<RecruitmentPlanner["decide"]>[0]): RecruitmentContextManifest {
+    return this.prepareContext(input).contextRequest.manifest;
+  }
+
+  private prepareContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
     const candidateBatch = isConclusionBatch(input.caseProgress) ? input.caseProgress : undefined;
     const schema = input.decisionMode === "conclude" && input.constraints
       ? createConstrainedConclusionSchema(input.constraints, {
@@ -412,11 +421,6 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
     const isExpansion = input.decisionMode === "expand" || input.decisionMode === "expand_recovery";
     const isFinalReport = input.decisionMode === "conclude";
     const plannerCaseProgress = projectPlannerCaseProgress(input.decisionMode, input.caseProgress);
-    const actionModel = (isExpansion ? this.expansionModel : isFinalReport ? this.conclusionModel : this.investigationModel).withStructuredOutput(schema, {
-      name: "recruitment_action",
-      method: structuredOutputMethod(),
-      includeRaw: true,
-    });
     const contextPayload = {
       brief: "brief" in input ? input.brief : undefined,
       dataMode: input.dataMode,
@@ -439,8 +443,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       ...(plannerCaseProgress ? { caseProgress: plannerCaseProgress } : {}),
       history: structuredPlannerHistory(input.history),
     };
-    try {
-      const baseInstructions = input.decisionMode === "conclude"
+    const baseInstructions = input.decisionMode === "conclude"
         ? conclusionInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false, candidateBatch)
         : input.decisionMode === "expand" || input.decisionMode === "expand_recovery"
           ? expansionInstructions({
@@ -501,6 +504,17 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           }
         }
       }
+    return { candidateBatch, schema, isExpansion, isFinalReport, activeHistory, activePayload, contextRequest, contextOptions };
+  }
+
+  async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentAction> {
+    const { candidateBatch, schema, isExpansion, isFinalReport, activeHistory, activePayload, contextRequest, contextOptions } = this.prepareContext(input);
+    const actionModel = (isExpansion ? this.expansionModel : isFinalReport ? this.conclusionModel : this.investigationModel).withStructuredOutput(schema, {
+      name: "recruitment_action",
+      method: structuredOutputMethod(),
+      includeRaw: true,
+    });
+    try {
       if (contextRequest.manifest.exceedsVerifiedWindow
         && input.decisionMode === "conclude"
         && hasProjectedCandidateEvidence(activePayload.caseProgress)

@@ -42,6 +42,18 @@ export function operationLatencySamplesFromTrace(
   return samples;
 }
 
+export function createObservedPlanner(planner: RecruitmentPlanner, onRequestAttempt: () => void): RecruitmentPlanner {
+  return {
+    ...(planner.preflightContext ? {
+      preflightContext: input => planner.preflightContext!(input),
+    } : {}),
+    async decide(input) {
+      onRequestAttempt();
+      return planner.decide(input);
+    },
+  };
+}
+
 type HarnessErrorSummary = {
   name: string;
   category: "network_permission" | "endpoint_unreachable" | "timeout" | "http_error" | "schema_validation" | "tool_call_protocol" | "response_parse" | "structured_output" | "other";
@@ -281,12 +293,7 @@ export async function runScenarioOnce(
       experimentalContextManagementMode: options.contextManagementMode ?? "legacy",
       plannerFactory: () => {
         const modelPlanner = createRecruitmentPlanner();
-        const observedModelPlanner: RecruitmentPlanner = {
-          async decide(input) {
-            plannerRequestAttempts += 1;
-            return modelPlanner.decide(input);
-          },
-        };
+        const observedModelPlanner = createObservedPlanner(modelPlanner, () => { plannerRequestAttempts += 1; });
         return investigationPlanningMode === "single_pass"
           ? createSinglePassInvestigationPlanner(observedModelPlanner)
           : observedModelPlanner;

@@ -23,12 +23,16 @@ export function createContextCompactionNode(input: {
   observer?: RecruitmentTraceObserver;
 }) {
   return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
-    if (!contextManagementFeatures(input.mode).summaries || !input.generator) return {};
+    if (!contextManagementFeatures(input.mode).summaries || state.contextCompactionRequest === "none") return {};
     const userTurnCount = state.history.filter(entry => entry.role === "user").length;
     const throughUserTurnCount = Math.max(0, userTurnCount - 3);
     const verifiedSummary = state.caseSummary?.version === 2 ? state.caseSummary : null;
     const covered = Math.max(verifiedSummary?.coveredUserTurnCount ?? 0, state.caseSummaryAttemptedThrough);
-    if (userTurnCount < 12 || throughUserTurnCount <= covered) return {};
+    const activateProjection = {
+      contextCompactionRequest: "none" as const,
+      contextProjectionThroughUserTurnCount: userTurnCount,
+    };
+    if (state.contextCompactionRequest !== "summarize" || throughUserTurnCount <= covered) return activateProjection;
     const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "unscoped";
     const events = caseSummaryEvents(state.history, {
       caseId,
@@ -36,9 +40,12 @@ export function createContextCompactionNode(input: {
       throughUserTurnCount,
     });
     const estimatedInputTokens = estimateRecruitmentInputTokens(JSON.stringify({ events }));
-    // Summaries add a model call; only use them when older user dialogue is a
-    // material share of the request. Candidate facts and evidence are excluded.
-    if (estimatedInputTokens < 2_048 || !events.length) return {};
+    // The assembled Planner request already exceeded its soft target. Avoid a
+    // second model call when old dialogue is too small to summarize usefully;
+    // projection still drops stale history while canonical events stay intact.
+    if (estimatedInputTokens < 2_048 || !events.length || !input.generator) {
+      return { ...activateProjection, caseSummaryAttemptedThrough: throughUserTurnCount };
+    }
 
     emitProgress(config, {
       stage: "context_compaction",
@@ -67,6 +74,7 @@ export function createContextCompactionNode(input: {
         completedSteps: state.decisionSteps,
       });
       return {
+        ...activateProjection,
         caseSummary: {
           version: 2,
           text: renderCaseSummaryClaims(claims),
@@ -84,7 +92,7 @@ export function createContextCompactionNode(input: {
         message: "较早对话摘要未能生成，继续按当前需求和已保留记录调查",
         completedSteps: state.decisionSteps,
       });
-      return { caseSummaryAttemptedThrough: throughUserTurnCount };
+      return { ...activateProjection, caseSummaryAttemptedThrough: throughUserTurnCount };
     }
   };
 }

@@ -244,20 +244,32 @@ export function selectTransmittedHistoryEventIds(input: {
  */
 export function projectRecruitmentHistory(
   history: readonly ConversationHistoryEntry[],
-  options: { caseId?: string; recentUserTurns?: number; protectedQuotes?: readonly string[]; preserveAllTools?: boolean } = {},
+  options: {
+    caseId?: string;
+    recentUserTurns?: number;
+    protectedQuotes?: readonly string[];
+    preserveAllTools?: boolean;
+    coveredUserTurnsThrough?: number;
+    userTurnOffset?: number;
+  } = {},
 ): ProjectedRecruitmentHistory {
   const userIndices = history.flatMap((entry, index) => entry.role === "user" ? [index] : []);
   const caseKey = fingerprint(options.caseId ?? "unscoped");
   const eventIdByIndex = new Map<number, string>();
   const userIdByIndex = new Map<number, string>();
-  let userNumber = 0;
+  let userNumber = Math.max(0, Math.floor(options.userTurnOffset ?? 0));
+  const userTurnByIndex = new Map<number, number>();
   const questionCountByUser = new Map<number, number>();
-  let latestUserNumber = 0;
+  let latestUserNumber = userNumber;
   history.forEach((entry, index) => {
     if (entry.role === "user") {
-      userNumber += 1;
-      latestUserNumber = userNumber;
-      const eventId = `evt.${caseKey}.user.${userNumber}`;
+      const existingEvent = entry.eventId?.match(new RegExp(`^evt\\.${caseKey}\\.user\\.(\\d+)$`));
+      const existingTurn = existingEvent ? Number(existingEvent[1]) : undefined;
+      const turnNumber = existingTurn === undefined ? userNumber + 1 : existingTurn;
+      userNumber = Math.max(userNumber, turnNumber);
+      latestUserNumber = turnNumber;
+      userTurnByIndex.set(index, turnNumber);
+      const eventId = existingTurn === undefined ? `evt.${caseKey}.user.${turnNumber}` : entry.eventId!;
       eventIdByIndex.set(index, eventId);
       userIdByIndex.set(index, eventId);
       return;
@@ -266,12 +278,18 @@ export function projectRecruitmentHistory(
     const parentNumber = latestUserNumber;
     const questionNumber = (questionCountByUser.get(parentNumber) ?? 0) + 1;
     questionCountByUser.set(parentNumber, questionNumber);
-    eventIdByIndex.set(index, `evt.${caseKey}.question.${parentNumber}.${questionNumber}`);
+    const eventId = entry.eventId?.match(new RegExp(`^evt\\.${caseKey}\\.question\\.\\d+\\.\\d+$`))
+      ? entry.eventId
+      : `evt.${caseKey}.question.${parentNumber}.${questionNumber}`;
+    eventIdByIndex.set(index, eventId);
   });
   const protectedQuotes = [...new Set((options.protectedQuotes ?? []).filter(quote => quote.trim().length > 0))];
   const keep = new Set<number>();
   const recentTurns = Math.max(1, Math.floor(options.recentUserTurns ?? 3));
-  const recentIndices = new Set(userIndices.slice(-recentTurns));
+  const coveredUserTurnsThrough = Math.max(0, Math.floor(options.coveredUserTurnsThrough ?? 0));
+  const recentIndices = new Set(userIndices
+    .filter(index => (userTurnByIndex.get(index) ?? 0) > coveredUserTurnsThrough)
+    .slice(-recentTurns));
   for (const index of recentIndices) keep.add(index);
 
   const userEventIds: string[] = [];

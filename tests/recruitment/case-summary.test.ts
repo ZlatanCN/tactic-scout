@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { caseSummaryEvents, caseSummaryHistoryEntry, createCaseSummaryGenerator, validateCaseSummaryOutput, type CaseSummaryEvent } from "../../src/recruitment/case-summary.js";
 import { createRecruitmentConversation, type RecruitmentAction, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
+import { buildRecruitmentContext } from "../../src/recruitment/context.js";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
 
@@ -194,6 +195,7 @@ test("the full LangGraph retains the authoritative case while summarized mode re
     },
   };
   const plannerCalls: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];
+  let preflightCalls = 0;
   const finish = (): RecruitmentAction => ({
     action: "finish", targetTeam: null, needSummary: "按当前需求完成调查", capabilityProfile: [],
     recommendations: [{ playerId: candidate.playerId, evidenceKeys: ["tacklesInterceptions"] }], limitationKeys: [],
@@ -209,7 +211,24 @@ test("the full LangGraph retains the authoritative case while summarized mode re
         return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
       },
     },
-    planner: { async decide(input) { plannerCalls.push(input); return finish(); } },
+    planner: Object.assign({
+      async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]) { plannerCalls.push(input); return finish(); },
+    }, {
+      preflightContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        preflightCalls += 1;
+        const isShortFollowup = input.history.some(entry => entry.role === "user" && entry.content === "继续按已经确认的范围完成调查。");
+        return buildRecruitmentContext({
+          stage: input.decisionMode ?? "investigate",
+          systemInstructions: "固定规划规则",
+          payload: { history: input.history },
+          responseSchema: { type: "object" },
+          outputBudgetTokens: 1_024,
+          contextWindowTokens: isShortFollowup ? 32_768 : 16_384,
+          softInputBudgetTokens: isShortFollowup ? 16_384 : 512,
+          safetyMarginTokens: 256,
+        }).manifest;
+      },
+    }),
     experimentalDeterministicSearchMode: "enabled",
     experimentalRetrievalMode: "on_demand",
     experimentalContextManagementMode: "summarized",
@@ -217,15 +236,25 @@ test("the full LangGraph retains the authoritative case while summarized mode re
     knowledgeBase: { async search() { return []; } },
   });
 
-  let response = await conversation.turn({ threadId: "context-summary-flow", message: "为巴萨找一名中卫" });
+  let response = await conversation.turn({ threadId: "context-summary-flow", message: `为巴萨找一名中卫。背景：${"这是一段较早的案件背景。".repeat(500)}` });
   assert.equal(response.status, "completed", response.message);
-  const longScopeReminder = "继续当前调查。保留已经确认的球队、位置和能力条件，不增加也不删除任何筛选项；继续沿用目前案件和已查看的候选，结论中说明仍然缺少哪些证据。".repeat(8);
-  for (let turn = 0; turn < 11; turn += 1) {
-    response = await conversation.turn({ threadId: "context-summary-flow", message: longScopeReminder, expectsExistingState: true });
+  const longScopeReminder = (turn: number) => `turn-${turn}：继续当前调查。保留已经确认的球队、位置和能力条件，不增加也不删除任何筛选项；继续沿用目前案件和已查看的候选，结论中说明仍然缺少哪些证据。`.repeat(8);
+  for (let turn = 0; turn < 6; turn += 1) {
+    response = await conversation.turn({ threadId: "context-summary-flow", message: longScopeReminder(turn + 2), expectsExistingState: true });
     assert.equal(response.status, "completed", `turn ${turn + 2}: ${response.message}`);
   }
+  const summaryCallCountBeforeFollowup = fakeSummaryGenerator.calls.length;
+  response = await conversation.turn({
+    threadId: "context-summary-flow",
+    message: "继续按已经确认的范围完成调查。",
+    expectsExistingState: true,
+  });
+  assert.equal(response.status, "completed", `after summary: ${response.message}`);
+  assert.equal(fakeSummaryGenerator.calls.length, summaryCallCountBeforeFollowup,
+    "a short follow-up under budget must reuse the existing summary instead of generating another one");
 
-  assert.ok(fakeSummaryGenerator.calls.length > 0, "the summary gate should run after sufficient old dialogue accumulates");
+  assert.ok(preflightCalls > 1, "a new user turn must be preflighted again after an earlier projection");
+  assert.ok(fakeSummaryGenerator.calls.length > 1, "later dialogue that ages out of the recent window must be added to the versioned summary");
   const summaryPlannerCall = plannerCalls.find(call => call.history.some(entry => entry.role === "tool" && entry.toolName === "case_summary"));
   assert.ok(summaryPlannerCall, "the Planner should receive the verified navigation summary");
   const summaryEntry = summaryPlannerCall.history.find(entry => entry.role === "tool" && entry.toolName === "case_summary")!;
@@ -233,6 +262,202 @@ test("the full LangGraph retains the authoritative case while summarized mode re
   assert.ok(summaryPayload.claimEventIds.length > 0);
   assert.ok(summaryPayload.claimEventIds.every(id => !summaryPlannerCall.omittedHistoryEventIds?.includes(id)),
     "events represented by verified excerpts are not reported as omitted from the request");
+  const latestPlannerSummary = plannerCalls.at(-1)?.history.find(entry => entry.role === "tool" && entry.toolName === "case_summary");
+  assert.ok(latestPlannerSummary && JSON.parse(latestPlannerSummary.content).summary.includes("turn-4"),
+    "the latest summary must cover new user turns that have aged out of the recent window");
+  assert.ok(plannerCalls.at(-1)?.history.some(entry => entry.role === "user" && entry.content === "继续按已经确认的范围完成调查。"),
+    "a new turn must remain present beside the prior validated summary");
+  assert.equal(plannerCalls.at(-1)?.history.some(entry => entry.role === "user" && entry.content.startsWith("为巴萨找一名中卫。背景：")), false,
+    "a validated summary must replace only the covered old user turn on a later under-budget turn");
   assert.equal(response.brief?.positions[0], "CB");
   assert.ok(response.report?.recommendations.some(item => item.player.playerId === candidate.playerId));
+});
+
+test("summarized mode does not call the summary model for many short turns that remain under budget", async () => {
+  const candidate = roleConstraintPlayer("context-short-turn-candidate", "Context Short Turn Candidate", "CB");
+  const brief: RecruitmentBrief = {
+    task: "reinforcement", targetTeam: null, referencePlayer: null, referenceClues: [], referenceRecheck: null,
+    selectedCandidateId: null, positions: ["CB"], allowsAnyPosition: false,
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [], constraints: [], unresolved: [],
+  };
+  const summaryCalls: CaseSummaryEvent[][] = [];
+  let preflightCalls = 0;
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      return validateRecruitmentBrief(brief, input.validationMessages ?? [...input.recentMessages, input.message]);
+    } },
+    repository: {
+      mode: "demo", sourceName: "Fixture",
+      async loadPlayers() { return [candidate]; },
+      async searchCandidates(query) {
+        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    planner: Object.assign({
+      async decide() {
+        return { action: "finish", targetTeam: null, needSummary: "按当前需求完成调查", capabilityProfile: [], recommendations: [], limitationKeys: [] } as RecruitmentAction;
+      },
+    }, {
+      preflightContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        preflightCalls += 1;
+        return buildRecruitmentContext({
+          stage: input.decisionMode ?? "investigate",
+          systemInstructions: "固定规划规则",
+          payload: { history: input.history },
+          responseSchema: { type: "object" },
+          outputBudgetTokens: 1_024,
+          contextWindowTokens: 16_384,
+          softInputBudgetTokens: 8_192,
+          safetyMarginTokens: 256,
+        }).manifest;
+      },
+    }),
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    experimentalContextManagementMode: "summarized",
+    caseSummaryGenerator: {
+      async summarize(input) {
+        summaryCalls.push([...input.events]);
+        return { text: "", claims: [], coveredEventIds: input.events.map(event => event.id) };
+      },
+    },
+    knowledgeBase: { async search() { return []; } },
+  });
+
+  let response = await conversation.turn({ threadId: "context-short-turn-flow", message: "为巴萨找一名中卫" });
+  assert.equal(response.status, "completed", response.message);
+  for (let turn = 0; turn < 11; turn += 1) {
+    response = await conversation.turn({ threadId: "context-short-turn-flow", message: "继续当前调查", expectsExistingState: true });
+    assert.equal(response.status, "completed", `turn ${turn + 2}: ${response.message}`);
+  }
+
+  assert.ok(preflightCalls > 0);
+  assert.equal(summaryCalls.length, 0, "turn count alone must not trigger summarization when the assembled request stays under budget");
+});
+
+test("summarized mode projects old history without a summary call when projection alone meets the budget", async () => {
+  const candidate = roleConstraintPlayer("context-projection-only-candidate", "Context Projection Only Candidate", "CB");
+  const brief: RecruitmentBrief = {
+    task: "reinforcement", targetTeam: null, referencePlayer: null, referenceClues: [], referenceRecheck: null,
+    selectedCandidateId: null, positions: ["CB"], allowsAnyPosition: false,
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [], constraints: [], unresolved: [],
+  };
+  const plannerCalls: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];
+  let summaryCalls = 0;
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      return validateRecruitmentBrief(brief, input.validationMessages ?? [...input.recentMessages, input.message]);
+    } },
+    repository: {
+      mode: "demo", sourceName: "Fixture",
+      async loadPlayers() { return [candidate]; },
+      async searchCandidates(query) {
+        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    planner: Object.assign({
+      async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        plannerCalls.push(input);
+        return { action: "finish", targetTeam: null, needSummary: "按当前需求完成调查", capabilityProfile: [], recommendations: [], limitationKeys: [] } as RecruitmentAction;
+      },
+    }, {
+      preflightContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        return buildRecruitmentContext({
+          stage: input.decisionMode ?? "investigate",
+          systemInstructions: "固定规划规则",
+          payload: { history: input.history },
+          responseSchema: { type: "object" },
+          outputBudgetTokens: 1_024,
+          contextWindowTokens: 16_384,
+          softInputBudgetTokens: 2_048,
+          safetyMarginTokens: 256,
+        }).manifest;
+      },
+    }),
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    experimentalContextManagementMode: "summarized",
+    caseSummaryGenerator: { async summarize() { summaryCalls += 1; return { text: "", claims: [], coveredEventIds: [] }; } },
+    knowledgeBase: { async search() { return []; } },
+  });
+
+  let response = await conversation.turn({
+    threadId: "context-projection-only-flow",
+    message: `为巴萨找一名中卫。旧背景：${"这是一段较早但不再需要逐字携带的案件背景。".repeat(180)}`,
+  });
+  assert.equal(response.status, "completed", response.message);
+  for (let turn = 0; turn < 3; turn += 1) {
+    response = await conversation.turn({ threadId: "context-projection-only-flow", message: "继续", expectsExistingState: true });
+    assert.equal(response.status, "completed", `turn ${turn + 2}: ${response.message}`);
+  }
+
+  assert.equal(summaryCalls, 0, "projection should be applied before paying for a summary model call");
+  assert.ok(plannerCalls.at(-1)?.history.every(entry => !entry.content.includes("旧背景")));
+});
+
+test("a failed budget-triggered summary falls back to projected history without repeating the compaction loop", async () => {
+  const candidate = roleConstraintPlayer("context-summary-fallback-candidate", "Context Summary Fallback Candidate", "CB");
+  const brief: RecruitmentBrief = {
+    task: "reinforcement", targetTeam: null, referencePlayer: null, referenceClues: [], referenceRecheck: null,
+    selectedCandidateId: null, positions: ["CB"], allowsAnyPosition: false,
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [], constraints: [], unresolved: [],
+  };
+  const plannerCalls: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];
+  const trace: unknown[] = [];
+  let summaryCalls = 0;
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      return validateRecruitmentBrief(brief, input.validationMessages ?? [...input.recentMessages, input.message]);
+    } },
+    repository: {
+      mode: "demo", sourceName: "Fixture",
+      async loadPlayers() { return [candidate]; },
+      async searchCandidates(query) {
+        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    planner: Object.assign({
+      async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        plannerCalls.push(input);
+        return { action: "finish", targetTeam: null, needSummary: "按当前需求完成调查", capabilityProfile: [], recommendations: [], limitationKeys: [] } as RecruitmentAction;
+      },
+    }, {
+      preflightContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        return buildRecruitmentContext({
+          stage: input.decisionMode ?? "investigate",
+          systemInstructions: "固定规划规则",
+          payload: { history: input.history },
+          responseSchema: { type: "object" },
+          outputBudgetTokens: 1_024,
+          contextWindowTokens: 16_384,
+          softInputBudgetTokens: 512,
+          safetyMarginTokens: 256,
+        }).manifest;
+      },
+    }),
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    experimentalContextManagementMode: "summarized",
+    caseSummaryGenerator: { async summarize() { summaryCalls += 1; throw new Error("fixture summary failure"); } },
+    observer: event => { trace.push(event); },
+    knowledgeBase: { async search() { return []; } },
+  });
+
+  let response = await conversation.turn({
+    threadId: "context-summary-fallback-flow",
+    message: `为巴萨找一名中卫。早期背景：${"这是一段需要保留在案件档案中的旧对话。".repeat(160)}`,
+  });
+  assert.equal(response.status, "completed", response.message);
+  for (let turn = 0; turn < 3; turn += 1) {
+    response = await conversation.turn({ threadId: "context-summary-fallback-flow", message: "继续当前调查", expectsExistingState: true });
+    assert.equal(response.status, "completed", `turn ${turn + 2}: ${response.message}`);
+  }
+
+  assert.equal(summaryCalls, 1);
+  assert.ok(trace.some(event => typeof event === "object" && event !== null && "phase" in event && event.phase === "summary_failure"));
+  assert.ok(plannerCalls.at(-1)?.history.every(entry => !entry.content.includes("早期背景")),
+    "after summary failure, the same planner request retries with bounded history while the full case remains checkpointed");
 });

@@ -10,6 +10,9 @@ export interface CaseEvidenceDirectoryEntry {
   kind: CaseEvidenceKind;
   title: string;
   playerId?: string;
+  chunkId?: string;
+  documentId?: string;
+  entityNames?: string[];
   availableFields: CaseEvidenceField[];
   contentCharacters: number;
   source?: string;
@@ -85,7 +88,20 @@ export function createCaseEvidenceIndex(input: {
       displayAllowed: document.displayAllowed,
       ...(document.matchedCapabilityGaps ? { matchedCapabilityGaps: document.matchedCapabilityGaps } : {}),
     };
-    entries.push(makeEntry({ caseKey, scopeKey, resourceKey: `${kind}:${document.id}`, kind, title: document.title, source: document.sourceName, timeRange: [document.competition, document.season].filter(Boolean).join(" · ") || undefined, body: document.text, metadata }));
+    entries.push(makeEntry({
+      caseKey,
+      scopeKey,
+      resourceKey: `${kind}:${document.id}`,
+      kind,
+      title: document.title,
+      chunkId: document.id,
+      documentId: document.documentId,
+      entityNames: document.entityNames,
+      source: document.sourceName,
+      timeRange: [document.competition, document.season].filter(Boolean).join(" · ") || undefined,
+      body: document.text,
+      metadata,
+    }));
   }
   const byRef = new Map(entries.map(entry => [entry.ref, entry]));
   return {
@@ -160,6 +176,9 @@ function makeEntry(input: {
   kind: CaseEvidenceKind;
   title: string;
   playerId?: string;
+  chunkId?: string;
+  documentId?: string;
+  entityNames?: string[];
   source?: string;
   timeRange?: string;
   body: string;
@@ -172,6 +191,9 @@ function makeEntry(input: {
     kind: input.kind,
     title: input.title,
     ...(input.playerId ? { playerId: input.playerId } : {}),
+    ...(input.chunkId ? { chunkId: input.chunkId } : {}),
+    ...(input.documentId ? { documentId: input.documentId } : {}),
+    ...(input.entityNames ? { entityNames: input.entityNames } : {}),
     availableFields: ["metadata", "body"],
     contentCharacters: input.body.length,
     ...(input.source ? { source: input.source } : {}),

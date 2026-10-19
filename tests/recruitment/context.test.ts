@@ -167,6 +167,48 @@ test("projected history uses stable case-scoped event IDs and binds protected qu
   assert.ok(first.manifest.omittedEventIds.length > 0);
 });
 
+test("a verified summary can replace covered turns while later projections keep absolute turn IDs", () => {
+  const caseId = "summary-coverage-case";
+  const original = [
+    { role: "user" as const, content: "受保护的早期原话" },
+    { role: "assistant" as const, content: JSON.stringify({ action: "ask_user", question: "早期问题？" }) },
+    { role: "user" as const, content: "已被摘要覆盖的回答" },
+    { role: "user" as const, content: "已被摘要覆盖的更正" },
+    { role: "user" as const, content: "尚未摘要的第四轮" },
+    { role: "user" as const, content: "尚未摘要的第五轮" },
+  ];
+  const afterSummary = projectRecruitmentHistory(original, {
+    caseId,
+    recentUserTurns: Number.MAX_SAFE_INTEGER,
+    coveredUserTurnsThrough: 3,
+    protectedQuotes: ["受保护的早期原话"],
+    preserveAllTools: true,
+  });
+  const caseKey = afterSummary.entries.find(entry => entry.role === "user" && entry.content === "尚未摘要的第四轮")?.eventId?.split(".")[1];
+  assert.deepEqual(afterSummary.entries.filter(entry => entry.role === "user").map(entry => entry.content), [
+    "受保护的早期原话", "尚未摘要的第四轮", "尚未摘要的第五轮",
+  ]);
+  assert.equal(afterSummary.entries.find(entry => entry.content === "受保护的早期原话")?.eventId, `evt.${caseKey}.user.1`);
+  assert.ok(afterSummary.manifest.omittedEventIds.includes(`evt.${caseKey}.user.2`));
+  assert.ok(afterSummary.manifest.omittedEventIds.includes(`evt.${caseKey}.user.3`));
+  assert.equal(afterSummary.manifest.protectedQuoteReferences[0]?.eventId, `evt.${caseKey}.user.1`);
+
+  const nextProjection = projectRecruitmentHistory([
+    ...afterSummary.entries,
+    { role: "user" as const, content: "未摘要的第六轮" },
+  ], {
+    caseId,
+    recentUserTurns: 3,
+    coveredUserTurnsThrough: 3,
+    userTurnOffset: 3,
+    protectedQuotes: ["受保护的早期原话"],
+  });
+  assert.deepEqual(nextProjection.entries.filter(entry => entry.role === "user").map(entry => entry.eventId), [
+    `evt.${caseKey}.user.1`, `evt.${caseKey}.user.4`, `evt.${caseKey}.user.5`, `evt.${caseKey}.user.6`,
+  ]);
+  assert.deepEqual(nextProjection.manifest.protectedQuoteReferences.map(reference => reference.eventId), [`evt.${caseKey}.user.1`]);
+});
+
 test("recent dialogue excludes old quote-protected turns while keeping questions attached to recent answers", () => {
   const history = projectRecruitmentHistory([
     { role: "user", content: "早期原话" },

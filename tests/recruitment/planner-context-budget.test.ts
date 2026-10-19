@@ -78,6 +78,85 @@ test("Planner applies a safe conclusion-history fallback before sending an over-
   }
 });
 
+test("Planner preflight uses the exact context manifest that decide later sends without invoking the model", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = [
+    "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS",
+    "OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS", "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS",
+    "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS",
+  ] as const;
+  const previousEnvironment = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  let requestCount = 0;
+  let observedManifest: Record<string, unknown> | undefined;
+  process.env.OPENAI_API_KEY = "fixture-key";
+  process.env.OPENAI_MODEL = "fixture";
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "1024";
+  process.env.OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = "512";
+  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "16384";
+  process.env.TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS = "2048";
+  process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "256";
+  globalThis.fetch = (async () => {
+    requestCount += 1;
+    return Response.json({
+      id: "fixture", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({
+        action: "finish", targetTeam: "Bayern", needSummary: "已完成比较。", capabilityProfile: [],
+        recommendations: [{ playerId: "candidate-a", evidenceKeys: ["goals"] }], limitationKeys: [], reportObservations: [],
+      }) } }],
+      usage: { prompt_tokens: 500, completion_tokens: 30, total_tokens: 530 },
+    });
+  }) as typeof fetch;
+
+  try {
+    const planner = createRecruitmentPlanner();
+    const input = {
+      history: [
+        ...Array.from({ length: 8 }, (_, index) => ({ role: "user" as const, content: `旧用户消息 ${index}：${"历史对话内容".repeat(100)}` })),
+        { role: "tool" as const, toolName: "search_candidates", content: "REPLAYABLE_ROSTER_LOG ".repeat(500) },
+        { role: "tool" as const, toolName: "evaluate_candidates", content: "REPLAYABLE_EVALUATION_LOG ".repeat(500) },
+        { role: "assistant" as const, content: JSON.stringify({ action: "ask_user", question: "是否限制年龄？" }) },
+        { role: "user" as const, content: "不设年龄限制，继续比较" },
+      ],
+      dataMode: "demo" as const,
+      dataSource: "Fixture",
+      targetTeam: "Bayern",
+      decisionMode: "conclude" as const,
+      confirmedPosition: "ATT" as const,
+      constraints: {
+        targetTeam: "Bayern",
+        evaluatedCandidates: [{ playerId: "candidate-a", evidenceKeys: ["goals" as const] }],
+        reportObservations: [],
+        requestedCapabilityCoverage: [{ name: "进球", requestedMetricKeys: ["goals" as const], observedMetricKeys: ["goals" as const], evaluatedCandidateCount: 1, candidatesWithEvidenceCount: 1, status: "observed" as const }],
+      },
+      caseProgress: {
+        candidateEvidence: { candidateCount: 1, candidates: [{ playerId: "candidate-a", metrics: [{ key: "goals", value: 0.8 }] }] },
+        omittedHistoryEntries: 0,
+      },
+    };
+
+    assert.ok(planner.preflightContext);
+    const preflight = await planner.preflightContext(input);
+    assert.equal(requestCount, 0, "preflight must not invoke the model");
+    assert.equal(preflight.budgetStrategy, "conclusion_history_reduced", "preflight should include the same conclusion history fallback as decide()");
+    await planner.decide({ ...input, onTokenUsage: usage => { observedManifest = usage.contextManifest as unknown as Record<string, unknown>; } });
+
+    assert.equal(requestCount, 1);
+    assert.equal(observedManifest?.requestFingerprint, preflight.requestFingerprint);
+    assert.equal(observedManifest?.payloadFingerprint, preflight.payloadFingerprint);
+    assert.equal(observedManifest?.schemaFingerprint, preflight.schemaFingerprint);
+    assert.equal(observedManifest?.estimatedInputTokens, preflight.estimatedInputTokens);
+    assert.equal(observedManifest?.budgetStrategy, preflight.budgetStrategy);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      if (previousEnvironment[key] === undefined) delete process.env[key];
+      else process.env[key] = previousEnvironment[key];
+    }
+  }
+});
+
 test("an oversized conclusion compares every candidate in balanced bounded batches", async () => {
   const originalFetch = globalThis.fetch;
   const keys = [

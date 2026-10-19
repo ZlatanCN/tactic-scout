@@ -8,6 +8,9 @@ const fixedMethodologyQuery = "足球球员场上职责与比赛表现指标的�
  */
 export function createSinglePassInvestigationPlanner(conclusionPlanner: RecruitmentPlanner): RecruitmentPlanner {
   return {
+    ...(conclusionPlanner.preflightContext ? {
+      preflightContext: (input) => conclusionPlanner.preflightContext!(input),
+    } : {}),
     async decide(input) {
       if (input.decisionMode === "investigate") {
         const completedTools = new Set(input.history
