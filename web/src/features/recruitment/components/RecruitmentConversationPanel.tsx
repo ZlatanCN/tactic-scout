@@ -96,7 +96,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
     sendMessage();
   }
 
-  return <Card className="gap-0 overflow-hidden rounded-2xl border-border/80 bg-card py-0 shadow-[0_10px_32px_-26px_rgba(24,68,45,0.35)]" aria-label="球探对话">
+  return <Card className="gap-0 overflow-hidden rounded-2xl border-border/80 bg-card py-0 shadow-[0_20px_60px_-46px_rgba(0,0,0,0.88)]" aria-label="球探对话">
     {!view.isFreshCase && <CardHeader className="flex grid-cols-1 items-center gap-3 border-b px-4 py-3 sm:flex-row sm:justify-between sm:px-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary text-primary"><Radar className="size-4" aria-hidden="true" /></span>
@@ -123,12 +123,12 @@ export function RecruitmentConversationPanel({ view, actions }: {
             const user = message.role === "user";
             return <article className={`flex gap-2.5 ${user ? "justify-end" : "justify-start"}`} key={message.id}>
               {!user && <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-secondary text-primary" aria-label="TactiScout"><Radar className="size-3.5" aria-hidden="true" /></span>}
-              <div className={`min-w-0 max-w-[92%] space-y-2 rounded-xl px-3.5 py-3 text-sm leading-6 sm:max-w-[88%] ${user ? "rounded-br-sm bg-secondary text-foreground" : "rounded-tl-sm border border-border/80 bg-card text-foreground shadow-[0_1px_2px_rgba(23,58,41,0.04)]"}`}>
+              <div className={`min-w-0 max-w-[92%] space-y-2 rounded-xl px-3.5 py-3 text-sm leading-6 sm:max-w-[88%] ${user ? "rounded-br-sm bg-secondary text-secondary-foreground" : "rounded-tl-sm border border-border/80 bg-background text-foreground"}`}>
                 <p className="m-0 break-words">{message.content}</p>
                 {message.retryMessage && message.id === view.messages.at(-1)?.id && <Button type="button" variant="outline" className="min-h-10" disabled={view.turnUnresolved} onClick={() => sendMessage(message.retryMessage)}>重试这次需求</Button>}
                 {message.teamContext && <Badge variant="outline" className="max-w-full whitespace-normal">目标球队：{message.teamContext}</Badge>}
                 {message.questionReason && <div className="space-y-1 border-l-2 border-primary/30 pl-3 text-xs leading-5 text-muted-foreground"><strong className="block font-medium text-foreground">为什么需要确认</strong><span>{message.questionReason}</span></div>}
-                {message.progressNotice && <p className="m-0 text-xs leading-5 text-amber-900">{message.progressNotice}</p>}
+                {message.progressNotice && <p className="m-0 text-xs leading-5 text-warning">{message.progressNotice}</p>}
                 {message.progressEvents && message.progressEvents.length > 0 && <details className="group border-t pt-2">
                   <summary className="cursor-pointer list-inside text-xs font-medium text-muted-foreground">查看本轮进度 · {progressStepCountLabel(message.progressEvents)}</summary>
                   <div className="mt-3"><ProgressTimeline events={message.progressEvents} active={false} label="本轮已执行的调查阶段" /></div>
@@ -137,7 +137,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
             </article>;
           })}
           {(view.loading || view.pendingTurnRequest?.outcomeUnknown) && view.pendingTurnRequest && <article className="flex justify-end" aria-label="本轮已提交的需求">
-            <div className="max-w-[92%] space-y-2 rounded-xl rounded-br-sm bg-secondary px-3.5 py-3 text-sm leading-6 sm:max-w-[88%]">
+            <div className="max-w-[92%] space-y-2 rounded-xl rounded-br-sm bg-secondary px-3.5 py-3 text-sm leading-6 text-secondary-foreground sm:max-w-[88%]">
               <p className="m-0 break-words">{view.pendingTurnRequest.displayText}</p>
               {view.pendingTurnRequest.displayTeamContext && <Badge variant="outline">目标球队：{view.pendingTurnRequest.displayTeamContext}</Badge>}
               <p className="m-0 text-xs text-muted-foreground">{view.pendingTurnRequest.outcomeUnknown ? "连接中断，等待恢复本轮结果" : view.pendingTurnRequest.isReanalysis ? "正在重新调查；最近报告仍保留" : "球探正在调查"}</p>
@@ -164,7 +164,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
           onCancel={() => { shouldFollowConversationRef.current = true; actions.onCancelTurn(); }}
           onResumeReanalysis={() => sendMessage("重新分析招募需求", "reanalysis")}
         />}
-        {view.waitingForAnswer && !positionQuestion && !view.loading && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">补充信息后，球探会在同一项引援调查中继续。</p>}
+        {view.waitingForAnswer && !positionQuestion && !view.loading && <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">补充信息后，球探会在同一项引援调查中继续。</p>}
       </div>}
 
       {!!confirmedPositions?.length && !view.waitingForAnswer && !editingQuestion && <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-4 sm:px-6"><p className="m-0 text-sm">已选：{positionSelectionLabel(confirmedPositions)}</p><Button variant="outline" size="sm" disabled={view.turnUnresolved} onClick={() => setEditingQuestion({ kind: "positions", questionId: crypto.randomUUID(), highlightedPositions: confirmedPositions, selectedPositions: confirmedPositions })}>修改位置</Button></div>}
@@ -179,7 +179,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
             <label className="text-sm font-semibold" htmlFor="message-composer">{view.isFreshCase ? "描述你的引援目标" : view.waitingForAnswer ? "补充信息" : "继续这项调查"}</label>
             {view.isFreshCase && <span className="text-xs text-muted-foreground">球队、位置和能力都可以直接写在这里</span>}
           </div>
-          <Textarea ref={composerRef} id="message-composer" rows={3} className={`resize-y bg-card text-base leading-7 placeholder:text-muted-foreground ${view.isFreshCase ? "min-h-36" : "min-h-28"}`} value={view.draft} onChange={(event) => actions.onDraftChange(event.target.value)} onKeyDown={(event) => {
+          <Textarea ref={composerRef} id="message-composer" rows={3} className={`resize-y rounded-xl border-input bg-background text-base leading-7 placeholder:text-muted-foreground focus-visible:border-primary ${view.isFreshCase ? "min-h-36" : "min-h-28"}`} value={view.draft} onChange={(event) => actions.onDraftChange(event.target.value)} onKeyDown={(event) => {
           const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
           if (event.key === "Enter" && !event.shiftKey && !isComposing) { event.preventDefault(); sendMessage(); }
           }} placeholder={view.waitingForAnswer ? "回答这个问题，或补充你希望优先考虑的方向…" : "例如：为拜仁找凯恩的替代者，优先看接应、做球和射门终结。"} disabled={view.turnUnresolved} />
@@ -200,7 +200,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
         {view.notice && <p className="m-0 text-sm text-primary" role="status">{view.notice}</p>}
         <p className="m-0 text-xs leading-5 text-muted-foreground">{view.isFreshCase ? "调查会依据可获取的球员表现；缺失的信息会标明，必要时再向你确认。" : view.turnUnresolved ? "调查结束后，可以保存计划并继续讨论。" : `已进行 ${view.userCount} 轮对话，可将对话与报告保存为计划。`}</p>
       </form>}
-      {view.isFreshCase && <section className="border-t border-border/80 px-5 pb-6 pt-5 sm:px-7" aria-label="试试这样描述"><h2 className="mb-3 mt-0 text-xs font-medium text-muted-foreground">从一个具体问题开始</h2><div className="space-y-2">{suggestedBriefs.map((brief) => <button type="button" key={brief} onClick={() => { actions.onDraftChange(brief); composerRef.current?.focus(); }} className="flex min-h-12 w-full items-start justify-between gap-4 rounded-xl border border-border/80 bg-background px-3.5 py-3 text-left text-sm leading-6 text-foreground transition-colors hover:border-primary/30 hover:bg-secondary/50 focus-visible:ring-2 focus-visible:ring-ring"><span>{brief}</span><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></button>)}</div></section>}
+      {view.isFreshCase && <section className="border-t border-border/80 px-5 pb-6 pt-5 sm:px-7" aria-label="试试这样描述"><h2 className="mb-3 mt-0 text-xs font-medium text-muted-foreground">从一个具体问题开始</h2><div className="space-y-2">{suggestedBriefs.map((brief) => <button type="button" key={brief} onClick={() => { actions.onDraftChange(brief); composerRef.current?.focus(); }} className="flex min-h-12 w-full items-start justify-between gap-4 rounded-xl border border-border/80 bg-background px-3.5 py-3 text-left text-sm leading-6 text-foreground transition-colors duration-150 hover:border-primary/40 hover:bg-secondary/70 focus-visible:ring-2 focus-visible:ring-ring"><span>{brief}</span><ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" /></button>)}</div></section>}
 
     </CardContent>
   </Card>;

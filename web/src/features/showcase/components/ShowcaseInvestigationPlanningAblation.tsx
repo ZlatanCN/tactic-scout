@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 const cases = [
   {
     number: "01",
-    label: "CLEAR REQUEST · NO CLARIFICATION",
+    label: "需求明确 · 无需补充",
     title: "巴萨 U23 中场",
     checks: "31/31",
     runs: "3/3",
@@ -18,7 +18,7 @@ const cases = [
   },
   {
     number: "02",
-    label: "TWO CLARIFICATIONS · SAME CASE RESUMED",
+    label: "两次补充 · 同案恢复",
     title: "拜仁中锋替代者",
     checks: "29/29",
     runs: "3/3",
@@ -38,12 +38,12 @@ export function ShowcaseInvestigationPlanningAblation() {
   return <section className={showcaseClasses("showcase-planning-ablation")} aria-labelledby="planning-ablation-title">
     <header className={showcaseClasses("planning-ablation-heading")}>
       <div>
-        <p className={showcaseClasses("eyebrow")}>INVESTIGATION PLANNING · FULL-GRAPH ABLATION · 2026-10-13</p>
+        <p className={showcaseClasses("eyebrow")}>调查规划 · 完整图对照 · 2026-10-13</p>
         <h2 id="planning-ablation-title">两组冻结场景中，自适应臂的 Planner tokens 均更高。</h2>
         <p>12 次整图运行的 Harness 检查全部通过；候选评估和报告推荐人数分别展示，不代表排序质量。</p>
       </div>
       <aside className={showcaseClasses("planning-ablation-proof")} aria-label="整图 Harness 验收结果">
-        <span>FULL GRAPH RUNS</span>
+        <span>完整图运行</span>
         <strong>12<span> / 12</span></strong>
         <small>每个运行都通过对应 Harness 检查</small>
         <small>两个场景 · 各 3 组配对</small>

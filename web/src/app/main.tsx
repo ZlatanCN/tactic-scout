@@ -15,6 +15,8 @@ const isAdjudicationPage = path === "/adjudicate";
 const isShowcasePage = path === "/showcase";
 
 if (isShowcasePage) document.title = "TactiScout — 录制运行展示";
+else if (isReviewPage) document.title = "TactiScout — 短名单盲评";
+else if (isAdjudicationPage) document.title = "TactiScout — 裁决与质量评估";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

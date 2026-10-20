@@ -4,14 +4,14 @@ export function ShowcaseEvidenceEvaluatorAblation() {
   return <section className={showcaseClasses("showcase-evaluator-ablation")} aria-labelledby="showcase-evaluator-ablation-title">
     <header className={showcaseClasses("evaluator-ablation-heading")}>
       <div>
-        <p className={showcaseClasses("eyebrow")}>EVIDENCE EVALUATOR · FULL-GRAPH ABLATION · 2026-10-11</p>
+        <p className={showcaseClasses("eyebrow")}>候选证据评估 · 完整图对照 · 2026-10-11</p>
         <h2 id="showcase-evaluator-ablation-title">这组实验里，有证据时报告有据可查；屏蔽后 Agent 没有推荐。</h2>
         <p>同一张 LangGraph、同一组工具和 Reviewer，只切换候选表现评估器是否返回能力证据。</p>
       </div>
       <aside className={showcaseClasses("evaluator-ablation-pair-count")} aria-label="一个冻结场景，三组配对运行">
         <strong>3×</strong>
-        <span>matched pairs</span>
-        <small>one frozen scenario</small>
+        <span>组配对</span>
+        <small>一个冻结场景</small>
         <small>Qwen 3.5 9B</small>
       </aside>
     </header>

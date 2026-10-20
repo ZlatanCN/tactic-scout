@@ -72,7 +72,7 @@ export function ShowcaseLatencySummary() {
   return <section className={showcaseClasses("showcase-latency")} aria-labelledby="showcase-latency-title">
     <header className={showcaseClasses("showcase-latency-lead")}>
       <div>
-        <p className={showcaseClasses("eyebrow")}>HARNESS LATENCY · {summary.date}</p>
+        <p className={showcaseClasses("eyebrow")}>Harness 耗时 · {summary.date}</p>
         <h2 id="showcase-latency-title">这 {summary.runCount} 次运行的长等待主要落在 Planner 决策。</h2>
         <p>整轮调查最长观测到 164.5 秒；Planner 决策事件的 p95 为 27.8–68.8 秒，工具执行事件的 p95 为 8 毫秒至 1.4 秒。</p>
       </div>
@@ -104,8 +104,8 @@ export function ShowcaseLatencySummary() {
       <p>每组单独缩放条形图；操作事件分布不可相加为整轮耗时。</p>
     </div>
     <div className={showcaseClasses("showcase-latency-breakdown")}>
-      <OperationGroup eyebrow="MODEL-BACKED DECISIONS" title="Planner" scale="组内比例尺 · 秒" rows={summary.planner} />
-      <OperationGroup eyebrow="LOCAL TOOL EXECUTION" title="工具" scale="组内比例尺 · 毫秒至秒" rows={summary.tools} />
+      <OperationGroup eyebrow="模型决策" title="Planner" scale="组内比例尺 · 秒" rows={summary.planner} />
+      <OperationGroup eyebrow="本地工具执行" title="工具" scale="组内比例尺 · 毫秒至秒" rows={summary.tools} />
     </div>
 
     <p className={showcaseClasses("showcase-latency-caveat")}>

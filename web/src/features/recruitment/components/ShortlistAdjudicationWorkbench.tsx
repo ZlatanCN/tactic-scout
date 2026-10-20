@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Input } from "@/shared/ui/input";
 import { Progress } from "@/shared/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
+import { ProductHeader } from "@/shared/ui/product-header";
 import {
   createShortlistQualityDataset,
   parseShortlistAdjudicationBundle,
@@ -211,17 +212,9 @@ export function ShortlistAdjudicationWorkbench() {
   const progressValue = packet?.cards.length ? (gradeCount / packet.cards.length) * 100 : 0;
 
   return <div className="min-h-screen bg-background">
-    <header className="border-b bg-card/90">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <a className="flex items-center gap-2 font-semibold tracking-tight" href="/" aria-label="TactiScout 球探工作台首页">
-          <span className="flex h-6 items-end gap-0.5" aria-hidden="true"><span className="h-3 w-1 rounded-t-sm bg-primary/60" /><span className="h-5 w-1 rounded-t-sm bg-primary" /><span className="h-4 w-1 rounded-t-sm bg-primary/80" /></span>
-          TactiScout
-        </a>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground"><span>独立评审 · 裁决与质量评估</span><a className="font-medium text-primary hover:underline" href="/review">打开盲评工作台</a></div>
-      </div>
-    </header>
+    <ProductHeader page="adjudicate" />
 
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+    <main id="main-content" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
       <header className="mb-7 max-w-3xl space-y-2">
         <Badge variant="secondary">匿名评审流程</Badge>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">先看证据，再看排名。</h1>
@@ -237,11 +230,11 @@ export function ShortlistAdjudicationWorkbench() {
           <Alert><AlertDescription>答案键此时不会导入；评分和裁决草稿仅存于本机浏览器。</AlertDescription></Alert>
         </CardContent>
       </Card> : <>
-        <div className="mb-6 flex flex-wrap items-center gap-2" aria-label="评测流程">
-          <Badge variant="secondary">01 · 独立评分</Badge><span aria-hidden="true" className="text-muted-foreground">→</span>
-          <Badge variant={draft.locked ? "secondary" : "default"}>02 · 匿名裁决</Badge><span aria-hidden="true" className="text-muted-foreground">→</span>
-          <Badge variant={draft.dataset ? "secondary" : draft.locked ? "default" : "outline"}>03 · 揭示排名并计算</Badge>
-        </div>
+        <ol className="mb-6 flex flex-wrap items-center gap-2 p-0 text-sm" aria-label="评测流程">
+          <li className="flex list-none items-center gap-2"><Badge variant="secondary">独立评分 · 已载入</Badge><span aria-hidden="true" className="text-muted-foreground">→</span></li>
+          <li className="flex list-none items-center gap-2"><Badge aria-current={!draft.locked ? "step" : undefined} variant={draft.locked ? "secondary" : "default"}>匿名裁决{draft.locked ? " · 已锁定" : " · 进行中"}</Badge><span aria-hidden="true" className="text-muted-foreground">→</span></li>
+          <li className="list-none"><Badge aria-current={draft.locked && !draft.dataset ? "step" : undefined} variant={draft.dataset ? "secondary" : draft.locked ? "default" : "outline"}>揭示排名并计算{draft.dataset ? " · 已完成" : draft.locked ? " · 可开始" : " · 等待锁定"}</Badge></li>
+        </ol>
 
         <div className="grid items-start gap-6 xl:grid-cols-[19rem_minmax(0,1fr)]">
           <aside className="xl:sticky xl:top-4">
@@ -277,7 +270,7 @@ export function ShortlistAdjudicationWorkbench() {
                     <div className="grid gap-2 sm:grid-cols-2">{performance.metrics.map((metric) => <article className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-lg border p-3 ${metric.status === "missing" ? "bg-muted/60" : "bg-card"}`} key={metric.key}>
                       <div><strong className="block text-base tabular-nums">{metric.status === "missing" || metric.value === null ? "未提供" : new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(metric.value)}</strong><span className="text-[11px] text-muted-foreground">{metric.unit ?? ""}</span></div>
                       <div className="min-w-0 text-xs leading-5"><strong className="block font-semibold">{metric.label ?? AbilityMetricDefinitions.find((definition) => definition.key === metric.key)?.label ?? metric.key}</strong><span className="text-muted-foreground">{metric.definition ?? "暂无指标说明"}</span>{metric.sourceField && <small className="mt-1 block text-[11px] text-muted-foreground">字段：{metric.sourceField}</small>}</div>
-                      {metric.status === "missing" && <small className="col-span-2 text-xs text-amber-900">缺少数据不表示能力较差</small>}
+                      {metric.status === "missing" && <small className="col-span-2 text-xs text-warning">缺少数据不表示能力较差</small>}
                     </article>)}</div>
                   </section>)}
                   <p className="m-0 break-all border-t pt-3 text-[11px] text-muted-foreground">{packet?.snapshot.derivationRuleset} · 来源快照 SHA-256 {packet?.snapshot.sha256.slice(0, 12)}…</p>

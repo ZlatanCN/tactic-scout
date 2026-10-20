@@ -143,11 +143,11 @@ function StudyDisclosure({ studies }: { studies: readonly Study[] }) {
 function SourceAndNext({ run }: { run: Run }) {
   return <>
     <section className={showcaseClasses("story-source")}>
-      <div><Eyebrow>SOURCE & ATTRIBUTION</Eyebrow><strong>历史数据与边界</strong></div>
+      <div><Eyebrow>来源与许可</Eyebrow><strong>历史数据与边界</strong></div>
       <p>球员表现源为 Pappalardo 与 Massucco 发布的 Wyscout Soccer Match Event 数据，涵盖 2017/18 历史赛季，按 CC BY 4.0 署名。页面展示脱敏汇总与安全工具轨迹，不含球员姓名、ID 或隐藏推理。</p>
       <div className={showcaseClasses("story-source-links")}><a href="https://doi.org/10.1038/s41597-019-0247-7" target="_blank" rel="noreferrer">数据论文 ↗</a><a href="https://figshare.com/collections/Soccer_match_event_dataset/4415000" target="_blank" rel="noreferrer">Figshare 数据集 ↗</a><a href="https://figshare.com/articles/dataset/Events/7770599" target="_blank" rel="noreferrer">Events 数据项 ↗</a><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0 ↗</a></div>
     </section>
-    <section className={showcaseClasses("story-next")}><div><Eyebrow>CONTINUE WITH A LIVE CASE</Eyebrow><h2>想亲自给 Agent 一个需求？</h2><p>交互调查使用本机 API、Ollama 和所选数据模式；这份页面是历史运行摘要。</p></div><a href="/">打开交互工作台 <span>→</span></a></section>
+    <section className={showcaseClasses("story-next")}><div><Eyebrow>继续调查</Eyebrow><h2>想亲自给 Agent 一个需求？</h2><p>交互调查使用本机 API、Ollama 和所选数据模式；这份页面是历史运行摘要。</p></div><a href="/">打开交互工作台 <span>→</span></a></section>
     <footer className={showcaseClasses("story-footer")}>TactiScout · 录制运行 {run.date} · Football scouting research prototype</footer>
   </>;
 }
@@ -155,28 +155,28 @@ function SourceAndNext({ run }: { run: Run }) {
 export function ShowcaseExecutiveStory({ run, journey, metrics, studies }: Omit<Props, "initialVariant">) {
   return <>
     <section className={showcaseClasses("story-executive-hero")}>
-      <div><Eyebrow>真实运行 · 先看结果，再看证据</Eyebrow><h1>让一次引援需求，<em>变成可审阅的调查。</em></h1>
+      <div><Eyebrow>真实运行 · 先看结果，再看证据</Eyebrow><h1>让一次引援需求，变成可审阅的调查。</h1>
         <p>Agent 先调查候选与证据；职责不清时暂停追问，答复后从同一案件继续。最终只留下来源可查、边界明确的考察线索。</p>
     <div className={showcaseClasses("story-tags")}><Badge variant="outline">前锋替代者</Badge><Badge variant="outline">{run.model}</Badge><Badge variant="outline">Wyscout 2017/18 · 历史样本</Badge></div>
       </div><ProofStamp run={run} />
     </section>
     <RunFacts run={run} metrics={metrics} />
     <section className={showcaseClasses("story-executive-grid")}>
-      <div className={showcaseClasses("story-investigation")}><header><div><Eyebrow>OBSERVED RUN</Eyebrow><h2>五个关键转折</h2></div><span>{run.elapsed} · {run.toolCallCount} 次工具调用</span></header><StorySteps journey={journey} compact /></div>
-      <aside className={showcaseClasses("story-outcome")}><Eyebrow>REPORT SNAPSHOT</Eyebrow><h2>一条线索，留下能力缺口</h2><div className={showcaseClasses("story-lead")}><span>匿名候选 · ATT</span><strong>{run.leadCount} 条后续考察线索</strong><div><b>进球</b><b>关键传球</b></div><p>这些指标不能单独证明射门终结或进攻接应能力。</p></div><dl><div><dt>历史池匹配记录</dt><dd>{run.matchingCount}</dd></div><div><dt>本次实际读取</dt><dd>{run.readCount}</dd></div><div><dt>方法资料 / 球员报告</dt><dd>{run.methodologyChunks} / {run.playerReportChunks}</dd></div></dl></aside>
+      <div className={showcaseClasses("story-investigation")}><header><div><Eyebrow>本次运行记录</Eyebrow><h2>五个关键转折</h2></div><span>{run.elapsed} · {run.toolCallCount} 次工具调用</span></header><StorySteps journey={journey} compact /></div>
+      <aside className={showcaseClasses("story-outcome")}><Eyebrow>报告摘要</Eyebrow><h2>一条线索，留下能力缺口</h2><div className={showcaseClasses("story-lead")}><span>匿名候选 · ATT</span><strong>{run.leadCount} 条后续考察线索</strong><div><b>进球</b><b>关键传球</b></div><p>这些指标不能单独证明射门终结或进攻接应能力。</p></div><dl><div><dt>历史池匹配记录</dt><dd>{run.matchingCount}</dd></div><div><dt>本次实际读取</dt><dd>{run.readCount}</dd></div><div><dt>方法资料 / 球员报告</dt><dd>{run.methodologyChunks} / {run.playerReportChunks}</dd></div></dl></aside>
     </section>
     <Boundaries run={run} />
     <ShowcaseWorkflowMap />
-    <section className={showcaseClasses("story-experiments")}><header><div><Eyebrow>MECHANISM EVIDENCE</Eyebrow><h2>核心机制经过整图对照</h2><p>同一 LangGraph 中切换单个机制，保留真实工具和完整报告链路。</p></div><span>细节按需展开</span></header><StudyDisclosure studies={studies} /></section>
+    <section className={showcaseClasses("story-experiments")}><header><div><Eyebrow>机制对照</Eyebrow><h2>核心机制经过整图对照</h2><p>同一 LangGraph 中切换单个机制，保留真实工具和完整报告链路。</p></div><span>细节按需展开</span></header><StudyDisclosure studies={studies} /></section>
     <SourceAndNext run={run} />
   </>;
 }
 
 function TimelineStory({ run, journey, metrics, studies, activeStudy, setActiveStudy }: Omit<Props, "initialVariant"> & { activeStudy: number; setActiveStudy: (index: number) => void }) {
   return <>
-    <section className={showcaseClasses("story-timeline-hero")}><Eyebrow>CASE FILE · {run.date} · LOCAL MODEL</Eyebrow><h1>从一句引援需求，到一条可追溯的考察线索。</h1><p>关键不是一轮生成，而是图如何暂停、恢复、调工具并约束结论。</p><div className={showcaseClasses("story-tags")}><Badge variant="outline">{run.model}</Badge><Badge variant="outline">Wyscout 2017/18</Badge><Badge variant="outline">{run.elapsed} 端到端</Badge></div></section>
-    <section className={showcaseClasses("story-timeline-layout")}><div className={showcaseClasses("story-timeline-main")}><header><div><Eyebrow>INVESTIGATION TRACE</Eyebrow><h2>调查怎样向前推进</h2></div><ProofStamp run={run} /></header><StorySteps journey={journey} /></div><aside className={showcaseClasses("story-timeline-rail")}><span className={showcaseClasses("story-rail-kicker")}>AT A GLANCE</span>{metrics.map((metric) => <div key={metric.label}><strong>{metric.value}</strong><span>{metric.label}</span><small>{metric.note}</small></div>)}<Boundaries run={run} /></aside></section>
-    <section className={showcaseClasses("story-tabbed-studies")}><header><div><Eyebrow>CONTROLLED MECHANISM CHECKS</Eyebrow><h2>证据按机制浏览</h2><p>配对运行只支持页面明确写出的观察，不代替人工排序质量评估。</p></div></header>
+    <section className={showcaseClasses("story-timeline-hero")}><Eyebrow>调查记录 · {run.date} · 本地模型</Eyebrow><h1>从一句引援需求，到一条可追溯的考察线索。</h1><p>关键不是一轮生成，而是图如何暂停、恢复、调工具并约束结论。</p><div className={showcaseClasses("story-tags")}><Badge variant="outline">{run.model}</Badge><Badge variant="outline">Wyscout 2017/18</Badge><Badge variant="outline">{run.elapsed} 端到端</Badge></div></section>
+    <section className={showcaseClasses("story-timeline-layout")}><div className={showcaseClasses("story-timeline-main")}><header><div><Eyebrow>调查步骤</Eyebrow><h2>调查怎样向前推进</h2></div><ProofStamp run={run} /></header><StorySteps journey={journey} /></div><aside className={showcaseClasses("story-timeline-rail")}><span className={showcaseClasses("story-rail-kicker")}>关键数据</span>{metrics.map((metric) => <div key={metric.label}><strong>{metric.value}</strong><span>{metric.label}</span><small>{metric.note}</small></div>)}<Boundaries run={run} /></aside></section>
+    <section className={showcaseClasses("story-tabbed-studies")}><header><div><Eyebrow>完整图对照实验</Eyebrow><h2>证据按机制浏览</h2><p>配对运行只支持页面明确写出的观察，不代替人工排序质量评估。</p></div></header>
       <Tabs className="min-w-0" value={String(activeStudy)} onValueChange={(value) => setActiveStudy(Number(value))}>
         <div className="overflow-x-auto"><TabsList className="h-auto min-w-full justify-start">{studies.map((study, index) => <TabsTrigger key={study.key} value={String(index)} className="whitespace-nowrap">{study.title}</TabsTrigger>)}</TabsList></div>
         {studies.map((study, index) => <TabsContent value={String(index)} key={study.key} className="mt-3"><Card><CardHeader><Badge variant="outline" className="w-fit">{String(index + 1).padStart(2, "0")} / {String(studies.length).padStart(2, "0")}</Badge><CardTitle>{study.title}</CardTitle><CardDescription>{study.takeaway} {study.limitation}</CardDescription></CardHeader><CardContent>{study.content}</CardContent></Card></TabsContent>)}
@@ -188,11 +188,11 @@ function TimelineStory({ run, journey, metrics, studies, activeStudy, setActiveS
 
 function ResearchDossier({ run, journey, metrics, studies }: Omit<Props, "initialVariant">) {
   return <>
-    <section className={showcaseClasses("story-dossier-heading")}><div><Eyebrow>TACTISCOUT · FIELD NOTE 01</Eyebrow><h1>一项球探 Agent，<br /><em>先证明它如何工作。</em></h1><p>本档案把单次完整调查与机制对照分开呈现：前者说明运行发生了什么，后者说明切换某个机制后观察到什么。</p></div><ProofStamp run={run} /></section>
+    <section className={showcaseClasses("story-dossier-heading")}><div><Eyebrow>TactiScout · 球探研究档案 01</Eyebrow><h1>一项球探 Agent，<br />先证明它如何工作。</h1><p>本档案把单次完整调查与机制对照分开呈现：前者说明运行发生了什么，后者说明切换某个机制后观察到什么。</p></div><ProofStamp run={run} /></section>
     <RunFacts run={run} metrics={metrics} />
-    <div className={showcaseClasses("story-dossier-rule")}><span>01</span><div><Eyebrow>RECORDED INVESTIGATION</Eyebrow><h2>真实案例记录</h2><p>拜仁前锋替代者需求 · {run.evaluatedCount} 人已评估 · {run.leadCount} 条考察线索</p></div></div>
+    <div className={showcaseClasses("story-dossier-rule")}><span>01</span><div><Eyebrow>记录的完整调查</Eyebrow><h2>真实案例记录</h2><p>拜仁前锋替代者需求 · {run.evaluatedCount} 人已评估 · {run.leadCount} 条考察线索</p></div></div>
     <div className={showcaseClasses("story-dossier-case")}><StorySteps journey={journey} /><div className={showcaseClasses("story-dossier-outcome")}><strong>报告保留了什么</strong><p>进球与关键传球可见；射门终结与进攻接应缺少直接指标。球员报告语料本轮 0 命中。</p><b>→ 不把邻近指标说成能力证明</b></div></div>
-    <div className={showcaseClasses("story-dossier-rule")}><span>02</span><div><Eyebrow>CONTROLLED MECHANISM CHECKS</Eyebrow><h2>消融结果索引</h2><p>按需打开实验协议与实际运行摘要</p></div></div>
+    <div className={showcaseClasses("story-dossier-rule")}><span>02</span><div><Eyebrow>机制检查结果</Eyebrow><h2>消融结果索引</h2><p>按需打开实验协议与实际运行摘要</p></div></div>
     <section className={showcaseClasses("story-dossier-studies")}><StudyDisclosure studies={studies} /></section>
     <Boundaries run={run} />
     <SourceAndNext run={run} />

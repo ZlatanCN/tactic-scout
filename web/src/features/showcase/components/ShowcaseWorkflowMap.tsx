@@ -3,26 +3,26 @@ import { showcaseClasses } from "../showcase-classes";
 export function ShowcaseWorkflowMap() {
   return <section className={showcaseClasses("showcase-workflow")} aria-labelledby="showcase-workflow-title">
     <header className={showcaseClasses("showcase-workflow-heading")}>
-      <p className={showcaseClasses("showcase-workflow-eyebrow")}>WHY LANGGRAPH · CASE CONTROL FLOW</p>
+      <p className={showcaseClasses("showcase-workflow-eyebrow")}>LangGraph · 案件流程</p>
       <h2 id="showcase-workflow-title">引援调查不是一轮工具调用，而是同一案件里的状态循环。</h2>
       <p>需求会在调查中补充，证据不足时需要回查，结论还要经过复核。图负责保存案件进展并控制这些分支。</p>
     </header>
 
     <div className={showcaseClasses("showcase-workflow-main")} aria-label="LangGraph 主调查循环">
       <article className={showcaseClasses("showcase-workflow-node", "is-state")}>
-        <span>SHARED CASE STATE</span>
+        <span>案件状态</span>
         <h3>案件状态</h3>
         <p>需求、用户答复、已发现候选与证据</p>
       </article>
       <span className={showcaseClasses("showcase-workflow-arrow")} aria-hidden="true">→</span>
       <article className={showcaseClasses("showcase-workflow-node", "is-planner")}>
-        <span>PLANNER + POLICY</span>
+        <span>规划与路由</span>
         <h3>规划下一步</h3>
         <p>Planner 提出动作；图策略检查边界并路由</p>
       </article>
       <span className={showcaseClasses("showcase-workflow-arrow")} aria-hidden="true">→</span>
       <article className={showcaseClasses("showcase-workflow-node", "is-tools")}>
-        <span>TYPED TOOLS</span>
+        <span>研究工具</span>
         <h3>研究工具</h3>
         <p>方法检索、候选搜索、表现评估与球员报告检索；结果回到 Planner</p>
       </article>
@@ -32,12 +32,12 @@ export function ShowcaseWorkflowMap() {
 
     <div className={showcaseClasses("showcase-workflow-branches")} aria-label="Planner 的追问与结束分支">
       <article className={showcaseClasses("showcase-workflow-branch", "is-interrupt")}>
-        <span className={showcaseClasses("showcase-workflow-branch-label")}>PLANNER 选择 ask_user</span>
+        <span className={showcaseClasses("showcase-workflow-branch-label")}>Planner 请求补充</span>
         <h3>暂停等待答复</h3>
         <p><code>interrupt</code> 暂停；LangGraph checkpointer 保存同案状态，答复后继续调查。</p>
       </article>
       <article className={showcaseClasses("showcase-workflow-branch", "is-review")}>
-        <span className={showcaseClasses("showcase-workflow-branch-label")}>PLANNER 选择 finish</span>
+        <span className={showcaseClasses("showcase-workflow-branch-label")}>Planner 完成本轮调查</span>
         <h3>Reviewer 核对证据</h3>
         <p>Reviewer 是报告门禁，不是第二个模型规划器；检查能力证据与候选引用是否对齐。</p>
         <div className={showcaseClasses("showcase-workflow-review-outcomes")}>

@@ -8,10 +8,11 @@ import {
 import { shortlistFitRubric } from "../../../../../src/domain/shortlist-fit-rubric.js";
 import { Alert, AlertDescription } from "@/shared/ui/alert";
 import { Badge } from "@/shared/ui/badge";
-import { Button, buttonVariants } from "@/shared/ui/button";
+import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Progress } from "@/shared/ui/progress";
+import { ProductHeader } from "@/shared/ui/product-header";
 import { Upload } from "lucide-react";
 
 const reviewerIdStorageKey = "tactiscout:shortlist-review:v1:reviewer-id";
@@ -157,11 +158,8 @@ export function ShortlistReviewWorkbench() {
   }
 
   return <div className="min-h-screen bg-background">
-    <header className="border-b bg-card"><div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-      <a className="inline-flex items-center gap-2 font-semibold tracking-tight text-foreground no-underline" href="/" aria-label="TactiScout 球探工作台首页"><span className="flex h-5 items-end gap-0.5" aria-hidden="true"><span className="h-2.5 w-1 rounded-t-sm bg-primary/60" /><span className="h-4 w-1 rounded-t-sm bg-primary" /><span className="h-3 w-1 rounded-t-sm bg-primary/80" /></span>TactiScout</a>
-      <a href="/" className={buttonVariants({ variant: "outline", size: "sm" })}>返回球探工作台</a>
-    </div></header>
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+    <ProductHeader page="review" />
+    <main id="main-content" className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 max-w-3xl"><Badge variant="secondary">独立评审</Badge><h1 className="mb-0 mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">只看证据，独立判断适配。</h1><p className="mb-0 mt-2 text-sm leading-6 text-muted-foreground">评审包隐藏球员身份、球队、系统排名和模型解释。数据缺失时选“未知”，不要把未知当作不适合。</p></div>
 
       {!session ? <Card className="mx-auto max-w-2xl">
@@ -207,7 +205,7 @@ export function ShortlistReviewWorkbench() {
                   <div className="grid gap-2 sm:grid-cols-2">{performance.metrics.map((metric) => <article className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-lg border p-3 ${metric.status === "missing" ? "bg-muted/50" : "bg-card"}`} key={metric.key}>
                     <div><strong className="block text-base tabular-nums">{metric.status === "missing" || metric.value === null ? "未提供" : formatMetricValue(metric.value)}</strong><span className="text-[11px] text-muted-foreground">{metric.unit ?? ""}</span></div>
                     <div className="min-w-0 text-xs leading-5"><strong className="block font-semibold">{metric.label ?? AbilityMetricDefinitions.find((definition) => definition.key === metric.key)?.label ?? metric.key}</strong><span className="text-muted-foreground">{metric.definition ?? "暂无指标说明"}</span>{metric.sourceField && <small className="mt-1 block text-[11px] text-muted-foreground">字段：{metric.sourceField}</small>}</div>
-                    {metric.status === "missing" && <small className="col-span-2 text-[11px] text-amber-900">缺少数据不表示能力较差</small>}
+                    {metric.status === "missing" && <small className="col-span-2 text-[11px] text-warning">缺少数据不表示能力较差</small>}
                   </article>)}</div>
                 </section>)}
                 <p className="m-0 break-all border-t pt-3 text-[11px] text-muted-foreground">{session.packet.snapshot.derivationRuleset} · 来源快照 SHA-256 {session.packet.snapshot.sha256.slice(0, 12)}…</p>

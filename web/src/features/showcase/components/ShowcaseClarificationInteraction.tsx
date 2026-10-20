@@ -3,7 +3,7 @@ import { showcaseClasses } from "../showcase-classes";
 const cases = [
   {
     number: "01",
-    tag: "CLEAR REQUEST · NO QUESTION",
+    tag: "需求明确 · 无需追问",
     title: "明确的 U23 中场需求",
     description: "用户已经给出球队、位置、年龄范围和能力偏好。",
     arms: [
@@ -18,7 +18,7 @@ const cases = [
   },
   {
     number: "02",
-    tag: "ROLE AMBIGUITY · INTERRUPT / RESUME",
+    tag: "职责模糊 · 暂停与恢复",
     title: "替代者职责尚未确定",
     description: "参考球员能圈定大致位置，但具体职责会改变候选方向。",
     arms: [
@@ -49,12 +49,12 @@ export function ShowcaseClarificationInteraction() {
   return <section className={showcaseClasses("showcase-clarification")} aria-labelledby="showcase-clarification-title">
     <header className={showcaseClasses("clarification-lead")}>
       <div className={showcaseClasses("clarification-lead-copy")}>
-        <p className={showcaseClasses("eyebrow")}>LANGGRAPH INTERRUPT · PAIRED HARNESS · 2026-10-10</p>
+        <p className={showcaseClasses("eyebrow")}>LangGraph 中断 · 配对检查 · 2026-10-10</p>
         <h2 id="showcase-clarification-title">需求清楚时直接完成；职责有歧义时，先调查再追问。</h2>
         <p>两个冻结场景、每个三组配对：正常交互下，图会在同一案件里暂停并恢复；不给脚本答复时，它会停在真实的用户中断处。</p>
       </div>
       <aside className={showcaseClasses("clarification-proof")} aria-label="交互消融摘要">
-        <span>HARNESS RUNS</span>
+        <span>Harness 检查</span>
         <strong>12<span> / 12</span></strong>
         <small>预注册行为检查通过</small>
         <div><b>02</b> 个场景 <i>·</i> <b>03</b> 组配对 / 场景</div>

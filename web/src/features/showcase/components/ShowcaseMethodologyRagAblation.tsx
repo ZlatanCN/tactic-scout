@@ -35,12 +35,12 @@ export function ShowcaseMethodologyRagAblation() {
   return <section className={showcaseClasses("showcase-rag-ablation")} aria-labelledby="showcase-rag-title">
     <header className={showcaseClasses("rag-ablation-heading")}>
       <div>
-        <p className={showcaseClasses("eyebrow")}>METHODOLOGY RAG · CROSS-LINGUAL RETRIEVAL · 2026-10-13</p>
+        <p className={showcaseClasses("eyebrow")}>方法资料检索 · 跨语言检索 · 2026-10-13</p>
         <h2 id="showcase-rag-title">作者译写的英文问题，让留出证据覆盖从 1/3 提高到 3/3。</h2>
         <p>只切换查询语言；同一索引、multilingual E5 与原有检索门槛。翻译没有接入 Agent。</p>
       </div>
       <aside className={showcaseClasses("rag-ablation-proof")} aria-label="留出集可回答证据覆盖：中文原问 1/3，作者英文译问 3/3">
-        <span>HELD-OUT EVIDENCE</span>
+        <span>留出证据</span>
         <strong>1/3 <i>→</i> 3/3</strong>
         <small>中文原问 → 项目作者英文译问</small>
       </aside>
@@ -64,7 +64,7 @@ export function ShowcaseMethodologyRagAblation() {
     <section className={showcaseClasses("rag-graph-ablation")} aria-labelledby="rag-graph-title">
       <header className={showcaseClasses("rag-graph-heading")}>
         <div>
-          <p className={showcaseClasses("eyebrow")}>FULL-GRAPH ABLATION · 2026-10-10</p>
+          <p className={showcaseClasses("eyebrow")}>完整图对照 · 2026-10-10</p>
           <h3 id="rag-graph-title">方法证据进入了报告；这次实验没有观察到候选顺序变化。</h3>
           <p>同一张 LangGraph 做三组配对，只屏蔽方法语料，其余工具和 Reviewer 保持运行。</p>
         </div>

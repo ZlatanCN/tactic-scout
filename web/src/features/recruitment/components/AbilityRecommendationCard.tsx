@@ -37,7 +37,7 @@ export function AbilityRecommendationCard({ recommendation, rank, selected, sele
   const tradeoffs = recommendation.tradeoffs.filter((text) => !/事件统计不能替代|每 90 分钟|百分位|来源记录|当前依据不表示/.test(text)).slice(0, 2);
   const comparisons = recommendation.referenceComparisonNotes.filter((text) => !/sourceField|Understat|Wyscout|ASA|StatsBomb/.test(text));
 
-  return <article className={`min-w-0 overflow-hidden rounded-2xl border bg-card ${selected ? "border-primary ring-1 ring-primary" : "border-border"}`} aria-label={`${rank} ${player.name}`}>
+  return <article className={`min-w-0 overflow-hidden rounded-2xl border bg-card shadow-[0_18px_42px_-34px_rgba(0,0,0,0.85)] ${selected ? "border-primary ring-1 ring-primary" : "border-border/80"}`} aria-label={`${rank} ${player.name}`}>
     <div className="p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1 basis-44">
@@ -76,8 +76,8 @@ export function AbilityRecommendationCard({ recommendation, rank, selected, sele
       {matchFacts.length > 0 && <section className="mt-6 border-t pt-4" aria-label="比赛表现"><div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><h4 className="m-0 text-sm font-semibold">比赛表现</h4>{player.minutes > 0 && <span className="text-xs text-muted-foreground tabular-nums">{player.minutes.toLocaleString()} 分钟样本</span>}</div><dl className="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">{matchFacts.map((evidence) => <div key={evidence.key}><dt className="text-xs leading-relaxed text-muted-foreground">{friendlyMetricLabel(evidence.label)}</dt><dd className="m-0 mt-1 text-xl font-semibold tabular-nums">{formatMetric(evidence.value)}<span className="ms-1.5 text-xs font-normal text-muted-foreground">{evidence.unit}</span></dd></div>)}</dl></section>}
     </div>
 
-    <details className="group border-t">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 text-sm font-medium marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden"><span>查看完整能力与位置</span><ChevronDown className="size-4 shrink-0 text-muted-foreground group-open:rotate-180" aria-hidden="true" /></summary>
+      <details className="group border-t">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 text-sm font-medium marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden"><span>查看完整能力与位置</span><ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] group-open:rotate-180" aria-hidden="true" /></summary>
       <div className="space-y-6 px-5 pb-6 pt-2 sm:px-6">
         <div className="flex flex-wrap gap-2">{positions.map(([position, value]) => <Badge key={position} variant="secondary" className="font-normal">{positionLabels[position as Position]} · {value! >= 18 ? "熟练" : "胜任"}</Badge>)}</div>
         <Tabs defaultValue={positions[0]?.[0] === "GK" ? "goalkeeping" : "technical"}>

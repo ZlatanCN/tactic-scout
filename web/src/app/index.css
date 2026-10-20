@@ -22,18 +22,19 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-pitch: #205a3f;
-  --color-pitch-line: #a9c4b2;
-  --color-pitch-subtle: #3f7458;
-  --color-pitch-marker: #f4f7f2;
-  --color-pitch-marker-foreground: #173a29;
-  --color-pitch-label: #153b28;
-  --color-pitch-label-foreground: #f4f7f2;
-  --color-pitch-selected: #ead174;
-  --color-pitch-selected-foreground: #263526;
+  --color-pitch: var(--pitch);
+  --color-pitch-line: var(--pitch-line);
+  --color-pitch-subtle: var(--pitch-subtle);
+  --color-pitch-marker: var(--pitch-marker);
+  --color-pitch-marker-foreground: var(--pitch-marker-foreground);
+  --color-pitch-label: var(--pitch-label);
+  --color-pitch-label-foreground: var(--pitch-label-foreground);
+  --color-pitch-selected: var(--pitch-selected);
+  --color-pitch-selected-foreground: var(--pitch-selected-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -42,26 +43,36 @@
 }
 
 :root {
-  color-scheme: light;
-  --background: #f3f6f3;
-  --foreground: #1b2d24;
-  --card: #ffffff;
-  --card-foreground: #1b2d24;
-  --popover: #ffffff;
-  --popover-foreground: #1b2d24;
-  --primary: #205a3f;
-  --primary-foreground: #ffffff;
-  --secondary: #e5eee8;
-  --secondary-foreground: #1b4932;
-  --muted: #edf2ee;
-  --muted-foreground: #58685f;
-  --accent: #e8f0ea;
-  --accent-foreground: #1b2d24;
-  --destructive: #a53632;
-  --border: #d7e1da;
-  --input: #829188;
-  --ring: #2e704d;
-  --radius: 0.625rem;
+  color-scheme: dark;
+  --background: #101914;
+  --foreground: #f1f4ef;
+  --card: #18231d;
+  --card-foreground: #f1f4ef;
+  --popover: #202d24;
+  --popover-foreground: #f1f4ef;
+  --primary: #b8d986;
+  --primary-foreground: #1b2619;
+  --secondary: #26372b;
+  --secondary-foreground: #e5efdc;
+  --muted: #202c24;
+  --muted-foreground: #a6b3aa;
+  --accent: #2b3c30;
+  --accent-foreground: #eff5ec;
+  --destructive: #f07d72;
+  --warning: #f2ca78;
+  --border: #34443a;
+  --input: #718174;
+  --ring: #c9e99a;
+  --radius: 0.75rem;
+  --pitch: #173423;
+  --pitch-line: #46634c;
+  --pitch-subtle: #294a33;
+  --pitch-marker: #dce8d4;
+  --pitch-marker-foreground: #1b2619;
+  --pitch-label: #203b2a;
+  --pitch-label-foreground: #f1f4ef;
+  --pitch-selected: #d7cb78;
+  --pitch-selected-foreground: #252817;
 }
 
 @layer base {
@@ -81,8 +92,8 @@
   }
 
   ::selection {
-    background: #d5e8dc;
-    color: #173a29;
+    background: var(--primary);
+    color: var(--primary-foreground);
   }
 
   h1 {
@@ -112,6 +123,14 @@
     @apply outline-2 outline-offset-2 outline-ring;
   }
 
+  p {
+    text-wrap: pretty;
+  }
+
+  [id] {
+    scroll-margin-block-start: 5rem;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -119,7 +138,6 @@
       scroll-behavior: auto !important;
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
     }
   }
 }

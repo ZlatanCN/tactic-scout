@@ -322,7 +322,7 @@ export function PlayerObservationsDialog({ onClose }: Props) {
         </aside>
 
         <form className="min-w-0 space-y-5 p-4 sm:overflow-y-auto sm:p-6" onSubmit={(event) => void submit(event)}>
-          {selectedRecord?.indexStatus === "index_failed" && <Alert className="border-amber-300 bg-amber-50 text-amber-950"><AlertCircle aria-hidden="true" /><AlertDescription>这条观察尚未进入检索索引。保留模型处理授权并重新保存可再次尝试。</AlertDescription></Alert>}
+          {selectedRecord?.indexStatus === "index_failed" && <Alert className="border-warning/50 bg-warning/10 text-warning"><AlertCircle aria-hidden="true" /><AlertDescription>这条观察尚未进入检索索引。保留模型处理授权并重新保存可再次尝试。</AlertDescription></Alert>}
           <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
             <ObservationField label="球员姓名" required wide><Input autoFocus value={draft.playerName} onChange={(event) => updateDraft("playerName", event.target.value)} required maxLength={120} /></ObservationField>
             <ObservationField label="观察日期" required><Input type="date" value={draft.observedAt} onChange={(event) => updateDraft("observedAt", event.target.value)} required /></ObservationField>

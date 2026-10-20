@@ -63,12 +63,12 @@ export function ShowcaseAskPolicyAblation() {
   return <section className={showcaseClasses("showcase-ask-policy")} aria-labelledby="showcase-ask-policy-title">
     <header className={showcaseClasses("ask-policy-lead")}>
       <div className={showcaseClasses("ask-policy-lead-copy")}>
-        <p className={showcaseClasses("eyebrow")}>ASK-POLICY ABLATION · 2026-10-10</p>
+        <p className={showcaseClasses("eyebrow")}>追问边界 · 完整图对照 · 2026-10-10</p>
         <h2 id="showcase-ask-policy-title">缺关键职责就停下，需求说清楚就继续。</h2>
         <p>同一套 LangGraph 分别运行正常交互和禁用追问控制，观察 Agent 会不会猜职责，或把清晰需求卡住。</p>
       </div>
       <aside className={showcaseClasses("ask-policy-proof")} aria-label="配对运行结果">
-        <span>PAIRED HARNESS RUNS</span>
+        <span>配对运行</span>
         <strong>12<span> / 12</span></strong>
         <small>全部通过各自预设的行为检查</small>
         <div><b>02</b> 个场景 <i>·</i> <b>03</b> 组配对 / 场景</div>

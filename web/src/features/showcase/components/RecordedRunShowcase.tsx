@@ -1,6 +1,6 @@
 import { showcaseClasses } from "../showcase-classes";
 import { Badge } from "@/shared/ui/badge";
-import { buttonVariants } from "@/shared/ui/button";
+import { ProductHeader } from "@/shared/ui/product-header";
 import { ShowcaseLatencySummary } from "./ShowcaseLatencySummary";
 import { ShowcaseReviewerAblation } from "./ShowcaseReviewerAblation";
 import { ShowcaseClarificationInteraction } from "./ShowcaseClarificationInteraction";
@@ -28,35 +28,35 @@ const recordedRun = {
 const journey = [
   {
     number: "01",
-    actor: "PLANNER → TOOL",
+    actor: "方法检索 → 候选查询",
     title: "先读方法，再找候选",
     description: "Planner 先调用方法资料检索，再查询历史候选池。方法检索返回 2 个片段；候选查询命中 601 条记录。",
     detail: "首次只读取有限页面，没有把 601 条匹配记录说成已全部评估。",
   },
   {
     number: "02",
-    actor: "GRAPH INTERRUPT",
+    actor: "需求不明 → 暂停补充",
     title: "关键职责不明确，暂停询问",
     description: "工作流记录到第一次 ask_user。补充回答后，LangGraph 从同一案件恢复，继续执行候选查询。",
     detail: "录制摘要不含对话原文，因此这里不还原具体问句。",
   },
   {
     number: "03",
-    actor: "POLICY → PLANNER",
+    actor: "无匹配 → 确认扩围",
     title: "中锋范围无匹配，再确认是否扩围",
     description: "指定范围的候选查询返回 0 条。图没有自动改位置凑结果，而是再次等待用户确认；收到补充后才继续搜索。",
     detail: "两次等待都来自本次运行中观察到的 ask_user 状态。",
   },
   {
     number: "04",
-    actor: "TOOLS → EVALUATION",
+    actor: "候选评估 → 报告检索",
     title: "按确认后的范围分批调查",
     description: "后续查询读取了 40 条记录，评估了 30 名候选；表现评估与球员报告检索交替执行。",
     detail: "工具调用共 10 次：方法检索 1 次、候选查询 3 次、表现评估 3 次、球员报告检索 3 次。",
   },
   {
     number: "05",
-    actor: "REVIEWER → REPORT",
+    actor: "证据复核 → 报告生成",
     title: "证据通过约束后形成考察线索",
     description: "Reviewer 完成检查并生成报告。报告保留了能力缺口，没有把相邻指标包装成射门终结或进攻接应的直接证据。",
     detail: "安全 Harness 的 29 项行为检查全部通过；这不等于候选排序已经被球探标签验证。",
@@ -84,22 +84,13 @@ export function RecordedRunShowcase() {
   const requestedVariant = new URLSearchParams(window.location.search).get("variant");
   const prototypeVariant = import.meta.env.DEV && (requestedVariant === "a" || requestedVariant === "b" || requestedVariant === "c") ? requestedVariant satisfies ShowcasePrototypeVariant : null;
   return <div className={showcaseClasses("showcase-shell")}>
-    <header className={showcaseClasses("topbar", "showcase-topbar")}>
-      <a className={showcaseClasses("brand")} href="/" aria-label="返回 TactiScout 工作台">
-        <span className="flex h-6 items-end gap-0.5" aria-hidden="true"><span className="h-3 w-1 rounded-t-sm bg-primary/60" /><span className="h-5 w-1 rounded-t-sm bg-primary" /><span className="h-4 w-1 rounded-t-sm bg-primary/80" /></span>
-        <span>TactiScout</span>
-      </a>
-      <div className={showcaseClasses("showcase-topbar-meta")}>
-        <Badge variant="secondary">录制运行 · 历史样本</Badge>
-        <a href="/" className={buttonVariants({ variant: "outline", size: "sm" })}>进入交互工作台 ↗</a>
-      </div>
-    </header>
+    <ProductHeader page="showcase" rightContent={<Badge variant="secondary">录制运行 · 历史样本</Badge>} />
 
-    <main className={showcaseClasses("showcase-main")}>
+    <main id="main-content" className={showcaseClasses("showcase-main")}>
       {import.meta.env.DEV && prototypeVariant ? <ShowcaseLayoutPrototype initialVariant={prototypeVariant} run={recordedRun} journey={journey} metrics={metrics} studies={studies} /> : <ShowcaseExecutiveStory run={recordedRun} journey={journey} metrics={metrics} studies={studies} />}
 
     </main>
 
-    <footer className={showcaseClasses("site-footer", "showcase-footer")}><span>TactiScout <b>·</b> Football scouting research prototype</span><span>RECORDED RUN · {recordedRun.date}</span></footer>
+    <footer className={showcaseClasses("site-footer", "showcase-footer")}><span>TactiScout <b>·</b> Football scouting research prototype</span><span>录制运行 · {recordedRun.date}</span></footer>
   </div>;
 }
