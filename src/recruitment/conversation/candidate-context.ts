@@ -3,12 +3,14 @@ import { type Position } from "../../domain/position-contracts.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { type CandidateIdentityGroup, type CandidateIdentityGroupReference, toCandidateIdentityGroupReferences } from "../../players/identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../players/identity/source-player-key.js";
+import { shouldExcludeForTargetTeam, teamNameSearchKey } from "../../domain/team-names.js";
 import { positionSearchForIntent, type CandidateSearchIntent, candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../candidate-search-intent.js";
 import { type ConversationHistoryEntry } from "../planner-context.js";
 import { type CandidateSearchAction, type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
 
 export function candidateSearchScopeKey(action: CandidateSearchAction, discoveryMetricGroups: readonly (readonly string[])[] = []): string {
   return JSON.stringify({
+    targetTeam: teamNameSearchKey(action.targetTeam),
     position: action.position,
     ...(action.positions?.length ? { positions: [...action.positions].sort() } : {}),
     playerName: action.playerName ? normalizeSearchText(action.playerName) : null,
@@ -27,6 +29,7 @@ export function candidateSearchScopeKeyForIntent(intent: CandidateSearchIntent):
 function candidateSearchActionForIntent(intent: CandidateSearchIntent): CandidateSearchAction {
   return {
     action: "search_candidates",
+    targetTeam: intent.targetTeam,
     ...positionSearchForIntent(intent),
     playerName: null,
     maxAge: intent.maxAge,
@@ -89,7 +92,8 @@ export function sampleUnevaluatedCandidates(state: State, limit = 10): string[] 
   for (const group of groups) {
     for (const playerId of group.recordPlayerIds) {
       const player = state.discoveredPlayers[playerId];
-      if (!player || positionEvaluationIsCurrent(player, state.evaluatedPlayers[playerId]) || !candidateMatchesSearchIntent(player, intent)) continue;
+      if (!player || shouldExcludeForTargetTeam(player, state.targetTeam)
+        || positionEvaluationIsCurrent(player, state.evaluatedPlayers[playerId]) || !candidateMatchesSearchIntent(player, intent)) continue;
       candidates.push(playerId);
       if (candidates.length >= limit) return candidates;
     }
@@ -127,7 +131,7 @@ export function routeCandidateSearch(
   };
 }
 
-type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles"> & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions" | "abilityProfilesEnabled" | "brief">>;
+type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles" | "targetTeam"> & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions" | "abilityProfilesEnabled" | "brief">>;
 
 export function resolvedCandidateSearchIntent(state: CandidateConstraintState, latestMessage?: string): CandidateSearchIntent {
   const messages = userMessages(state.history);
@@ -136,6 +140,7 @@ export function resolvedCandidateSearchIntent(state: CandidateConstraintState, l
     userMessages: latestMessage === undefined ? messages : [...messages, latestMessage],
     confirmedPosition: state.confirmedPosition,
     abilityProfilesEnabled: state.abilityProfilesEnabled,
+    targetTeam: state.targetTeam,
     confirmedPositions: state.confirmedPositions,
     replacementReferencePosition: state.replacementReferencePosition,
     referencePositions: [...new Set(state.referenceProfiles.flatMap(profile => profile.supportedPositions ?? []))],
@@ -190,7 +195,8 @@ export function discoveredPlayersForConstraint(
   state: CandidateConstraintState & Pick<State, "discoveredPlayers">,
   intent = resolvedCandidateSearchIntent(state),
 ): PlayerProfile[] {
-  return Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntent(player, intent));
+  return Object.values(state.discoveredPlayers).filter((player) => !shouldExcludeForTargetTeam(player, state.targetTeam)
+    && candidateMatchesSearchIntent(player, intent));
 }
 
 export function evaluatedPlayersForConstraint(
@@ -198,7 +204,8 @@ export function evaluatedPlayersForConstraint(
   intent = resolvedCandidateSearchIntent(state),
 ): Record<string, EvaluatedPlayer> {
   return Object.fromEntries(Object.entries(state.evaluatedPlayers).filter(([, evaluated]) =>
-    candidateMatchesSearchIntent(evaluated.player, intent)
+    !shouldExcludeForTargetTeam(evaluated.player, state.targetTeam)
+      && candidateMatchesSearchIntent(evaluated.player, intent)
       && positionEvaluationIsCurrent(state.discoveredPlayers?.[evaluated.player.playerId] ?? evaluated.player, evaluated),
   ));
 }

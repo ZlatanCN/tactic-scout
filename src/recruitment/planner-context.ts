@@ -247,7 +247,11 @@ export function projectPlannerCaseProgress(
 
 /** Keep expand decisions tied to the full assessed pool without repeating unrelated metrics. */
 export function buildExpansionCandidateEvidence(
-  candidates: readonly { playerId: string; evidenceKeys: readonly CapabilityMetricKey[] }[],
+  candidates: readonly {
+    playerId: string;
+    evidenceKeys: readonly CapabilityMetricKey[];
+    footballManager?: { currentAbility: number | null; potentialAbility: number | null; snapshotDate: string };
+  }[],
   requestedMetricKeys: readonly CapabilityMetricKey[],
 ) {
   const requested = new Set(requestedMetricKeys);
@@ -255,7 +259,11 @@ export function buildExpansionCandidateEvidence(
     const evidenceKeys = requested.size
       ? candidate.evidenceKeys.filter(key => requested.has(key))
       : [...candidate.evidenceKeys];
-    return evidenceKeys.length || !requested.size ? [{ playerId: candidate.playerId, evidenceKeys }] : [];
+    return evidenceKeys.length || !requested.size ? [{
+      playerId: candidate.playerId,
+      evidenceKeys,
+      ...(candidate.footballManager ? { footballManager: candidate.footballManager } : {}),
+    }] : [];
   });
   return {
     evaluatedCandidateCount: candidates.length,
@@ -299,6 +307,13 @@ export function buildConclusionCandidateEvidence(
         season: player.season,
         minutes: player.minutes,
         source: player.source,
+        ...(player.abilityProfile && (player.abilityProfile.currentAbility !== null || player.abilityProfile.potentialAbility !== null)
+          ? { footballManager: {
+            currentAbility: player.abilityProfile.currentAbility,
+            potentialAbility: player.abilityProfile.potentialAbility,
+            snapshotDate: player.abilityProfile.inGameDate,
+          } }
+          : {}),
         ...(referenceSimilarity ? { referenceSimilarity } : {}),
         metrics: evidence.filter(metric => requested.has(metric.key)).map(metric => conclusionMetric(metric, player)),
         ...(requestedRoleFits?.length ? { roleFits: requestedRoleFits } : {}),
@@ -451,7 +466,7 @@ export function compactConclusionHistory(
               const requestedRoles = new Set(AbilityMetricDefinitions.filter((definition) => requestedMetricKeys.has(definition.key)).map((definition) => definition.role));
               const abilityOnly = metrics.length > 0 && metrics.every((metric) => metric.basis === "ability_profile");
               return {
-                ...(abilityOnly ? Object.fromEntries(["playerId", "name", "position", "age", "referenceSimilarity"].filter(key => player[key] !== undefined).map((key) => [key, player[key]])) : player),
+                ...(abilityOnly ? Object.fromEntries(["playerId", "name", "position", "age", "footballManager", "referenceSimilarity"].filter(key => player[key] !== undefined).map((key) => [key, player[key]])) : player),
                 ...(Array.isArray(roleFits) ? { roleFits: roleFits.filter((role) => role.performanceFit !== null && (!hasRequestedCapabilities || requestedRoles.has(role.role))) } : {}),
                 metrics: metrics
                   .filter((metric) => !hasRequestedCapabilities || requestedMetricKeys.has(metric.key as CapabilityMetricKey))

@@ -4,6 +4,7 @@ import { type PlayerProfile } from "../domain/players.js";
 import { type Position } from "../domain/position-contracts.js";
 import type { KnowledgeSearchResult } from "../knowledge/schemas.js";
 import { playerPositionMatches } from "../domain/positions.js";
+import { shouldExcludeForTargetTeam } from "../domain/team-names.js";
 import {
   AskUserActionSchema,
   FinishActionSchema,
@@ -19,7 +20,11 @@ import type { RecruitmentBrief } from "../domain/recruitment-brief.js";
 
 export interface RecruitmentDecisionConstraints {
   targetTeam: string | null;
-  evaluatedCandidates: Array<{ playerId: string; evidenceKeys: CapabilityMetricKey[] }>;
+  evaluatedCandidates: Array<{
+    playerId: string;
+    evidenceKeys: CapabilityMetricKey[];
+    footballManager?: { currentAbility: number | null; potentialAbility: number | null; snapshotDate: string };
+  }>;
   reportObservations: Array<{ playerId: string; documentId: string; evidenceKeys: CapabilityMetricKey[] }>;
   requestedCapabilityCoverage: RequestedCapabilityCoverage[];
   candidateIdentityGroups?: CandidateIdentityGroupReference[];
@@ -396,7 +401,7 @@ export function buildDecisionConstraints(input: {
   candidateIdentityGroups?: readonly CandidateIdentityGroupReference[];
 }): RecruitmentDecisionConstraints {
   const eligiblePlayers = input.evaluatedPlayers.filter(({ player }) =>
-    matchesConfirmedPosition(player, input),
+    !shouldExcludeForTargetTeam(player, input.targetTeam) && matchesConfirmedPosition(player, input),
   );
   const playerReportDocuments = input.retrievedKnowledge.filter((document) =>
     document.corpus === "player_report" && document.displayAllowed,
@@ -406,6 +411,13 @@ export function buildDecisionConstraints(input: {
     evaluatedCandidates: eligiblePlayers.map(({ player, evidence }) => ({
       playerId: player.playerId,
       evidenceKeys: evidence.map((item) => item.key),
+      ...(player.abilityProfile && (player.abilityProfile.currentAbility !== null || player.abilityProfile.potentialAbility !== null)
+        ? { footballManager: {
+          currentAbility: player.abilityProfile.currentAbility,
+          potentialAbility: player.abilityProfile.potentialAbility,
+          snapshotDate: player.abilityProfile.inGameDate,
+        } }
+        : {}),
     })),
     reportObservations: eligiblePlayers.flatMap(({ player, evidence }) => playerReportDocuments
       .filter((document) => reportMatchesCandidate(document, player, eligiblePlayers))

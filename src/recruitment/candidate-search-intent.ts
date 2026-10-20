@@ -6,6 +6,7 @@ import { type CapabilityMetricKey } from "../domain/capabilities.js";
 import { type PlayerProfile } from "../domain/players.js";
 import { type Position } from "../domain/position-contracts.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { shouldExcludeForTargetTeam } from "../domain/team-names.js";
 import { understatCatalogPositionGroupsFor } from "../sources/understat/position-evidence.js";
 import { sourcePlayerIdentityKey } from "../players/identity/source-player-key.js";
 
@@ -14,6 +15,7 @@ import { replacementTargetNames, replacementTargetMention, isReplacementTarget }
 export type PositionConstraintChange = { changed: true; position: Position | null } | { changed: false };
 
 export interface CandidateSearchIntent {
+  targetTeam: string | null;
   discoveryMetricGroups: CapabilityMetricKey[][];
   position: Position | null;
   positions?: readonly Position[];
@@ -280,6 +282,7 @@ export function resolveCandidateSearchIntent(input: {
   referenceSourceIdentityKeys?: readonly string[];
   latestMessage?: string;
   abilityProfilesEnabled?: boolean;
+  targetTeam?: string | null;
 }): CandidateSearchIntent {
   const { userMessages, confirmedPosition, replacementReferencePosition = null, latestMessage } = input;
   const originalRequest = userMessages[0] ?? "";
@@ -301,6 +304,7 @@ export function resolveCandidateSearchIntent(input: {
     ?? (replacementRequest ? replacementReferencePosition : null);
   const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: input.brief, userMessages }, undefined, input.abilityProfilesEnabled);
   return {
+    targetTeam: input.targetTeam ?? input.brief?.targetTeam?.value ?? null,
     position,
     ...(selectedPositions.length ? { positions: selectedPositions } : {}),
     discoveryMetricGroups: requestedEvidenceAreas.filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
@@ -333,6 +337,7 @@ function matchesNonPositionIntent(player: PlayerProfile, intent: CandidateSearch
 }
 
 export function candidateMatchesSearchIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+  if (shouldExcludeForTargetTeam(player, intent.targetTeam)) return false;
   if (!matchesNonPositionIntent(player, intent)) return false;
   const positions = intent.positions?.length ? intent.positions : intent.position ? [intent.position] : [];
   if (positions.length && !positions.some((position) => playerPositionMatches(player, position))) return false;
@@ -341,6 +346,7 @@ export function candidateMatchesSearchIntent(player: PlayerProfile, intent: Cand
 
 /** Includes source-family records only for recall and position-evidence investigation. */
 export function candidateMatchesSearchIntentForPositionRetrieval(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+  if (shouldExcludeForTargetTeam(player, intent.targetTeam)) return false;
   if (!matchesNonPositionIntent(player, intent)) return false;
   const positions = intent.positions?.length ? intent.positions : intent.position ? [intent.position] : [];
   if (!positions.length) return true;

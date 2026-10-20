@@ -115,6 +115,7 @@ export const KnowledgeCoverageSchema = z.object({
 export type KnowledgeCoverage = z.infer<typeof KnowledgeCoverageSchema>;
 
 export const RecruitmentSearchScopeSchema = z.object({
+  excludedTargetTeam: z.string().nullable().optional(),
   excludedCompetitions: z.array(z.string()).optional(),
   positions: z.array(PositionSchema).optional(),
   position: PositionSchema.nullable(),

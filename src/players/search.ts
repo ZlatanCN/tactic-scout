@@ -6,8 +6,10 @@ import { type PlayerPosition, type Position } from "../domain/position-contracts
 import { observableMetricValue } from "../domain/performance-metrics.js";
 import { playerPositionMatches, positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { shouldExcludeForTargetTeam } from "../domain/team-names.js";
 
 export interface PlayerSearchQuery {
+  targetTeam?: string | null;
   referenceRoles?: { snapshotId: string; values: Record<string, number> };
   playerName: string | null;
   position: Position | null;
@@ -34,9 +36,10 @@ export interface PlayerSearchPage {
   discovery?: { strategy: "metric_cohort_round_robin" | "cohort_sample"; metricKeys: CapabilityMetricKey[]; populationRecords: number };
 }
 
-export type PlayerSearchFilter = "playerName" | "position" | "positionFamily" | "maxAge" | "minimumMinutes" | "competition" | "excludedCompetitions" | "season";
+export type PlayerSearchFilter = "playerName" | "targetTeam" | "position" | "positionFamily" | "maxAge" | "minimumMinutes" | "competition" | "excludedCompetitions" | "season";
 
 export function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQuery): boolean {
+  if (shouldExcludeForTargetTeam(player, query.targetTeam)) return false;
   if (query.playerName && ![player.name, ...(player.abilityProfile?.aliases ?? [])].some((name) => normalizeSearchText(name).includes(normalizeSearchText(query.playerName!)))) return false;
   if (query.positions?.length && !query.positions.some((position) => playerPositionMatches(player, position) || positionMatchesRetrieval(
     player.position, position, player.sourceIdentity?.positionGroups,
@@ -68,6 +71,7 @@ export function searchLoadedPlayers(players: readonly PlayerProfile[], query: Pl
   const page = ordered.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");
+  if (query.targetTeam) appliedFilters.push("targetTeam");
   if (query.position || query.positions?.length) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
   if (query.maxAge !== null) appliedFilters.push("maxAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");

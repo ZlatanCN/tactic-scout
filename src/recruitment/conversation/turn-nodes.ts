@@ -51,7 +51,9 @@ export function createRecordUserTurnNode(input: {
       pendingQuestion: state.pendingQuestion !== null,
       structuredAnswer: Boolean(state.incomingPositions?.length),
     });
-    const searchScopeChanged = detectedSearchScopeChange && reportFollowupContext === null;
+    const targetTeamChanged = Boolean(explicitTargetTeam
+      && normalizeSearchText(explicitTargetTeam) !== normalizeSearchText(state.targetTeam ?? state.brief?.targetTeam?.value ?? ""));
+    const searchScopeChanged = (detectedSearchScopeChange || targetTeamChanged) && reportFollowupContext === null;
     const canReuseScopeEvidence = !searchScopeChanged;
     const priorCandidateSearchIndex = !searchScopeChanged && positionIntent.position !== null
       ? candidateSearchObservationIndexForIntent(positionIntent, state.candidateSearchObservations)

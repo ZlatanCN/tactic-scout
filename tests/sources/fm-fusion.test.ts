@@ -37,8 +37,8 @@ async function setup(mode: ProfileEvidenceMode = "combined", researchAvailable =
   await writeFile(redirectsPath, gzipSync("from_id,to_id,reason\n"));
   await importReepRelease({ bridgesPath, redirectsPath, releaseStamp: "20261005T180536Z", outputPath: registryPath });
   const players = names.slice(0, 3).map((name, index) => ({
-    ...roleConstraintPlayer(`p${index}`, name, "ST"), team: index === 0 ? "Bayern Munich" : "Other Club",
-    sourceIdentity: { provider: "understat", playerId: ["647", "1001", "999"][index]!, retrievedAt: "2026-10-16T00:00:00.000Z" },
+    ...roleConstraintPlayer(`p${index}`, name, "ST"), age: null, team: index === 0 ? "Bayern Munich" : "Other Club",
+    sourceIdentity: { provider: "understat", playerId: ["647", "1001", "999"][index]!, retrievedAt: "2026-10-16T00:00:00.000Z", isCurrentSeason: true },
   }));
   const registry = new ReepIdentityRegistry(registryPath);
   const comparisonPlayers = Array.from({ length: 6 }, (_, index) => ({ ...players[1]!, playerId: `peer-${index}`, stats: { ...players[1]!.stats, goals: index }, sourceIdentity: { ...players[1]!.sourceIdentity, playerId: `peer-${index}` } }));
@@ -71,6 +71,8 @@ test("fused recall joins exact IDs, keeps same-name unlinked players separate an
     const linked = page.players.find((player) => player.name === "New Forward")!;
     assert.equal(linked.abilityProfile?.identityLink.method, "verified_bridge");
     assert.equal(linked.stats.goals, 8);
+    assert.equal(linked.age, 28, "a verified FM birth date can supply age for a linked Understat record");
+    assert.equal(linked.ageSource, "birth_date");
     assert.equal(linked.abilityProfile?.currentAbility, 150);
     assert.equal(linked.abilityProfile?.potentialAbility, null, "a potential range code is not an exact rating");
     assert.equal(linked.abilityProfile?.personality.professionalism, 17);
@@ -100,6 +102,17 @@ test("fused recall joins exact IDs, keeps same-name unlinked players separate an
     assert.ok(keeperBatch.evaluations[keeper.playerId]!.evidence.some((evidence) => evidence.key === "abilitySweeperKeeper"));
     assert.ok(keeperBatch.evaluations[keeper.playerId]!.evidence.every((evidence) => evidence.basis === "ability_profile"));
     assert.equal((await searchPlayerPage(repository, { ...query, minimumMinutes: 900 })).players.some((player) => player.sourceIdentity?.provider === "fm"), false);
+  } finally { await cleanup(); }
+});
+
+test("target-club search excludes current squad records and FM-only profiles without a current club", async () => {
+  const { repository, cleanup } = await setup();
+  try {
+    const page = await searchPlayerPage(repository, { ...query, position: null, targetTeam: "Bayern Munich" });
+    assert.ok(page.players.every((player) => player.team !== "Bayern Munich"));
+    assert.ok(page.players.every((player) => player.sourceIdentity?.provider !== "fm"),
+      "standalone FM profiles have no current-club evidence for a target-specific recruitment request");
+    assert.ok(page.appliedFilters.includes("targetTeam"));
   } finally { await cleanup(); }
 });
 
@@ -159,10 +172,10 @@ test("ability-only goalkeeper report uses specialist evidence without inventing 
     const [keeper] = await repository.findPlayersByNames(["New Keeper"]);
     assert.ok(keeper);
     const conversation = createRecruitmentConversation({ repository, knowledgeBase: { search: async () => [] },
-      planner: createSinglePassInvestigationPlanner({ decide: async () => ({ action: "finish", targetTeam: "拜仁", needSummary: "寻找出击出球门将", capabilityProfile: ["出击", "出球"],
+      planner: createSinglePassInvestigationPlanner({ decide: async () => ({ action: "finish", targetTeam: null, needSummary: "寻找出击出球门将", capabilityProfile: ["出击", "出球"],
         recommendations: [{ playerId: keeper.playerId, evidenceKeys: ["abilityGoalkeeping", "abilitySweeperKeeper"] }], limitationKeys: [] }) }),
     });
-    const result = await conversation.turn({ threadId: "ability-keeper", message: "为拜仁寻找门将 GK，重点看出击出球和门线扑救" });
+    const result = await conversation.turn({ threadId: "ability-keeper", message: "寻找门将 GK，重点看出击出球和门线扑救" });
     assert.equal(result.status, "completed");
     assert.equal(result.report?.recommendations.length, 1);
     const candidate = result.report!.recommendations[0]!;

@@ -295,6 +295,18 @@ test("all 17 product positions retrieve from the matching Understat source famil
   }
 });
 
+test("target-team searches exclude current-season Understat rows belonging to that club", async () => {
+  const rowsByLeague = Object.fromEntries(leagueSlugs.map((slug) => [slug, [row()]]));
+  rowsByLeague.EPL = [row({ id: "1", team_title: "Barcelona" }), row({ id: "2", player_name: "Other Player", team_title: "Other Club" })];
+  const repository = repositoryFor({ rowsByLeague }).repository;
+
+  const page = await searchPlayerPage(repository, { ...emptyQuery, targetTeam: "巴萨" });
+
+  assert.equal(page.totalRecords, 5);
+  assert.ok(page.players.every((player) => player.team !== "Barcelona"));
+  assert.ok(page.appliedFilters.includes("targetTeam"));
+});
+
 test("fails an explicit age filter because Understat has no birth dates", async () => {
   const { repository, calls } = repositoryFor();
   await assert.rejects(

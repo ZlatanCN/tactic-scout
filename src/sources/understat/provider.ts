@@ -373,6 +373,7 @@ export class UnderstatPlayerRepository implements PlayerRepository, UnderstatRes
     const playersOnPage = interleaved.slice(effectiveQuery.offset, effectiveQuery.offset + effectiveQuery.limit);
     const appliedFilters: PlayerSearchPage["appliedFilters"] = [];
     if (effectiveQuery.playerName) appliedFilters.push("playerName");
+    if (effectiveQuery.targetTeam) appliedFilters.push("targetTeam");
     if (effectiveQuery.position) appliedFilters.push(effectiveQuery.positionMatchMode === "family" && isUnderstatFinePositionSearch(effectiveQuery.position)
       ? "positionFamily"
       : "position");

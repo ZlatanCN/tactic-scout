@@ -83,7 +83,9 @@ export class FusedPlayerRepository implements PlayerRepository {
     const basePage = searchLoadedPlayers(performance, { ...query, offset: 0, limit: performance.length || 1 });
     if (this.evidenceMode === "performance_only") return searchLoadedPlayers(performance, query);
     // A profile has no competition, season or match minutes: those explicit constraints require a performance record.
-    const profileAllowed = query.minimumMinutes === 0 && !query.competition && !query.season && !query.excludedCompetitions?.length;
+    // A target-club search needs a current-club source; standalone FM profiles
+    // have none, so only verified links from current-season rows can qualify.
+    const profileAllowed = !query.targetTeam && query.minimumMinutes === 0 && !query.competition && !query.season && !query.excludedCompetitions?.length;
     const requestedPositions = query.positions?.length ? query.positions : query.position ? [query.position] : [];
     // Keep family-level leads available, but spend the first page on confirmed positions.
     if (requestedPositions.length) basePage.players.sort((left, right) =>

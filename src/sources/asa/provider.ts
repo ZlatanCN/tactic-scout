@@ -322,6 +322,7 @@ function searchPlayers(players: readonly PlayerProfile[], query: PlayerSearchQue
   const normalizedName = query.playerName ? normalizeSearchText(query.playerName) : null;
   const normalizedSeason = query.season ? normalizeSearchText(query.season) : null;
   const matching = players.filter((player) => {
+    if (!matchesPlayerSearch(player, { ...query, position: null, positions: undefined, competition: null })) return false;
     if (normalizedName && !normalizeSearchText(player.name).includes(normalizedName)) return false;
     if (query.positions?.length && !matchesPlayerSearch(player, { ...query, competition: null })) return false;
     if (!query.positions?.length && query.position && !(query.positionMatchMode === "family"
@@ -341,6 +342,7 @@ function searchPlayers(players: readonly PlayerProfile[], query: PlayerSearchQue
   const page = matching.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");
+  if (query.targetTeam) appliedFilters.push("targetTeam");
   if (query.position) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
   if (query.maxAge !== null) appliedFilters.push("maxAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");

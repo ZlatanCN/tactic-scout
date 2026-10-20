@@ -335,6 +335,25 @@ test("ASA search holds one season and retrieval timestamp across all requested l
   assert.ok(statRequests.every((url) => url.searchParams.get("season_name") === "2026"));
 });
 
+test("ASA target-team searches exclude exact current-season team matches", async () => {
+  const repo = repository(mockFetch().fetchImpl);
+
+  const page = await repo.searchCandidates({
+    targetTeam: "Sample City FC",
+    playerName: null,
+    position: null,
+    maxAge: null,
+    minimumMinutes: 0,
+    competition: "MLS",
+    season: "2026",
+    offset: 0,
+    limit: 20,
+  });
+
+  assert.deepEqual(page.players.map(({ team }) => team), ["Sample Borough FC"]);
+  assert.ok(page.appliedFilters.includes("targetTeam"));
+});
+
 test("ASA provider requires an exact current-season entity join and source season", async () => {
   const wrongSeason = repository(mockFetch({ seasonOverride: "2025" }).fetchImpl);
   await assert.rejects(() => wrongSeason.loadPlayers(), (error: unknown) => error instanceof ASAProviderError && error.code === "invalid_response");

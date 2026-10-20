@@ -150,6 +150,7 @@ export async function executeRecruitmentToolAction(
         action: "search_candidates",
         request,
         page: await observeCancellation(signal, () => searchPlayerPage(dependencies.repository, {
+          targetTeam: request.targetTeam,
           ...(request.referenceRoles ? { referenceRoles: request.referenceRoles } : {}),
           ...(request.excludedCompetitions?.length ? { excludedCompetitions: request.excludedCompetitions } : {}),
           playerName: request.playerName,

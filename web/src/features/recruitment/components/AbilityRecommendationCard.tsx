@@ -45,6 +45,7 @@ export function AbilityRecommendationCard({ recommendation, rank, selected, sele
           <h3 className="m-0 break-words text-2xl font-semibold leading-snug tracking-tight sm:text-3xl"><bdi>{player.name}</bdi></h3>
           {metadata.length > 0 && <p className="mb-0 mt-2 text-sm text-muted-foreground">{metadata.join(" · ")}</p>}
           {player.team && <p className="mb-0 mt-1 break-words text-sm text-muted-foreground">{[player.team, player.competition, player.season].filter(Boolean).join(" · ")}</p>}
+          {!player.team && <p className="mb-0 mt-1 text-sm text-muted-foreground">现役球队未核实</p>}
         </div>
         {comparisonAvailable && <Button variant={selected ? "secondary" : "outline"} size="sm" className="min-h-10 shrink-0 gap-2" aria-pressed={selected} aria-label={`${selected ? "移出比较" : "加入比较"}：${player.name}`} disabled={selectionDisabled && !selected} onClick={onToggle}>
           {selected ? <Check className="size-4" aria-hidden="true" /> : <Plus className="size-4" aria-hidden="true" />}{selected ? "移出比较" : "加入比较"}
@@ -94,7 +95,7 @@ export function AbilityRecommendationCard({ recommendation, rank, selected, sele
           <dl className="m-0 flex flex-wrap gap-x-8 gap-y-3 text-sm">
             {profile.currentAbility !== null && <div><dt className="text-muted-foreground">当前能力</dt><dd className="m-0 mt-1 font-semibold tabular-nums">{profile.currentAbility}<span className="ms-1 font-normal text-muted-foreground">/200</span></dd></div>}
             {profile.potentialAbility !== null && profile.potentialAbility > 0 && <div><dt className="text-muted-foreground">潜力参考</dt><dd className="m-0 mt-1 font-semibold tabular-nums">{profile.potentialAbility}<span className="ms-1 font-normal text-muted-foreground">/200</span></dd></div>}
-          </dl><p className="mb-0 mt-2 text-xs leading-relaxed text-muted-foreground">仅作画像内参考，不进入本次排序，也不代表未来发展保证。</p>
+          </dl><p className="mb-0 mt-2 text-xs leading-relaxed text-muted-foreground">用于比较当前能力与潜力，和职责适配、比赛表现分开看；PA 不保证未来发展。</p>
         </section>}
         {profile.traits.length > 0 && <section><h4 className="mb-2 mt-0 text-sm font-semibold">球员特点</h4><p className="m-0 text-sm leading-relaxed text-muted-foreground">{profile.traits.map(trait => traitLabels[trait] ?? trait.replaceAll("_", " ")).join("、")}</p></section>}
         {recommendation.reportObservations.length > 0 && <section><h4 className="mb-2 mt-0 text-sm font-semibold">补充观察</h4><ul className="m-0 list-disc space-y-2 ps-4 text-sm text-muted-foreground">{recommendation.reportObservations.map((observation, index) => <li key={index}>{observation.summary}</li>)}</ul></section>}

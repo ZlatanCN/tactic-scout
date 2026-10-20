@@ -216,6 +216,63 @@ test("evaluation and finish proposals exclude candidates outside user intent", (
   assert.deepEqual(finish.reportObservations.map(({ playerId }) => playerId), [eligible.playerId]);
 });
 
+test("players currently at the target club cannot be evaluated or recommended", () => {
+  const pau = {
+    ...player("pau-cubarsi", 19, "CB"),
+    name: "Pau Cubarsí",
+    team: "FC Barcelona",
+    sourceIdentity: {
+      provider: "understat",
+      playerId: "pau-understat",
+      retrievedAt: "2026-10-20T00:00:00.000Z",
+      isCurrentSeason: true,
+    },
+  } satisfies PlayerProfile;
+  const saliba = {
+    ...player("william-saliba", 25, "CB"),
+    name: "William Saliba",
+    team: "Arsenal",
+    sourceIdentity: {
+      provider: "understat",
+      playerId: "saliba-understat",
+      retrievedAt: "2026-10-20T00:00:00.000Z",
+      isCurrentSeason: true,
+    },
+  } satisfies PlayerProfile;
+  const state = {
+    targetTeam: "巴萨",
+    confirmedPosition: null,
+    history: [{ role: "user" as const, content: "为巴萨补强阵容" }],
+    discoveredPlayers: { [pau.playerId]: pau, [saliba.playerId]: saliba },
+    evaluatedPlayers: { [pau.playerId]: evaluated(pau), [saliba.playerId]: evaluated(saliba) },
+    retrievedKnowledge: {},
+  };
+
+  const evaluation = applyRecruitmentCandidatePolicy(RecruitmentActionSchema.parse({
+    action: "evaluate_candidates",
+    playerIds: [pau.playerId, saliba.playerId],
+  }), state);
+  assert.equal(evaluation.action, "evaluate_candidates");
+  if (evaluation.action !== "evaluate_candidates") return;
+  assert.deepEqual(evaluation.playerIds, [saliba.playerId]);
+
+  const finish = applyRecruitmentCandidatePolicy(RecruitmentActionSchema.parse({
+    action: "finish",
+    targetTeam: "巴萨",
+    needSummary: "为巴萨寻找中后卫",
+    capabilityProfile: ["中卫"],
+    recommendations: [
+      { playerId: pau.playerId, evidenceKeys: ["abilityBallPlayingDefender"] },
+      { playerId: saliba.playerId, evidenceKeys: ["abilityBallPlayingDefender"] },
+    ],
+    limitationKeys: ["other"],
+    reportObservations: [],
+  }), state);
+  assert.equal(finish.action, "finish");
+  if (finish.action !== "finish") return;
+  assert.deepEqual(finish.recommendations.map(({ playerId }) => playerId), [saliba.playerId]);
+});
+
 test("a named candidate search requires a matching retrieved report entity", () => {
   const base = {
     targetTeam: "Bayern Munich",

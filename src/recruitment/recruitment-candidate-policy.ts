@@ -1,5 +1,6 @@
 import { isReplacementTarget } from "./replacement-target.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { shouldExcludeForTargetTeam } from "../domain/team-names.js";
 import { type PlayerProfile } from "../domain/players.js";
 import { type Position } from "../domain/position-contracts.js";
 import type { KnowledgeSearchResult } from "../knowledge/schemas.js";
@@ -37,6 +38,7 @@ function currentIntent(state: RecruitmentCandidatePolicyState): CandidateSearchI
     replacementReferencePosition: state.replacementReferencePosition,
     referencePositions: [...new Set(state.referenceProfiles?.flatMap(profile => profile.supportedPositions ?? []) ?? [])],
     abilityProfilesEnabled: state.abilityProfilesEnabled,
+    targetTeam: state.targetTeam,
     userMessages: userMessages(state.history),
     confirmedPosition: state.confirmedPosition,
     confirmedPositions: state.confirmedPositions,
@@ -47,7 +49,8 @@ function currentIntent(state: RecruitmentCandidatePolicyState): CandidateSearchI
 }
 
 function discoveredPlayersForConstraint(state: RecruitmentCandidatePolicyState, intent: CandidateSearchIntent): PlayerProfile[] {
-  return Object.values(state.discoveredPlayers).filter((player) => candidateMatchesSearchIntent(player, intent));
+  return Object.values(state.discoveredPlayers).filter((player) => !shouldExcludeForTargetTeam(player, state.targetTeam)
+    && candidateMatchesSearchIntent(player, intent));
 }
 
 function evaluatedPlayersForConstraint(
@@ -55,12 +58,14 @@ function evaluatedPlayersForConstraint(
   intent: CandidateSearchIntent,
 ): Record<string, EvaluatedCandidate> {
   return Object.fromEntries(Object.entries(state.evaluatedPlayers).filter(([, evaluated]) => (
-    candidateMatchesSearchIntent(evaluated.player, intent)
+    !shouldExcludeForTargetTeam(evaluated.player, state.targetTeam)
+      && candidateMatchesSearchIntent(evaluated.player, intent)
   )));
 }
 
 function preserveTargetTeam(action: ParsedRecruitmentAction, state: RecruitmentCandidatePolicyState): ParsedRecruitmentAction {
-  const targetTeam = state.brief ? state.targetTeam : state.targetTeam
+  const targetTeam = state.targetTeam
+    ?? state.brief?.targetTeam?.value
     ?? action.targetTeam
     ?? (action.action === "inspect_team" ? action.teamName : null);
   if (action.action === "finish") return FinishActionSchema.parse({ ...action, targetTeam });
@@ -125,7 +130,7 @@ function enforceUserConstraints(
     }
     return RecruitmentActionSchema.parse({
       action: "search_candidates",
-      targetTeam: state.targetTeam,
+      targetTeam: intent.targetTeam,
       position: intent.position,
       playerName: null,
       maxAge: intent.maxAge,

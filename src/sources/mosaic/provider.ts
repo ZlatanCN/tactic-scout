@@ -165,6 +165,7 @@ export class MultiSourceCurrentPlayerRepository implements PlayerRepository {
     });
     const appliedFilters: PlayerSearchFilter[] = [];
     if (query.playerName) appliedFilters.push("playerName");
+    if (query.targetTeam) appliedFilters.push("targetTeam");
     if (query.position || query.positions?.length) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
     if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
     if (query.competition) appliedFilters.push("competition");

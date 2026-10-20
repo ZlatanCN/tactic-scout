@@ -19,6 +19,20 @@ test("expansion candidate evidence keeps full coverage counts and only exposes t
   assert.deepEqual(withoutRequestedMetrics.candidates[0]?.evidenceKeys, ["goals", "assists", "pressures"]);
 });
 
+test("expansion candidate evidence retains FM CA and PA as separate snapshot values", () => {
+  const projected = buildExpansionCandidateEvidence([{
+    playerId: "linked-player",
+    evidenceKeys: ["abilityBallPlayingDefender"],
+    footballManager: { currentAbility: 164, potentialAbility: 181, snapshotDate: "2025-11-23" },
+  }], ["abilityBallPlayingDefender"]);
+
+  assert.deepEqual(projected.candidates, [{
+    playerId: "linked-player",
+    evidenceKeys: ["abilityBallPlayingDefender"],
+    footballManager: { currentAbility: 164, potentialAbility: 181, snapshotDate: "2025-11-23" },
+  }]);
+});
+
 test("expansion history keeps the user's conversation and clarification questions, not tool results", () => {
   const userBrief = "为拜仁寻找凯恩的替代者，重点看能接应、做球和终结的前锋";
   const roleQuestion = JSON.stringify({

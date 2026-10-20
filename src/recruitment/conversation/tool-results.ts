@@ -390,6 +390,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
       }]));
       const observedRecords = { ...state.observedRecords, ...observed };
       const reportScope = RecruitmentSearchScopeSchema.parse({
+        excludedTargetTeam: request.targetTeam ?? null,
         ...(request.excludedCompetitions?.length ? { excludedCompetitions: request.excludedCompetitions } : {}),
         ...(request.positions?.length ? { positions: request.positions } : {}),
         position: request.position,
@@ -490,6 +491,11 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           season: player.season,
           minutes: player.minutes,
           source: player.source,
+          ...(player.abilityProfile ? { footballManager: {
+            currentAbility: player.abilityProfile.currentAbility,
+            potentialAbility: player.abilityProfile.potentialAbility,
+            snapshotDate: player.abilityProfile.inGameDate,
+          } } : {}),
           metrics: evidence,
           ...(roleFits ? { roleFits } : {}),
           ...(referenceSimilarity ? { referenceSimilarity } : {}),

@@ -44,6 +44,13 @@ test("conclusion evidence projects every candidate and only requested metrics wi
         playerId: "candidate-a", name: "Candidate A", team: "Club A", age: 22, position: "CM",
         competition: "League", season: "2026/27", minutes: 1_200, source: "Fixture",
         stats: { goals: 4, assists: 3 },
+        abilityProfile: {
+          recordId: "fm-a", uniqueId: "fm-unique-a", snapshotId: "fm-snapshot-a", inGameDate: "2025-11-23",
+          birthDate: "2004-03-01", aliases: [], heightCm: null,
+          identityLink: { method: "verified_bridge", evidence: "fixture verified identity" },
+          positions: { CM: 18 }, attributes: {}, leftFoot: null, rightFoot: null, personality: {}, traits: [],
+          currentAbility: 164, potentialAbility: 181, roles: [],
+        },
       },
       evidence: [
         { key: "goals", label: "进球", value: 0.3, unit: "次/90", peerPercentile: 72, peerGroupSize: 10, minutes: 1_200, competition: "League", season: "2026/27", source: "Fixture" },
@@ -73,6 +80,11 @@ test("conclusion evidence projects every candidate and only requested metrics wi
     { key: "assists", label: "助攻", unit: "次/90" },
   ]);
   assert.equal(projected.candidates[0]?.metrics.some(metric => metric.key === "pressures"), false);
+  assert.deepEqual(projected.candidates[0]?.footballManager, {
+    currentAbility: 164,
+    potentialAbility: 181,
+    snapshotDate: "2025-11-23",
+  });
   assert.deepEqual(projected.candidates[1]?.metrics, [{
     key: "goals", value: 0.2, peerPercentile: null, peerGroupSize: 2,
     peerPercentileUnavailableReason: "candidate_low_sample",
