@@ -130,12 +130,19 @@ test("Harness records conversation completion consistently for reports and error
 });
 
 test("Harness error summaries preserve safe context-capacity dimensions", () => {
-  assert.deepEqual(summarizeHarnessErrors(new RecruitmentContextCapacityError("investigate", 12_174, 7_168)), [{
+  assert.deepEqual(summarizeHarnessErrors(new RecruitmentContextCapacityError("investigate", 12_174, 7_168, 10_240, 2_048, 1_024)), [{
     name: "RecruitmentContextCapacityError",
     category: "context_capacity",
     stage: "investigate",
     estimatedInputTokens: 12_174,
     inputBudgetTokens: 7_168,
+  }]);
+  assert.deepEqual(summarizeHarnessErrors(new RecruitmentContextCapacityError("investigate", 12_174, null, null, 2_048, 1_024, true)), [{
+    name: "RecruitmentContextCapacityError",
+    category: "context_capacity",
+    stage: "investigate",
+    estimatedInputTokens: 12_174,
+    inputBudgetTokens: null,
   }]);
 
   const protocolError = Object.assign(new Error("Planner response was malformed."), {

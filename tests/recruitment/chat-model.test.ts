@@ -3,6 +3,8 @@ import test from "node:test";
 import { z } from "zod/v4";
 import {
   createChatModel,
+  contextCompactionRatio,
+  DEFAULT_CONTEXT_COMPACTION_RATIO,
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS,
@@ -13,8 +15,27 @@ import {
   openAIPlannerMaxOutputTokens,
   openAIExpansionRequestTimeoutMs,
   openAIMaxOutputTokens,
+  isProviderContextOverflow,
   structuredOutputMethod,
 } from "../../src/recruitment/chat-model.js";
+
+test("context compaction uses a window-relative default and validates configuration", () => {
+  assert.equal(DEFAULT_CONTEXT_COMPACTION_RATIO, 0.9);
+  assert.equal(contextCompactionRatio(""), 0.9);
+  assert.equal(contextCompactionRatio("0.85"), 0.85);
+  assert.throws(() => contextCompactionRatio("0.2"), /TACTISCOUT_CONTEXT_COMPACTION_RATIO/);
+});
+
+test("provider context overflow detection ignores unrelated request failures", () => {
+  assert.equal(isProviderContextOverflow({
+    status: 400,
+    code: "context_length_exceeded",
+    message: "maximum context length exceeded",
+  }), true);
+  assert.equal(isProviderContextOverflow(new Error("The prompt is too long for this model's context window.")), true);
+  assert.equal(isProviderContextOverflow(new Error("rate limit exceeded")), false);
+  assert.equal(isProviderContextOverflow(new Error("request failed with status 400")), false);
+});
 
 test("structured output auto mode uses JSON Schema for the standard local Ollama endpoint", () => {
   assert.equal(structuredOutputMethod("http://127.0.0.1:11434/v1/"), "jsonSchema");

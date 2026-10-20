@@ -1,11 +1,11 @@
 import type { ConversationHistoryEntry } from "./planner-context.js";
-import { DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS, DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS } from "./chat-model.js";
+import { DEFAULT_CONTEXT_COMPACTION_RATIO, DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS } from "./chat-model.js";
 import { createHash } from "node:crypto";
 
 export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
 
 export interface RecruitmentContextManifest {
-  version: 4;
+  version: 5;
   stage: RecruitmentContextStage;
   requestBytes: number;
   componentBytes: { system: number; payload: number; schema: number; framing: number };
@@ -18,13 +18,20 @@ export interface RecruitmentContextManifest {
   omittedHistoryEventIds: string[];
   estimatedInputTokens: number;
   estimateMethod: "wire-utf8-bytes-divided-by-three-plus-15-percent" | "codex-gpt-6-luna-stage-calibrated-v1";
-  inputBudgetTokens: number;
+  /** Configured hard input limit after output and safety reserves; null when unknown. */
+  hardInputLimitTokens: number | null;
+  /** @deprecated Telemetry compatibility alias for hardInputLimitTokens. */
+  inputBudgetTokens: number | null;
+  compactionThresholdTokens: number | null;
+  compactionRatio: number;
   outputBudgetTokens: number;
   safetyMarginTokens: number;
   contextWindowTokens: number | null;
-  status: "within_budget" | "over_budget";
+  status: "within_budget" | "over_budget" | "unknown";
   budgetStrategy: "assembled" | "conclusion_candidate_batch" | "planner_protocol_retry";
   exceedsVerifiedWindow: boolean;
+  exceedsCompactionThreshold: boolean;
+  /** @deprecated Alias of exceedsCompactionThreshold. */
   exceedsSoftTarget: boolean;
   omittedHistoryEntries: number;
   protectedQuoteCount: number;
@@ -43,7 +50,7 @@ export interface BuildRecruitmentContextInput {
   responseSchema: unknown;
   outputBudgetTokens: number;
   contextWindowTokens?: number;
-  softInputBudgetTokens?: number;
+  compactionRatio?: number;
   safetyMarginTokens?: number;
   omittedHistoryEntries?: number;
   protectedQuoteCount?: number;
@@ -59,8 +66,22 @@ export interface RecruitmentContextRequest {
 }
 
 export class RecruitmentContextCapacityError extends Error {
-  constructor(readonly stage: RecruitmentContextStage, readonly estimatedInputTokens: number, readonly inputBudgetTokens: number) {
-    super(`${stage} 请求预计需要约 ${estimatedInputTokens} 个输入 token，超过已配置的 ${inputBudgetTokens} token 上限；案件已保留，请缩小本轮范围后重试。`);
+  constructor(
+    readonly stage: RecruitmentContextStage,
+    readonly estimatedInputTokens: number,
+    readonly inputBudgetTokens: number | null,
+    readonly contextWindowTokens: number | null,
+    readonly outputBudgetTokens: number,
+    readonly safetyMarginTokens: number,
+    readonly providerRejectedAfterCompaction = false,
+  ) {
+    const hardLimit = inputBudgetTokens === null ? "未配置有效的模型上下文窗口" : `硬输入限额约 ${inputBudgetTokens} token`;
+    const cause = providerRejectedAfterCompaction
+      ? "模型服务在自动整理对话后仍拒绝了请求"
+      : `自动整理后请求仍超出${hardLimit}`;
+    const runtimeWindow = contextWindowTokens === null ? "运行实例没有配置模型上下文窗口"
+      : `运行实例配置的上下文窗口为 ${contextWindowTokens} token`;
+    super(`${stage} 任务暂时无法继续：${cause}（输入估算约 ${estimatedInputTokens} token；${runtimeWindow}，预留输出 ${outputBudgetTokens} token、误差余量 ${safetyMarginTokens} token）。案件进度和原始对话已保留；可以在同一案件继续，无需删除案件或从头开始。`);
     this.name = "RecruitmentContextCapacityError";
   }
 }
@@ -71,6 +92,9 @@ export function assertRecruitmentContextFits(request: RecruitmentContextRequest)
       request.manifest.stage,
       request.manifest.estimatedInputTokens,
       request.manifest.inputBudgetTokens,
+      request.manifest.contextWindowTokens,
+      request.manifest.outputBudgetTokens,
+      request.manifest.safetyMarginTokens,
     );
   }
 }
@@ -125,18 +149,21 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
     : baseEstimatedInputTokens;
   const outputBudgetTokens = Math.max(0, Math.floor(input.outputBudgetTokens));
   const safetyMarginTokens = input.safetyMarginTokens ?? DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS;
-  const softBudget = input.softInputBudgetTokens ?? DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS;
-  const inputBudgetTokens = input.contextWindowTokens === undefined
-    ? softBudget
-    : Math.max(0, Math.min(softBudget, input.contextWindowTokens - outputBudgetTokens - safetyMarginTokens));
-  const exceedsSoftTarget = estimatedInputTokens > softBudget;
+  const hardInputLimitTokens = input.contextWindowTokens === undefined
+    ? null
+    : Math.max(0, input.contextWindowTokens - outputBudgetTokens - safetyMarginTokens);
+  const compactionRatio = input.compactionRatio ?? DEFAULT_CONTEXT_COMPACTION_RATIO;
+  const compactionThresholdTokens = hardInputLimitTokens === null
+    ? null
+    : Math.floor(hardInputLimitTokens * compactionRatio);
+  const exceedsCompactionThreshold = compactionThresholdTokens !== null && estimatedInputTokens >= compactionThresholdTokens;
   const exceedsVerifiedWindow = input.contextWindowTokens !== undefined
     && estimatedInputTokens + outputBudgetTokens + safetyMarginTokens > input.contextWindowTokens;
 
   return {
     messages,
     manifest: {
-      version: 4,
+      version: 5,
       stage: input.stage,
       requestBytes,
       componentBytes: {
@@ -156,14 +183,19 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       estimateMethod: usesMeasuredLunaCalibration
         ? "codex-gpt-6-luna-stage-calibrated-v1"
         : "wire-utf8-bytes-divided-by-three-plus-15-percent",
-      inputBudgetTokens,
+      hardInputLimitTokens,
+      inputBudgetTokens: hardInputLimitTokens,
+      compactionThresholdTokens,
+      compactionRatio,
       outputBudgetTokens,
       safetyMarginTokens,
       contextWindowTokens: input.contextWindowTokens ?? null,
-      status: estimatedInputTokens <= inputBudgetTokens ? "within_budget" : "over_budget",
+      status: hardInputLimitTokens === null ? "unknown"
+        : estimatedInputTokens <= hardInputLimitTokens ? "within_budget" : "over_budget",
       budgetStrategy: input.budgetStrategy ?? "assembled",
       exceedsVerifiedWindow,
-      exceedsSoftTarget,
+      exceedsCompactionThreshold,
+      exceedsSoftTarget: exceedsCompactionThreshold,
       omittedHistoryEntries: input.omittedHistoryEntries ?? 0,
       protectedQuoteCount: input.protectedQuoteCount ?? 0,
     },

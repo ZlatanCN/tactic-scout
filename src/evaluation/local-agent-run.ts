@@ -83,7 +83,7 @@ type HarnessErrorSummary = {
   status?: number;
   stage?: string;
   estimatedInputTokens?: number;
-  inputBudgetTokens?: number;
+  inputBudgetTokens?: number | null;
   validationIssuePaths?: string[];
   validationIssueCodes?: string[];
   plannerResponseDiagnostics?: RecruitmentPlannerResponseDiagnostics;
@@ -189,7 +189,7 @@ export function summarizeHarnessErrors(error: unknown): HarnessErrorSummary[] {
       ...(status !== undefined ? { status } : {}),
       ...(typeof record.stage === "string" ? { stage: record.stage } : {}),
       ...(typeof record.estimatedInputTokens === "number" ? { estimatedInputTokens: record.estimatedInputTokens } : {}),
-      ...(typeof record.inputBudgetTokens === "number" ? { inputBudgetTokens: record.inputBudgetTokens } : {}),
+      ...(typeof record.inputBudgetTokens === "number" || record.inputBudgetTokens === null ? { inputBudgetTokens: record.inputBudgetTokens } : {}),
       ...(category === "schema_validation" ? safeValidationIssueDetails(record.issues) : {}),
       ...(depth === 0 && record.diagnostics && typeof record.diagnostics === "object"
         ? { plannerResponseDiagnostics: record.diagnostics as RecruitmentPlannerResponseDiagnostics }

@@ -7,6 +7,38 @@ import { createChatModel } from "../../src/recruitment/chat-model.js";
 import { unavailableRecruitmentConversation } from "../../src/recruitment/conversation.js";
 import type { PlayerRepository, PlayerSearchPage, PlayerSearchQuery } from "../../src/sources/registry.js";
 
+test("context health reports the active window and compaction policy without model credentials", async () => {
+  const keys = ["OPENAI_API_KEY", "OPENAI_MODEL", "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_COMPACTION_RATIO", "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS", "OPENAI_MAX_OUTPUT_TOKENS"] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  process.env.OPENAI_API_KEY = "never-return-this-value";
+  process.env.OPENAI_MODEL = "codex/gpt-6-luna";
+  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "258000";
+  process.env.TACTISCOUT_CONTEXT_COMPACTION_RATIO = "0.9";
+  process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "8192";
+  const app = createApp({ recruitmentConversation: unavailableRecruitmentConversation() });
+
+  try {
+    const response = await app.inject({ method: "GET", url: "/health/context" });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), {
+      configuredModel: "codex/gpt-6-luna",
+      configuredContextWindowTokens: 258000,
+      compactionRatio: 0.9,
+      defaultOutputBudgetTokens: 8192,
+      safetyMarginTokens: 1024,
+    });
+    assert.doesNotMatch(response.body, /never-return-this-value|OPENAI_API_KEY/);
+  } finally {
+    await app.close();
+    for (const key of keys) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test("the retired one-shot scouting route points to natural-language recruitment cases without reading players", async () => {
   let playerReads = 0;
   let knowledgeStatusReads = 0;

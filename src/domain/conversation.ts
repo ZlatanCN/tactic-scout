@@ -62,6 +62,7 @@ export type TeamRosterContext = z.infer<typeof TeamRosterContextSchema>;
 
 export const RecruitmentProgressStageSchema = z.enum([
   "understanding",
+  "context_compaction",
   "reference_identity",
   "starting",
   "planning",

@@ -10,7 +10,7 @@ type RecruitmentTraceFilterValue = string | number | boolean | null | string[] |
 
 export type RecruitmentTraceEvent =
   | { phase: "brief_failure"; failureKind: string; failureCode?: string; failureStatus?: number; outputLimitTokens?: number; validationCode?: RecruitmentBriefValidationCode; validationFailure?: string; issuePaths?: string[] }
-  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
+  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number | null; contextStatus?: "within_budget" | "over_budget" | "unknown"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
   | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
   | { phase: "tool_reuse"; toolName: "search_methodology"; resultCount: number; reason: "successful_same_turn_query" }

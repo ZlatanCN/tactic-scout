@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRecruitmentContext, estimateRecruitmentInputTokens, projectRecentRecruitmentDialogue, projectRecruitmentHistory, selectTransmittedHistoryEventIds, withContextModelUsage } from "../../src/recruitment/context.js";
+import { assertRecruitmentContextFits, buildRecruitmentContext, estimateRecruitmentInputTokens, projectRecentRecruitmentDialogue, projectRecruitmentHistory, RecruitmentContextCapacityError, selectTransmittedHistoryEventIds, withContextModelUsage } from "../../src/recruitment/context.js";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { createRecruitmentConversation } from "../../src/recruitment/conversation.js";
 import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
@@ -21,7 +21,7 @@ test("buildRecruitmentContext returns the complete staged request and a privacy-
   assert.equal(context.manifest.outputBudgetTokens, 1_024);
   assert.equal(context.manifest.contextWindowTokens, 16_384);
   assert.equal(context.manifest.status, "within_budget");
-  assert.equal(context.manifest.version, 4);
+  assert.equal(context.manifest.version, 5);
   assert.equal(context.manifest.budgetStrategy, "assembled");
   assert.doesNotMatch(JSON.stringify(context.manifest), /巴萨|后卫|brief/);
   assert.match(context.manifest.promptFingerprint, /^[a-f0-9]{16}$/);
@@ -138,6 +138,61 @@ test("buildRecruitmentContext reports an over-budget request without silently tr
 
   assert.equal(context.manifest.status, "over_budget");
   assert.match(context.messages[1]?.content ?? "", /中卫/);
+});
+
+test("a large request is not rejected by the former 8192-token soft target when the configured model window allows it", () => {
+  const context = buildRecruitmentContext({
+    stage: "investigate",
+    systemInstructions: "固定规则",
+    payload: { currentRequest: "长对话事实。".repeat(10_000) },
+    responseSchema: { type: "object" },
+    outputBudgetTokens: 8_192,
+    contextWindowTokens: 258_000,
+    compactionRatio: 0.9,
+  });
+
+  assert.ok(context.manifest.estimatedInputTokens > 8_192);
+  assert.equal(context.manifest.status, "within_budget");
+  assert.equal(context.manifest.exceedsVerifiedWindow, false);
+  assert.equal(context.manifest.exceedsCompactionThreshold, false);
+  assert.equal(context.manifest.hardInputLimitTokens, 258_000 - 8_192 - context.manifest.safetyMarginTokens);
+  assert.doesNotThrow(() => assertRecruitmentContextFits(context));
+});
+
+test("an unknown provider window stays unknown and does not become an 8192-token hard cap", () => {
+  const context = buildRecruitmentContext({
+    stage: "investigate",
+    systemInstructions: "固定规则",
+    payload: { currentRequest: "长对话事实。".repeat(10_000) },
+    responseSchema: { type: "object" },
+    outputBudgetTokens: 2_048,
+  });
+
+  assert.equal(context.manifest.status, "unknown");
+  assert.equal(context.manifest.hardInputLimitTokens, null);
+  assert.equal(context.manifest.compactionThresholdTokens, null);
+  assert.doesNotThrow(() => assertRecruitmentContextFits(context));
+});
+
+test("a true configured hard-window overflow has an honest resumable error", () => {
+  const context = buildRecruitmentContext({
+    stage: "investigate",
+    systemInstructions: "固定规则",
+    payload: { currentRequest: "长对话事实。".repeat(10_000) },
+    responseSchema: { type: "object" },
+    outputBudgetTokens: 2_048,
+    contextWindowTokens: 12_288,
+    safetyMarginTokens: 1_024,
+  });
+
+  assert.throws(() => assertRecruitmentContextFits(context), error => {
+    assert.ok(error instanceof RecruitmentContextCapacityError);
+    assert.equal(error.inputBudgetTokens, 9_216);
+    assert.equal(error.contextWindowTokens, 12_288);
+    assert.match(error.message, /上下文窗口为 12288 token/);
+    assert.doesNotMatch(error.message, /缩小本轮范围|8192 token 上限/);
+    return true;
+  });
 });
 
 test("projectRecruitmentHistory retains recent dialogue, questions and user quotes outside the recent window", () => {

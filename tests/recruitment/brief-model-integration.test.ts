@@ -49,6 +49,48 @@ test("real structured model adapter works directly and inside the streamed LangG
   }
 });
 
+test("context compaction from requirement understanding reaches the live graph progress stream", async () => {
+  const brief = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null,
+    referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, referenceClues: [], referenceRecheck: null,
+    positions: [], priorities: [], constraints: [],
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] });
+  const reference = roleConstraintPlayer("reference", "Rayan Cherki", "AM");
+  const candidate = roleConstraintPlayer("candidate", "Candidate", "AM");
+  const progress: Array<{ stage: string; status: string }> = [];
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      input.onContextCompaction?.("started");
+      input.onContextCompaction?.("completed");
+      return brief;
+    } },
+    repository: {
+      mode: "demo",
+      sourceName: "Fixture",
+      async findPlayersByNames() { return [reference]; },
+      async loadPlayers() { return [reference, candidate]; },
+    },
+    referenceNameResolver: async mention => ({ status: "resolved", mention, resolutionMethod: "wikidata_exact",
+      player: { entityId: "Q123", sourceUrl: "https://www.wikidata.org/wiki/Q123", names: [reference.name], preferredName: reference.name, match: "exact_label" } }),
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    knowledgeBase: { async search() { return []; } },
+    planner: { async decide() { return {
+      action: "finish", targetTeam: null, needSummary: "寻找相似球员", capabilityProfile: [],
+      recommendations: [{ playerId: candidate.playerId, evidenceKeys: ["shotAssists"] }], limitationKeys: [],
+    }; } },
+  });
+
+  const result = await conversation.turn({
+    threadId: "context-compaction-progress",
+    message: "推荐类似切尔基的球员",
+    onProgress: update => progress.push({ stage: update.stage, status: update.status }),
+  });
+
+  assert.equal(result.status, "completed");
+  assert.ok(progress.some(event => event.stage === "context_compaction" && event.status === "started"));
+  assert.ok(progress.some(event => event.stage === "context_compaction" && event.status === "completed"));
+});
+
 test("a truncated brief honors the configured budget and same-case retry re-runs understanding", async () => {
   const originalFetch = globalThis.fetch;
   const keys = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS", "OPENAI_REASONING_EFFORT"] as const;
@@ -135,6 +177,67 @@ test("a truncated brief honors the configured budget and same-case retry re-runs
     ]);
     assert.equal(playerReads, 0);
     assert.equal(plannerCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test("brief understanding retries a provider context overflow after compacting old dialogue", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS", "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_COMPACTION_RATIO", "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS"] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:9999/v1";
+  process.env.OPENAI_API_KEY = "fixture";
+  process.env.OPENAI_MODEL = "fixture-model";
+  process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "2048";
+  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "258000";
+  process.env.TACTISCOUT_CONTEXT_COMPACTION_RATIO = "0.9";
+  process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
+  const brief = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null,
+    referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, referenceClues: [], referenceRecheck: null,
+    positions: [], priorities: [], constraints: [],
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] });
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    bodies.push(body);
+    if (bodies.length === 1) return Response.json({ error: {
+      message: "The request exceeds the model's context window.",
+      type: "invalid_request_error", param: "messages", code: "context_length_exceeded",
+    } }, { status: 400 });
+    return Response.json({
+      id: "fixture", object: "chat.completion", created: 1, model: "fixture-model",
+      choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(brief) }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 80, completion_tokens: 40, total_tokens: 120 },
+    });
+  }) as typeof fetch;
+
+  try {
+    const statuses: string[] = [];
+    const message = "推荐类似切尔基的球员";
+    const result = await createRecruitmentBriefInterpreter().interpret({
+      message,
+      previous: null,
+      recentMessages: ["旧需求".repeat(500)],
+      recentDialogue: [{ role: "user", content: "旧需求".repeat(500), eventId: "evt.fixture.user.1" }],
+      validationMessages: ["旧需求".repeat(500), message],
+      onContextCompaction: status => statuses.push(status),
+    });
+    assert.deepEqual(result, brief);
+    assert.equal(bodies.length, 2);
+    assert.deepEqual(statuses, ["started", "completed"]);
+    const firstMessages = bodies[0]?.messages as Array<{ content?: unknown }>;
+    const secondMessages = bodies[1]?.messages as Array<{ content?: unknown }>;
+    assert.match(String(firstMessages[1]?.content ?? ""), /旧需求/);
+    assert.doesNotMatch(String(secondMessages[1]?.content ?? ""), /旧需求/);
+    assert.match(String(secondMessages[1]?.content ?? ""), /推荐类似切尔基的球员/);
+    assert.deepEqual(JSON.parse(String(secondMessages[1]?.content).split("\n").slice(1).join("\n")).recentDialogue, []);
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of keys) {

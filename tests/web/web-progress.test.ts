@@ -38,3 +38,16 @@ test("live progress keeps the six most recent merged steps while saved history r
   assert.equal(visibleProgressSteps(events).length, 6);
   assert.deepEqual(visibleProgressSteps(events).map(({ occurrence }) => occurrence), [3, 4, 5, 6, 7, 8]);
 });
+
+test("automatic context compaction appears as a completed live progress step", () => {
+  const events = [
+    event({ sequence: 1, occurrence: 1, stage: "context_compaction", status: "started" }),
+    event({ sequence: 2, occurrence: 1, stage: "context_compaction", status: "completed" }),
+    event({ sequence: 3, occurrence: 1, stage: "planning", status: "started" }),
+  ];
+
+  assert.deepEqual(allProgressSteps(events).map(({ stage, occurrence, status }) => ({ stage, occurrence, status })), [
+    { stage: "context_compaction", occurrence: 1, status: "completed" },
+    { stage: "planning", occurrence: 1, status: "started" },
+  ]);
+});

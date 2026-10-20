@@ -7,8 +7,8 @@ export const DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS = 60_000;
 export const DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = 1_024;
 export const DEFAULT_OPENAI_PLANNER_MAX_OUTPUT_TOKENS = 2_048;
 export const DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = 2_048;
-export const DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS = 8_192;
 export const DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS = 1_024;
+export const DEFAULT_CONTEXT_COMPACTION_RATIO = 0.9;
 
 export function modelContextWindowTokens(value = process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS): number | undefined {
   if (!value?.trim()) return undefined;
@@ -19,13 +19,13 @@ export function modelContextWindowTokens(value = process.env.TACTISCOUT_CONTEXT_
   return tokens;
 }
 
-export function contextSoftInputBudgetTokens(value = process.env.TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS): number {
-  if (!value?.trim()) return DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS;
-  const tokens = Number(value);
-  if (!Number.isSafeInteger(tokens) || tokens < 1_024 || tokens > 131_072) {
-    throw new Error("TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS must be an integer between 1024 and 131072.");
+export function contextCompactionRatio(value = process.env.TACTISCOUT_CONTEXT_COMPACTION_RATIO): number {
+  if (!value?.trim()) return DEFAULT_CONTEXT_COMPACTION_RATIO;
+  const ratio = Number(value);
+  if (!Number.isFinite(ratio) || ratio < 0.5 || ratio > 0.98) {
+    throw new Error("TACTISCOUT_CONTEXT_COMPACTION_RATIO must be a number between 0.5 and 0.98.");
   }
-  return tokens;
+  return ratio;
 }
 
 export function contextSafetyMarginTokens(value = process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS): number {
@@ -157,6 +157,30 @@ export function isChatModelTimeout(error: unknown): boolean {
   }
   return false;
 }
+
+/** Identify only provider errors that explicitly describe a context/input limit. */
+export function isProviderContextOverflow(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current && !seen.has(current); depth += 1) {
+    seen.add(current);
+    if (typeof current === "string") {
+      if (contextOverflowMessage.test(current)) return true;
+      current = undefined;
+      continue;
+    }
+    if (typeof current !== "object") break;
+    const record = current as { name?: unknown; message?: unknown; code?: unknown; type?: unknown; param?: unknown; cause?: unknown; error?: unknown };
+    const detail = [record.name, record.message, record.code, record.type, record.param]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ");
+    if (contextOverflowMessage.test(detail)) return true;
+    current = record.cause ?? record.error;
+  }
+  return false;
+}
+
+const contextOverflowMessage = /context[_ -]length[_ -]exceeded|maximum context(?: length)?|context window|too many tokens|input (?:is )?too (?:large|long)|prompt (?:is )?too (?:large|long)|request exceeds.{0,32}(?:token|context)|token.{0,32}(?:limit|maximum).{0,24}(?:exceed|too large)/i;
 
 export function createChatModel(
   apiKey: string,

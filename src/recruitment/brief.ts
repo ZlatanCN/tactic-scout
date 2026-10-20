@@ -21,8 +21,11 @@ export interface RecruitmentBriefInterpreter {
     protectedQuoteReferences?: readonly { quote: string; eventId: string }[];
     includedHistoryEventIds?: readonly string[];
     omittedHistoryEventIds?: readonly string[];
+    currentMessageEventId?: string;
+    clarificationQuestionEventId?: string;
     signal?: AbortSignal;
-    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number; contextManifest?: import("./context.js").RecruitmentContextManifest }) => void;
+    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number | null; contextStatus?: "within_budget" | "over_budget" | "unknown"; omittedHistoryEntries?: number; contextManifest?: import("./context.js").RecruitmentContextManifest }) => void;
+    onContextCompaction?: (status: "started" | "completed") => void;
   }): Promise<RecruitmentBrief>;
 }
 

@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import {
   contextSafetyMarginTokens,
-  contextSoftInputBudgetTokens,
+  contextCompactionRatio,
   modelContextWindowTokens,
   createChatModel,
   openAIRequestTimeoutMs,
@@ -35,7 +35,7 @@ export function createPlayerNameVariantGenerator(onUsage?: (usage: NormalizedMod
         responseSchema: z.toJSONSchema(VariantSchema),
         outputBudgetTokens: maxOutputTokens,
         ...(contextWindowTokens === undefined ? {} : { contextWindowTokens }),
-        softInputBudgetTokens: contextSoftInputBudgetTokens(),
+        compactionRatio: contextCompactionRatio(),
         safetyMarginTokens: contextSafetyMarginTokens(),
         contextRevision: context.scopeId,
       });

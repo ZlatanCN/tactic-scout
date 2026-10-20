@@ -108,8 +108,16 @@ export function createUnderstandingNode(input: {
           protectedQuoteReferences: historyProjection.manifest.protectedQuoteReferences,
           includedHistoryEventIds,
           omittedHistoryEventIds,
+          ...(latestUserEventId ? { currentMessageEventId: latestUserEventId } : {}),
+          ...(clarificationQuestionEventId ? { clarificationQuestionEventId } : {}),
           ...(state.briefQuestionContext ? { clarificationQuestion: state.briefQuestionContext } : {}), signal: config.signal,
-          onUsage: usage => context.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }) });
+          onUsage: usage => context.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }),
+          onContextCompaction: status => emitProgress(config, {
+            stage: "context_compaction",
+            status,
+            message: status === "started" ? "正在整理较早的对话内容，保留本轮需求与已确认条件" : "对话整理完成，继续本轮调查",
+            completedSteps: 0,
+          }) });
         emitProgress(config, { stage: "understanding", status: "completed", message: brief.task === "similarity" ? "已理解：以参考球员的特点寻找相似人选" : brief.task === "replacement" ? "已理解：寻找能承担参考职责的替代者" : "已理解：按位置与能力特点寻找人选", completedSteps: 0 });
       } catch (error) {
         throwIfTurnCancelled(config.signal);
@@ -121,7 +129,7 @@ export function createUnderstandingNode(input: {
         });
         return { briefFailure: error instanceof RecruitmentBriefOutputLimitError
           ? `模型在 ${error.maxOutputTokens} 个输出 token 的预算内未能完成需求解析，调查尚未开始。原始输入已保留，可以重试。`
-          : error instanceof RecruitmentContextCapacityError ? `${error.message} 原始输入已保留。`
+          : error instanceof RecruitmentContextCapacityError ? error.message
             : "这次没能完成需求理解，调查尚未开始。原始输入已保留，可以直接重试。",
           briefFailureKind: error instanceof Error ? error.name : "unknown", briefInterpretedThrough: messages.length };
       }

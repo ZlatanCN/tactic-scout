@@ -42,7 +42,7 @@ export type DecisionSnapshot = {
     positionBroadeningApproved: boolean;
     pendingQuestion: PendingQuestion | null;
   };
-  history: Array<{ role: "user" | "assistant" | "tool"; toolName?: string; content: string }>;
+  history: Array<{ role: "user" | "assistant" | "tool"; toolName?: string; content: string; eventId?: string }>;
   caps: {
     stage: PlanningMode;
     availableActions: readonly RecruitmentPlannerAction[];

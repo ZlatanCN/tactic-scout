@@ -21,6 +21,7 @@ import { investigationCandidates } from "./required-investigation.js";
 import type { EvaluatedPlayer, State } from "./state.js";
 import type { DecisionSnapshot } from "./planning-snapshot.js";
 import type { RecruitmentTraceObserver } from "./contracts.js";
+import { emitProgress } from "./progress.js";
 
 type PlannerInput = Parameters<RecruitmentPlanner["decide"]>[0];
 
@@ -152,6 +153,12 @@ export function buildRecruitmentDecisionContext(input: {
         ...usage,
       }),
     } : {}),
+    onContextCompaction: status => emitProgress(config, {
+      stage: "context_compaction",
+      status,
+      message: status === "started" ? "正在整理较早的对话内容，保留本轮需求与案件证据" : "对话整理完成，继续本轮调查",
+      completedSteps: 0,
+    }),
   };
   return {
     plannerInput,

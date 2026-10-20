@@ -1,10 +1,10 @@
-import { createChatModel, openAIMaxOutputTokens, structuredOutputMethod } from "./chat-model.js";
+import { contextCompactionRatio, createChatModel, isProviderContextOverflow, openAIMaxOutputTokens, structuredOutputMethod } from "./chat-model.js";
 import { RecruitmentBriefReferenceClueSchema, RecruitmentBriefReferenceRecheckSchema } from "../domain/recruitment-brief.js";
 import { RecruitmentBriefOutputLimitError, RecruitmentBriefSchema, RecruitmentBriefValidationError, validateRecruitmentBrief, type RecruitmentBrief, type RecruitmentBriefInterpreter } from "./brief.js";
 import { normalizeModelTokenUsage, structuredModelText } from "./model-output.js";
 import { z } from "zod/v4";
-import { assertRecruitmentContextFits, buildRecruitmentContext, withContextModelUsage } from "./context.js";
-import { contextSafetyMarginTokens, contextSoftInputBudgetTokens, modelContextWindowTokens } from "./chat-model.js";
+import { assertRecruitmentContextFits, buildRecruitmentContext, RecruitmentContextCapacityError, withContextModelUsage } from "./context.js";
+import { contextSafetyMarginTokens, modelContextWindowTokens } from "./chat-model.js";
 
 export const briefInterpretationInstructions = [
   "你负责理解足球招募需求，输出结构化需求，不推荐球员、不声明球员事实、不调用调查工具。",
@@ -81,32 +81,98 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
       let previousAttempt: unknown;
       const configuredContextWindow = modelContextWindowTokens();
       const payload = () => ({ previous: input.previous, ...(input.recentDialogue ? { recentDialogue: input.recentDialogue } : { recentMessages: input.recentMessages }), visibleCandidates: input.visibleCandidates ?? [], clarificationQuestion: input.clarificationQuestion, message: input.message, previousAttempt, correction, ...(input.protectedQuoteReferences?.length ? { protectedQuoteReferences: input.protectedQuoteReferences } : {}) });
-      const request = () => buildRecruitmentContext({
+      const request = (compacted: boolean) => {
+        const includedHistoryEventIds = compacted
+          ? [...new Set([
+            ...(input.currentMessageEventId ? [input.currentMessageEventId] : []),
+            ...(input.clarificationQuestionEventId ? [input.clarificationQuestionEventId] : []),
+            ...(input.protectedQuoteReferences ?? []).map(reference => reference.eventId),
+          ])]
+          : input.includedHistoryEventIds;
+        const transmittedEventIds = new Set(includedHistoryEventIds ?? []);
+        const omittedHistoryEventIds = compacted
+          ? [...new Set([...(input.omittedHistoryEventIds ?? []), ...(input.includedHistoryEventIds ?? []).filter(eventId => !transmittedEventIds.has(eventId))])]
+          : input.omittedHistoryEventIds;
+        return buildRecruitmentContext({
         stage: "understand",
         systemInstructions: briefInterpretationInstructions,
-        payload: payload(),
+        payload: {
+          ...payload(),
+          ...(compacted ? { recentMessages: [], ...(input.recentDialogue ? { recentDialogue: [] } : {}) } : {}),
+        },
         responseSchema: z.toJSONSchema(RecruitmentBriefModelSchema),
         outputBudgetTokens: maxOutputTokens,
         ...(configuredContextWindow === undefined ? {} : { contextWindowTokens: configuredContextWindow }),
-        softInputBudgetTokens: contextSoftInputBudgetTokens(),
+        compactionRatio: contextCompactionRatio(),
         safetyMarginTokens: contextSafetyMarginTokens(),
         contextRevision: input.contextRevision,
-        includedHistoryEventIds: input.includedHistoryEventIds,
-        omittedHistoryEventIds: input.omittedHistoryEventIds,
-        omittedHistoryEntries: Math.max(0, (input.validationMessages?.length ?? input.recentMessages.length + 1) - input.recentMessages.length - 1),
-      });
+        includedHistoryEventIds,
+        omittedHistoryEventIds,
+        omittedHistoryEntries: compacted
+          ? Math.max(0, (input.validationMessages?.length ?? input.recentMessages.length + 1) - 1)
+          : Math.max(0, (input.validationMessages?.length ?? input.recentMessages.length + 1) - input.recentMessages.length - 1),
+        });
+      };
+      let compacted = false;
+      let compactionStarted = false;
+      let compactionCompleted = false;
+      const startCompaction = () => {
+        if (compactionStarted) return;
+        compactionStarted = true;
+        input.onContextCompaction?.("started");
+      };
+      const completeCompaction = () => {
+        if (!compactionStarted || compactionCompleted) return;
+        compactionCompleted = true;
+        input.onContextCompaction?.("completed");
+      };
+      const initialRequest = request(false);
+      if (initialRequest.manifest.exceedsCompactionThreshold || initialRequest.manifest.exceedsVerifiedWindow) {
+        startCompaction();
+        compacted = true;
+      }
       for (let attempt = 0; attempt < 2; attempt++) {
-        const assembled = request();
+        const assembled = request(compacted);
+        if (!compacted && (assembled.manifest.exceedsCompactionThreshold || assembled.manifest.exceedsVerifiedWindow)) {
+          startCompaction();
+          compacted = true;
+          attempt -= 1;
+          continue;
+        }
         try { assertRecruitmentContextFits(assembled); }
         catch (error) {
           input.onUsage?.({ outcome: "failed", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: assembled.manifest });
+          completeCompaction();
           throw error;
         }
-        const result = await model.invoke(assembled.messages, input.signal ? { signal: input.signal } : undefined).catch(error => {
+        let result: Awaited<ReturnType<typeof model.invoke>>;
+        try {
+          result = await model.invoke(assembled.messages, input.signal ? { signal: input.signal } : undefined);
+        } catch (error) {
           input.onUsage?.({ outcome: "failed", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: withContextModelUsage(assembled.manifest, {}) });
+          if (isProviderContextOverflow(error)) {
+            if (!compacted) {
+              startCompaction();
+              compacted = true;
+              attempt -= 1;
+              continue;
+            }
+            completeCompaction();
+            throw new RecruitmentContextCapacityError(
+              "understand",
+              assembled.manifest.estimatedInputTokens,
+              assembled.manifest.hardInputLimitTokens,
+              assembled.manifest.contextWindowTokens,
+              assembled.manifest.outputBudgetTokens,
+              assembled.manifest.safetyMarginTokens,
+              true,
+            );
+          }
+          completeCompaction();
           if (isStructuredOutputLengthLimit(error)) throw new RecruitmentBriefOutputLimitError(maxOutputTokens, { cause: error });
           throw error;
-        });
+        }
+        completeCompaction();
         const tokenUsage = normalizeModelTokenUsage(result);
         input.onUsage?.({ outcome: "response", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: withContextModelUsage(assembled.manifest, tokenUsage), ...tokenUsage });
         let candidate: unknown = result.parsed;

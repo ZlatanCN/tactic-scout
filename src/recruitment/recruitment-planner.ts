@@ -10,8 +10,9 @@ import {
   openAIConclusionMaxOutputTokens,
   openAIRequestTimeoutMs,
   contextSafetyMarginTokens,
-  contextSoftInputBudgetTokens,
+  contextCompactionRatio,
   modelContextWindowTokens,
+  isProviderContextOverflow,
 } from "./chat-model.js";
 import { type DatasetMode } from "../domain/datasets.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
@@ -25,7 +26,7 @@ import {
 } from "./conclusion-policy.js";
 import { RecruitmentActionSchema, type RecruitmentAction, type RecruitmentPlannerAction } from "./recruitment-actions.js";
 import { buildExpansionCandidateEvidence, partitionConclusionCandidatesByIdentity, projectConclusionHistoryForBatch, projectPlannerCaseProgress, structuredPlannerHistory, type ConclusionCandidateEvidence, type ConversationHistoryEntry } from "./planner-context.js";
-import { assertRecruitmentContextFits, buildRecruitmentContext, type RecruitmentContextManifest, withContextModelUsage } from "./context.js";
+import { assertRecruitmentContextFits, buildRecruitmentContext, RecruitmentContextCapacityError, type RecruitmentContextManifest, withContextModelUsage } from "./context.js";
 import { createRecruitmentPlannerTools, messageForRecruitmentAction, parseRecruitmentPlannerOutput, recruitmentPlannerToolManifest, RecruitmentToolProtocolError, type RecruitmentPlannerOutput } from "./recruitment-tools.js";
 import type { DecisionSnapshot } from "./conversation/planning-snapshot.js";
 
@@ -45,6 +46,7 @@ export interface RecruitmentPlannerInput {
   contextRevision?: string;
   omittedHistoryEventIds?: readonly string[];
   onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
+  onContextCompaction?: (status: "started" | "completed") => void;
 }
 
 export interface RecruitmentPlanner {
@@ -75,8 +77,8 @@ export interface RecruitmentPlannerUsageObservation extends NormalizedModelToken
   /** Size of the structured case context sent to the Planner; never the prompt text. */
   contextChars?: number;
   estimatedInputTokens?: number;
-  inputBudgetTokens?: number;
-  contextStatus?: "within_budget" | "over_budget";
+  inputBudgetTokens?: number | null;
+  contextStatus?: "within_budget" | "over_budget" | "unknown";
   omittedHistoryEntries?: number;
   contextManifest?: RecruitmentContextManifest;
 }
@@ -97,18 +99,58 @@ function hasProjectedCandidateEvidence(value: unknown): boolean {
     && Array.isArray((evidence as { candidates?: unknown }).candidates));
 }
 
+function isAskUserHistoryEntry(entry: ConversationHistoryEntry): boolean {
+  if (entry.role !== "assistant") return false;
+  try {
+    const action = JSON.parse(entry.content) as { action?: unknown };
+    return action.action === "ask_user";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Keep only navigation the planner can no longer recover from structured state:
+ * the current user turn, its immediately preceding clarification, and the
+ * latest rejection feedback needed by expansion recovery.
+ */
+function compactPlannerHistoryForRequest(
+  history: readonly ConversationHistoryEntry[],
+  stage: RecruitmentDecisionMode,
+): ConversationHistoryEntry[] {
+  const latestUserIndex = history.reduce((latest, entry, index) => entry.role === "user" ? index : latest, -1);
+  const keep = new Set<number>();
+  if (latestUserIndex >= 0) {
+    for (let index = latestUserIndex - 1; index >= 0; index -= 1) {
+      if (history[index]?.role === "user") break;
+      if (isAskUserHistoryEntry(history[index]!)) {
+        keep.add(index);
+        break;
+      }
+    }
+  }
+  if (stage === "expand_recovery") {
+    const policyIndex = history.reduce((latest, entry, index) => entry.role === "tool" && entry.toolName === "investigation_policy" ? index : latest, -1);
+    if (policyIndex >= 0) keep.add(policyIndex);
+  }
+  return history.flatMap((entry, index) => keep.has(index) ? [{ ...entry }] : []);
+}
+
 function contextWithoutCandidatePool(
   payload: Record<string, unknown>,
   history: readonly ConversationHistoryEntry[],
 ): Record<string, unknown> {
+  const snapshot = payload.decisionSnapshot && typeof payload.decisionSnapshot === "object" && !Array.isArray(payload.decisionSnapshot)
+    ? payload.decisionSnapshot as Record<string, unknown>
+    : {};
   const progress = payload.caseProgress && typeof payload.caseProgress === "object" && !Array.isArray(payload.caseProgress)
     ? payload.caseProgress as Record<string, unknown>
     : {};
   const candidateEvidence = progress.candidateEvidence && typeof progress.candidateEvidence === "object" && !Array.isArray(progress.candidateEvidence)
     ? progress.candidateEvidence as Record<string, unknown>
     : undefined;
-  const constraints = payload.constraints && typeof payload.constraints === "object" && !Array.isArray(payload.constraints)
-    ? payload.constraints as Record<string, unknown>
+  const constraints = snapshot.constraints && typeof snapshot.constraints === "object" && !Array.isArray(snapshot.constraints)
+    ? snapshot.constraints as Record<string, unknown>
     : undefined;
   const historyWithoutCandidatePool = projectConclusionHistoryForBatch(history, {
     candidateIds: new Set(),
@@ -117,15 +159,18 @@ function contextWithoutCandidatePool(
   });
   return {
     ...payload,
-    history: structuredPlannerHistory(historyWithoutCandidatePool),
-    ...(constraints ? {
-      constraints: {
-        ...constraints,
-        evaluatedCandidates: [],
-        reportObservations: [],
-        ...(Array.isArray(constraints.candidateIdentityGroups) ? { candidateIdentityGroups: [] } : {}),
-      },
-    } : {}),
+    decisionSnapshot: {
+      ...snapshot,
+      history: structuredPlannerHistory(historyWithoutCandidatePool),
+      ...(constraints ? {
+        constraints: {
+          ...constraints,
+          evaluatedCandidates: [],
+          reportObservations: [],
+          ...(Array.isArray(constraints.candidateIdentityGroups) ? { candidateIdentityGroups: [] } : {}),
+        },
+      } : {}),
+    },
     caseProgress: {
       ...progress,
       ...(candidateEvidence ? { candidateEvidence: { ...candidateEvidence, candidates: [] } } : {}),
@@ -386,9 +431,25 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
     return this.prepareContext(input).contextRequest.manifest;
   }
 
-  private prepareContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
-    const snapshot = input.decisionSnapshot;
-    const stage = snapshot.caps.stage;
+  private prepareContext(input: Parameters<RecruitmentPlanner["decide"]>[0], compactionLevel: 0 | 1 | 2 = 0) {
+    const sourceSnapshot = input.decisionSnapshot;
+    const stage = sourceSnapshot.caps.stage;
+    const compactedHistory = compactionLevel === 0
+      ? sourceSnapshot.history
+      : compactionLevel === 1
+        ? compactPlannerHistoryForRequest(sourceSnapshot.history, stage)
+        : [];
+    const snapshot = compactionLevel === 0 ? sourceSnapshot : { ...sourceSnapshot, history: compactedHistory };
+    const currentUserEventId = [...sourceSnapshot.history].reverse().find(entry => entry.role === "user")?.eventId;
+    const transmittedHistoryEventIds = new Set([
+      ...compactedHistory.flatMap(entry => entry.eventId ? [entry.eventId] : []),
+      ...(compactionLevel > 0 && currentUserEventId ? [currentUserEventId] : []),
+    ]);
+    const additionallyOmittedEventIds = sourceSnapshot.history.flatMap(entry => entry.eventId && !transmittedHistoryEventIds.has(entry.eventId) ? [entry.eventId] : []);
+    const omittedHistoryEventIds = [...new Set([...(input.omittedHistoryEventIds ?? []), ...additionallyOmittedEventIds])];
+    const initialOmittedHistoryEntries = input.caseProgress && typeof input.caseProgress === "object" && "omittedHistoryEntries" in input.caseProgress
+      ? Number((input.caseProgress as { omittedHistoryEntries?: unknown }).omittedHistoryEntries) || 0 : 0;
+    const compactionOmittedEntries = compactionLevel === 0 ? 0 : sourceSnapshot.history.length - compactedHistory.length;
     const constraints = snapshot.constraints ?? undefined;
     const expansionConstraints = snapshot.search.expansionConstraints ?? undefined;
     const availableActions = snapshot.caps.availableActions;
@@ -431,7 +492,6 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       } : {}),
       ...(expansionConstraints ? { expansionConstraints } : {}),
       ...(plannerCaseProgress ? { caseProgress: plannerCaseProgress } : {}),
-      history: structuredPlannerHistory(input.history),
     };
     const baseInstructions = stage === "conclude"
         ? conclusionInstructions(input.dataMode, candidateBatch)
@@ -443,6 +503,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           : stage === "reorient" ? reorientationInstructions(input.dataMode) : investigationInstructions(input.dataMode);
       const systemInstructions = [baseInstructions,
         ...(availableActions.length ? [`本阶段开放的具名工具与控制动作：${availableActions.join("、")}。只能调用其中一个；其他工具本阶段不可用。`] : []),
+        ...(compactionLevel > 0 ? ["本轮采用了有损导航历史投影；案件当前需求、已确认条件、证据和进度字段是权威状态。只依据这些状态继续，不重复已完成动作，也不要因省略的旧叙述推断条件已撤销。"] : []),
         snapshot.case.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
         abilityProfileInstructions(snapshot.case.abilityProfilesEnabled)].filter(Boolean).join("\n");
       const toolManifest = recruitmentPlannerToolManifest(schema);
@@ -453,15 +514,17 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         outputBudgetTokens: isExpansion ? this.expansionOutputBudgetTokens
           : isFinalReport ? this.conclusionOutputBudgetTokens : this.plannerOutputBudgetTokens,
         ...(modelContextWindowTokens() === undefined ? {} : { contextWindowTokens: modelContextWindowTokens() }),
-        softInputBudgetTokens: contextSoftInputBudgetTokens(),
+        compactionRatio: contextCompactionRatio(),
         safetyMarginTokens: contextSafetyMarginTokens(),
         contextRevision: input.contextRevision,
         ...(candidateBatch ? { budgetStrategy: "conclusion_candidate_batch" as const } : {}),
-        omittedHistoryEventIds: input.omittedHistoryEventIds,
-        omittedHistoryEntries: input.caseProgress && typeof input.caseProgress === "object" && "omittedHistoryEntries" in input.caseProgress
-          ? Number((input.caseProgress as { omittedHistoryEntries?: unknown }).omittedHistoryEntries) || 0 : 0,
+        ...(compactionLevel > 0 && currentUserEventId ? { includedHistoryEventIds: [currentUserEventId] } : {}),
+        omittedHistoryEventIds,
+        omittedHistoryEntries: initialOmittedHistoryEntries + compactionOmittedEntries,
+        protectedQuoteCount: plannerCaseProgress && typeof plannerCaseProgress === "object" && "protectedQuoteCount" in plannerCaseProgress
+          ? Number((plannerCaseProgress as { protectedQuoteCount?: unknown }).protectedQuoteCount) || 0 : 0,
       } as const;
-      const activeHistory = input.history;
+      const activeHistory = snapshot.history;
       const activePayload = contextPayload;
       const contextRequest = buildRecruitmentContext({ ...contextOptions, payload: activePayload });
       return { candidateBatch, schema, tools: createRecruitmentPlannerTools(schema), isExpansion, isFinalReport, activeHistory, activePayload, contextRequest, contextOptions };
@@ -473,7 +536,34 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
     const constraints = snapshot.constraints ?? undefined;
     const availableActions = snapshot.caps.availableActions;
     const targetTeam = snapshot.case.targetTeam;
-    const { candidateBatch, schema, tools, isExpansion, isFinalReport, activeHistory, activePayload, contextRequest, contextOptions } = this.prepareContext(input);
+    let compactionLevel: 0 | 1 | 2 = 0;
+    let prepared = this.prepareContext(input, compactionLevel);
+    let compactionStarted = false;
+    let compactionCompleted = false;
+    const startCompaction = () => {
+      if (compactionStarted) return;
+      compactionStarted = true;
+      input.onContextCompaction?.("started");
+    };
+    const completeCompaction = () => {
+      if (!compactionStarted || compactionCompleted) return;
+      compactionCompleted = true;
+      input.onContextCompaction?.("completed");
+    };
+    if (prepared.contextRequest.manifest.exceedsCompactionThreshold || prepared.contextRequest.manifest.exceedsVerifiedWindow) {
+      startCompaction();
+      compactionLevel = 1;
+      prepared = this.prepareContext(input, compactionLevel);
+      if (prepared.contextRequest.manifest.exceedsVerifiedWindow) {
+        compactionLevel = 2;
+        prepared = this.prepareContext(input, compactionLevel);
+      }
+    }
+    const { candidateBatch, schema, tools, isExpansion, isFinalReport } = prepared;
+    let activeHistory = prepared.activeHistory;
+    let activePayload = prepared.activePayload;
+    let contextOptions = prepared.contextOptions;
+    const contextRequest = prepared.contextRequest;
     const stageModel = isExpansion ? this.expansionModel : isFinalReport ? this.conclusionModel : this.investigationModel;
     const actionModel = stageModel.bindTools(tools, { tool_choice: "required", parallel_tool_calls: false });
     try {
@@ -494,6 +584,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           payload: contextWithoutCandidatePool(activePayload, activeHistory),
         });
         if (!withoutCandidatePool.manifest.exceedsVerifiedWindow) {
+          completeCompaction();
           return await this.decideConclusionInBatches(input, input.candidateEvidenceForBatching);
         }
       }
@@ -559,7 +650,48 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           toolCallCount: response.tool_calls?.length ?? 0,
         }, stage);
       };
-      let modelOutput = await invokePlannerRequest(contextRequest);
+      let modelOutput: unknown;
+      try {
+        modelOutput = await invokePlannerRequest(contextRequest);
+      } catch (error) {
+        if (!isProviderContextOverflow(error)) throw error;
+        startCompaction();
+        if (compactionLevel >= 2) {
+          throw new RecruitmentContextCapacityError(
+            stage,
+            contextRequest.manifest.estimatedInputTokens,
+            contextRequest.manifest.hardInputLimitTokens,
+            contextRequest.manifest.contextWindowTokens,
+            contextRequest.manifest.outputBudgetTokens,
+            contextRequest.manifest.safetyMarginTokens,
+            true,
+          );
+        }
+        compactionLevel = compactionLevel === 0 ? 1 : 2;
+        prepared = this.prepareContext(input, compactionLevel);
+        if (prepared.contextRequest.manifest.exceedsVerifiedWindow && compactionLevel < 2) {
+          compactionLevel = 2;
+          prepared = this.prepareContext(input, compactionLevel);
+        }
+        activeHistory = prepared.activeHistory;
+        activePayload = prepared.activePayload;
+        contextOptions = prepared.contextOptions;
+        try {
+          modelOutput = await invokePlannerRequest(prepared.contextRequest);
+        } catch (retryError) {
+          if (!isProviderContextOverflow(retryError)) throw retryError;
+          throw new RecruitmentContextCapacityError(
+            stage,
+            prepared.contextRequest.manifest.estimatedInputTokens,
+            prepared.contextRequest.manifest.hardInputLimitTokens,
+            prepared.contextRequest.manifest.contextWindowTokens,
+            prepared.contextRequest.manifest.outputBudgetTokens,
+            prepared.contextRequest.manifest.safetyMarginTokens,
+            true,
+          );
+        }
+      }
+      completeCompaction();
       let response = modelOutput as AIMessage;
       try {
         parseRecruitmentPlannerOutput(response, availableActions, targetTeam);
@@ -594,6 +726,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       }
       return response as RecruitmentPlannerOutput;
     } catch (error) {
+      completeCompaction();
       if (isChatModelTimeout(error)) {
         throw new RecruitmentModelTimeoutError(isExpansion ? this.expansionTimeoutMs : this.timeoutMs);
       }

@@ -20,9 +20,9 @@ export function progressStepCountLabel(events: RecruitmentProgress["events"]): s
 
 function progressMessageForUser(stage: RecruitmentProgress["stage"], message: string, status: RecruitmentProgress["events"][number]["status"]): string {
   if (status !== "started") return message;
-  if (stage === "understanding" || stage === "reference_identity") return message;
+  if (stage === "understanding" || stage === "context_compaction" || stage === "reference_identity") return message;
   const stageMessages: Record<RecruitmentProgress["stage"], string> = {
-    understanding: "正在理解你的找人需求", reference_identity: "正在确认参考球员并读取画像",
+    understanding: "正在理解你的找人需求", context_compaction: "正在整理较早的对话并保留当前案件事实", reference_identity: "正在确认参考球员并读取画像",
     starting: "正在准备本轮调查", planning: "正在梳理需求并安排调查", methodology: "正在查找角色与能力评估的参考资料",
     team_sample: "正在查看目标球队已有的球员资料", player_detail: "正在读取候选的位置记录和近期表现", match_detail: "正在读取一场比赛的名单和射门记录", candidate_search: "正在按当前需求查找球员", player_evaluation: "正在比较球员在重点能力上的比赛表现",
     external_signal: "正在补充可用的外部表现参考", historical_archive: "正在查看候选球员的历史赛季记录", report_search: "正在查找球员报告和观察资料",
@@ -34,6 +34,7 @@ function progressMessageForUser(stage: RecruitmentProgress["stage"], message: st
 
 const stageGuidance: Record<RecruitmentProgress["stage"], string> = {
   understanding: "整理位置、年龄、赛事和能力重点；会影响名单的关键信息不明确时会先向你确认。",
+  context_compaction: "保留完整案件记录和当前要求，只压缩发送给模型的较早对话内容。",
   reference_identity: "先核对参考球员身份，再决定如何将他用于对照或从候选中排除。",
   starting: "正在载入这项案件的调查状态，并准备本轮需求。",
   planning: "结合你确认的条件和已经收集的证据，安排下一步调查。",
