@@ -1,21 +1,22 @@
-import { type LangGraphRunnableConfig } from "@langchain/langgraph";
-import { createConfiguredHistoricalArchive } from "../../sources/reep/historical-archive-enrichment.js";
-import { type PlayerRepository } from "../../players/repository.js";
-import { createConfiguredPlayerEloReportClient } from "../../sources/playerelo/client.js";
+import { Command, type LangGraphRunnableConfig, type Runtime } from "@langchain/langgraph";
 import { enrichPlayerEloSignals } from "../../sources/playerelo/enrichment.js";
-import { type ExternalSignalCoverage } from "../../domain/external-evidence.js";
+import { createEmptyExternalSignalCoverage, type ExternalSignalCoverage } from "../../domain/external-evidence.js";
 import { throwIfTurnCancelled } from "../turn-cancellation.js";
 import { evaluatedPlayersForConstraint } from "./candidate-context.js";
 import { emitProgress } from "./progress.js";
 import { type State } from "./state.js";
+import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
 
-export function createExternalSignalNode(input: {
-  playerEloSetup: ReturnType<typeof createConfiguredPlayerEloReportClient>;
-  disabledPlayerEloCoverage: ExternalSignalCoverage;
-}) {
-  const { playerEloSetup, disabledPlayerEloCoverage } = input;
-  return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
-    if (!playerEloSetup.client || state.action?.action !== "finish") {
+export function createExternalSignalNode() {
+  return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
+    const context = requireRecruitmentRuntimeContext(runtime.context);
+    const config = runtime as LangGraphRunnableConfig;
+    const playerEloSetup = context.playerEloSetup;
+    const disabledPlayerEloCoverage = createEmptyExternalSignalCoverage(
+      playerEloSetup?.status === "disabled" ? "disabled" : "not_run",
+      playerEloSetup?.status === "disabled" ? playerEloSetup.reason : null,
+    );
+    if (!playerEloSetup || !playerEloSetup.client || state.action?.action !== "finish") {
       return { externalSignalCoverage: disabledPlayerEloCoverage };
     }
     const eligibleEvaluatedPlayers = evaluatedPlayersForConstraint(state);
@@ -55,23 +56,37 @@ export function createExternalSignalNode(input: {
   };
 }
 
-export function createHistoricalArchiveNode(input: {
-  repository: PlayerRepository;
-  historicalArchiveSetup: ReturnType<typeof createConfiguredHistoricalArchive>;
-}) {
-  const { repository, historicalArchiveSetup } = input;
-  return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
+export function createHistoricalArchiveNode() {
+  return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
+    const context = requireRecruitmentRuntimeContext(runtime.context);
+    const config = runtime as LangGraphRunnableConfig;
+    const repository = context.repository;
+    const historicalArchiveSetup = context.historicalArchiveSetup;
     if (repository.mode === "wyscout") {
       return {
         historicalArchiveCoverage: {
-          ...historicalArchiveSetup.coverage,
+          ...(historicalArchiveSetup?.coverage ?? {
+            status: "not_run" as const,
+            disabledReason: null,
+            checkedCandidates: 0,
+            mappedCandidates: 0,
+            matchedCandidates: 0,
+            failedCandidates: 0,
+          }),
           status: "disabled" as const,
           disabledReason: "primary_source_is_archive" as const,
         },
       };
     }
-    if (historicalArchiveSetup.status !== "ready" || state.action?.action !== "finish") {
-      return { historicalArchiveCoverage: historicalArchiveSetup.coverage };
+    if (!historicalArchiveSetup || historicalArchiveSetup.status !== "ready" || state.action?.action !== "finish") {
+      return { historicalArchiveCoverage: historicalArchiveSetup?.coverage ?? {
+        status: "not_run",
+        disabledReason: null,
+        checkedCandidates: 0,
+        mappedCandidates: 0,
+        matchedCandidates: 0,
+        failedCandidates: 0,
+      } };
     }
     const eligibleEvaluatedPlayers = evaluatedPlayersForConstraint(state);
     const players = Object.values(eligibleEvaluatedPlayers).map(({ player }) => player);
@@ -96,4 +111,35 @@ export function createHistoricalArchiveNode(input: {
       historicalArchiveCoverage: result.coverage,
     };
   };
+}
+
+export function externalSignalFailureHandler(state: State) {
+  const candidateCount = state.action?.action === "finish" ? state.action.recommendations.length : 0;
+  return new Command({
+    update: {
+      externalSignalCoverage: {
+        ...state.externalSignalCoverage,
+        status: "failed" as const,
+        disabledReason: null,
+        checkedCandidates: Math.max(state.externalSignalCoverage.checkedCandidates, candidateCount),
+        failedCandidates: Math.max(state.externalSignalCoverage.failedCandidates, candidateCount),
+      },
+    },
+    goto: "deliver_recommendation",
+  });
+}
+
+export function historicalArchiveFailureHandler(state: State) {
+  const candidateCount = Object.keys(state.evaluatedPlayers).length;
+  return new Command({
+    update: {
+      historicalArchiveCoverage: {
+        ...state.historicalArchiveCoverage,
+        status: "failed" as const,
+        checkedCandidates: Math.max(state.historicalArchiveCoverage.checkedCandidates, candidateCount),
+        failedCandidates: Math.max(state.historicalArchiveCoverage.failedCandidates, candidateCount),
+      },
+    },
+    goto: "deliver_recommendation",
+  });
 }

@@ -84,16 +84,15 @@ async function runArm(candidateSearchFreshnessMode?: "enabled" | "bypassed") {
     },
     planner: {
       async decide(input) {
-        const latestUserIndex = input.history.map((entry) => entry.role === "user").lastIndexOf(true);
-        const currentTurn = input.history.slice(latestUserIndex + 1);
-        const currentMessage = input.history[latestUserIndex]?.content ?? "";
-        const tools = new Set(currentTurn.filter((entry) => entry.role === "tool").map((entry) => entry.toolName));
-        if (!tools.has("search_methodology")) {
+        const snapshot = input.decisionSnapshot;
+        const progress = input.caseProgress as { hasSearchedMethodology?: boolean; currentTurnCandidatePages?: unknown[] };
+        const currentMessage = snapshot.case.latestUserRequest;
+        if (!progress.hasSearchedMethodology) {
           return { action: "search_methodology", query: "中锋进球产出的可观察比赛证据" };
         }
 
         const isReturnToPremierLeague = currentMessage.includes("只看英超");
-        if (isReturnToPremierLeague && !tools.has("search_candidates")) {
+        if (isReturnToPremierLeague && !progress.currentTurnCandidatePages?.length && candidateSearchFreshnessMode === "bypassed") {
           const action = {
             action: "finish",
             targetTeam: "拜仁",
@@ -106,7 +105,7 @@ async function runArm(candidateSearchFreshnessMode?: "enabled" | "bypassed") {
           return action;
         }
 
-        if (!tools.has("search_candidates")) {
+        if (!progress.currentTurnCandidatePages?.length) {
           return {
             action: "search_candidates",
             position: "ST",
@@ -115,16 +114,21 @@ async function runArm(candidateSearchFreshnessMode?: "enabled" | "bypassed") {
             limit: 20,
           };
         }
-        if (!tools.has("evaluate_candidates")) {
-          return { action: "evaluate_candidates", playerIds: latestSearchResult.map(({ playerId }) => playerId) };
+        const pending = snapshot.candidates.eligiblePlayerIds.filter((playerId) => (
+          !snapshot.candidates.evaluatedPlayerIds.includes(playerId)
+        ));
+        if (pending.length) {
+          return { action: "evaluate_candidates", playerIds: pending };
         }
-        const currentCandidateId = latestSearchResult[0]?.playerId ?? firstPremierLeagueRecord.playerId;
+        const currentCandidateId = isReturnToPremierLeague
+          ? latestSearchResult[0]?.playerId
+          : snapshot.constraints?.evaluatedCandidates[0]?.playerId;
         return {
           action: "finish",
           targetTeam: "拜仁",
           needSummary: "寻找符合年龄和赛事要求的中锋候选。",
           capabilityProfile: ["进球产出"],
-          recommendations: [{ playerId: currentCandidateId, evidenceKeys: ["goals"] }],
+          recommendations: currentCandidateId ? [{ playerId: currentCandidateId, evidenceKeys: ["goals"] }] : [],
           limitationKeys: ["other"],
         };
       },
@@ -141,7 +145,7 @@ async function runArm(candidateSearchFreshnessMode?: "enabled" | "bypassed") {
   return { first, second, third, candidateQueries, returnToPremierLeagueFinishProposal };
 }
 
-test("fresh-scope observation ablation requires a new query to recommend after returning to a prior scope", async () => {
+test("fresh-scope observation requires a new query and evaluates its current result before recommending", async () => {
   const enabled = await runArm();
   const bypassed = await runArm("bypassed");
 
@@ -158,10 +162,14 @@ test("fresh-scope observation ablation requires a new query to recommend after r
     { playerName: null, position: "ST", maxAge: 23, minimumMinutes: 0, competition: "英超", season: null },
     { playerName: null, position: "ST", maxAge: 23, minimumMinutes: 0, competition: "德甲", season: null },
   ]);
-  assert.deepEqual(enabled.returnToPremierLeagueFinishProposal, bypassed.returnToPremierLeagueFinishProposal);
+  assert.equal(enabled.returnToPremierLeagueFinishProposal, null, "the enabled arm researches and evaluates the fresh result before final planning");
+  assert.deepEqual(bypassed.returnToPremierLeagueFinishProposal?.recommendations, [{
+    playerId: firstPremierLeagueRecord.playerId,
+    evidenceKeys: ["goals"],
+  }]);
   assert.deepEqual(enabled.third.report?.recommendations.map(({ player: candidate }) => candidate.playerId), [
     refreshedPremierLeagueRecord.playerId,
   ]);
-  assert.deepEqual(bypassed.third.report?.recommendations, []);
+  assert.deepEqual(bypassed.third.report?.recommendations, [], "the ablated arm cannot turn its stale proposal into a recommendation");
   assert.ok(bypassed.third.report?.limitations.some((limitation) => limitation.includes("重复提出")));
 });

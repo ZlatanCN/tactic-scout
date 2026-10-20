@@ -1,7 +1,6 @@
 import { type CapabilityEvidence, type CapabilityMetricKey, type RequestedCapabilityCoverage } from "../domain/capabilities.js";
 import { AbilityMetricDefinitions } from "../domain/player-abilities.js";
 import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
-import type { CaseEvidenceDirectoryEntry } from "./case-evidence.js";
 import type { CandidateIdentityGroupReference } from "../players/identity/candidate-groups.js";
 
 export interface ConversationHistoryEntry {
@@ -196,7 +195,7 @@ export function partitionConclusionCandidatesByIdentity<T extends { playerId: st
 /** Keep only already-observed tool evidence that belongs to one conclusion batch. */
 export function projectConclusionHistoryForBatch(
   history: readonly ConversationHistoryEntry[],
-  input: { candidateIds: ReadonlySet<string>; candidateNames: ReadonlySet<string>; documentIds: ReadonlySet<string>; evidenceRefs: ReadonlySet<string> },
+  input: { candidateIds: ReadonlySet<string>; candidateNames: ReadonlySet<string>; documentIds: ReadonlySet<string> },
 ): ConversationHistoryEntry[] {
   return history.flatMap(entry => {
     if (entry.role !== "tool") return [{ ...entry }];
@@ -223,17 +222,6 @@ export function projectConclusionHistoryForBatch(
         }) }];
       } catch {
         return [{ ...entry, content: "球员报告按本批候选范围筛选；无可读取报告正文。" }];
-      }
-    }
-    if (entry.toolName === "read_case_evidence") {
-      try {
-        const result = JSON.parse(entry.content) as Record<string, unknown> & { results?: Array<Record<string, unknown>> };
-        return [{ ...entry, content: JSON.stringify({
-          ...result,
-          results: (result.results ?? []).filter(item => typeof item.ref === "string" && input.evidenceRefs.has(item.ref)),
-        }) }];
-      } catch {
-        return [{ ...entry, content: "已读取的原文引用不在本批范围内。" }];
       }
     }
     return [{ ...entry }];
@@ -280,12 +268,11 @@ export function buildExpansionCandidateEvidence(
 /**
  * A conclusion-stage view of the authoritative evaluator state. It keeps every
  * eligible candidate, but only the metrics the current brief asks the Planner
- * to compare. Detailed evidence remains in State and the case evidence index.
+ * to compare. Detailed evidence remains in State.
  */
 export function buildConclusionCandidateEvidence(
   candidates: readonly EvaluatedCandidate[],
   requestedMetricKeys: readonly CapabilityMetricKey[],
-  metricEvidenceRefs: ReadonlyMap<string, string> = new Map(),
 ): ConclusionCandidateEvidence {
   const requested = new Set(requestedMetricKeys);
   const metricDefinitionByKey = new Map<CapabilityMetricKey, { key: CapabilityMetricKey; label: string; unit: string }>();
@@ -313,69 +300,11 @@ export function buildConclusionCandidateEvidence(
         minutes: player.minutes,
         source: player.source,
         ...(referenceSimilarity ? { referenceSimilarity } : {}),
-        ...(metricEvidenceRefs.has(player.playerId) ? { metricEvidenceRef: metricEvidenceRefs.get(player.playerId) } : {}),
         metrics: evidence.filter(metric => requested.has(metric.key)).map(metric => conclusionMetric(metric, player)),
         ...(requestedRoleFits?.length ? { roleFits: requestedRoleFits } : {}),
       };
     }),
   };
-}
-
-/** Omit duplicate metric directory rows when each compact candidate row already carries its metric ref. */
-export function buildConclusionEvidenceDirectory(directory: readonly CaseEvidenceDirectoryEntry[]): Array<Omit<CaseEvidenceDirectoryEntry, "availableFields" | "contentCharacters">> {
-  return directory.flatMap(({ kind, ref, title, playerId, chunkId, documentId, entityNames, source, timeRange }) => {
-    if (kind === "player_metrics") return [];
-    return [{
-      ref,
-      kind,
-      title,
-      ...(playerId ? { playerId } : {}),
-      ...(chunkId ? { chunkId } : {}),
-      ...(documentId ? { documentId } : {}),
-      ...(entityNames ? { entityNames } : {}),
-      ...(source ? { source } : {}),
-      ...(timeRange ? { timeRange } : {}),
-    }];
-  });
-}
-
-/**
- * Last-resort conclusion-stage history when the normal context exceeds its
- * soft input target. Structured brief/constraints and candidate evidence are
- * supplied separately, so replayable roster/evaluation pages can be omitted.
- */
-export function reduceConclusionHistoryForBudget(
-  history: readonly ConversationHistoryEntry[],
-  options: { evidenceDirectoryAvailable?: boolean; canReadEvidence?: boolean } = {},
-): ConversationHistoryEntry[] {
-  const latestUserIndex = history.reduce((latest, entry, index) => entry.role === "user" ? index : latest, -1);
-  if (latestUserIndex < 0) return [];
-  const precedingUserIndex = history.reduce((latest, entry, index) => index < latestUserIndex && entry.role === "user" ? index : latest, -1);
-  const latestQuestionIndex = history.reduce((latest, entry, index) => (
-    index > precedingUserIndex && index < latestUserIndex && entry.role === "assistant" && isAskUserContent(entry.content) ? index : latest
-  ), -1);
-  const retainedToolNames = new Set(["previous_shortlist", "inspect_team", "case_summary", "investigation_policy"]);
-  const latestToolIndices = new Map<string, number>();
-  history.forEach((entry, index) => {
-    if (index < latestUserIndex && entry.role === "tool" && retainedToolNames.has(entry.toolName ?? "")) {
-      latestToolIndices.set(entry.toolName!, index);
-    }
-  });
-  const keep = new Set([latestUserIndex, ...(latestQuestionIndex >= 0 ? [latestQuestionIndex] : []), ...latestToolIndices.values()]);
-  return history.flatMap((entry, index) => {
-    if (entry.role !== "tool") return keep.has(index) ? [{ ...entry }] : [];
-    if (entry.toolName === "read_case_evidence") return [{ ...entry }];
-    if (["search_methodology", "search_player_reports"].includes(entry.toolName ?? "")) {
-      const refsCanReplaceHistory = options.evidenceDirectoryAvailable && options.canReadEvidence;
-      return refsCanReplaceHistory ? [] : [{ ...entry }];
-    }
-    return keep.has(index) ? [{ ...entry }] : [];
-  });
-}
-
-function isAskUserContent(content: string): boolean {
-  try { return (JSON.parse(content) as { action?: unknown }).action === "ask_user"; }
-  catch { return false; }
 }
 
 function conclusionMetric(metric: CapabilityEvidence, player: EvaluatedCandidate["player"]) {
@@ -440,7 +369,7 @@ export function compactExpansionHistory(
 export function compactConclusionHistory(
   history: ConversationHistoryEntry[],
   requestedCapabilityCoverage?: readonly Pick<RequestedCapabilityCoverage, "requestedMetricKeys">[],
-  options: { preserveAllMethodology?: boolean; evidenceRefsByChunkId?: ReadonlyMap<string, string> } = {},
+  options: { preserveAllMethodology?: boolean } = {},
 ): ConversationHistoryEntry[] {
   const hasRequestedCapabilities = (requestedCapabilityCoverage?.length ?? 0) > 0;
   const requestedMetricKeys = new Set(requestedCapabilityCoverage?.flatMap(({ requestedMetricKeys: keys }) => keys) ?? []);
@@ -555,10 +484,8 @@ export function compactConclusionHistory(
                 entityNames: Array.isArray(document.entityNames) ? document.entityNames.filter((value): value is string => typeof value === "string") : undefined,
                 matchedCapabilityGaps: Array.isArray(document.matchedCapabilityGaps) ? document.matchedCapabilityGaps.filter((value): value is string => typeof value === "string") : undefined,
               });
-              const evidenceRef = typeof document.id === "string" ? options.evidenceRefsByChunkId?.get(document.id) : undefined;
               return {
                 ...document,
-                ...(evidenceRef ? { evidenceRef } : {}),
                 text: excerpt.text,
                 textExcerpt: {
                   strategy: excerpt.strategy,
@@ -566,9 +493,7 @@ export function compactConclusionHistory(
                   endOffset: excerpt.endOffset,
                   sourceCharacters: excerpt.sourceCharacters,
                   completeSentences: excerpt.completeSentences,
-                  note: evidenceRef
-                    ? "检索片段不代表全文；evidenceRef 可按需回读原文。"
-                    : "检索片段不代表全文；其余内容未读取。",
+                  note: "检索片段不代表全文；其余内容未读取。",
                 },
               };
             }),

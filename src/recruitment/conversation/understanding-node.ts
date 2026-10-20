@@ -1,4 +1,4 @@
-import type { LangGraphRunnableConfig } from "@langchain/langgraph";
+import type { LangGraphRunnableConfig, Runtime } from "@langchain/langgraph";
 import type { PlayerRepository } from "../../players/repository.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import type { RecruitmentBriefInterpreter } from "../brief.js";
@@ -15,8 +15,8 @@ import { SelectablePositionSchema } from "../../domain/position-contracts.js";
 import { z } from "zod/v4";
 import { identityRecordKey } from "../../players/identity/player-identity-resolver.js";
 import type { PlayerProfile } from "../../domain/players.js";
-import { contextManagementFeatures, type ContextManagementMode } from "./context-compaction-node.js";
 import { resolvedCandidateSearchIntent, sameCandidateSearchScope } from "./candidate-context.js";
+import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
 
 function safeFailureMetadata(error: unknown): { failureCode?: string; failureStatus?: number } {
   let current = error;
@@ -34,19 +34,14 @@ function safeFailureMetadata(error: unknown): { failureCode?: string; failureSta
 }
 
 export function createUnderstandingNode(input: {
-  interpreter?: RecruitmentBriefInterpreter;
-  repository: PlayerRepository;
-  resolver?: PlayerNameResolver;
-  observer?: RecruitmentTraceObserver;
   referenceComparisonEnabled?: boolean;
-  contextManagementMode?: ContextManagementMode;
 }) {
-  return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
-    if (!input.interpreter) return {};
+  return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
+    const context = requireRecruitmentRuntimeContext(runtime.context);
+    const config = runtime as LangGraphRunnableConfig;
+    if (!context.briefInterpreter) return {};
     const messages = state.history.filter(entry => entry.role === "user").map(entry => entry.content);
     const latest = messages.at(-1) ?? state.userMessage;
-    const contextManagementMode = input.contextManagementMode ?? "legacy";
-    const contextFeatures = contextManagementFeatures(contextManagementMode);
     const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
     const protectedQuotes = [
       state.brief?.targetTeam?.quote,
@@ -56,12 +51,10 @@ export function createUnderstandingNode(input: {
     ].filter((quote): quote is string => Boolean(quote));
     const historyProjection = projectRecruitmentHistory(state.history, {
       caseId,
-      recentUserTurns: contextFeatures.historyProjection ? 3 : messages.length + 1,
+      recentUserTurns: 3,
       protectedQuotes,
     });
-    const recentDialogue = contextFeatures.historyProjection
-      ? projectRecentRecruitmentDialogue(historyProjection.entries, 3)
-      : undefined;
+    const recentDialogue = projectRecentRecruitmentDialogue(historyProjection.entries, 3);
     const clarificationQuestionEventId = state.briefQuestionContext
       ? historyProjection.entries.flatMap(entry => {
           if (entry.role !== "assistant" || !entry.eventId) return [];
@@ -76,14 +69,8 @@ export function createUnderstandingNode(input: {
       .at(-1)?.eventId;
     const includedHistoryEventIds = selectTransmittedHistoryEventIds({
       retainedEventIds: historyProjection.manifest.includedEventIds,
-      ...(contextFeatures.historyProjection
-        ? {
-            projectedDialogueEventIds: recentDialogue?.flatMap(entry => entry.eventId ? [entry.eventId] : []),
-            protectedQuoteEventIds: historyProjection.manifest.protectedQuoteReferences.map(reference => reference.eventId),
-          }
-        : {
-            legacyUserEventIds: historyProjection.entries.flatMap(entry => entry.role === "user" && entry.eventId ? [entry.eventId] : []),
-          }),
+      projectedDialogueEventIds: recentDialogue.flatMap(entry => entry.eventId ? [entry.eventId] : []),
+      protectedQuoteEventIds: historyProjection.manifest.protectedQuoteReferences.map(reference => reference.eventId),
       ...(latestUserEventId ? { currentMessageEventId: latestUserEventId } : {}),
       ...(clarificationQuestionEventId ? { clarificationQuestionEventId } : {}),
     });
@@ -113,20 +100,20 @@ export function createUnderstandingNode(input: {
       emitProgress(config, { stage: "understanding", message: "正在理解你的找人需求", completedSteps: 0 });
       const startedAt = performance.now();
       try {
-        brief = await input.interpreter.interpret({ message: latest, previous: brief,
-          recentMessages: contextFeatures.historyProjection ? messages.slice(0, -1).slice(-3) : messages.slice(0, -1),
-          ...(recentDialogue ? { recentDialogue } : {}),
+        brief = await context.briefInterpreter.interpret({ message: latest, previous: brief,
+          recentMessages: messages.slice(0, -1).slice(-3),
+          recentDialogue,
           validationMessages: messages, visibleCandidates: state.briefCandidates,
           contextRevision: JSON.stringify([config.configurable?.thread_id ?? null, messages.length, brief]),
-          ...(contextFeatures.historyProjection ? { protectedQuoteReferences: historyProjection.manifest.protectedQuoteReferences } : {}),
+          protectedQuoteReferences: historyProjection.manifest.protectedQuoteReferences,
           includedHistoryEventIds,
           omittedHistoryEventIds,
           ...(state.briefQuestionContext ? { clarificationQuestion: state.briefQuestionContext } : {}), signal: config.signal,
-          onUsage: usage => input.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }) });
+          onUsage: usage => context.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }) });
         emitProgress(config, { stage: "understanding", status: "completed", message: brief.task === "similarity" ? "已理解：以参考球员的特点寻找相似人选" : brief.task === "replacement" ? "已理解：寻找能承担参考职责的替代者" : "已理解：按位置与能力特点寻找人选", completedSteps: 0 });
       } catch (error) {
         throwIfTurnCancelled(config.signal);
-        input.observer?.({ phase: "brief_failure", failureKind: error instanceof Error ? error.name : "unknown",
+        context.observer?.({ phase: "brief_failure", failureKind: error instanceof Error ? error.name : "unknown",
           ...safeFailureMetadata(error),
           ...(error instanceof RecruitmentBriefOutputLimitError ? { outputLimitTokens: error.maxOutputTokens } : {}),
           ...(error instanceof RecruitmentBriefValidationError ? { validationCode: error.validationCode } : {}),
@@ -177,7 +164,7 @@ export function createUnderstandingNode(input: {
       excludedIds, excludedRecordIds,
       ...(recheck || state.referenceResolutionQuery ? { queryHint: recheck?.quote ?? state.referenceResolutionQuery! } : {}) };
     if (state.briefAnswerKind === "identity" && state.referenceNameResolution?.status === "resolved") {
-      input.resolver?.rememberConfirmation?.(mention, state.referenceNameResolution.player, identityContext);
+      context.referenceNameResolver?.rememberConfirmation?.(mention, state.referenceNameResolution.player, identityContext);
     }
     if (!changed && !identityCluesChanged && !recheck && state.referenceNameResolution?.status === "resolved" && state.inspectedReferenceMention === normalizeSearchText(mention) && !state.referenceResolutionQuery) {
       return { ...update, brief: { ...brief, unresolved: brief.unresolved.filter(item => item.topic !== "identity" && !(item.topic === "position" && state.replacementReferencePosition)) } };
@@ -185,13 +172,13 @@ export function createUnderstandingNode(input: {
     emitProgress(config, { stage: "reference_identity", message: `正在确认“${mention}”并读取参考画像`, completedSteps: 0 });
     const selectedPlayer = brief.selectedCandidateId && !recheck ? state.evaluatedPlayers[brief.selectedCandidateId]?.player ?? state.discoveredPlayers[brief.selectedCandidateId] : undefined;
     const resolution = selectedPlayer ? null : !changed && !identityCluesChanged && !recheck && state.referenceNameResolution?.status === "resolved" ? state.referenceNameResolution
-      : input.resolver ? await input.resolver(mention, config.signal, identityContext) : null;
+      : context.referenceNameResolver ? await context.referenceNameResolver(mention, config.signal, identityContext) : null;
     throwIfTurnCancelled(config.signal);
     const names = selectedPlayer ? [selectedPlayer.name, ...(selectedPlayer.abilityProfile?.aliases ?? [])] : resolution?.status === "resolved" ? resolution.player.names : resolution ? [] : [mention];
-    let players: PlayerProfile[] = selectedPlayer ? [selectedPlayer] : names.length && input.repository.findLocalPlayersByNames
-      ? await input.repository.findLocalPlayersByNames(names, config.signal) : [];
-    if (!selectedPlayer && names.length && input.repository.findPlayersByNames) {
-      try { players = await input.repository.findPlayersByNames(names, config.signal); }
+    let players: PlayerProfile[] = selectedPlayer ? [selectedPlayer] : names.length && context.repository.findLocalPlayersByNames
+      ? await context.repository.findLocalPlayersByNames(names, config.signal) : [];
+    if (!selectedPlayer && names.length && context.repository.findPlayersByNames) {
+      try { players = await context.repository.findPlayersByNames(names, config.signal); }
       catch { throwIfTurnCancelled(config.signal); /* Offline profiles remain usable during optional remote enrichment failure. */ }
     }
     if (!selectedPlayer && resolution?.status === "resolved" && resolution.player.recordIds !== undefined) {

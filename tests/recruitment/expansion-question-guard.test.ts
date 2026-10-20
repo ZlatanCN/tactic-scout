@@ -91,17 +91,17 @@ test("a Planner cannot re-ask permission to broaden a position or cite unreturne
     async decide(input) {
       const latestUserTurn = input.history.filter((entry) => entry.role === "user").length;
       const tools = input.history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName);
-      decisionModes.push({ mode: input.decisionMode, users: latestUserTurn, tools });
-      if (input.decisionMode === "reorient") return finish;
-      if (input.decisionMode === "expand") {
-        return /Arsenal|阿森纳/i.test(input.targetTeam ?? "") ? distinctExpansionQuestion : repeatedExpansionQuestion;
+      decisionModes.push({ mode: input.decisionSnapshot.caps.stage, users: latestUserTurn, tools });
+      if (input.decisionSnapshot.caps.stage === "reorient") return finish;
+      if (input.decisionSnapshot.caps.stage === "expand") {
+        return /Arsenal|阿森纳/i.test(input.decisionSnapshot.case.targetTeam ?? "") ? distinctExpansionQuestion : repeatedExpansionQuestion;
       }
       if (!tools.includes("search_methodology")) {
-        return { action: "search_methodology", targetTeam: input.targetTeam, query: "前锋接应与终结评估方法" };
+        return { action: "search_methodology", targetTeam: input.decisionSnapshot.case.targetTeam, query: "前锋接应与终结评估方法" };
       }
-      if (latestUserTurn === 1) return searchAction(input.targetTeam, "ATT");
-      if (latestUserTurn === 2) return searchAction(input.targetTeam, "ST");
-      if (latestUserTurn === 3) return searchAction(input.targetTeam, "ATT");
+      if (latestUserTurn === 1) return searchAction(input.decisionSnapshot.case.targetTeam, "ATT");
+      if (latestUserTurn === 2) return searchAction(input.decisionSnapshot.case.targetTeam, "ST");
+      if (latestUserTurn === 3) return searchAction(input.decisionSnapshot.case.targetTeam, "ATT");
       assert.fail("the graph should use its scripted clarification and expansion decisions");
     },
   };

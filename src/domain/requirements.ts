@@ -44,6 +44,7 @@ export type Requirements = z.infer<typeof RequirementsSchema>;
 
 export const ConversationTurnRequestSchema = z.object({
   requestId: z.string().uuid().optional(),
+  memoryOwnerId: z.string().uuid().optional(),
   message: z.string().trim().max(4000).default(""),
   positionAnswer: PositionSelectionAnswerSchema.optional(),
   positionUpdate: PositionSelectionAnswerSchema.shape.positions.optional(),

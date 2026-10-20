@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createServer, type Server } from "node:http";
 import test from "node:test";
 import { MemorySaver } from "@langchain/langgraph";
 import { createApp } from "../../src/app.js";
@@ -441,93 +440,42 @@ test("Understat, ASA, and mosaic turns continue with a loopback model endpoint",
   }
 });
 
-test("createChatModel does not forward loopback requests through a 302 and accepts a direct local response", async () => {
-  const previousEnvironment = new Map([
-    "OPENAI_BASE_URL",
-  ].map((name) => [name, process.env[name]]));
-  const forwardedBodies: string[] = [];
-  const redirectingBodies: string[] = [];
-  const servers: Server[] = [];
-
-  const listen = async (handler: Parameters<typeof createServer>[0]): Promise<{ server: Server; url: string }> => {
-    const server = createServer(handler);
-    servers.push(server);
-    await new Promise<void>((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
+test("createChatModel refuses loopback redirects and accepts a direct response", async (t) => {
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
+  let redirect = true;
+  const requests: Array<{ url: string; body: string }> = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(input), body: String(init?.body ?? "") });
+    if (redirect) return new Response(null, {
+      status: 302,
+      headers: { location: "http://127.0.0.1:9998/v1/chat/completions" },
     });
-    const address = server.address();
-    assert.ok(address && typeof address !== "string");
-    return { server, url: `http://127.0.0.1:${address.port}` };
-  };
-
-  const readBody = async (request: import("node:http").IncomingMessage): Promise<string> => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    return Buffer.concat(chunks).toString("utf8");
-  };
+    return Response.json({
+      id: "chatcmpl-local-success",
+      object: "chat.completion",
+      created: 1,
+      model: "fixture-model",
+      choices: [{ index: 0, message: { role: "assistant", content: "fixture response" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    });
+  });
 
   try {
-    const forwardingTarget = await listen(async (request, response) => {
-      forwardedBodies.push(await readBody(request));
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({
-        id: "chatcmpl-forwarded",
-        object: "chat.completion",
-        created: 1,
-        model: "loopback-policy-test-model",
-        choices: [{ index: 0, message: { role: "assistant", content: "forwarded" }, finish_reason: "stop" }],
-      }));
-    });
+    process.env.OPENAI_BASE_URL = "http://127.0.0.1:9999/v1";
+    const redirectModel = createChatModel("fixture-key", "fixture-model", { timeoutMs: 5_000 });
+    await assert.rejects(redirectModel.invoke("redirect-safety-probe"), "a loopback 302 must be surfaced as an error");
+    assert.equal(requests.length, 1);
+    assert.match(requests[0]!.url, /^http:\/\/127\.0\.0\.1:9999\/v1\/chat\/completions$/);
+    assert.match(requests[0]!.body, /redirect-safety-probe/);
+    assert.doesNotMatch(JSON.stringify(requests), /127\.0\.0\.1:9998/, "the 302 target must never receive the model request");
 
-    const redirectingEndpoint = await listen(async (request, response) => {
-      redirectingBodies.push(await readBody(request));
-      response.writeHead(302, { location: `${forwardingTarget.url}/v1/chat/completions` });
-      response.end();
-    });
-
-    process.env.OPENAI_BASE_URL = `${redirectingEndpoint.url}/v1`;
-    const redirectModel = createChatModel("loopback-test-key", "loopback-policy-test-model", { timeoutMs: 5_000 });
-    await assert.rejects(
-      redirectModel.invoke("redirect-safety-probe: 为拜仁寻找凯恩的替代者"),
-      "a loopback 302 must be surfaced as an error",
-    );
-
-    assert.equal(redirectingBodies.length, 1, "the configured local model endpoint should receive one request");
-    assert.match(redirectingBodies[0], /redirect-safety-probe/);
-    assert.deepEqual(forwardedBodies, [], "the 302 target must not receive the model request body");
-
-    const directEndpoint = await listen(async (request, response) => {
-      await readBody(request);
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({
-        id: "chatcmpl-local-success",
-        object: "chat.completion",
-        created: 1,
-        model: "loopback-policy-test-model",
-        choices: [{ index: 0, message: { role: "assistant", content: "local model response" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      }));
-    });
-    process.env.OPENAI_BASE_URL = `${directEndpoint.url}/v1`;
-    const directModel = createChatModel("loopback-test-key", "loopback-policy-test-model", { timeoutMs: 5_000 });
-    const response = await directModel.invoke("本机模型正常响应检查");
-    assert.equal(response.content, "local model response");
+    redirect = false;
+    const directModel = createChatModel("fixture-key", "fixture-model", { timeoutMs: 5_000 });
+    const response = await directModel.invoke("direct-response-probe");
+    assert.equal(response.content, "fixture response");
   } finally {
-    try {
-      await Promise.all(servers.map((server) => new Promise<void>((resolve, reject) => {
-        if (!server.listening) {
-          resolve();
-          return;
-        }
-        server.close((error) => error ? reject(error) : resolve());
-      })));
-    } finally {
-      for (const [name, value] of previousEnvironment) {
-        if (value === undefined) delete process.env[name];
-        else process.env[name] = value;
-      }
-    }
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
   }
 });
 

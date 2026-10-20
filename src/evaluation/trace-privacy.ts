@@ -11,8 +11,6 @@ export function privacySafeTraceEvent(event: RecruitmentTraceEvent): Record<stri
   if (event.phase === "model_usage") return { ...event };
   if (event.phase === "brief_usage") return { ...event };
   if (event.phase === "identity_usage") return { ...event };
-  if (event.phase === "summary_usage") return { ...event };
-  if (event.phase === "summary_failure") return { ...event };
   if (event.phase === "brief_failure") return {
     phase: event.phase,
     failureKind: event.failureKind,

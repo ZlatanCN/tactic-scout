@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { configuredRecruitmentConversation, type ContextManagementMode, type RecruitmentAskUserMode, type RecruitmentPlanner, type RecruitmentPlannerResponseDiagnostics, type RecruitmentReviewerMode, type RecruitmentTraceEvent, type UnderstatResearchMode } from "../recruitment/conversation.js";
+import { configuredRecruitmentConversation, type RecruitmentAskUserMode, type RecruitmentPlanner, type RecruitmentPlannerResponseDiagnostics, type RecruitmentReviewerMode, type RecruitmentTraceEvent, type UnderstatResearchMode } from "../recruitment/conversation.js";
 import { createRecruitmentEvidenceEvaluator } from "../recruitment/recruitment-evidence-evaluator.js";
-import { createRecruitmentPlanner, type RecruitmentPlannerInput, type RecruitmentPlannerProtocol } from "../recruitment/recruitment-planner.js";
+import { createRecruitmentPlanner, type RecruitmentPlannerInput } from "../recruitment/recruitment-planner.js";
 import { type KnowledgeRepository } from "../knowledge/index.js";
 import { createSinglePassInvestigationPlanner } from "./fixed-investigation-planner.js";
-import { evaluateContextStressTurn, evaluateLocalAgentScenario, evaluateWithheldAnswerArm, type ContextStressTurnEvaluation, type EvaluationOperationLatencySample, type EvaluationProgressEvent, type EvaluationScenario } from "./harness-evaluation.js";
+import { evaluateLocalAgentScenario, evaluateWithheldAnswerArm, type EvaluationOperationLatencySample, type EvaluationProgressEvent, type EvaluationScenario } from "./harness-evaluation.js";
 import { questionMatchesClarificationIntent } from "./clarification-intent.js";
 import type { ClarificationIntent } from "./harness-scenarios.js";
 import { privacySafeTraceEvent } from "./trace-privacy.js";
@@ -76,32 +76,6 @@ export function withConversationCompletionCheck(
   };
 }
 
-const contextStressScopeReminder = "保持最初完整需求和全部筛选条件，不增不减。";
-const contextStressEvidenceReminder = "请保留来源、单位、样本窗口并标明未知项；本轮只追问证据依据，不新增筛选条件。";
-
-export const contextStressFollowUps = [
-  `${contextStressScopeReminder} 请分别说明向前传球与持球推进目前有哪些直接指标，不要把它们混成一个分数。`,
-  `${contextStressScopeReminder} 报告里的每90分钟数据请同时标出样本分钟数；低于比较门槛就不要给百分位。`,
-  `${contextStressScopeReminder} 请核对推进能力覆盖：哪些候选有传球推进证据，哪些有持球推进证据，哪些仍缺数据？`,
-  `${contextStressScopeReminder} 压力相关数据如果没有来源支持，请保留为未知；不要用抢断、拦截或对抗数据代替。`,
-  `${contextStressScopeReminder} 请简要解释当前排序的主要依据，只引用已经读取且能对应到候选人的统计或报告。`,
-  `${contextStressScopeReminder} 同一候选如果有多条来源记录，请沿用已核验的身份关系；不要仅凭姓名合并。`,
-  `${contextStressScopeReminder} 请检查推荐理由是否分别覆盖传球推进、持球推进和前场压迫，未覆盖的部分写清楚。`,
-  `${contextStressScopeReminder} 更新目前的证据缺口列表，区分完全没有数据、样本不足和已经观察到的表现。`,
-  `${contextStressScopeReminder} 请比较当前前几名的指标差异，并保留各自来源样本，不要扩大联赛或位置范围。`,
-  `${contextStressScopeReminder} 如果排序与上一轮不同，请指出是哪条新增或更正的证据导致变化；没有变化也直说。`,
-  `${contextStressScopeReminder} 把候选推荐理由缩短一些，但保留指标单位、比赛分钟和无法验证的项目。`,
-  `${contextStressScopeReminder} 请再次核对年龄和中场位置，没有被我提出的其他条件不要偷偷加入筛选。`,
-  `${contextStressScopeReminder} 不要把缺少压迫指标解释成压迫能力差；说明当前数据能支持什么、不能支持什么。`,
-  `${contextStressScopeReminder} 请确认每个被推荐的人都已经做过表现评估；未评估记录只能说明为待调查。`,
-  `${contextStressScopeReminder} 再总结一遍最适合继续考察的候选，以及选择他们的直接证据和主要风险。`,
-  `${contextStressScopeReminder} 如果球员报告没有查到新内容，就以已验证的比赛数据为准，不要补写来源没有说过的特点。`,
-  `${contextStressScopeReminder} 说明样本数是否足以做同位置比较；不足时保留绝对观测值即可。`,
-  `${contextStressScopeReminder} 请区分来源原始指标和系统换算出来的每90分钟指标，避免把派生值说成来源原文。`,
-  `${contextStressScopeReminder} 检查最终结论是否遗漏了持球推进或前场压迫；没有对应数据就明示缺口。`,
-  `${contextStressScopeReminder} 最后按原条件给一版紧凑总结：值得继续考察的球员、直接证据、样本风险和仍未知的能力。`,
-].map(message => `${message} ${contextStressEvidenceReminder}`);
-
 type HarnessErrorSummary = {
   name: string;
   category: HarnessErrorCategory;
@@ -149,41 +123,6 @@ function safeValidationIssueDetails(issues: unknown): Pick<HarnessErrorSummary, 
   };
 }
 
-export function isComparableContextCapacityPreflight(input: {
-  errors: readonly { category: HarnessErrorCategory }[];
-  plannerResponseCount: number;
-}): boolean {
-  return input.errors.length > 0
-    && input.errors.every(error => error.category === "context_capacity")
-    && input.plannerResponseCount > 0;
-}
-
-export function canRunContextManagementComparison(input: {
-  allChecksPassed: boolean;
-  finalStatus: string | null;
-  reportGenerated: boolean;
-  errors: readonly { category: HarnessErrorCategory }[];
-  plannerResponseCount: number;
-}): boolean {
-  return input.allChecksPassed
-    || (input.finalStatus === "completed" && input.reportGenerated)
-    || isComparableContextCapacityPreflight({
-      errors: input.errors,
-      plannerResponseCount: input.plannerResponseCount,
-    });
-}
-
-export function summarizeFirstUsefulProgress(progress: readonly EvaluationProgressEvent[]) {
-  const firstVisible = progress[0];
-  const firstUseful = progress.find(event => event.status !== "started");
-  return {
-    firstVisibleProgressMs: firstVisible?.elapsedMs ?? null,
-    firstUsefulProgressMs: firstUseful?.elapsedMs ?? null,
-    firstUsefulProgressStage: firstUseful?.stage ?? null,
-    firstUsefulProgressStatus: firstUseful?.status ?? null,
-  };
-}
-
 type LocalAgentRunOptions = {
   reviewerMode?: RecruitmentReviewerMode;
   answerMode?: "scripted" | "withheld";
@@ -193,9 +132,6 @@ type LocalAgentRunOptions = {
   evidenceEvaluatorMode?: "enabled" | "withheld";
   expansionSufficiencyMode?: "enabled" | "bypassed";
   understatResearchMode?: UnderstatResearchMode;
-  contextManagementMode?: ContextManagementMode;
-  plannerProtocol?: RecruitmentPlannerProtocol;
-  contextStressTurns?: number;
   suppressTraceOutput?: boolean;
   suppressProgressOutput?: boolean;
 };
@@ -328,8 +264,8 @@ export type ModelUsageSummary = {
 };
 
 export function summarizeModelUsage(events: readonly RecruitmentTraceEvent[]): ModelUsageSummary {
-  const requests = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "model_usage" | "brief_usage" | "identity_usage" | "summary_usage" }> => (
-    event.phase === "model_usage" || event.phase === "brief_usage" || event.phase === "identity_usage" || event.phase === "summary_usage"
+  const requests = events.filter((event): event is Extract<RecruitmentTraceEvent, { phase: "model_usage" | "brief_usage" | "identity_usage" }> => (
+    event.phase === "model_usage" || event.phase === "brief_usage" || event.phase === "identity_usage"
   ));
   const metric = (name: ModelUsageMetricName): ModelUsageMetricSummary => {
     const values = requests.flatMap((event) => typeof event[name] === "number" ? [event[name]!] : []);
@@ -433,15 +369,13 @@ export async function runScenarioOnce(
       experimentalExpansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       ...(options.understatResearchMode ? { experimentalDeterministicSearchMode: "bypassed" as const } : {}),
       experimentalUnderstatResearchMode: options.understatResearchMode,
-      experimentalContextManagementMode: options.contextManagementMode ?? "legacy",
-      experimentalToolExecutionMode: options.plannerProtocol === "legacy_action" ? "legacy_action_dispatch" : "langgraph_tool_node",
       plannerFactory: () => {
-        const modelPlanner = createRecruitmentPlanner({ protocol: options.plannerProtocol ?? "native_tools" });
+        const modelPlanner = createRecruitmentPlanner();
         const observedModelPlanner = createObservedPlanner(
           modelPlanner,
           () => { plannerRequestAttempts += 1; },
           (plannerInput, error) => plannerRequestFailures.push({
-            decisionMode: plannerInput.decisionMode ?? null,
+            decisionMode: plannerInput.decisionSnapshot.caps.stage,
             errors: summarizeHarnessErrors(error),
           }),
         );
@@ -457,9 +391,6 @@ export async function runScenarioOnce(
     if (previousArchiveDisplayPermission === undefined) delete process.env.TACTISCOUT_WYSCOUT_HISTORICAL_REPORT_DISPLAY_ALLOWED;
     else process.env.TACTISCOUT_WYSCOUT_HISTORICAL_REPORT_DISPLAY_ALLOWED = previousArchiveDisplayPermission;
   }
-  let contextStressTurnsCompleted = 0;
-  let contextStressTurnsAttempted = 0;
-  const contextStressTurnMatrix: ContextStressTurnEvaluation[] = [];
   const captureProgress = (update: Omit<EvaluationProgressEvent, "sequence" | "turn">) => {
     const event = {
       sequence: progressEvents.length + 1,
@@ -513,32 +444,6 @@ export async function runScenarioOnce(
       response = await conversation.turn({ threadId, message: answer, expectsExistingState: true, onProgress: captureProgress });
       answersUsed += 1;
     }
-    if (response.status === "completed" && options.contextStressTurns) {
-      for (let index = 0; index < options.contextStressTurns; index += 1) {
-        const message = contextStressFollowUps[index];
-        if (!message) throw new Error("Context management stress run exceeds its 20-turn follow-up script.");
-        currentTurn += 1;
-        contextStressTurnsAttempted += 1;
-        const eventStart = events.length;
-        const progressStart = progressEvents.length;
-        response = await conversation.turn({
-          threadId,
-          message,
-          expectsExistingState: true,
-          onProgress: captureProgress,
-        });
-        contextStressTurnMatrix.push(evaluateContextStressTurn({
-          scenario,
-          response,
-          events: events.slice(eventStart),
-          progressEvents: progressEvents.slice(progressStart),
-          previousEvents: events.slice(0, eventStart),
-          turn: currentTurn,
-        }));
-        if (response.status !== "completed") break;
-        contextStressTurnsCompleted += 1;
-      }
-    }
     const elapsedMs = Math.round(performance.now() - startedAt);
     const continuedEvents = events.slice(firstTurnEventCount);
     const evaluationInput = {
@@ -551,8 +456,6 @@ export async function runScenarioOnce(
       progressEvents,
       answersUsed,
       eventTurns,
-      contextStressTurnsAttempted,
-      contextStressTurnsCompleted,
       threadId,
     };
     const decisionEvents = events.filter(isDecisionTrace);
@@ -597,16 +500,9 @@ export async function runScenarioOnce(
           && answersUsed === 0,
       }
       : {};
-    const contextStressChecks: Record<string, boolean> = {};
-    if (options.contextStressTurns) {
-      contextStressChecks.contextStressScriptCompleted = contextStressTurnsCompleted === options.contextStressTurns;
-      contextStressChecks.contextStressCorrectnessMatrixPassed = contextStressTurnMatrix.length === options.contextStressTurns
-        && contextStressTurnMatrix.every((turn) => turn.allPassed);
-    }
     const checks = withConversationCompletionCheck({
       ...evaluation.checks,
       ...interactionChecks,
-      ...contextStressChecks,
       methodologyCitationsOnlyUseReturnedSources,
     }, response.status, Boolean(response.report));
     return {
@@ -621,12 +517,6 @@ export async function runScenarioOnce(
       askUserMode,
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
-      contextManagementMode: options.contextManagementMode ?? "legacy",
-      plannerProtocol: options.plannerProtocol ?? "native_tools",
-      contextStressTurnsRequested: options.contextStressTurns ?? 0,
-      contextStressTurnsAttempted,
-      contextStressTurnsCompleted,
-      contextStressTurnMatrix,
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
       expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
@@ -658,12 +548,6 @@ export async function runScenarioOnce(
       askUserMode,
       investigationPlanningMode,
       understatResearchMode: options.understatResearchMode ?? "adaptive",
-      contextManagementMode: options.contextManagementMode ?? "legacy",
-      plannerProtocol: options.plannerProtocol ?? "native_tools",
-      contextStressTurnsRequested: options.contextStressTurns ?? 0,
-      contextStressTurnsAttempted,
-      contextStressTurnsCompleted,
-      contextStressTurnMatrix,
       evidenceEvaluatorMode: options.evidenceEvaluatorMode ?? "enabled",
       expansionSufficiencyMode: options.expansionSufficiencyMode ?? "enabled",
       plannerRequestAttempts,
@@ -678,9 +562,7 @@ export async function runScenarioOnce(
       ...decisionMetrics(),
       ...progressMetrics(),
       toolCallCount: events.filter((event) => event.phase === "tool").length,
-      checks: withConversationCompletionCheck({
-        ...(options.contextStressTurns ? { contextStressScriptCompleted: false } : {}),
-      }, null, false),
+      checks: withConversationCompletionCheck({}, null, false),
       allPassed: false,
       report: null,
       methodologySearchReturnedSourceUrls: [...methodologySearchReturnedSourceUrls],

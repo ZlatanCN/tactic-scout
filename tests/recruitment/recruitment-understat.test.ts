@@ -693,8 +693,8 @@ test("Understat research ablation strategies change tools inside the full LangGr
       },
       planner: {
         async decide(input) {
-          const toolNames = input.history.flatMap((entry) => entry.role === "tool" ? [entry.toolName] : []);
-          if (!toolNames.includes("search_candidates")) return {
+          const progress = input.caseProgress as { currentTurnCandidatePages?: unknown[] };
+          if (!progress.currentTurnCandidatePages?.length) return {
             action: "search_candidates",
             position: "ST",
             maxAge: null,
@@ -704,24 +704,32 @@ test("Understat research ablation strategies change tools inside the full LangGr
             offset: 0,
             limit: 20,
           };
-          if (mode === "catalog_only" && !toolNames.includes("inspect_candidate_group")) return {
-            action: "ask_user",
-            question: "是否调用 inspect_candidate_group 查看这组候选的 xG 与射门资料？",
-            reason: "这些内部数据可以进一步支持候选比较。",
-          };
-          if (mode === "adaptive" && !toolNames.includes("inspect_candidate_group")) return {
+          if (mode === "catalog_only") return input.decisionSnapshot.candidates.evaluatedPlayerIds.length
+            ? {
+              action: "finish",
+              targetTeam: "拜仁",
+              needSummary: "按相同首轮候选范围比较前锋表现。",
+              capabilityProfile: ["进球产出"],
+              recommendations: [{ playerId: candidates[0]!.playerId, evidenceKeys: ["goals"] }],
+              limitationKeys: [],
+            }
+            : {
+              action: "evaluate_candidates",
+              playerIds: candidates.map(({ playerId }) => playerId),
+            };
+          if (mode === "adaptive" && calledSections.length === 0) return {
             action: "ask_user",
             question: "是否调用 inspect_candidate_group 查看这组候选的位置与历史赛季资料？",
             reason: "这些内部数据可以进一步支持候选比较。",
           };
-          if (!toolNames.includes("evaluate_candidates")) return {
-            action: "evaluate_candidates",
-            playerIds: candidates.map(({ playerId }) => playerId),
-          };
-          if (mode === "adaptive" && !toolNames.includes("inspect_player")) return {
+          if (mode === "adaptive" && calledSections.length === 1 && input.decisionSnapshot.candidates.evaluatedPlayerIds.length) return {
             action: "inspect_player",
             playerId: candidates[0]!.playerId,
             sections: ["shots"],
+          };
+          if (!input.decisionSnapshot.candidates.evaluatedPlayerIds.length) return {
+            action: "evaluate_candidates",
+            playerIds: candidates.map(({ playerId }) => playerId),
           };
           return {
             action: "finish",

@@ -139,12 +139,7 @@ async function runArm(policyMode?: "enabled" | "bypassed") {
             return { action: "evaluate_candidates", playerIds: [eligible.playerId, outsideScope.playerId] };
           default:
             plannerActions.push("finish");
-            const evaluationResult = [...input.history].reverse().find((entry) => (
-              entry.role === "tool" && entry.toolName === "evaluate_candidates"
-            ));
-            const evaluatedPlayerIds = evaluationResult
-              ? (JSON.parse(evaluationResult.content) as { evaluations?: Array<{ playerId: string }> }).evaluations?.map(({ playerId }) => playerId) ?? []
-              : [];
+            const evaluatedPlayerIds = input.decisionSnapshot.constraints?.evaluatedCandidates.map(({ playerId }) => playerId) ?? [];
             return {
               action: "finish",
               targetTeam: "Other Club",
@@ -198,7 +193,7 @@ test("candidate action policy ablation allows an unsafe first query but the inte
   assert.deepEqual(enabled.response.report?.recommendations.map(({ player: candidate }) => candidate.playerId), [eligible.playerId]);
   assert.deepEqual(bypassed.response.report?.recommendations.map(({ player: candidate }) => candidate.playerId), [eligible.playerId]);
   assert.equal(enabled.response.report?.targetTeam, "拜仁");
-  assert.equal(bypassed.response.report?.targetTeam, "Other Club");
+  assert.equal(bypassed.response.report?.targetTeam, "拜仁", "the target club remains a hard case fact even when the candidate-action policy is bypassed");
   assert.deepEqual(enabled.reviewEvents.map(({ outcome }) => outcome), ["passed"]);
   assert.deepEqual(bypassed.reviewEvents.map(({ outcome }) => outcome), ["passed"]);
   assert.ok(enabled.repositoryReads.every((ids) => ids.every((id) => id === eligible.playerId)));

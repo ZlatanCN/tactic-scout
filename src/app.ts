@@ -7,6 +7,7 @@ import { registerRecruitmentProgressRoutes } from "./app/routes/recruitment-prog
 import { registerRecruitmentTurnRoute } from "./app/routes/recruitment-turn.js";
 import { registerSystemRoutes } from "./app/routes/system.js";
 import type { RecruitmentRouteContext } from "./app/routes/recruitment-types.js";
+import { registerRecruitmentPreferenceRoutes } from "./app/routes/recruitment-preferences.js";
 import type { CreateAppOptions } from "./app/types.js";
 import { createTheSportsDbRosterEnrichment } from "./sources/thesportsdb/roster.js";
 import { createRecruitmentCheckpointStore } from "./recruitment/checkpoint-store.js";
@@ -17,11 +18,12 @@ import { createWebSearchKnowledgeRepository } from "./knowledge/web-player-repor
 import { createPlayerObservationLibrary } from "./observations/library.js";
 import { RecruitmentTurnCoordinator } from "./recruitment/turn-coordinator.js";
 import { RecruitmentTurnService } from "./app/recruitment-turn-service.js";
+import { SQLiteBaseStore } from "./recruitment/preferences/sqlite-base-store.js";
+import { RecruitmentPreferencesService } from "./recruitment/preferences/service.js";
 
 export function createApp(options: CreateAppOptions = {}) {
   const app = Fastify({ logger: true });
   const playerRepository = options.playerRepository ?? createRepository();
-  if (playerRepository.close) app.addHook("onClose", async () => playerRepository.close!());
   const knowledgeBase = options.knowledgeBase ?? createLocalKnowledgeBase();
   const recruitmentKnowledge = createWebSearchKnowledgeRepository(knowledgeBase);
   const playerObservationLibrary = options.playerObservationLibrary ?? createPlayerObservationLibrary({
@@ -32,6 +34,8 @@ export function createApp(options: CreateAppOptions = {}) {
     ? undefined
     : createRecruitmentCheckpointStore(options.checkpointPath);
   const checkpointer = options.checkpointer ?? checkpointStore?.checkpointer;
+  const preferenceStore = options.preferenceStore ?? new SQLiteBaseStore(options.preferenceStorePath);
+  const recruitmentPreferences = new RecruitmentPreferencesService(preferenceStore);
   const recruitmentProgressByCase = new Map<string, RecruitmentProgress>();
   const recruitmentProgressEmitters = new Map<string, (
     update: Pick<RecruitmentProgress, "stage" | "message" | "completedSteps"> & { status?: RecruitmentProgressEventStatus },
@@ -46,12 +50,14 @@ export function createApp(options: CreateAppOptions = {}) {
       planner: options.recruitmentPlanner,
       knowledgeBase: recruitmentKnowledge,
       checkpointer,
+      store: preferenceStore,
     })
     : configuredRecruitmentConversation({
       repository: playerRepository,
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       knowledgeBase: recruitmentKnowledge,
       ...(checkpointer ? { checkpointer } : {}),
+      store: preferenceStore,
     }));
   const recruitmentTurnService = new RecruitmentTurnService({
     recruitmentConversation,
@@ -60,9 +66,19 @@ export function createApp(options: CreateAppOptions = {}) {
     recruitmentProgressEmitters,
     teamRosterEnrichment,
     teamRosterEnrichmentConfigured: Boolean(options.teamRosterEnrichment),
+    recruitmentPreferences,
   });
   registerLoopbackRequestGuard(app);
-  if (checkpointStore) app.addHook("onClose", async () => checkpointStore.close());
+  let safeToCloseStores = true;
+  app.addHook("preClose", async () => {
+    const drain = await recruitmentTurnService.drain(30_000);
+    safeToCloseStores = drain.status === "drained";
+    if (drain.status === "timeout") {
+      app.log.warn({ activeTurns: drain.activeTurns }, "Recruitment service drain timed out; leaving stores open for active graph runs");
+    } else {
+      app.log.info({ activeTurns: drain.activeTurns }, "Recruitment service drained to durable graph boundaries");
+    }
+  });
 
   const recruitmentRouteContext: RecruitmentRouteContext = {
     recruitmentConversation,
@@ -74,10 +90,19 @@ export function createApp(options: CreateAppOptions = {}) {
     teamRosterEnrichmentConfigured: Boolean(options.teamRosterEnrichment),
   };
   registerSystemRoutes(app, playerRepository, knowledgeBase);
+  registerRecruitmentPreferenceRoutes(app, recruitmentPreferences);
   registerPlayerObservationRoutes(app, playerObservationLibrary);
   registerRecruitmentProgressRoutes(app, recruitmentRouteContext);
   registerRecruitmentTurnRoute(app, recruitmentRouteContext);
   registerRetiredRoutes(app);
+
+  app.addHook("onClose", async () => {
+    if (!safeToCloseStores) return;
+    checkpointStore?.close();
+    if (playerRepository.close) playerRepository.close();
+    await preferenceStore.stop();
+    app.log.info("Recruitment SQLite checkpoint and preference stores closed after drain");
+  });
 
   return app;
 }

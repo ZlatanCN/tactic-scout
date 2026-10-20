@@ -19,12 +19,14 @@ import { useRecruitmentSession } from "../features/recruitment/hooks/useRecruitm
 import { type DatasetStatus } from "../../../src/domain/datasets.js";
 
 const PlayerObservationsDialog = lazy(() => import("../features/recruitment/components/PlayerObservationsDialog").then((module) => ({ default: module.PlayerObservationsDialog })));
+const RecruitmentPreferencesDialog = lazy(() => import("../features/recruitment/components/RecruitmentPreferencesDialog").then((module) => ({ default: module.RecruitmentPreferencesDialog })));
 
 function App() {
   const { state, actions } = useRecruitmentSession();
   const [dataset, setDataset] = useState<DatasetStatus | null>(null);
   const [datasetConnectionStatus, setDatasetConnectionStatus] = useState<DatasetConnectionStatus>("connecting");
   const [playerObservationsOpen, setPlayerObservationsOpen] = useState(false);
+  const [recruitmentPreferencesOpen, setRecruitmentPreferencesOpen] = useState(false);
 
   async function refreshDatasetStatus() {
     setDatasetConnectionStatus("connecting");
@@ -88,6 +90,7 @@ function App() {
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="打开工具与资料菜单" />}><MoreHorizontal aria-hidden="true" /></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48 overscroll-contain">
+              <DropdownMenuItem onClick={() => setRecruitmentPreferencesOpen(true)}>长期偏好</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setPlayerObservationsOpen(true)}>球探观察</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => { window.location.href = "/review"; }}>短名单盲评</DropdownMenuItem>
@@ -170,6 +173,7 @@ function App() {
     </main>
 
     {playerObservationsOpen && <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-background/70 text-sm text-muted-foreground" role="status">正在打开球探观察…</div>}><PlayerObservationsDialog onClose={() => setPlayerObservationsOpen(false)} /></Suspense>}
+    {recruitmentPreferencesOpen && <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-background/70 text-sm text-muted-foreground" role="status">正在打开长期偏好…</div>}><RecruitmentPreferencesDialog onClose={() => setRecruitmentPreferencesOpen(false)} /></Suspense>}
     <footer className="mx-auto flex max-w-[1600px] flex-col gap-1 border-t border-border/80 px-4 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <span className="font-medium text-foreground">TactiScout</span><span>每个建议，都有依据可查。</span>
     </footer>

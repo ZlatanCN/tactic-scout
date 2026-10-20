@@ -87,9 +87,12 @@ test("repeating a candidate search continues at the next page and traces request
       },
     },
     planner: {
-      async decide({ history, decisionMode }) {
+      async decide(input) {
+      const { history, decisionSnapshot } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
         if (decisionMode === "conclude") return finish;
-        const pages = history.filter((entry) => entry.role === "tool" && entry.toolName === "search_candidates").length;
+        const progress = input.caseProgress as { currentTurnCandidatePages?: unknown[]; hasSearchedMethodology?: boolean; hasSearchedPlayerReports?: boolean };
+        const pages = progress.currentTurnCandidatePages?.length ?? 0;
         const lastTool = history.at(-1);
         if (decisionMode === "expand") {
           candidateSearchDecisions += 1;
@@ -98,15 +101,15 @@ test("repeating a candidate search continues at the next page and traces request
         if (decisionMode === "reorient" && candidateSearchDecisions === 1 && pages === 2) {
           return defenderSearch;
         }
-        if (!history.some((entry) => entry.role === "tool" && entry.toolName === "search_methodology")) {
+        if (!progress.hasSearchedMethodology) {
           return { action: "search_methodology", query: "中场能力评估方法" };
         }
         if (pages === 0 || pages === 1) return search;
         if (pages === 2) return defenderSearch;
-        if (lastTool?.role === "tool" && lastTool.toolName === "evaluate_candidates") {
+        if (!progress.hasSearchedPlayerReports && lastTool?.role === "tool" && lastTool.toolName === "evaluate_candidates") {
           return { action: "search_player_reports", query: "Cursor Defender 球员报告", playerNames: [otherPosition.name] };
         }
-        if (lastTool?.role === "tool" && lastTool.toolName === "search_player_reports") return finish;
+        if (progress.hasSearchedPlayerReports) return finish;
         assert.fail("the investigation should reach evidence evaluation and a report");
       },
     },
@@ -195,23 +198,23 @@ test("LangGraph evaluates every candidate discovered on subsequent pages in boun
   const conversation = createRecruitmentConversation({
     repository: { mode: "wyscout", sourceName: "Wyscout Open Data", async loadPlayers() { return players; } },
     planner: {
-      async decide({ history, decisionMode }) {
+      async decide(input) {
+      const { history, decisionSnapshot } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
+        const progress = input.caseProgress as { hasSearchedMethodology?: boolean };
+        if (decisionMode === "conclude" || decisionMode === "reorient") return {
+          action: "finish",
+          targetTeam: "Barcelona",
+          needSummary: "已按每页评估后的样本预算比较年轻中场。",
+          capabilityProfile: ["中场比赛表现"],
+          recommendations: [{ playerId: players[0]!.playerId, evidenceKeys: ["goals"] }],
+          limitationKeys: [],
+        };
         if (decisionMode === "expand") return searchAction;
         const lastTool = history.at(-1);
         if (lastTool?.role === "tool" && lastTool.toolName === "search_methodology") return searchAction;
-        const candidatePages = history.filter((entry) => entry.role === "tool" && entry.toolName === "search_candidates");
-        if (candidatePages.length === 1) return searchAction;
-        if (candidatePages.length === 2) {
-          return {
-            action: "finish",
-            targetTeam: "Barcelona",
-            needSummary: "已按每页评估后的样本预算比较年轻中场。",
-            capabilityProfile: ["中场比赛表现"],
-            recommendations: [{ playerId: players[0]!.playerId, evidenceKeys: ["goals"] }],
-            limitationKeys: [],
-          };
-        }
-        return { action: "search_methodology", query: "中场比赛表现评估方法" };
+        if (!progress.hasSearchedMethodology) return { action: "search_methodology", query: "中场比赛表现评估方法" };
+        return searchAction;
       },
     },
     knowledgeBase: { async search() { return []; } },
@@ -256,10 +259,22 @@ test("LangGraph evaluates every eligible player from the current page before ask
   const conversation = createRecruitmentConversation({
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
-      async decide({ history, decisionMode, constraints }) {
+      async decide(input) {
+      const { history, decisionSnapshot } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
+      const constraints = decisionSnapshot.constraints;
+        const progress = input.caseProgress as { currentTurnCandidatePages?: unknown[]; hasSearchedMethodology?: boolean; hasSearchedPlayerReports?: boolean };
         const toolNames = history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName);
         if (decisionMode === "conclude" || decisionMode === "reorient") {
           evaluatedCountsAtConclusion.push(constraints?.evaluatedCandidates.length ?? 0);
+          if (decisionMode === "reorient" && (progress.currentTurnCandidatePages?.length ?? 0) > 1) return {
+            action: "finish",
+            targetTeam: "拜仁",
+            needSummary: "已评估并比较当前检索页中的全部合格候选。",
+            capabilityProfile: ["进球产出：引用实际 goals 指标"],
+            recommendations: [{ playerId: players[0]!.playerId, evidenceKeys: ["goals"] }],
+            limitationKeys: ["other"],
+          };
           return {
             action: "finish",
             targetTeam: "拜仁",
@@ -269,7 +284,7 @@ test("LangGraph evaluates every eligible player from the current page before ask
             limitationKeys: ["other"],
           };
         }
-        if (!toolNames.includes("search_methodology")) {
+        if (!progress.hasSearchedMethodology && !toolNames.includes("search_methodology")) {
           return { action: "search_methodology", query: "中锋进球产出评估方法" };
         }
         if (!toolNames.includes("search_candidates")) return searchPage;
@@ -329,7 +344,12 @@ test("the Planner gets an expansion choice after a completed report search when 
   const conversation = createRecruitmentConversation({
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
-      async decide({ history, decisionMode, expansionConstraints, constraints, targetTeam }) {
+      async decide(input) {
+      const { history, decisionSnapshot, onTokenUsage } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
+      const expansionConstraints = decisionSnapshot.search.expansionConstraints;
+      const constraints = decisionSnapshot.constraints;
+      const targetTeam = decisionSnapshot.case.targetTeam;
         decisionModes.push(decisionMode);
         const lastTool = history.at(-1);
         const candidateSearchCount = history.filter((entry) => entry.role === "tool" && entry.toolName === "search_candidates").length;
@@ -420,7 +440,9 @@ test("an expansion planner output limit follows the exact next page and still co
   const conversation = createRecruitmentConversation({
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
-      async decide({ history, decisionMode }) {
+      async decide(input) {
+      const { history, decisionSnapshot } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
         const lastTool = history.at(-1);
         const candidateSearchCount = history.filter((entry) => entry.role === "tool" && entry.toolName === "search_candidates").length;
         if (decisionMode === "expand") {
@@ -496,7 +518,9 @@ test("a conclusion Planner timeout preserves the completed LangGraph evidence in
   const conversation = createRecruitmentConversation({
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: createSinglePassInvestigationPlanner({
-      async decide({ history, decisionMode, onTokenUsage }) {
+      async decide(input) {
+      const { history, decisionSnapshot, onTokenUsage } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
         if (decisionMode === "conclude") {
           onTokenUsage?.({ callPhase: decisionMode, outcome: "failed", contextChars: 256 });
           throw new RecruitmentModelTimeoutError(180_000);
@@ -552,22 +576,22 @@ test("a blocked expansion question gets one model-directed recovery without aski
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
       async decide(input) {
-        plannerModes.push(input.decisionMode);
-        if (input.decisionMode === "expand") {
+        plannerModes.push(input.decisionSnapshot.caps.stage);
+        if (input.decisionSnapshot.caps.stage === "expand") {
           return {
             action: "ask_user",
             question: "是否接受跨联赛搜索？",
             reason: "跨联赛可能带来更多候选人。",
           };
         }
-        if (input.decisionMode === "expand_recovery") {
+        if (input.decisionSnapshot.caps.stage === "expand_recovery") {
           recoveryHistory = input.history;
-          assert.equal(input.expansionConstraints?.nextOffset, 20);
-          assert.ok(input.constraints?.evaluatedCandidates.length);
+          assert.equal(input.decisionSnapshot.search.expansionConstraints?.nextOffset, 20);
+          assert.ok(input.decisionSnapshot.constraints?.evaluatedCandidates.length);
           assert.deepEqual(input.history.filter(({ role }) => role === "user").map(({ content }) => content), [
             "为巴萨找一名重点看进球表现的中场",
           ]);
-          const eligible = input.constraints?.evaluatedCandidates.find(({ evidenceKeys }) => evidenceKeys.includes("goals"));
+          const eligible = input.decisionSnapshot.constraints?.evaluatedCandidates.find(({ evidenceKeys }) => evidenceKeys.includes("goals"));
           assert.ok(eligible);
           return {
             action: "finish",
@@ -582,7 +606,7 @@ test("a blocked expansion question gets one model-directed recovery without aski
           return { action: "search_methodology", query: "中场进球表现评估方法" };
         }
         if (!input.history.some(({ role, toolName }) => role === "tool" && toolName === "search_candidates")) return searchPage;
-        assert.fail(`unexpected Planner mode: ${input.decisionMode}`);
+        assert.fail(`unexpected Planner mode: ${input.decisionSnapshot.caps.stage}`);
       },
     },
     knowledgeBase: { async search() { return []; } },
@@ -613,15 +637,15 @@ test("an unsupported league question after approved position expansion continues
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
       async decide(input) {
-        if (input.decisionMode === "expand") {
+        if (input.decisionSnapshot.caps.stage === "expand") {
           return {
             action: "ask_user",
             question: "是否接受跨联赛搜索？",
             reason: "跨联赛可能带来更多候选人。",
           };
         }
-        if (input.decisionMode === "expand_recovery" || input.decisionMode === "conclude") {
-          const candidate = input.constraints?.evaluatedCandidates.find(({ evidenceKeys }) => evidenceKeys.includes("goals"));
+        if (input.decisionSnapshot.caps.stage === "expand_recovery" || input.decisionSnapshot.caps.stage === "conclude") {
+          const candidate = input.decisionSnapshot.constraints?.evaluatedCandidates.find(({ evidenceKeys }) => evidenceKeys.includes("goals"));
           assert.ok(candidate);
           return {
             action: "finish",
@@ -635,7 +659,7 @@ test("an unsupported league question after approved position expansion continues
         if (!input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_methodology")) {
           return { action: "search_methodology", query: "中锋进球与做球表现评估方法" };
         }
-        return { action: "search_candidates", position: input.confirmedPosition ?? "ST", minimumMinutes: 0, limit: 20 };
+        return { action: "search_candidates", position: input.decisionSnapshot.case.confirmedPosition ?? "ST", minimumMinutes: 0, limit: 20 };
       },
     },
     knowledgeBase: { async search() { return []; } },
@@ -682,7 +706,7 @@ test("a distinct material question remains available after approved position exp
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
       async decide(input) {
-        if (input.decisionMode === "expand") {
+        if (input.decisionSnapshot.caps.stage === "expand") {
           return {
             action: "ask_user",
             question: "更偏向能立即争取主力，还是作为轮换或未来接班人？",
@@ -692,7 +716,7 @@ test("a distinct material question remains available after approved position exp
         if (!input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_methodology")) {
           return { action: "search_methodology", query: "中锋进球与做球表现评估方法" };
         }
-        return { action: "search_candidates", position: input.confirmedPosition ?? "ST", minimumMinutes: 0, limit: 20 };
+        return { action: "search_candidates", position: input.decisionSnapshot.case.confirmedPosition ?? "ST", minimumMinutes: 0, limit: 20 };
       },
     },
     knowledgeBase: { async search() { return []; } },
@@ -797,7 +821,9 @@ test("a jointly evidenced shortlist bypasses the expensive expansion Planner", a
   let expansionCalls = 0;
   const conversation = createRecruitmentConversation({
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
-    planner: { async decide({ history, decisionMode }) {
+    planner: { async decide(input) {
+      const { history, decisionSnapshot } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
       if (decisionMode === "expand") { expansionCalls += 1; throw new RecruitmentModelTimeoutError(60_000); }
       assert.notEqual(decisionMode, "conclude", "a failed expansion must not trigger another expensive synthesis");
       assert.notEqual(decisionMode, "reorient");
@@ -828,7 +854,11 @@ test("the expansion-sufficiency experiment can retain the model-directed expansi
   const conversation = createRecruitmentConversation({
     experimentalExpansionSufficiencyMode: "bypassed",
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
-    planner: { async decide({ history, decisionMode, constraints, targetTeam }) {
+    planner: { async decide(input) {
+      const { history, decisionSnapshot, onTokenUsage } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
+      const constraints = decisionSnapshot.constraints;
+      const targetTeam = decisionSnapshot.case.targetTeam;
       if (decisionMode === "expand") {
         expansionCalls += 1;
         assert.equal(constraints?.evaluatedCandidates.length, 20);
@@ -929,13 +959,13 @@ test("a broad defender request excludes a midfielder with a part-time centre-bac
       },
     },
     planner: { async decide(input) {
-      if (input.constraints) {
+      if (input.decisionSnapshot.constraints) {
         return {
           action: "finish",
-          targetTeam: input.targetTeam,
+          targetTeam: input.decisionSnapshot.case.targetTeam,
           needSummary: "为巴萨整理后卫候选。",
           capabilityProfile: ["后卫比赛表现"],
-          recommendations: input.constraints.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals" as const] })),
+          recommendations: input.decisionSnapshot.constraints.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals" as const] })),
           limitationKeys: [],
         };
       }

@@ -1,76 +1,67 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
 import test from "node:test";
-import { createRecruitmentPlanner } from "../../src/recruitment/recruitment-planner.js";
+import { createRecruitmentPlanner, RecruitmentModelTimeoutError } from "../../src/recruitment/recruitment-planner.js";
+import { finishArguments, nativeCompletion, plannerInput } from "./fixtures/native-planner.js";
 
-test("real Planner HTTP output contract bounds the limitation array that exhausted the local context", async () => {
-  const names = ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD"] as const;
-  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
-  let wire: { max_tokens: number; response_format: { json_schema: { schema: { anyOf: Array<{
-    properties: { action: { const: string }; limitationKeys?: { maxItems?: number } };
-  }> } } } } | undefined;
-  const server = createServer(async (request, response) => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    wire = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ id: "fixture", object: "chat.completion", created: 1, model: "fixture",
-      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({
-        action: "finish", targetTeam: "Bayern", needSummary: "有限样本的后续考察线索。", capabilityProfile: [],
-        recommendations: [{ playerId: "candidate", evidenceKeys: ["goals"] }], limitationKeys: ["injury"], reportObservations: [],
-      }) } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } }));
-  });
+const keys = ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS", "OPENAI_TIMEOUT_MS"] as const;
+function saveEnvironment() { return Object.fromEntries(keys.map(key => [key, process.env[key]])); }
+function restoreEnvironment(previous: Record<string, string | undefined>) {
+  for (const key of keys) {
+    if (previous[key] === undefined) delete process.env[key];
+    else process.env[key] = previous[key];
+  }
+}
+function configure() {
+  process.env.OPENAI_API_KEY = "fixture-key";
+  process.env.OPENAI_MODEL = "fixture-model";
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:9999/v1";
+  process.env.OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = "1024";
+}
+
+test("native Planner tool schema bounds finish fields without raising the output budget", async () => {
+  const previous = saveEnvironment();
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> | undefined;
+  configure();
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return nativeCompletion("finish", finishArguments);
+  }) as typeof fetch;
   try {
-    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
-    const address = server.address(); assert.ok(address && typeof address !== "string");
-    process.env.OPENAI_API_KEY = "fixture-not-a-secret";
-    process.env.OPENAI_MODEL = "fixture";
-    process.env.OPENAI_BASE_URL = `http://127.0.0.1:${address.port}/v1`;
-    process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
-    const result = await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({ history: [], dataMode: "demo", dataSource: "Fixture",
-      targetTeam: "Bayern", decisionMode: "expand", confirmedPosition: "ATT",
-      constraints: { targetTeam: "Bayern", evaluatedCandidates: [{ playerId: "candidate", evidenceKeys: ["goals"] }], reportObservations: [], requestedCapabilityCoverage: [] },
-      expansionConstraints: { targetTeam: "Bayern", position: "ATT", playerName: null, maxAge: null, minimumMinutes: 0, competition: null, season: null, nextOffset: 20 },
-    });
-    assert.equal(result.action, "finish");
-    assert.ok(wire);
-    const finishSchema = wire.response_format.json_schema.schema.anyOf.find(arm => arm.properties.action.const === "finish");
-    assert.equal(finishSchema?.properties.limitationKeys?.maxItems, 10, "wire schema must prevent unbounded limitation-key repetition");
-    assert.equal(wire.max_tokens, 1024, "fix must not hide the failure by increasing output budget");
+    const planner = createRecruitmentPlanner();
+    await planner.decide(plannerInput({
+      stage: "conclude",
+      targetTeam: "Bayern",
+      availableActions: ["finish", "ask_user"],
+      constraints: { targetTeam: "Bayern", evaluatedCandidates: [], reportObservations: [], requestedCapabilityCoverage: [] },
+    }));
+    assert.ok(requestBody);
+    const finishTool = (requestBody.tools as Array<{ function: { name: string; parameters: { properties: Record<string, { maxItems?: number }> } } }>)
+      .find(item => item.function.name === "finish");
+    assert.ok(finishTool);
+    assert.equal(finishTool.function.parameters.properties.limitationKeys?.maxItems, 10);
+    assert.equal(requestBody.max_tokens, 1024);
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
-    for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; }
+    globalThis.fetch = originalFetch;
+    restoreEnvironment(previous);
   }
 });
 
 test("Planner deadline includes a response body that stays open after HTTP headers", async () => {
-  const names = ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_TIMEOUT_MS"] as const;
-  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
-  const server = createServer(async (request, response) => {
-    for await (const _chunk of request) { /* drain the request */ }
-    response.writeHead(200, { "content-type": "application/json" });
-    response.flushHeaders();
-    const heartbeat = setInterval(() => response.write(" "), 50);
-    const finish = setTimeout(() => response.end(JSON.stringify({ id: "fixture", object: "chat.completion", created: 1, model: "fixture",
-      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({ action: "ask_user", question: "补强哪个位置？", reason: "尚未指定位置。" }) } }],
-    })), 2500);
-    response.once("close", () => { clearInterval(heartbeat); clearTimeout(finish); });
-  });
+  const previous = saveEnvironment();
+  const originalFetch = globalThis.fetch;
+  configure();
+  process.env.OPENAI_TIMEOUT_MS = "1000";
+  globalThis.fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new TextEncoder().encode("{")); },
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
-    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
-    const address = server.address(); assert.ok(address && typeof address !== "string");
-    process.env.OPENAI_API_KEY = "fixture";
-    process.env.OPENAI_MODEL = "fixture";
-    process.env.OPENAI_BASE_URL = `http://127.0.0.1:${address.port}/v1`;
-    process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
-    process.env.OPENAI_TIMEOUT_MS = "1000";
-    const started = performance.now();
-    await assert.rejects(createRecruitmentPlanner({ protocol: "legacy_action" }).decide({ history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: null, decisionMode: "conclude", confirmedPosition: null }),
-      (error: unknown) => error instanceof Error && error.name === "RecruitmentModelTimeoutError");
-    assert.ok(performance.now() - started < 2200, "deadline must cover body reading, not just arrival of headers");
+    await assert.rejects(
+      createRecruitmentPlanner().decide(plannerInput({ stage: "conclude", targetTeam: "Bayern" })),
+      (error: unknown) => error instanceof RecruitmentModelTimeoutError,
+    );
   } finally {
-    server.closeAllConnections();
-    await new Promise<void>(resolve => server.close(() => resolve()));
-    for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; }
+    globalThis.fetch = originalFetch;
+    restoreEnvironment(previous);
   }
 });

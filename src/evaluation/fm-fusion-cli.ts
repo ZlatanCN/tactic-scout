@@ -59,8 +59,8 @@ async function main() {
         try {
           const modelPlanner = createRecruitmentPlanner();
           const conversation = createRecruitmentConversation({ repository, planner: { decide: async (input) => {
-            console.log(JSON.stringify({ event: "planning", round, scenario: scenario.id, arm, decisionMode: input.decisionMode,
-              historyCharacters: input.history.reduce((sum, entry) => sum + entry.content.length, 0), eligibleCandidates: input.constraints?.evaluatedCandidates.length ?? null }));
+            console.log(JSON.stringify({ event: "planning", round, scenario: scenario.id, arm, decisionMode: input.decisionSnapshot.caps.stage,
+              historyCharacters: input.history.reduce((sum, entry) => sum + entry.content.length, 0), eligibleCandidates: input.decisionSnapshot.constraints?.evaluatedCandidates.length ?? null }));
             return modelPlanner.decide(input);
           } },
             experimentalUnderstatResearchMode: "catalog_only",

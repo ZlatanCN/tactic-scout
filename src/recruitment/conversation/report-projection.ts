@@ -20,6 +20,8 @@ import { candidateIdentityGroupReferencesFor, candidateSearchScopeKey, constrain
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { positionLabels } from "./interaction-policy.js";
 import { type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
+import { type Runtime } from "@langchain/langgraph";
+import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
 
 const limitationDescriptions = {
   current_roster: "当前数据不能核实目标球队的完整现役阵容。",
@@ -303,12 +305,10 @@ function limitationsFor(
 export function createReportProjection(input: {
   candidateComparisonEnabled?: boolean;
   referenceProfileEnabled?: boolean;
-  repository: PlayerRepository;
-  evidenceEvaluator: RecruitmentEvidenceEvaluator;
-  groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
 }) {
-  const { repository, evidenceEvaluator, groupCandidateRecords } = input;
-  return (state: State): Partial<State> => {
+  return (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Partial<State> => {
+    const context = requireRecruitmentRuntimeContext(runtime.context);
+    const { repository, evidenceEvaluator, candidateIdentityGrouper: groupCandidateRecords } = context;
     if (state.briefFailure) return { report: null, responseMessage: state.briefFailure };
     const action = state.action?.action === "finish" ? state.action : emptyDecision(state.targetTeam);
     const eligibleEvaluatedPlayers = evaluatedPlayersForConstraint(state);

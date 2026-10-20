@@ -16,6 +16,14 @@ import {
   type PlayerObservation,
   type PlayerObservationInput,
 } from "../../../../../src/observations/schemas.js";
+import {
+  RecruitmentPreferenceListSchema,
+  RecruitmentPreferenceSchema,
+  RecruitmentPreferenceWriteSchema,
+  type RecruitmentPreference,
+  type RecruitmentPreferenceWrite,
+} from "../../../../../src/recruitment/preferences/schemas.js";
+import { getRecruitmentMemoryOwnerId } from "./memory-owner";
 
 export async function getDatasetStatus(): Promise<DatasetStatus> {
   const response = await fetch("/api/v1/dataset");
@@ -41,7 +49,7 @@ export async function turnRecruitmentCase(caseId: string, message: string, expec
   const response = await fetch(`/api/v1/recruitment/cases/${encodeURIComponent(caseId)}/turns`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...(requestId ? { requestId } : {}), message, expectsExistingState, ...(positionAnswer ? { positionAnswer } : {}), ...(positionUpdate ? { positionUpdate } : {}), ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}) }),
+    body: JSON.stringify({ ...(requestId ? { requestId } : {}), memoryOwnerId: getRecruitmentMemoryOwnerId(), message, expectsExistingState, ...(positionAnswer ? { positionAnswer } : {}), ...(positionUpdate ? { positionUpdate } : {}), ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}) }),
   });
   return parseApiContract(ConversationTurnResponseSchema, await readApiResponse(response));
 }
@@ -67,7 +75,7 @@ export async function turnRecruitmentCaseStream(
       accept: "text/event-stream",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ ...(requestId ? { requestId } : {}), message, expectsExistingState, ...(positionAnswer ? { positionAnswer } : {}), ...(positionUpdate ? { positionUpdate } : {}), ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}) }),
+    body: JSON.stringify({ ...(requestId ? { requestId } : {}), memoryOwnerId: getRecruitmentMemoryOwnerId(), message, expectsExistingState, ...(positionAnswer ? { positionAnswer } : {}), ...(positionUpdate ? { positionUpdate } : {}), ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}) }),
     ...(options.signal ? { signal: options.signal } : {}),
   });
   if (response.ok && response.body) options.onHeaders?.();
@@ -106,5 +114,34 @@ export async function savePlayerObservation(id: string | null, input: PlayerObse
 
 export async function deletePlayerObservation(id: string): Promise<void> {
   const response = await fetch(`/api/v1/player-observations/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(await readApiError(response));
+}
+
+function preferencesUrl(): string {
+  return `/api/v1/users/${encodeURIComponent(getRecruitmentMemoryOwnerId())}/preferences`;
+}
+
+export async function getRecruitmentPreferences(): Promise<RecruitmentPreference[]> {
+  const response = await fetch(preferencesUrl());
+  return parseApiContract(RecruitmentPreferenceListSchema, await readApiResponse(response), "长期偏好");
+}
+
+export async function saveRecruitmentPreference(input: RecruitmentPreferenceWrite): Promise<RecruitmentPreference> {
+  const body = RecruitmentPreferenceWriteSchema.parse(input);
+  const response = await fetch(preferencesUrl(), {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseApiContract(RecruitmentPreferenceSchema, await readApiResponse(response), "长期偏好");
+}
+
+export async function deleteRecruitmentPreference(key: RecruitmentPreference["key"]): Promise<void> {
+  const response = await fetch(`${preferencesUrl()}/${encodeURIComponent(key)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(await readApiError(response));
+}
+
+export async function clearRecruitmentPreferences(): Promise<void> {
+  const response = await fetch(preferencesUrl(), { method: "DELETE" });
   if (!response.ok) throw new Error(await readApiError(response));
 }

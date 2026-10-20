@@ -53,7 +53,6 @@ test("native tool protocol diagnostics expose only invalid argument paths", () =
     return true;
   });
 });
-
 test("native tool schemas keep target-team context server-owned", () => {
   const definitions = recruitmentPlannerToolManifest(RecruitmentActionSchema);
   for (const definition of definitions) {
@@ -126,15 +125,6 @@ test("native list-valued tool arguments normalize singleton inputs while preserv
   assert.equal(evaluation.action, "evaluate_candidates");
   if (evaluation.action === "evaluate_candidates") assert.deepEqual(evaluation.playerIds, ["candidate-1"]);
 
-  const evidenceRead = parseRecruitmentPlannerOutput(call("read_case_evidence", {
-    refs: "ev.case.player_metrics.evidence",
-    fields: "body",
-  }, "single-evidence-reference")).action;
-  assert.equal(evidenceRead.action, "read_case_evidence");
-  if (evidenceRead.action === "read_case_evidence") {
-    assert.deepEqual(evidenceRead.refs, ["ev.case.player_metrics.evidence"]);
-    assert.deepEqual(evidenceRead.fields, ["body"]);
-  }
 });
 
 test("unknown finish limitation labels fall back to the explicit generic limitation", () => {
@@ -148,16 +138,6 @@ test("unknown finish limitation labels fall back to the explicit generic limitat
 
   assert.equal(finish.action, "finish");
   if (finish.action === "finish") assert.deepEqual(finish.limitationKeys, ["budget", "other"]);
-});
-
-test("native evidence read tools accept a bounded batch of four refs", () => {
-  const evidenceRead = parseRecruitmentPlannerOutput(call("read_case_evidence", {
-    refs: ["ev.a", "ev.b", "ev.c", "ev.d"],
-    fields: ["body"],
-  }, "four-evidence-refs")).action;
-
-  assert.equal(evidenceRead.action, "read_case_evidence");
-  if (evidenceRead.action === "read_case_evidence") assert.equal(evidenceRead.refs.length, 4);
 });
 
 test("createRecruitmentConversation routes a native named candidate tool through the graph and finishes", async () => {
@@ -326,61 +306,5 @@ test("createRecruitmentConversation routes native ask_user and finish calls as g
   const second = await conversation.turn({ threadId: "native-control-call", message: "暂时不限制，继续按进球表现找", expectsExistingState: true });
   assert.equal(second.status, "completed", second.message);
   assert.ok(!trace.some(event => event.phase === "tool" && (event.toolName as string) === "finish"), "finish must route to review/report, not execute as a data tool");
-  assert.equal(decisions.length, 0);
-});
-
-test("createRecruitmentConversation keeps the legacy action dispatcher available for a matched Harness control", async () => {
-  const candidate = roleConstraintPlayer("legacy-action-forward", "Legacy Action Forward", "ATT");
-  const trace: RecruitmentTraceEvent[] = [];
-  const decisions = [
-    {
-      action: "search_candidates" as const,
-      targetTeam: "巴萨",
-      position: "ATT" as const,
-      playerName: null,
-      maxAge: null,
-      minimumMinutes: 0,
-      competition: null,
-      season: null,
-      offset: 0,
-      limit: 20,
-    },
-    {
-      action: "finish" as const,
-      targetTeam: "巴萨",
-      needSummary: "根据当前比赛表现整理后续考察线索。",
-      capabilityProfile: [],
-      recommendations: [],
-      limitationKeys: ["other" as const],
-    },
-  ];
-  const planner = {
-    async decide() {
-      const next = decisions.shift();
-      assert.ok(next, "the graph must complete using the scripted legacy actions");
-      return next;
-    },
-  } as unknown as RecruitmentPlanner;
-  const conversation = createRecruitmentConversation({
-    briefInterpreter: { async interpret(input) { return validateRecruitmentBrief(brief, [...input.recentMessages, input.message]); } },
-    repository: {
-      mode: "demo",
-      sourceName: "Synthetic tool-call fixture",
-      async loadPlayers() { return [candidate]; },
-      async searchCandidates(query) {
-        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
-      },
-    },
-    planner,
-    experimentalRetrievalMode: "on_demand",
-    experimentalReviewerMode: "bypassed",
-    experimentalToolExecutionMode: "legacy_action_dispatch",
-    observer(event) { trace.push(event); },
-  });
-
-  const result = await conversation.turn({ threadId: "legacy-action-dispatch", message: "为巴萨找一个前锋，重点看进球" });
-
-  assert.equal(result.status, "completed", result.message);
-  assert.ok(trace.some(event => event.phase === "tool" && event.toolName === "search_candidates"));
   assert.equal(decisions.length, 0);
 });

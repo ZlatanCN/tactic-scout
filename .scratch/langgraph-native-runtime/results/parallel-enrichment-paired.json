@@ -1,0 +1,55 @@
+{
+  "experiment": "full-graph-frozen-enrichment-pair",
+  "runsPerArm": 5,
+  "frozenResponse": true,
+  "artificialProviderDelayMs": 120,
+  "equivalentReportAndCoverage": true,
+  "optionalArchiveFailure": {
+    "coreReportDelivered": true,
+    "archiveCoverage": "failed",
+    "externalCoverage": "complete"
+  },
+  "serialLatencyMs": {
+    "median": 280,
+    "p95": 326
+  },
+  "parallelLatencyMs": {
+    "median": 158,
+    "p95": 163
+  },
+  "pairedSerialMinusParallelMs": [
+    168,
+    127,
+    121,
+    118,
+    134
+  ],
+  "stableLatencyBenefit": true,
+  "pairs": [
+    {
+      "serialMs": 326,
+      "parallelMs": 158,
+      "deltaMs": 168
+    },
+    {
+      "serialMs": 279,
+      "parallelMs": 152,
+      "deltaMs": 127
+    },
+    {
+      "serialMs": 280,
+      "parallelMs": 159,
+      "deltaMs": 121
+    },
+    {
+      "serialMs": 281,
+      "parallelMs": 163,
+      "deltaMs": 118
+    },
+    {
+      "serialMs": 278,
+      "parallelMs": 144,
+      "deltaMs": 134
+    }
+  ]
+}

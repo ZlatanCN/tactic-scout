@@ -1,0 +1,88 @@
+{
+  "experiment": "full-graph-frozen-candidate-evaluation-pair",
+  "runsPerArm": 5,
+  "frozenDatasetPlayers": 12,
+  "semantics": "equivalent final report and recommendation order in all pairs",
+  "batchLatencyMs": {
+    "median": 31,
+    "p95": 82
+  },
+  "sendLatencyMs": {
+    "median": 38,
+    "p95": 45
+  },
+  "pairedBatchMinusSendMs": [
+    37,
+    -9,
+    -6,
+    -2,
+    -7
+  ],
+  "sendStableLatencyBenefit": false,
+  "sourceReadCallsPerPair": [
+    {
+      "batch": 4,
+      "send": 24
+    },
+    {
+      "batch": 4,
+      "send": 24
+    },
+    {
+      "batch": 4,
+      "send": 24
+    },
+    {
+      "batch": 4,
+      "send": 24
+    },
+    {
+      "batch": 4,
+      "send": 24
+    }
+  ],
+  "sendFailureCoverage": "The evaluator contract has no per-candidate error coverage; an uncaught Send task rejects the whole evaluator invocation. Keeping partial results would change the current error semantics and require a new domain contract.",
+  "decision": "reject-send",
+  "pairs": [
+    {
+      "batchMs": 82,
+      "sendMs": 45,
+      "deltaMs": 37,
+      "batchReads": 4,
+      "sendReads": 24,
+      "sendPeakConcurrency": 4
+    },
+    {
+      "batchMs": 31,
+      "sendMs": 40,
+      "deltaMs": -9,
+      "batchReads": 4,
+      "sendReads": 24,
+      "sendPeakConcurrency": 4
+    },
+    {
+      "batchMs": 31,
+      "sendMs": 37,
+      "deltaMs": -6,
+      "batchReads": 4,
+      "sendReads": 24,
+      "sendPeakConcurrency": 4
+    },
+    {
+      "batchMs": 33,
+      "sendMs": 35,
+      "deltaMs": -2,
+      "batchReads": 4,
+      "sendReads": 24,
+      "sendPeakConcurrency": 4
+    },
+    {
+      "batchMs": 31,
+      "sendMs": 38,
+      "deltaMs": -7,
+      "batchReads": 4,
+      "sendReads": 24,
+      "sendPeakConcurrency": 4
+    }
+  ]
+}

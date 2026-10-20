@@ -49,8 +49,8 @@ test("counterbalanced triples rotate every arm through first, middle, and last p
   });
 });
 
-test("five-arm counterbalancing rotates every context strategy through each execution position", async () => {
-  const ids = ["legacy", "projection", "evidence", "unified", "summarized"];
+test("five-arm counterbalancing rotates each arm through every execution position", async () => {
+  const ids = ["alpha", "bravo", "charlie", "delta", "echo"];
   const order: string[][] = [];
   const result = await runCounterbalancedArms(5, ids.map(id => ({
     id,

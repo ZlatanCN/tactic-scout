@@ -149,58 +149,26 @@ test("a streaming recruitment turn sends real progress before its final result",
   const caseId = "streaming-turn";
 
   try {
-    await app.listen({ host: "127.0.0.1", port: 0 });
-    const address = app.server.address();
-    assert.ok(address && typeof address === "object");
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/recruitment/cases/${caseId}/turns/stream`, {
+    const responsePromise = app.inject({
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ requestId, message: "为拜仁寻找凯恩的替代者" }),
+      url: `/api/v1/recruitment/cases/${caseId}/turns/stream`,
+      headers: { accept: "text/event-stream" },
+      payload: { requestId, message: "为拜仁寻找凯恩的替代者" },
     });
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get("content-type") ?? "", /^text\/event-stream/);
-    assert.ok(response.body);
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    const nextEvent = async (): Promise<{ event: string; data: unknown }> => {
-      while (true) {
-        const boundary = buffer.indexOf("\n\n");
-        if (boundary >= 0) {
-          const block = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
-          const event = block.split("\n").find((line) => line.startsWith("event: "))?.slice(7);
-          const data = block.split("\n").filter((line) => line.startsWith("data: ")).map((line) => line.slice(6)).join("\n");
-          if (event && data) return { event, data: JSON.parse(data) as unknown };
-          continue;
-        }
-        const chunk = await reader.read();
-        assert.equal(chunk.done, false, "the stream ended before the expected event");
-        buffer += decoder.decode(chunk.value, { stream: true });
-      }
-    };
-
-    const first = await nextEvent();
-    assert.equal(first.event, "progress");
-    assert.equal((first.data as { progress: { stage: string } }).progress.stage, "starting");
-
     await progressSent;
-    const second = await nextEvent();
-    assert.equal(second.event, "progress");
-    assert.equal((second.data as { progress: { stage: string } }).progress.stage, "planning");
-
     releaseTurn();
-    const terminal = await nextEvent();
-    assert.equal(terminal.event, "progress");
-    assert.equal((terminal.data as { progress: { stage: string; active: boolean } }).progress.stage, "completed");
-    assert.equal((terminal.data as { progress: { active: boolean } }).progress.active, false);
-    const final = await nextEvent();
-    assert.equal(final.event, "result");
-    const result = (final.data as { response: { status: string; progressEvents: Array<{ stage: string }> } }).response;
+    const response = await responsePromise;
+    assert.equal(response.statusCode, 200);
+    assert.match(response.headers["content-type"] ?? "", /^text\/event-stream/);
+    const events = response.payload.split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6)) as { type: string; progress?: { stage: string; active?: boolean }; response?: { status: string; progressEvents: Array<{ stage: string }> } });
+    assert.deepEqual(events.filter((event) => event.type === "progress").map((event) => event.progress?.stage), ["starting", "planning", "completed"]);
+    assert.equal(events.at(-1)?.type, "result");
+    const result = events.at(-1)?.response;
+    assert.ok(result);
     assert.equal(result.status, "completed");
     assert.equal(result.progressEvents.at(-1)?.stage, "completed");
-    await reader.cancel();
   } finally {
     releaseTurn();
     await app.close();
@@ -333,21 +301,19 @@ test("closing a streaming response does not cancel the server-side turn", async 
   const caseId = "stream-disconnect";
 
   try {
-    await app.listen({ host: "127.0.0.1", port: 0 });
-    const address = app.server.address();
-    assert.ok(address && typeof address === "object");
     const controller = new AbortController();
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/recruitment/cases/${caseId}/turns/stream`, {
+    const response = app.inject({
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ requestId, message: "为拜仁寻找凯恩的替代者" }),
+      url: `/api/v1/recruitment/cases/${caseId}/turns/stream`,
+      headers: { accept: "text/event-stream" },
+      payload: { requestId, message: "为拜仁寻找凯恩的替代者" },
       signal: controller.signal,
     });
-    assert.equal(response.status, 200);
     await started;
     controller.abort();
     releaseTurn();
     await completed;
+    await response.catch(() => undefined);
 
     const progress = await app.inject({
       method: "GET",

@@ -56,15 +56,6 @@ export const SearchCandidatesActionSchema = z.object({
   limit: z.number().int().min(1).max(20).default(20),
 });
 
-export const ReadCaseEvidenceActionSchema = z.object({
-  ...targetTeamContextField,
-  action: z.literal("read_case_evidence"),
-  refs: z.array(z.string().min(1).max(160)).min(1).max(4),
-  fields: z.array(z.enum(["metadata", "body"])).min(1).max(2).default(["body"]),
-  cursor: z.string().regex(/^\d{1,8}$/).nullable().default(null),
-  limit: z.number().int().min(1).max(4_000).default(1_800),
-});
-
 export const RecruitmentActionSchema = z.discriminatedUnion("action", [
   z.object({
     ...targetTeamContextField,
@@ -91,7 +82,6 @@ export const RecruitmentActionSchema = z.discriminatedUnion("action", [
     matchId: z.string().regex(/^[1-9]\d{0,14}$/),
   }),
   SearchCandidatesActionSchema,
-  ReadCaseEvidenceActionSchema,
   z.object({
     ...targetTeamContextField,
     action: z.literal("search_methodology"),
@@ -130,7 +120,6 @@ export const toolBudgets = {
   search_candidates: 4,
   evaluate_candidates: 3,
   search_player_reports: 3,
-  read_case_evidence: 2,
 } as const;
 
 export type ToolActionName = keyof typeof toolBudgets;
@@ -138,7 +127,7 @@ export type RecruitmentPlannerAction = ToolActionName | "ask_user" | "finish";
 export type ToolUseCounts = Record<ToolActionName, number>;
 
 export function emptyToolUseCounts(): ToolUseCounts {
-  return { inspect_team: 0, inspect_player: 0, inspect_candidate_group: 0, inspect_match: 0, search_methodology: 0, search_candidates: 0, evaluate_candidates: 0, search_player_reports: 0, read_case_evidence: 0 };
+  return { inspect_team: 0, inspect_player: 0, inspect_candidate_group: 0, inspect_match: 0, search_methodology: 0, search_candidates: 0, evaluate_candidates: 0, search_player_reports: 0 };
 }
 
 export function isToolAction(action: ParsedRecruitmentAction): action is Extract<ParsedRecruitmentAction, { action: ToolActionName }> {

@@ -126,7 +126,7 @@ test("replacement searches accept a resolved football role even when the referen
       planner: {
         async decide(input) {
           const history = input.history;
-          if (input.decisionMode === "conclude" || input.decisionMode === "reorient") return {
+          if (input.decisionSnapshot.caps.stage === "conclude" || input.decisionSnapshot.caps.stage === "reorient") return {
             action: "finish",
             targetTeam: null,
             needSummary: "按参考球员的默认场上位置完成调查。",
@@ -181,7 +181,7 @@ test("an explicit replacement position avoids role clarification and filters out
     },
     planner: {
       async decide(input) {
-        if (input.decisionMode === "conclude" || input.decisionMode === "reorient") return {
+        if (input.decisionSnapshot.caps.stage === "conclude" || input.decisionSnapshot.caps.stage === "reorient") return {
           action: "finish",
           targetTeam: null,
           needSummary: "按用户指定的前锋位置完成比赛表现调查。",
@@ -232,7 +232,7 @@ test("a broad attacking brief gets one evidence-first position question and resu
     repository: { mode: "statsbomb", sourceName: "Fixture current performance pool", async loadPlayers() { return players; } },
     planner: {
       async decide(input) {
-        plannerInputs.push({ confirmedPosition: input.confirmedPosition });
+        plannerInputs.push({ confirmedPosition: input.decisionSnapshot.case.confirmedPosition });
         const action = actions.shift();
         assert.ok(action, "the case should continue from the same checkpoint with the scripted actions");
         return action;
@@ -276,7 +276,7 @@ test("replacement searches use the reference role without inventing age or filte
     planner: {
       async decide(input) {
         const tools = input.history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName);
-        if (input.decisionMode === "conclude" || input.decisionMode === "reorient") return {
+        if (input.decisionSnapshot.caps.stage === "conclude" || input.decisionSnapshot.caps.stage === "reorient") return {
           action: "finish",
           targetTeam: "拜仁",
           needSummary: "按凯恩的默认中锋角色完成调查。",
@@ -326,7 +326,7 @@ test("an unresolved reference gets one specific position question before a candi
             reason: "参考球员身份或位置无法从当前名单与比赛数据中核实。",
           };
         }
-        if (input.decisionMode === "conclude" || input.decisionMode === "reorient") return {
+        if (input.decisionSnapshot.caps.stage === "conclude" || input.decisionSnapshot.caps.stage === "reorient") return {
           action: "finish",
           targetTeam: "拜仁",
           needSummary: "已按你指定的中后卫位置完成调查。",
@@ -454,7 +454,10 @@ test("report discloses an unread page when the matching total is unknown", async
       },
     },
     planner: {
-      async decide({ history, decisionMode, expansionConstraints }) {
+      async decide(input) {
+      const { history, decisionSnapshot } = input;
+      const decisionMode = decisionSnapshot.caps.stage;
+      const expansionConstraints = decisionSnapshot.search.expansionConstraints;
         decisionModes.push(decisionMode);
         const lastTool = history.at(-1);
         const candidateSearchCount = history.filter((entry) => entry.role === "tool" && entry.toolName === "search_candidates").length;
@@ -662,9 +665,9 @@ test("broadening an empty striker search to other forward positions keeps the po
     planner: {
       async decide(input) {
         plannerCalls += 1;
-        if (input.positionBroadeningApproved) approvedBroadeningPlannerCalls.push(input.positionBroadeningApproved);
+        if (input.decisionSnapshot.case.positionBroadeningApproved) approvedBroadeningPlannerCalls.push(input.decisionSnapshot.case.positionBroadeningApproved);
         const action = actions.shift();
-        assert.ok(action, `missing planner action ${plannerCalls}: ${JSON.stringify({ confirmedPosition: input.confirmedPosition, lastTool: input.history.at(-1)?.toolName })}`);
+        assert.ok(action, `missing planner action ${plannerCalls}: ${JSON.stringify({ confirmedPosition: input.decisionSnapshot.case.confirmedPosition, lastTool: input.history.at(-1)?.toolName })}`);
         return action;
       },
     },
@@ -775,9 +778,9 @@ test("pitch multi-position confirmation shares Understat research and retains in
       },
     },
     planner: { async decide(input) {
-      if (input.constraints) return {
-        action: "finish", targetTeam: input.targetTeam, needSummary: "按所选位置寻找进球表现线索", capabilityProfile: ["进球"],
-        recommendations: input.constraints.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })), limitationKeys: [],
+      if (input.decisionSnapshot.constraints) return {
+        action: "finish", targetTeam: input.decisionSnapshot.case.targetTeam, needSummary: "按所选位置寻找进球表现线索", capabilityProfile: ["进球"],
+        recommendations: input.decisionSnapshot.constraints.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })), limitationKeys: [],
       };
       if (!input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_methodology")) return { action: "search_methodology", query: "进球表现" };
       if (input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_candidates")

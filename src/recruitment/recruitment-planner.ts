@@ -1,4 +1,4 @@
-import { normalizeModelTokenUsage, structuredModelText, type NormalizedModelTokenUsage } from "./model-output.js";
+import { normalizeModelTokenUsage, type NormalizedModelTokenUsage } from "./model-output.js";
 export { normalizeModelTokenUsage, type NormalizedModelTokenUsage } from "./model-output.js";
 import { AIMessage } from "@langchain/core/messages";
 import {
@@ -12,11 +12,9 @@ import {
   contextSafetyMarginTokens,
   contextSoftInputBudgetTokens,
   modelContextWindowTokens,
-  structuredOutputMethod,
 } from "./chat-model.js";
 import { type DatasetMode } from "../domain/datasets.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
-import { type Position } from "../domain/position-contracts.js";
 import {
   createConstrainedConclusionSchema,
   createConstrainedExpansionSchema,
@@ -26,28 +24,21 @@ import {
   type RecruitmentExpansionConstraints,
 } from "./conclusion-policy.js";
 import { RecruitmentActionSchema, type RecruitmentAction, type RecruitmentPlannerAction } from "./recruitment-actions.js";
-import { buildExpansionCandidateEvidence, partitionConclusionCandidatesByIdentity, projectConclusionHistoryForBatch, projectPlannerCaseProgress, reduceConclusionHistoryForBudget, structuredPlannerHistory, type ConclusionCandidateEvidence, type ConversationHistoryEntry } from "./planner-context.js";
+import { buildExpansionCandidateEvidence, partitionConclusionCandidatesByIdentity, projectConclusionHistoryForBatch, projectPlannerCaseProgress, structuredPlannerHistory, type ConclusionCandidateEvidence, type ConversationHistoryEntry } from "./planner-context.js";
 import { assertRecruitmentContextFits, buildRecruitmentContext, type RecruitmentContextManifest, withContextModelUsage } from "./context.js";
-import { z } from "zod/v4";
-import { createRecruitmentPlannerTools, normalizePlannerActionPayload, parseRecruitmentPlannerOutput, recruitmentPlannerToolManifest, RecruitmentToolProtocolError, type RecruitmentPlannerOutput } from "./recruitment-tools.js";
+import { createRecruitmentPlannerTools, messageForRecruitmentAction, parseRecruitmentPlannerOutput, recruitmentPlannerToolManifest, RecruitmentToolProtocolError, type RecruitmentPlannerOutput } from "./recruitment-tools.js";
+import type { DecisionSnapshot } from "./conversation/planning-snapshot.js";
 
 export type { ConversationHistoryEntry } from "./planner-context.js";
 
 export interface RecruitmentPlannerInput {
-  brief?: import("./brief.js").RecruitmentBrief | null;
+  /** Sole authoritative planning view. */
+  decisionSnapshot: DecisionSnapshot;
+  /** Bounded navigation trace. Hard facts are read only from the snapshot. */
   history: ConversationHistoryEntry[];
   dataMode: DatasetMode;
   dataSource: string;
-  abilityProfilesEnabled?: boolean;
-  targetTeam: string | null;
-  decisionMode?: RecruitmentDecisionMode;
-  availableActions?: readonly RecruitmentPlannerAction[];
-  confirmedPosition: Position | null;
-  confirmedPositions?: readonly Position[];
-  positionBroadeningApproved?: boolean;
   signal?: AbortSignal;
-  constraints?: RecruitmentDecisionConstraints;
-  expansionConstraints?: RecruitmentExpansionConstraints;
   caseProgress?: unknown;
   /** Private complete candidate view used only if a verified context window requires batch comparison. */
   candidateEvidenceForBatching?: ConclusionCandidateEvidence;
@@ -61,8 +52,6 @@ export interface RecruitmentPlanner {
   preflightContext?(input: RecruitmentPlannerInput): RecruitmentContextManifest | Promise<RecruitmentContextManifest>;
   decide(input: RecruitmentPlannerInput): Promise<RecruitmentPlannerOutput>;
 }
-
-export type RecruitmentPlannerProtocol = "native_tools" | "legacy_action";
 
 export type RecruitmentDecisionMode = "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
 
@@ -108,12 +97,6 @@ function hasProjectedCandidateEvidence(value: unknown): boolean {
     && Array.isArray((evidence as { candidates?: unknown }).candidates));
 }
 
-function hasCaseEvidenceDirectory(value: unknown): boolean {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const directory = (value as { evidenceDirectory?: unknown }).evidenceDirectory;
-  return Array.isArray(directory) && directory.length > 0;
-}
-
 function contextWithoutCandidatePool(
   payload: Record<string, unknown>,
   history: readonly ConversationHistoryEntry[],
@@ -124,8 +107,6 @@ function contextWithoutCandidatePool(
   const candidateEvidence = progress.candidateEvidence && typeof progress.candidateEvidence === "object" && !Array.isArray(progress.candidateEvidence)
     ? progress.candidateEvidence as Record<string, unknown>
     : undefined;
-  const directory = Array.isArray(progress.evidenceDirectory) ? progress.evidenceDirectory as Array<Record<string, unknown>> : [];
-  const methodologyRefs = new Set(directory.flatMap(entry => entry.kind === "methodology" && typeof entry.ref === "string" ? [entry.ref] : []));
   const constraints = payload.constraints && typeof payload.constraints === "object" && !Array.isArray(payload.constraints)
     ? payload.constraints as Record<string, unknown>
     : undefined;
@@ -133,7 +114,6 @@ function contextWithoutCandidatePool(
     candidateIds: new Set(),
     candidateNames: new Set(),
     documentIds: new Set(),
-    evidenceRefs: methodologyRefs,
   });
   return {
     ...payload,
@@ -149,7 +129,6 @@ function contextWithoutCandidatePool(
     caseProgress: {
       ...progress,
       ...(candidateEvidence ? { candidateEvidence: { ...candidateEvidence, candidates: [] } } : {}),
-      ...(Array.isArray(progress.evidenceDirectory) ? { evidenceDirectory: directory.filter(entry => entry.kind === "methodology") } : {}),
     },
   };
 }
@@ -195,12 +174,10 @@ function agentInstructions(dataMode: DatasetMode): string {
   ].join("\n");
 }
 
-export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidence = false, batch?: { index: number; count: number; candidatePoolSize: number }): string {
+export function conclusionInstructions(dataMode: DatasetMode, batch?: { index: number; count: number; candidatePoolSize: number }): string {
   return [
     batch
       ? `你负责超出单次上下文容量的候选分批比较。本轮是第 ${batch.index}/${batch.count} 批；全池共 ${batch.candidatePoolSize} 名已评估候选。只比较本批目录，最多给出 1 名本批考察线索；不要声称本批代表全池排名。`
-      : canReadCaseEvidence
-      ? "你是足球球探报告撰写员。当前调查已完成；可选择 ask_user、finish，或按需调用 read_case_evidence。仅读取给定 ref/字段并沿 nextCursor 继续，不伪造引用。"
       : "你是足球球探报告撰写员。当前调查已经完成；只能选择 ask_user 或 finish。",
     "只调用一个数据工具；ask_user、finish 是控制动作。不要输出 JSON、不复述参数；字段文字精炼。",
     ...sourceScopeInstructions(dataMode, "conclusion"),
@@ -211,11 +188,11 @@ export function conclusionInstructions(dataMode: DatasetMode, canReadCaseEvidenc
     "每条推荐的 evidenceKeys 必须直接支持用户明确提出的能力与场上角色；证据不足的能力要说明缺口。",
     "finish 的 limitationKeys 必须逐字使用工具 schema 的枚举；没有准确匹配项时用 other，不得自造值。",
     ...(batch ? ["本批 candidates 只包含本批范围，candidateCount 也仅为本批人数；只可从中选一名有直接证据的候选，或在本批没有对应指标时留空。"] : []),
-    "candidateEvidence.candidates 是完整已评估目录，应与 candidateCount 一致；按 metricDefinitions 解读，ref 可按需读取。缺项未知，显式 0 才是观测值。",
+    "candidateEvidence.candidates 是完整已评估目录，应与 candidateCount 一致；按 metricDefinitions 解读。缺项未知，显式 0 才是观测值。",
     "若已评估候选有直接对应指标，给出至少一名供球探后续核验的候选线索；不代表客观能力排名或转会结论。evidenceKeys 必须直接支持需求。样本较小需提示且不显示百分位。仅当无候选或所有人都缺直接指标时才留空；披露其余缺口，不得用无关的可用指标代替。",
     "若上下文含 requestedCapabilityCoverage，按其中的 observedMetricKeys 和覆盖候选人数判断证据覆盖；missing/partial 必须如实披露，不得把相似但不对应的字段描述成该项能力。进球机会指标只代表机会产出/质量，不等同于射门技术或终结能力。",
     "能力画像只描述数据支持的比赛表现。没有报告检索结果时 reportObservations 必须为空；球员观察只能引用本轮检索文档及其实体，不能把相关比赛指标说成已证明观察正确。",
-    "片段可用 evidenceRef 调 read_case_evidence 回读；未读勿推断。",
+    "检索结果中的正文是本轮已取得的证据摘录；不要声称看过未提供的全文。",
     "不得凭记忆声称现役俱乐部、联赛、年龄、转会可行性或合同预算；目标球队仅是引援语境。",
     ...(dataMode === "wyscout" ? ["Wyscout 数据仅为 2017/18 历史样本，不能代表现役球员池；报告说明 CC BY 4.0 来源。"] : []),
     ...(dataMode === "curated" ? ["当前 TactiScout 自建快照来自 Wyscout 2017/18 历史比赛数据，不能代表现役球员池；报告说明自建快照版本、历史赛事/赛季边界、CC BY 4.0 来源及缺失指标状态。"] : []),
@@ -269,21 +246,21 @@ function batchInputForConclusion(
   count: number,
 ): Parameters<RecruitmentPlanner["decide"]>[0] {
   const candidateIds = new Set(batch.map(candidate => candidate.playerId));
-  const batchConstraints = constraintsForCandidateBatch(input.constraints!, candidateIds);
+  const currentSnapshot = input.decisionSnapshot;
+  const batchConstraints = constraintsForCandidateBatch(currentSnapshot.constraints!, candidateIds);
   const progress = input.caseProgress && typeof input.caseProgress === "object" && !Array.isArray(input.caseProgress)
     ? input.caseProgress as Record<string, unknown> : {};
-  const directory = Array.isArray(progress.evidenceDirectory)
-    ? (progress.evidenceDirectory as Array<{ ref?: unknown; kind?: unknown; playerId?: unknown }>).filter(entry => entry.kind === "methodology" || (typeof entry.playerId === "string" && candidateIds.has(entry.playerId)))
-    : [];
   const documentIds = new Set(batchConstraints.reportObservations.map(observation => observation.documentId));
-  const metricRefs = batch.flatMap(candidate => typeof candidate.metricEvidenceRef === "string" ? [candidate.metricEvidenceRef] : []);
-  const evidenceRefs = new Set([...metricRefs, ...directory.flatMap(entry => typeof entry.ref === "string" ? [entry.ref] : [])]);
   const names = new Set(batch.flatMap(candidate => typeof candidate.name === "string" ? [candidate.name] : []));
-  const history = projectConclusionHistoryForBatch(input.history, { candidateIds, candidateNames: names, documentIds, evidenceRefs });
+  const history = projectConclusionHistoryForBatch(input.history, { candidateIds, candidateNames: names, documentIds });
   return {
     ...input,
-    constraints: batchConstraints,
-    availableActions: ["finish"],
+    decisionSnapshot: {
+      ...currentSnapshot,
+      caps: { ...currentSnapshot.caps, availableActions: ["finish"] },
+      search: { ...currentSnapshot.search, expansionConstraints: null },
+      constraints: batchConstraints,
+    },
     history,
     candidateEvidenceForBatching: undefined,
     contextRevision: JSON.stringify([input.contextRevision ?? null, "conclusion_batch", index, count]),
@@ -291,7 +268,6 @@ function batchInputForConclusion(
       ...progress,
       evaluatedCandidateCount: batch.length,
       candidateEvidence: { ...candidateEvidence, candidateCount: batch.length, candidates: batch },
-      ...(Array.isArray(progress.evidenceDirectory) ? { evidenceDirectory: directory } : {}),
       conclusionBatch: { index: index + 1, count, candidatePoolSize: candidateEvidence.candidateCount },
     },
   };
@@ -368,64 +344,12 @@ export function expansionInstructions(options: {
   ].join("\n");
 }
 
-export function reorientationInstructions(dataMode: DatasetMode = "demo", canReadCaseEvidence = false): string {
+export function reorientationInstructions(dataMode: DatasetMode = "demo"): string {
   return [
     investigationInstructions(dataMode),
-    canReadCaseEvidence
-      ? "当前候选页没有可继续读取的游标，或本轮球员报告检索预算已用尽。不得请求已耗尽的报告检索；可选择 search_candidates、read_case_evidence、ask_user 或 finish。read_case_evidence 只读取上下文目录中的当前案件 ref，不重新联网。"
-      : "当前候选页没有可继续读取的游标，或本轮球员报告检索预算已用尽。不得请求已耗尽的报告检索；只能选择 search_candidates、ask_user 或 finish。",
+    "当前候选页没有可继续读取的游标，或本轮球员报告检索预算已用尽。不得请求已耗尽的报告检索；只能选择 search_candidates、ask_user 或 finish。",
     "如果要继续调查，可以改变用户未明确限定的候选筛选范围；必须遵守用户确认的位置、年龄等硬条件。不要重复搜索报告，也不要重复评估已经评估的球员。不能把当前搜索范围的末页当成整个数据源没有其他候选。",
   ].join("\n");
-}
-
-function parseLegacyStructuredResponse(
-  response: unknown,
-  schema: z.ZodType,
-  decisionMode: RecruitmentDecisionMode | undefined,
-): RecruitmentPlannerOutput {
-  const structured = response && typeof response === "object"
-    ? response as { parsed?: unknown; raw?: { content?: unknown; additional_kwargs?: Record<string, unknown>; response_metadata?: { finish_reason?: unknown }; tool_calls?: unknown } }
-    : {};
-  const raw = structured.raw;
-  let candidate = structured.parsed;
-  let failure: RecruitmentPlannerResponseDiagnostics["failure"] | undefined;
-  if (candidate === undefined) {
-    const modelText = structuredModelText(raw?.content);
-    try {
-      if (!modelText) throw new Error("empty model content");
-      candidate = JSON.parse(modelText);
-    } catch {
-      failure = modelText ? "invalid_json" : "empty_content";
-    }
-  }
-  candidate = normalizePlannerActionPayload(candidate);
-  const parsed = failure ? undefined : schema.safeParse(candidate);
-  if (parsed?.success) return parsed.data as RecruitmentPlannerOutput;
-  const content = raw?.content;
-  const issuePaths = parsed && !parsed.success
-    ? [...new Set(parsed.error.issues.map(issue => issue.path.length ? issue.path.join(".") : "$"))].slice(0, 8)
-    : undefined;
-  const contentBlockTypes = Array.isArray(content)
-    ? [...new Set(content.flatMap(part => part && typeof part === "object" && typeof (part as { type?: unknown }).type === "string"
-      ? [(part as { type: string }).type]
-      : []))].slice(0, 8)
-    : undefined;
-  const finishReason = typeof raw?.response_metadata?.finish_reason === "string"
-    ? raw.response_metadata.finish_reason.slice(0, 40)
-    : undefined;
-  throw new RecruitmentPlannerOutputError({
-    failure: failure ?? "schema_mismatch",
-    contentKind: content === undefined ? "missing"
-      : typeof content === "string" ? content.length === 0 ? "empty_text" : "text"
-        : Array.isArray(content) ? "blocks" : "other",
-    ...(content === undefined ? {} : { contentLength: structuredModelText(content).length }),
-    ...(contentBlockTypes?.length ? { contentBlockTypes } : {}),
-    ...(issuePaths?.length ? { issuePaths } : {}),
-    ...(finishReason ? { finishReason } : {}),
-    hasReasoningContent: Object.keys(raw?.additional_kwargs ?? {}).some(key => /reasoning/i.test(key)),
-    toolCallCount: Array.isArray(raw?.tool_calls) ? raw.tool_calls.length
-      : Array.isArray(raw?.additional_kwargs?.tool_calls) ? raw.additional_kwargs.tool_calls.length : 0,
-  }, decisionMode);
 }
 
 class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
@@ -437,10 +361,8 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
   private readonly conclusionOutputBudgetTokens: number;
   private readonly timeoutMs: number;
   private readonly expansionTimeoutMs: number;
-  private readonly protocol: RecruitmentPlannerProtocol;
 
-  constructor(protocol: RecruitmentPlannerProtocol = "native_tools") {
-    this.protocol = protocol;
+  constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
     const modelName = process.env.OPENAI_MODEL;
     if (!apiKey || !modelName) throw new RecruitmentModelUnavailableError();
@@ -465,67 +387,69 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
   }
 
   private prepareContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+    const snapshot = input.decisionSnapshot;
+    const stage = snapshot.caps.stage;
+    const constraints = snapshot.constraints ?? undefined;
+    const expansionConstraints = snapshot.search.expansionConstraints ?? undefined;
+    const availableActions = snapshot.caps.availableActions;
+    const targetTeam = snapshot.case.targetTeam;
     const candidateBatch = isConclusionBatch(input.caseProgress) ? input.caseProgress : undefined;
-    const schema = input.decisionMode === "conclude" && input.constraints
-      ? createConstrainedConclusionSchema(input.constraints, {
-        allowReadCaseEvidence: !candidateBatch && (input.availableActions?.includes("read_case_evidence") ?? false),
+    const schema = stage === "conclude" && constraints
+      ? createConstrainedConclusionSchema(constraints, {
         ...(candidateBatch ? { allowAskUser: false, maxRecommendations: 1 } : {}),
       })
-      : (input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints && input.expansionConstraints
-        ? createConstrainedExpansionSchema(input.constraints, input.expansionConstraints, {
-          allowAskUser: input.decisionMode !== "expand_recovery",
+      : (stage === "expand" || stage === "expand_recovery") && constraints && expansionConstraints
+        ? createConstrainedExpansionSchema(constraints, expansionConstraints, {
+          allowAskUser: stage !== "expand_recovery",
         })
-        : input.decisionMode === "reorient" && input.constraints
-          ? createConstrainedReorientationSchema(input.constraints, { allowReadCaseEvidence: input.availableActions?.includes("read_case_evidence") ?? false })
-        : input.decisionMode === "investigate" && input.availableActions
-          ? createConstrainedInvestigationSchema(input.availableActions)
+        : stage === "reorient" && constraints
+          ? createConstrainedReorientationSchema(constraints)
+        : stage === "investigate" && availableActions
+          ? createConstrainedInvestigationSchema(availableActions)
           : RecruitmentActionSchema;
-    const isExpansion = input.decisionMode === "expand" || input.decisionMode === "expand_recovery";
-    const isFinalReport = input.decisionMode === "conclude";
-    const plannerCaseProgress = projectPlannerCaseProgress(input.decisionMode, input.caseProgress);
+    const isExpansion = stage === "expand" || stage === "expand_recovery";
+    const isFinalReport = stage === "conclude";
+    const plannerCaseProgress = projectPlannerCaseProgress(stage, input.caseProgress);
     const contextPayload = {
-      brief: "brief" in input ? input.brief : undefined,
+      decisionSnapshot: snapshot,
+      brief: snapshot.case.brief,
       dataMode: input.dataMode,
       dataSource: input.dataSource,
-      targetTeam: input.targetTeam,
-      decisionMode: input.decisionMode ?? "investigate",
-      ...(input.availableActions ? { availableActions: input.availableActions } : {}),
-      confirmedPosition: input.confirmedPosition,
-      confirmedPositions: input.confirmedPositions,
-      positionBroadeningApproved: input.positionBroadeningApproved ?? false,
-      ...(input.constraints ? { requestedCapabilityCoverage: input.constraints.requestedCapabilityCoverage } : {}),
-      ...((input.decisionMode === "expand" || input.decisionMode === "expand_recovery") && input.constraints ? {
+      targetTeam,
+      decisionMode: stage,
+      ...(availableActions ? { availableActions } : {}),
+      confirmedPosition: snapshot.case.confirmedPosition,
+      confirmedPositions: snapshot.case.confirmedPositions,
+      positionBroadeningApproved: snapshot.case.positionBroadeningApproved,
+      ...(constraints ? { requestedCapabilityCoverage: constraints.requestedCapabilityCoverage } : {}),
+      ...((stage === "expand" || stage === "expand_recovery") && constraints ? {
         evaluatedCandidateEvidence: buildExpansionCandidateEvidence(
-          input.constraints.evaluatedCandidates,
-          input.constraints.requestedCapabilityCoverage.flatMap(area => area.requestedMetricKeys),
+          constraints.evaluatedCandidates,
+          constraints.requestedCapabilityCoverage.flatMap(area => area.requestedMetricKeys),
         ),
-        reportObservations: input.constraints.reportObservations,
+        reportObservations: constraints.reportObservations,
       } : {}),
-      ...(input.expansionConstraints ? { expansionConstraints: input.expansionConstraints } : {}),
+      ...(expansionConstraints ? { expansionConstraints } : {}),
       ...(plannerCaseProgress ? { caseProgress: plannerCaseProgress } : {}),
       history: structuredPlannerHistory(input.history),
     };
-    const baseInstructions = input.decisionMode === "conclude"
-        ? conclusionInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false, candidateBatch)
-        : input.decisionMode === "expand" || input.decisionMode === "expand_recovery"
+    const baseInstructions = stage === "conclude"
+        ? conclusionInstructions(input.dataMode, candidateBatch)
+        : stage === "expand" || stage === "expand_recovery"
           ? expansionInstructions({
-            blockedQuestionRecovery: input.decisionMode === "expand_recovery",
-            positionBroadeningApproved: input.positionBroadeningApproved,
+            blockedQuestionRecovery: stage === "expand_recovery",
+            positionBroadeningApproved: snapshot.case.positionBroadeningApproved,
           })
-          : input.decisionMode === "reorient" ? reorientationInstructions(input.dataMode, input.availableActions?.includes("read_case_evidence") ?? false) : investigationInstructions(input.dataMode);
+          : stage === "reorient" ? reorientationInstructions(input.dataMode) : investigationInstructions(input.dataMode);
       const systemInstructions = [baseInstructions,
-        ...(input.availableActions ? [this.protocol === "native_tools"
-          ? `本阶段开放的具名工具与控制动作：${input.availableActions.join("、")}。只能调用其中一个；其他工具本阶段不可用。`
-          : `本次可用 action 列表：${input.availableActions.join("、")}。只选择列表中的动作；其他动作本阶段不可用。`] : []),
-        ...(this.protocol === "legacy_action" ? ["实验对照使用旧版结构化 action 协议：不要调用具名工具，直接返回符合响应 schema 的单个完整 action 对象。"] : []),
-        input.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
-        abilityProfileInstructions(input.abilityProfilesEnabled)].filter(Boolean).join("\n");
+        ...(availableActions.length ? [`本阶段开放的具名工具与控制动作：${availableActions.join("、")}。只能调用其中一个；其他工具本阶段不可用。`] : []),
+        snapshot.case.brief?.task === "similarity" ? "本任务是寻找相似球员。优先比较参考画像与候选的相同职责特征，不能把高能力分或同位置直接称为相似。referenceSimilarity 的 distance 越低只表示已比较维度更接近，comparedMetrics 是比较覆盖；ability 与 performance 分开判断，null 为未知。没有可比较维度时说明局限，不声称已验证相似。preferred 仅作取舍，不得捏造预算、年龄阈值或转会可行性。" : "",
+        abilityProfileInstructions(snapshot.case.abilityProfilesEnabled)].filter(Boolean).join("\n");
       const toolManifest = recruitmentPlannerToolManifest(schema);
-      const responseSchema = this.protocol === "native_tools" ? toolManifest : z.toJSONSchema(schema);
       const contextOptions = {
-        stage: input.decisionMode ?? "investigate",
+        stage,
         systemInstructions,
-        responseSchema,
+        responseSchema: toolManifest,
         outputBudgetTokens: isExpansion ? this.expansionOutputBudgetTokens
           : isFinalReport ? this.conclusionOutputBudgetTokens : this.plannerOutputBudgetTokens,
         ...(modelContextWindowTokens() === undefined ? {} : { contextWindowTokens: modelContextWindowTokens() }),
@@ -537,70 +461,36 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         omittedHistoryEntries: input.caseProgress && typeof input.caseProgress === "object" && "omittedHistoryEntries" in input.caseProgress
           ? Number((input.caseProgress as { omittedHistoryEntries?: unknown }).omittedHistoryEntries) || 0 : 0,
       } as const;
-      let activeHistory = input.history;
-      let activePayload: Record<string, unknown> = contextPayload;
-      let contextRequest = buildRecruitmentContext({ ...contextOptions, payload: activePayload });
-      if (contextRequest.manifest.status === "over_budget"
-        && (input.decisionMode === "conclude" || input.decisionMode === "reorient")
-        && hasProjectedCandidateEvidence(input.caseProgress)) {
-        const reducedHistory = reduceConclusionHistoryForBudget(input.history, {
-          evidenceDirectoryAvailable: hasCaseEvidenceDirectory(input.caseProgress),
-          canReadEvidence: input.availableActions?.includes("read_case_evidence") ?? false,
-        });
-        if (reducedHistory.length < input.history.length) {
-          const retainedEventIds = new Set(reducedHistory.flatMap(entry => entry.eventId ? [entry.eventId] : []));
-          const additionallyOmittedEventIds = input.history.flatMap(entry => entry.eventId && !retainedEventIds.has(entry.eventId) ? [entry.eventId] : []);
-          const progress = input.caseProgress as Record<string, unknown>;
-          const baseOmittedEntries = typeof progress.omittedHistoryEntries === "number" ? progress.omittedHistoryEntries : 0;
-          const reducedPayload = {
-            ...contextPayload,
-            history: structuredPlannerHistory(reducedHistory),
-            caseProgress: { ...progress, omittedHistoryEntries: baseOmittedEntries + input.history.length - reducedHistory.length },
-          };
-          const reducedRequest = buildRecruitmentContext({
-            ...contextOptions,
-            payload: reducedPayload,
-            omittedHistoryEntries: baseOmittedEntries + input.history.length - reducedHistory.length,
-            omittedHistoryEventIds: [...(input.omittedHistoryEventIds ?? []), ...additionallyOmittedEventIds],
-            budgetStrategy: candidateBatch ? "conclusion_candidate_batch" : "conclusion_history_reduced",
-          });
-          if (reducedRequest.manifest.estimatedInputTokens < contextRequest.manifest.estimatedInputTokens) {
-            contextRequest = reducedRequest;
-            activeHistory = reducedHistory;
-            activePayload = reducedPayload;
-          }
-        }
-      }
+      const activeHistory = input.history;
+      const activePayload = contextPayload;
+      const contextRequest = buildRecruitmentContext({ ...contextOptions, payload: activePayload });
       return { candidateBatch, schema, tools: createRecruitmentPlannerTools(schema), isExpansion, isFinalReport, activeHistory, activePayload, contextRequest, contextOptions };
   }
 
   async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentPlannerOutput> {
+    const snapshot = input.decisionSnapshot;
+    const stage = snapshot.caps.stage;
+    const constraints = snapshot.constraints ?? undefined;
+    const availableActions = snapshot.caps.availableActions;
+    const targetTeam = snapshot.case.targetTeam;
     const { candidateBatch, schema, tools, isExpansion, isFinalReport, activeHistory, activePayload, contextRequest, contextOptions } = this.prepareContext(input);
     const stageModel = isExpansion ? this.expansionModel : isFinalReport ? this.conclusionModel : this.investigationModel;
-    const actionModel = this.protocol === "native_tools"
-      ? stageModel.bindTools(tools, { tool_choice: "required", parallel_tool_calls: false })
-      : stageModel.withStructuredOutput(schema, {
-        name: "recruitment_action",
-        method: structuredOutputMethod(),
-        includeRaw: true,
-      });
+    const actionModel = stageModel.bindTools(tools, { tool_choice: "required", parallel_tool_calls: false });
     try {
       if (contextRequest.manifest.exceedsVerifiedWindow
-        && input.decisionMode === "conclude"
+        && stage === "conclude"
         && hasProjectedCandidateEvidence(activePayload.caseProgress)
-        && input.constraints
+        && constraints
         && input.candidateEvidenceForBatching
         && input.candidateEvidenceForBatching.candidates.length > 1) {
         const candidateFreeSchema = createConstrainedConclusionSchema({
-          ...input.constraints,
+          ...constraints,
           evaluatedCandidates: [],
           reportObservations: [],
-        }, { allowReadCaseEvidence: input.availableActions?.includes("read_case_evidence") ?? false });
+        });
         const withoutCandidatePool = buildRecruitmentContext({
           ...contextOptions,
-          responseSchema: this.protocol === "native_tools"
-            ? recruitmentPlannerToolManifest(candidateFreeSchema)
-            : z.toJSONSchema(candidateFreeSchema),
+          responseSchema: recruitmentPlannerToolManifest(candidateFreeSchema),
           payload: contextWithoutCandidatePool(activePayload, activeHistory),
         });
         if (!withoutCandidatePool.manifest.exceedsVerifiedWindow) {
@@ -612,7 +502,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           assertRecruitmentContextFits(request);
         } catch (error) {
           input.onTokenUsage?.({
-            callPhase: input.decisionMode ?? "investigate",
+            callPhase: stage,
             outcome: "failed",
             contextChars: request.manifest.requestBytes,
             estimatedInputTokens: request.manifest.estimatedInputTokens,
@@ -628,7 +518,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           output = await actionModel.invoke(request.messages, input.signal ? { signal: input.signal } : undefined);
         } catch (error) {
           input.onTokenUsage?.({
-            callPhase: input.decisionMode ?? "investigate",
+            callPhase: stage,
             outcome: "failed",
             contextChars: request.manifest.requestBytes,
             estimatedInputTokens: request.manifest.estimatedInputTokens,
@@ -641,7 +531,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         }
         const usage = normalizeModelTokenUsage(output);
         input.onTokenUsage?.({
-          callPhase: input.decisionMode ?? "investigate",
+          callPhase: stage,
           outcome: "response",
           contextChars: request.manifest.requestBytes,
           estimatedInputTokens: request.manifest.estimatedInputTokens,
@@ -667,16 +557,14 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
           ...(response.response_metadata?.finish_reason ? { finishReason: String(response.response_metadata.finish_reason).slice(0, 40) } : {}),
           hasReasoningContent: Object.keys(response.additional_kwargs ?? {}).some(key => /reasoning/i.test(key)),
           toolCallCount: response.tool_calls?.length ?? 0,
-        }, input.decisionMode);
+        }, stage);
       };
       let modelOutput = await invokePlannerRequest(contextRequest);
-      if (this.protocol === "legacy_action") return parseLegacyStructuredResponse(modelOutput, schema, input.decisionMode);
       let response = modelOutput as AIMessage;
       try {
-        parseRecruitmentPlannerOutput(response, input.availableActions, input.targetTeam);
+        parseRecruitmentPlannerOutput(response, availableActions, targetTeam);
       } catch (error) {
-        const canRetryPlannerProtocol = this.protocol === "native_tools"
-          && error instanceof RecruitmentToolProtocolError
+        const canRetryPlannerProtocol = error instanceof RecruitmentToolProtocolError
           && (error.failure === "missing_tool_call" || error.failure === "invalid_arguments")
           && response.response_metadata?.finish_reason !== "length";
         if (!canRetryPlannerProtocol) throw toolProtocolOutputError(error, response);
@@ -699,7 +587,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         }
         response = modelOutput as AIMessage;
         try {
-          parseRecruitmentPlannerOutput(response, input.availableActions, input.targetTeam);
+          parseRecruitmentPlannerOutput(response, availableActions, targetTeam);
         } catch (retryError) {
           throw toolProtocolOutputError(retryError, response);
         }
@@ -716,14 +604,18 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
   private async decideConclusionInBatches(
     input: Parameters<RecruitmentPlanner["decide"]>[0],
     candidateEvidence: ConclusionCandidateEvidence,
-  ): Promise<RecruitmentAction> {
-    const batches = partitionConclusionCandidatesByIdentity(candidateEvidence.candidates, input.constraints?.candidateIdentityGroups);
+  ): Promise<RecruitmentPlannerOutput> {
+    const batches = partitionConclusionCandidatesByIdentity(candidateEvidence.candidates, input.decisionSnapshot.constraints?.candidateIdentityGroups);
     const recommendations: Array<{ playerId: string; evidenceKeys: CapabilityMetricKey[] }> = [];
     const reportObservations: Array<{ playerId: string; documentId: string; summary: string; linkedMetricKeys: CapabilityMetricKey[] }> = [];
     const batchCoverage: Array<{ candidateCount: number; hasDirectEvidenceLead: boolean }> = [];
     for (const [index, batch] of batches.entries()) {
-      const result = parseRecruitmentPlannerOutput(await this.decide(batchInputForConclusion(input, candidateEvidence, batch, index, batches.length)), undefined, input.targetTeam).action;
-      if (result.action !== "finish") return result;
+      const result = parseRecruitmentPlannerOutput(
+        await this.decide(batchInputForConclusion(input, candidateEvidence, batch, index, batches.length)),
+        undefined,
+        input.decisionSnapshot.case.targetTeam,
+      ).action;
+      if (result.action !== "finish") return messageForRecruitmentAction(result, `conclusion-batch-${index + 1}-control`);
       const leader = result.recommendations[0];
       batchCoverage.push({ candidateCount: batch.length, hasDirectEvidenceLead: Boolean(leader) });
       if (leader && !recommendations.some(candidate => candidate.playerId === leader.playerId)) {
@@ -741,15 +633,16 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
       `第 ${index + 1} 批 ${batch.candidateCount} 人（${batch.hasDirectEvidenceLead ? "有直接证据线索" : "无直接证据线索"}）`
     )).join("；");
     const needSummary = `本轮已将 ${candidatePoolSize} 名已评估候选分成 ${batches.length} 批逐批比较，覆盖情况：${coverageSummary}。下列候选各自是所属批次的考察线索；批次之间没有做统一排序，不代表全池排名。`;
-    return RecruitmentActionSchema.parse({
+    const action = RecruitmentActionSchema.parse({
       action: "finish",
-      targetTeam: input.constraints?.targetTeam ?? input.targetTeam,
+      targetTeam: input.decisionSnapshot.constraints?.targetTeam ?? input.decisionSnapshot.case.targetTeam,
       needSummary,
-      capabilityProfile: input.constraints ? coverageLabels(input.constraints) : [],
+      capabilityProfile: input.decisionSnapshot.constraints ? coverageLabels(input.decisionSnapshot.constraints) : [],
       recommendations: recommendations.slice(0, 5),
       limitationKeys: ["other"],
       reportObservations,
     });
+    return messageForRecruitmentAction(action, "conclusion-batches-finish");
   }
 }
 
@@ -783,6 +676,6 @@ export class RecruitmentModelTimeoutError extends Error {
   }
 }
 
-export function createRecruitmentPlanner(options: { protocol?: RecruitmentPlannerProtocol } = {}): RecruitmentPlanner {
-  return new OpenAIRecruitmentPlanner(options.protocol);
+export function createRecruitmentPlanner(): RecruitmentPlanner {
+  return new OpenAIRecruitmentPlanner();
 }

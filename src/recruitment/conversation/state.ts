@@ -16,7 +16,6 @@ import { emptyToolUseCounts, type ParsedRecruitmentAction, type ToolUseCounts } 
 import { type EvaluatedCandidate } from "../recruitment-evidence-evaluator.js";
 import { type ReferencePlayerProfile } from "../recruitment-comparison.js";
 import { type PendingQuestion } from "./contracts.js";
-import { type CaseSummary } from "../case-summary.js";
 import type { ReportFollowupContext } from "./report-followup-context.js";
 
 export type EvaluatedPlayer = EvaluatedCandidate;
@@ -140,10 +139,7 @@ export const RecruitmentState = Annotation.Root({
     default: () => [],
   }),
   candidateSearchCursorAdjustment: replaceable<{ requestedOffset: number; effectiveOffset: number } | null>(() => null),
-  caseSummary: replaceable<CaseSummary | null>(() => null),
-  caseSummaryAttemptedThrough: replaceable<number>(() => 0),
-  contextCompactionRequest: replaceable<"none" | "project" | "summarize">(() => "none"),
-  contextProjectionThroughUserTurnCount: replaceable<number | null>(() => null),
+  runtimeFailure: replaceable<import("./node-policies.js").RecruitmentRuntimeFailure | null>(() => null),
 });
 
 export type State = typeof RecruitmentState.State;

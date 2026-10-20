@@ -5,8 +5,13 @@ import type { State } from "./state.js";
 
 export type RecruitmentRetrievalMode = "fixed" | "on_demand";
 
+export interface RetrievalNeeds {
+  methodology: boolean;
+  playerReports: boolean;
+}
+
 /** Retrieval addresses an actual interpretation/evidence gap, never acts as a search admission ticket. */
-export function recruitmentRetrievalNeeds(state: State, mode: RecruitmentRetrievalMode) {
+export function recruitmentRetrievalNeeds(state: State, mode: RecruitmentRetrievalMode): RetrievalNeeds {
   if (mode === "fixed") return { methodology: true, playerReports: true };
   const messages = userMessages(state.history);
   const areas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: messages }, undefined, state.abilityProfilesEnabled);

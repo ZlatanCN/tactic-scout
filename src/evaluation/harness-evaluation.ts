@@ -27,8 +27,6 @@ export interface ScenarioEvaluationInput {
   progressEvents?: EvaluationProgressEvent[];
   answersUsed: number;
   eventTurns?: readonly number[];
-  contextStressTurnsAttempted?: number;
-  contextStressTurnsCompleted?: number;
   threadId: string;
 }
 
@@ -36,12 +34,6 @@ export interface ScenarioEvaluation {
   checks: Record<string, boolean>;
   allPassed: boolean;
 }
-
-export type ContextStressTurnEvaluation = {
-  turn: number;
-  checks: Record<string, boolean>;
-  allPassed: boolean;
-};
 
 function isToolEvent(event: RecruitmentTraceEvent): event is Extract<RecruitmentTraceEvent, { phase: "tool" }> {
   return event.phase === "tool";
@@ -261,38 +253,30 @@ function candidateSearchScopeKey(event: CandidateSearchEvent): string {
 function candidateSearchPagesFollowCursors(
   events: CandidateSearchEvent[],
   eventTurns?: ReadonlyMap<RecruitmentTraceEvent, number>,
-  previousEvents: CandidateSearchEvent[] = [],
 ): boolean {
   const successfulSearches = events.filter((event) => event.ok);
   if (successfulSearches.length === 0) return false;
 
   const searchesByScope = new Map<string, CandidateSearchEvent[]>();
   for (const event of successfulSearches) {
-    const scopeKey = JSON.stringify({
-      turn: eventTurns?.get(event) ?? null,
-      search: candidateSearchScopeKey(event),
-    });
+    const scopeKey = candidateSearchScopeKey(event);
     searchesByScope.set(scopeKey, [...(searchesByScope.get(scopeKey) ?? []), event]);
   }
 
   for (const pages of searchesByScope.values()) {
     let expectedOffset = 0;
-    const searchScope = candidateSearchScopeKey(pages[0]!);
-    const previousPage = [...previousEvents].reverse().find((event) => event.ok
-      && event.toolName === "search_candidates"
-      && candidateSearchScopeKey(event) === searchScope);
-    if (previousPage && Object.hasOwn(previousPage.filters, "nextOffset")) {
-      const previousNextOffset = previousPage.filters.nextOffset;
-      if (previousNextOffset === null) return false;
-      if (typeof previousNextOffset === "number" && Number.isFinite(previousNextOffset)) {
-        expectedOffset = previousNextOffset;
-      }
-    }
+    let previousTurn: number | null = null;
     for (const page of pages) {
       const offset = numberFilter(page, "offset");
       const matchCount = page.matchingRecordCount;
       const limit = numberFilter(page, "limit");
       const nextOffset = page.filters.nextOffset;
+      const turn = eventTurns?.get(page) ?? null;
+      // A later user turn may either resume from the observed cursor or begin
+      // a fresh search at zero. Within one turn, pages must remain contiguous.
+      if (turn !== null && previousTurn !== null && turn !== previousTurn && offset === 0) {
+        expectedOffset = 0;
+      }
       if (offset !== expectedOffset || matchCount === undefined || !Number.isInteger(matchCount) || matchCount < 0 || limit === null) {
         return false;
       }
@@ -300,8 +284,10 @@ function candidateSearchPagesFollowCursors(
       if (page.resultCount === 0 && matchCount > 0) return false;
       const calculatedNextOffset = offset + page.resultCount < matchCount ? offset + page.resultCount : null;
       if (nextOffset !== calculatedNextOffset) return false;
-      if (pages.indexOf(page) < pages.length - 1 && calculatedNextOffset === null) return false;
+      const nextPage = pages[pages.indexOf(page) + 1];
+      if (nextPage && (eventTurns?.get(nextPage) ?? null) === turn && calculatedNextOffset === null) return false;
       expectedOffset = calculatedNextOffset ?? expectedOffset;
+      previousTurn = turn;
     }
   }
   return true;
@@ -493,7 +479,6 @@ const progressStageByTool: Record<ToolActionName, RecruitmentProgressStage> = {
   search_candidates: "candidate_search",
   evaluate_candidates: "player_evaluation",
   search_player_reports: "report_search",
-  read_case_evidence: "evidence_read",
 };
 
 function progressTurnForTool(input: ScenarioEvaluationInput, target: CandidateSearchEvent): number | null {
@@ -532,7 +517,7 @@ function toolProgressMatchesTrace(
 function progressRepresentsObservedWork(input: ScenarioEvaluationInput): boolean {
   const progressEvents = input.progressEvents;
   if (!progressEvents || progressEvents.length === 0) return false;
-  const finalTurn = input.answersUsed + 1 + (input.contextStressTurnsAttempted ?? 0);
+  const finalTurn = input.answersUsed + 1;
   if (progressEvents.some((event, index) => event.sequence !== index + 1
     || event.turn < 1
     || event.turn > finalTurn)) return false;
@@ -557,72 +542,6 @@ function progressRepresentsObservedWork(input: ScenarioEvaluationInput): boolean
   return progressEvents.some((event) => (
     event.turn === finalTurn && event.stage === expectedFinalStage && event.status === expectedFinalStatus
   ));
-}
-
-export function evaluateContextStressTurn(input: {
-  scenario: EvaluationScenario;
-  response: ConversationTurnResponse;
-  events: RecruitmentTraceEvent[];
-  progressEvents: EvaluationProgressEvent[];
-  previousEvents?: RecruitmentTraceEvent[];
-  turn: number;
-}): ContextStressTurnEvaluation {
-  const { scenario, response, events, progressEvents, turn } = input;
-  const report = response.report;
-  const toolEvents = events.filter(isToolEvent);
-  const candidateSearches = toolEvents.filter((event) => event.toolName === "search_candidates");
-  const allToolEvents = [...(input.previousEvents ?? []), ...events].filter(isToolEvent);
-  const evaluatedPlayerIds = new Set(allToolEvents
-    .filter((event) => event.toolName === "evaluate_candidates" && event.ok)
-    .flatMap((event) => stringArrayFilter(event, "evaluatedPlayerIds")));
-  const teamAliases = "targetTeamAliases" in scenario ? scenario.targetTeamAliases : [];
-  const expectedPosition = scenario.kind === "shortlist" ? scenario.expectedBroadPosition : undefined;
-  const expectedMaxAge = scenario.kind === "shortlist" ? scenario.expectedMaxAge : undefined;
-  const requestedCapabilities = "requestedCapabilities" in scenario ? scenario.requestedCapabilities : undefined;
-  const expectedCoverage = "expectedCapabilityCoverage" in scenario ? scenario.expectedCapabilityCoverage : undefined;
-  const searchScopesPreserved = candidateSearches.every((event) => (
-    (expectedPosition === undefined || event.filters.position === expectedPosition)
-    && (expectedMaxAge === undefined || event.filters.maxAge === expectedMaxAge)
-    && event.filters.competition === null
-    && event.filters.season === null
-    && event.filters.minimumMinutes === 0
-    && event.filters.playerNameFilterUsed === false
-  ));
-  const reportCompletedForTurn = response.status === "completed" && report !== null;
-  const askedUser = events.some((event) => isDecisionEvent(event)
-    && event.action === "ask_user"
-    && event.policyBlocked !== true
-    && event.askPolicyOutcome !== "suppressed");
-  const toolProgress = progressEvents.filter((event) => new Set(Object.values(progressStageByTool)).has(event.stage));
-  const toolProgressMatches = toolProgressMatchesTrace(toolEvents, toolProgress);
-  const completedProgressObserved = progressEvents.some((event) => (
-    event.turn === turn && event.stage === "completed" && event.status === "completed"
-  ));
-  const checks = {
-    completedWithReport: reportCompletedForTurn,
-    didNotAskForAdditionalInput: !askedUser,
-    targetTeamContextPreserved: teamAliases.length === 0 || targetTeamContextPreserved(response, events, teamAliases),
-    requestedCapabilityCoverageIsConsistent: requestedCapabilityCoverageIsConsistent(response),
-    requestedCapabilityCoverageMatchesScenario: !expectedCoverage || requestedCapabilityCoverageMatchesScenario(response, expectedCoverage),
-    requestedCapabilitiesAreGrounded: !requestedCapabilities || requestedCapabilitiesGrounded(response, requestedCapabilities),
-    requestedCapabilityGapsAreReported: !requestedCapabilities || requestedCapabilityGapsAreReported(response, requestedCapabilities),
-    recommendationsAreEvidenceBacked: recommendationsUseTheirEvidence(response),
-    recommendationsWereEvaluated: !report || report.recommendations.every((item) => evaluatedPlayerIds.has(item.player.playerId)),
-    historicalArchiveEvidenceIsConsistent: historicalArchiveEvidenceIsConsistent(response, evaluatedPlayerIds),
-    percentilesRespectMetricSamples: percentilesRespectMetricSamples(response),
-    searchScopesPreserved,
-    candidatePagesFollowCursors: candidateSearches.length === 0 || candidateSearchPagesFollowCursors(
-      candidateSearches,
-      undefined,
-      (input.previousEvents ?? []).filter((event): event is CandidateSearchEvent => (
-        isToolEvent(event) && event.toolName === "search_candidates"
-      )),
-    ),
-    didNotRepeatPolicyBlockedAction: didNotRepeatPolicyBlockedAction(events),
-    toolProgressMatchesObservedCalls: toolProgressMatches,
-    completedProgressObserved,
-  };
-  return { turn, checks, allPassed: Object.values(checks).every(Boolean) };
 }
 
 function explicitEmptyPositionLimitation(response: ConversationTurnResponse, expectedPosition: Position): boolean {
@@ -672,18 +591,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       return turn === undefined ? [] : [[event, turn] as const];
     }))
     : undefined;
-  const stressTurnNumbers = new Set<number>();
-  if (input.contextStressTurnsAttempted && input.eventTurns?.length) {
-    const lastTurn = Math.max(...input.eventTurns);
-    const firstStressTurn = lastTurn - input.contextStressTurnsAttempted + 1;
-    for (let turn = firstStressTurn; turn <= lastTurn; turn += 1) stressTurnNumbers.add(turn);
-  }
-  const candidateSearchesOutsideContextStress = stressTurnNumbers.size > 0
-    ? candidateSearches.filter(event => !stressTurnNumbers.has(eventTurns?.get(event) ?? -1))
-    : candidateSearches;
-  const candidatePagesFollowCursors = candidateSearchesOutsideContextStress.length === 0 && stressTurnNumbers.size > 0
-    ? true
-    : candidateSearchPagesFollowCursors(candidateSearchesOutsideContextStress, eventTurns);
+  const candidatePagesFollowCursors = candidateSearchPagesFollowCursors(candidateSearches, eventTurns);
   const expectsPositionClarification = scenario.kind === "custom"
     && scenario.expectedClarificationTopic === "position";
   const commonChecks = {

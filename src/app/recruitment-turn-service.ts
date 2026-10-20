@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
+import { RunControl } from "@langchain/langgraph";
 import {
   ConversationTurnResponseSchema,
   type RecruitmentCandidatesEvent,
@@ -11,7 +12,7 @@ import {
 } from "../domain/conversation.js";
 import { positionSelectionLabel } from "../domain/position-selection.js";
 import type { ConversationTurnRequest } from "../domain/requirements.js";
-import { type RecruitmentTurnRuntimeEvents, RecruitmentPositionAnswerError } from "../recruitment/conversation-turn-runtime.js";
+import { type RecruitmentTurnRuntimeEvents, RecruitmentGraphNodeFailureError, RecruitmentPositionAnswerError, RecruitmentServiceDrainingError } from "../recruitment/conversation-turn-runtime.js";
 import {
   RecruitmentCaseStateExpiredError,
   RecruitmentModelTimeoutError,
@@ -26,6 +27,14 @@ import {
 } from "../recruitment/turn-coordinator.js";
 import { THESPORTSDB_SOURCE_URL, type TeamRosterEnrichmentProvider } from "../sources/thesportsdb/roster.js";
 import type { RecruitmentProgressEmitter } from "./routes/recruitment-types.js";
+import type { RecruitmentPreferencesService } from "../recruitment/preferences/service.js";
+
+export class RecruitmentServiceDrainingStateError extends Error {
+  constructor() {
+    super("球探服务正在停止接收新调查，请在服务重启后继续。");
+    this.name = "RecruitmentServiceDrainingStateError";
+  }
+}
 
 export type RecruitmentTurnServiceError = {
   statusCode: 409 | 502 | 503 | 504;
@@ -33,6 +42,10 @@ export type RecruitmentTurnServiceError = {
 };
 
 export class RecruitmentTurnService {
+  private draining = false;
+  private readonly activeControls = new Set<RunControl>();
+  private readonly activeTurns = new Set<Promise<unknown>>();
+
   constructor(private readonly dependencies: {
     recruitmentConversation: RecruitmentConversation;
     recruitmentTurnCoordinator: RecruitmentTurnCoordinator<ConversationTurnResponse>;
@@ -40,7 +53,22 @@ export class RecruitmentTurnService {
     recruitmentProgressEmitters: Map<string, RecruitmentProgressEmitter>;
     teamRosterEnrichment: TeamRosterEnrichmentProvider;
     teamRosterEnrichmentConfigured: boolean;
+    recruitmentPreferences?: RecruitmentPreferencesService;
   }) {}
+
+  async drain(timeoutMs: number): Promise<{ status: "drained" | "timeout"; activeTurns: number }> {
+    this.draining = true;
+    for (const control of this.activeControls) control.requestDrain("service_shutdown");
+    const active = [...this.activeTurns];
+    if (!active.length) return { status: "drained", activeTurns: 0 };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      Promise.allSettled(active).then(() => "drained" as const),
+      new Promise<"timeout">((resolve) => { timer = setTimeout(() => resolve("timeout"), timeoutMs); }),
+    ]);
+    if (timer) clearTimeout(timer);
+    return { status: result, activeTurns: this.activeTurns.size };
+  }
 
   async execute(input: {
     caseId: string;
@@ -50,6 +78,7 @@ export class RecruitmentTurnService {
     onCandidates?: RecruitmentTurnRuntimeEvents["onCandidates"];
   }): Promise<ConversationTurnResponse> {
     const { caseId, request, logger, onProgress, onCandidates } = input;
+    if (this.draining) throw new RecruitmentServiceDrainingStateError();
     const requestId = request.requestId ?? randomUUID();
     const progressEvents: RecruitmentProgress["events"] = [];
     const stageOccurrences = new Map<RecruitmentProgress["stage"], number>();
@@ -92,7 +121,7 @@ export class RecruitmentTurnService {
     const turnMessage = request.message || (turnPositions ? `已选择：${positionSelectionLabel(turnPositions)}` : request.playerIdentityAnswer ? "确认参考球员身份" : "");
     const progressKey = JSON.stringify([caseId, requestId]);
     try {
-      let response = await this.dependencies.recruitmentTurnCoordinator.run({
+      const coordinatedTurn = this.dependencies.recruitmentTurnCoordinator.run({
         caseId,
         requestId,
         message: turnMessage,
@@ -101,6 +130,10 @@ export class RecruitmentTurnService {
         ...(request.positionUpdate ? { positionUpdate: request.positionUpdate } : {}),
         expectsExistingState: request.expectsExistingState,
       }, async (signal) => {
+        if (this.draining) throw new RecruitmentServiceDrainingStateError();
+        const runControl = new RunControl();
+        this.activeControls.add(runControl);
+        if (this.draining) runControl.requestDrain("service_shutdown");
         for (const [knownCaseId, progress] of this.dependencies.recruitmentProgressByCase) {
           if (Date.now() - Date.parse(progress.updatedAt) > 30 * 60 * 1000) this.dependencies.recruitmentProgressByCase.delete(knownCaseId);
         }
@@ -120,6 +153,12 @@ export class RecruitmentTurnService {
             ...(request.positionUpdate ? { positionUpdate: request.positionUpdate } : {}),
             expectsExistingState: request.expectsExistingState,
             signal,
+            runControl,
+            ...(request.memoryOwnerId && this.dependencies.recruitmentPreferences ? {
+              runtimeContext: {
+                userPreferences: await this.readPreferences(request.memoryOwnerId, logger),
+              },
+            } : {}),
             onProgress: (update) => updateProgress(update, !["waiting_for_user", "completed", "cancelled", "failed"].includes(update.status)),
             ...(onCandidates ? { onCandidates } : {}),
           });
@@ -220,6 +259,13 @@ export class RecruitmentTurnService {
             } else if (progress?.requestId === requestId) {
               this.dependencies.recruitmentProgressByCase.set(caseId, RecruitmentProgressSchema.parse({ ...progress, active: false }));
             }
+          } else if (error instanceof RecruitmentServiceDrainingError) {
+            if (progress?.requestId === requestId) updateProgress({
+              stage: "service_draining",
+              status: "notice",
+              message: "服务正在安全停止；案件已保存，可在服务重启后继续",
+              completedSteps: progress.completedSteps,
+            }, false);
           } else if (progress?.requestId === requestId) {
             if (progress.events.at(-1)?.status !== "failed") updateProgress({
               stage: "failed",
@@ -232,11 +278,13 @@ export class RecruitmentTurnService {
           if (!(error instanceof RecruitmentModelUnavailableError)
             && !(error instanceof RecruitmentCaseStateExpiredError)
             && !(error instanceof RecruitmentModelTimeoutError)
+            && !(error instanceof RecruitmentServiceDrainingError)
             && !(error instanceof RecruitmentTurnCancelledError)) {
             logger.error({ err: error, caseId }, "Recruitment conversation failed");
           }
           throw error;
         } finally {
+          this.activeControls.delete(runControl);
           if (this.dependencies.recruitmentProgressEmitters.get(progressKey) === updateProgress) {
             this.dependencies.recruitmentProgressEmitters.delete(progressKey);
           }
@@ -245,6 +293,9 @@ export class RecruitmentTurnService {
         && completedResponse.teamRosterContext.status !== "not_configured"
         ? { ...completedResponse, teamRosterContext: undefined }
         : completedResponse);
+      this.activeTurns.add(coordinatedTurn);
+      void coordinatedTurn.finally(() => this.activeTurns.delete(coordinatedTurn)).catch(() => undefined);
+      let response = await coordinatedTurn;
       if (response.status === "completed" && response.report?.targetTeam && !response.teamRosterContext) {
         response = ConversationTurnResponseSchema.parse({
           ...response,
@@ -277,7 +328,17 @@ export class RecruitmentTurnService {
           ...(request.requestId && progress?.requestId === requestId ? { progressEvents: progress.events } : {}),
         });
       }
+      if (error instanceof RecruitmentServiceDrainingError || error instanceof RecruitmentServiceDrainingStateError) throw error;
       throw error;
+    }
+  }
+
+  private async readPreferences(memoryOwnerId: string, logger: FastifyBaseLogger) {
+    try {
+      return await this.dependencies.recruitmentPreferences!.list(memoryOwnerId);
+    } catch (error) {
+      logger.warn({ errorName: error instanceof Error ? error.name : "UnknownError" }, "Recruitment preferences unavailable; continuing without browser preferences");
+      return [];
     }
   }
 }
@@ -288,6 +349,8 @@ export function recruitmentTurnHttpError(error: unknown): RecruitmentTurnService
     || error instanceof RecruitmentTurnIdConflictError
     || error instanceof RecruitmentCaseStateExpiredError) return { statusCode: 409, message };
   if (error instanceof RecruitmentTurnCapacityError || error instanceof RecruitmentModelUnavailableError) return { statusCode: 503, message };
+  if (error instanceof RecruitmentServiceDrainingError || error instanceof RecruitmentServiceDrainingStateError) return { statusCode: 503, message };
   if (error instanceof RecruitmentModelTimeoutError) return { statusCode: 504, message };
+  if (error instanceof RecruitmentGraphNodeFailureError) return { statusCode: error.category === "timeout" ? 504 : 502, message };
   return { statusCode: 502, message };
 }

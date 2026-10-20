@@ -152,25 +152,32 @@ test("same-scope report follow-ups reuse the validated brief and preserve the or
       },
     },
     planner: { async decide(input) {
-      const userTurns = input.history.filter((entry) => entry.role === "user").length;
-      const currentTurnHistory = input.history.slice(input.history.map((entry, index) => entry.role === "user" ? index : -1).filter(index => index >= 0).at(-1));
-      const currentTools = new Set(currentTurnHistory.filter((entry) => entry.role === "tool").map((entry) => entry.toolName));
-      if (userTurns === 1 && !currentTools.has("search_candidates")) {
+      const latestRequest = input.decisionSnapshot.case.latestUserRequest;
+      const progress = input.caseProgress as { currentTurnCandidatePages?: unknown[] };
+      const isInitialRequest = latestRequest.includes("为拜仁找中卫");
+      const isExplicitRerank = latestRequest.includes("请重新排序");
+      const isMoreCandidates = latestRequest.includes("再多找几名候选");
+      if (isInitialRequest && !progress.currentTurnCandidatePages?.length) {
         return { action: "search_candidates", targetTeam: "拜仁", position: "CB", minimumMinutes: 0, limit: 20 };
       }
-      if (userTurns === 1 && !currentTools.has("evaluate_candidates")) {
-        return { action: "evaluate_candidates", playerIds: candidates.map(({ playerId }) => playerId) };
+      const pending = input.decisionSnapshot.candidates.eligiblePlayerIds.filter((playerId) => (
+        !input.decisionSnapshot.candidates.evaluatedPlayerIds.includes(playerId)
+      ));
+      if (isInitialRequest && pending.length) {
+        return { action: "evaluate_candidates", playerIds: pending };
       }
       return {
         action: "finish",
         targetTeam: "拜仁",
         needSummary: "按原有中卫需求整理关键传球证据。",
         capabilityProfile: ["关键传球"],
-        recommendations: userTurns === 1
+        recommendations: isInitialRequest
           ? candidates.slice(0, 3).map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] }))
-          : userTurns >= 4
+          : isMoreCandidates
             ? candidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] }))
-            : candidates.slice(0, 1).map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] })),
+            : isExplicitRerank
+              ? candidates.slice(0, 1).map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] }))
+              : candidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] })),
         limitationKeys: [],
       };
     } },

@@ -1,5 +1,6 @@
 import {
   StreamChannel,
+  isGraphDrained,
   type StreamTransformer,
 } from "@langchain/langgraph";
 import { RecruitmentTurnCancelledError } from "./turn-cancellation.js";
@@ -22,6 +23,8 @@ export type RecruitmentTurnInput = {
   expectsExistingState?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: RecruitmentTurnProgress) => void;
+  runtimeContext?: Partial<import("./conversation/runtime-context.js").RecruitmentRuntimeContext>;
+  runControl?: import("@langchain/langgraph").RunControl;
 };
 
 export interface RecruitmentTurnState {
@@ -30,11 +33,13 @@ export interface RecruitmentTurnState {
   pendingQuestion: { question: string; reason: string; input?: PositionSelectionQuestion | PlayerIdentityQuestion } | null;
   responseMessage: string;
   report: RecruitmentReport | null;
+  runtimeFailure?: import("./conversation/node-policies.js").RecruitmentRuntimeFailure | null;
 }
 
 export interface RecruitmentTurnCheckpoint {
   values: RecruitmentTurnState | undefined;
   tasks: Array<{ interrupts: unknown[] }>;
+  next?: string[];
 }
 
 export interface RecruitmentTurnGraphRun {
@@ -51,7 +56,30 @@ export interface RecruitmentTurnRuntimeEvents {
 
 export interface RecruitmentTurnGraph {
   getCheckpoint(threadId: string): Promise<RecruitmentTurnCheckpoint>;
-  run(input: { threadId: string; message: string; positionAnswer?: PositionSelectionAnswer; playerIdentityAnswer?: PlayerIdentityAnswer; positionUpdate?: SelectablePosition[]; resume: boolean; signal?: AbortSignal }): Promise<RecruitmentTurnGraphRun>;
+  run(input: { threadId: string; message: string; positionAnswer?: PositionSelectionAnswer; playerIdentityAnswer?: PlayerIdentityAnswer; positionUpdate?: SelectablePosition[]; resume: boolean; resumeCheckpoint?: boolean; signal?: AbortSignal; runControl?: import("@langchain/langgraph").RunControl; context?: Partial<import("./conversation/runtime-context.js").RecruitmentRuntimeContext> }): Promise<RecruitmentTurnGraphRun>;
+}
+
+export class RecruitmentServiceDrainingError extends Error {
+  constructor() {
+    super("服务正在安全停止；本轮状态已写入 checkpoint，服务重启后可继续。用户主动停止仍会立即取消当前工作。");
+    this.name = "RecruitmentServiceDrainingError";
+  }
+}
+
+export class RecruitmentGraphNodeFailureError extends Error {
+  readonly category: import("./conversation/node-policies.js").RecruitmentFailureCategory;
+
+  constructor(failure: import("./conversation/node-policies.js").RecruitmentRuntimeFailure) {
+    const phase = failure.node === "understand_request" ? "需求理解"
+      : failure.node === "plan_decision" ? "调查规划"
+        : failure.node === "execute_tool" ? "数据查询"
+          : "证据复核";
+    super(failure.category === "timeout"
+      ? `${phase}超过运行时限，本轮未生成新报告；案件状态已保留，可以稍后重试。`
+      : `${phase}遇到运行时故障，本轮未生成新报告；案件状态已保留，可以稍后重试。`);
+    this.name = "RecruitmentGraphNodeFailureError";
+    this.category = failure.category;
+  }
 }
 
 const threadTurnTails = new Map<string, Promise<void>>();
@@ -125,22 +153,23 @@ export const recruitmentProgressTransformer = () => {
  */
 export function createRecruitmentTurnRuntime(input: {
   graph: RecruitmentTurnGraph;
-  assertTurnAllowed: () => void;
+  assertTurnAllowed: (context: Partial<import("./conversation/runtime-context.js").RecruitmentRuntimeContext> | undefined) => void;
   createExpiredStateError: () => Error;
 }): (turn: RecruitmentTurnInput) => Promise<ConversationTurnResponse> {
-  return async ({ threadId, message, positionAnswer, playerIdentityAnswer, positionUpdate, expectsExistingState = false, signal, onProgress, onCandidates }: RecruitmentTurnInput & RecruitmentTurnRuntimeEvents) => {
+  return async ({ threadId, message, positionAnswer, playerIdentityAnswer, positionUpdate, expectsExistingState = false, signal, runControl, onProgress, onCandidates, runtimeContext }: RecruitmentTurnInput & RecruitmentTurnRuntimeEvents) => {
     if (signal?.aborted) throw new RecruitmentTurnCancelledError();
     if ((positionAnswer && !PositionSelectionAnswerSchema.safeParse(positionAnswer).success)
       || (playerIdentityAnswer && !PlayerIdentityAnswerSchema.safeParse(playerIdentityAnswer).success)
       || (positionUpdate && !PositionSelectionAnswerSchema.shape.positions.safeParse(positionUpdate).success)
       || (positionAnswer && positionUpdate)
       || ((positionAnswer || positionUpdate) && playerIdentityAnswer)) throw new RecruitmentPositionAnswerError("选择无效，请重新选择后确认。");
-    input.assertTurnAllowed();
+    input.assertTurnAllowed(runtimeContext);
     return withThreadTurnLock(threadId, signal, async () => {
       if (signal?.aborted) throw new RecruitmentTurnCancelledError();
       const before = await input.graph.getCheckpoint(threadId);
       if (signal?.aborted) throw new RecruitmentTurnCancelledError();
       const isWaitingForAnswer = before.tasks.some((task) => task.interrupts.length > 0);
+      const resumeCheckpoint = !isWaitingForAnswer && Boolean(before.next?.length);
       const hasCheckpoint = Boolean(before.values && Object.keys(before.values).length > 0);
       if (expectsExistingState && !hasCheckpoint) {
         throw input.createExpiredStateError();
@@ -200,12 +229,16 @@ export function createRecruitmentTurnRuntime(input: {
           ...(playerIdentityAnswer ? { playerIdentityAnswer } : {}),
           ...(positionUpdate ? { positionUpdate } : {}),
           resume: isWaitingForAnswer,
+          resumeCheckpoint,
           ...(signal ? { signal } : {}),
+          ...(runControl ? { runControl } : {}),
+          ...(runtimeContext ? { context: runtimeContext } : {}),
         });
         await streamProgress(graphStream);
         const after = await input.graph.getCheckpoint(threadId);
         const state = after.values;
         if (!state) throw new Error("LangGraph completed without a recruitment state checkpoint.");
+        if (state.runtimeFailure) throw new RecruitmentGraphNodeFailureError(state.runtimeFailure);
         const interrupted = after.tasks.find((task) => task.interrupts.length > 0)?.interrupts[0];
         if (interrupted && state.pendingQuestion) {
           const response = ConversationTurnResponseSchema.parse({
@@ -241,6 +274,15 @@ export function createRecruitmentTurnRuntime(input: {
         });
         return response;
       } catch (error) {
+        if (isGraphDrained(error)) {
+          publishProgress({
+            stage: "service_draining",
+            status: "notice",
+            message: "服务正在停止；案件已保存到 checkpoint，重启后可继续",
+            completedSteps: lastCompletedSteps,
+          });
+          throw new RecruitmentServiceDrainingError();
+        }
         if (signal?.aborted || error instanceof RecruitmentTurnCancelledError) {
           publishProgress({
             stage: "cancelled",

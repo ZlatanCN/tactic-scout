@@ -74,8 +74,6 @@ export const RecruitmentProgressStageSchema = z.enum([
   "external_signal",
   "historical_archive",
   "report_search",
-  "evidence_read",
-  "context_compaction",
   "synthesizing",
   "review",
   "team_roster_context",
@@ -83,6 +81,7 @@ export const RecruitmentProgressStageSchema = z.enum([
   "completed",
   "cancelling",
   "cancelled",
+  "service_draining",
   "failed",
 ]);
 

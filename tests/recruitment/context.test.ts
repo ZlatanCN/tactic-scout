@@ -28,7 +28,6 @@ test("buildRecruitmentContext returns the complete staged request and a privacy-
   assert.match(context.manifest.schemaFingerprint, /^[a-f0-9]{16}$/);
   assert.match(context.manifest.payloadFingerprint, /^[a-f0-9]{16}$/);
   assert.equal(context.manifest.componentBytes.system + context.manifest.componentBytes.payload + context.manifest.componentBytes.schema + context.manifest.componentBytes.framing, context.manifest.requestBytes);
-  assert.deepEqual(context.manifest.evidenceRefs, []);
 });
 
 test("input-token estimates include structured-output schemas in the provider request budget", () => {
@@ -73,7 +72,6 @@ test("context estimates apply measured Luna stage corrections only to the observ
     process.env.OPENAI_MODEL = "codex/gpt-6-luna";
     const understand = buildRecruitmentContext({ ...common, stage: "understand" });
     const expand = buildRecruitmentContext({ ...common, stage: "expand" });
-    const summarize = buildRecruitmentContext({ ...common, stage: "summarize" });
     const investigate = buildRecruitmentContext({ ...common, stage: "investigate" });
     const estimateWire = (request: typeof understand) => JSON.stringify([
       ...request.messages,
@@ -81,12 +79,10 @@ test("context estimates apply measured Luna stage corrections only to the observ
     ]);
     const baseEstimate = estimateRecruitmentInputTokens(estimateWire(understand));
     const expandBaseEstimate = estimateRecruitmentInputTokens(estimateWire(expand));
-    const summarizeBaseEstimate = estimateRecruitmentInputTokens(estimateWire(summarize));
     const investigateBaseEstimate = estimateRecruitmentInputTokens(estimateWire(investigate));
 
     assert.equal(understand.manifest.estimatedInputTokens, Math.ceil(baseEstimate * 1.5));
     assert.equal(expand.manifest.estimatedInputTokens, Math.ceil(expandBaseEstimate * 1.6));
-    assert.equal(summarize.manifest.estimatedInputTokens, Math.ceil(summarizeBaseEstimate * 1.9));
     assert.equal(investigate.manifest.estimatedInputTokens, investigateBaseEstimate, "stages whose measured estimates were already conservative keep the generic estimate");
     assert.equal(understand.manifest.estimateMethod, "codex-gpt-6-luna-stage-calibrated-v1");
 
@@ -100,62 +96,17 @@ test("context estimates apply measured Luna stage corrections only to the observ
   }
 });
 
-test("context manifest records when the conclusion-specific budget fallback was selected", () => {
-  const context = buildRecruitmentContext({
-    stage: "conclude",
-    systemInstructions: "fixed",
-    payload: { history: [{ role: "user", content: "current request" }] },
-    responseSchema: {},
-    outputBudgetTokens: 32,
-    budgetStrategy: "conclusion_history_reduced",
-  });
-
-  assert.equal(context.manifest.budgetStrategy, "conclusion_history_reduced");
-});
-
-test("buildRecruitmentContext records case revision and evidence references without retaining request text", () => {
+test("buildRecruitmentContext records the case revision without retaining request text", () => {
   const context = buildRecruitmentContext({
     stage: "conclude",
     systemInstructions: "fixed instructions",
-    payload: { request: "private user text", evidence: [{ ref: "ev.0123456789ab.abcdef012345.player_report.aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb" }] },
+    payload: { request: "private user text" },
     responseSchema: { type: "object" },
     outputBudgetTokens: 64,
     contextRevision: "case-1:brief-v2",
   });
   assert.match(context.manifest.caseRevisionFingerprint ?? "", /^[a-f0-9]{16}$/);
-  assert.deepEqual(context.manifest.evidenceRefs, ["ev.0123456789ab.abcdef012345.player_report.aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb"]);
   assert.doesNotMatch(JSON.stringify(context.manifest), /private user text|fixed instructions|case-1/);
-});
-
-test("context manifests discover metric evidence refs embedded in candidate rows", () => {
-  const ref = "ev.0123456789ab.abcdef012345.player_metrics.aaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbb";
-  const context = buildRecruitmentContext({
-    stage: "conclude",
-    systemInstructions: "fixed",
-    payload: { candidateEvidence: { candidates: [{ playerId: "candidate-a", metricEvidenceRef: ref }] } },
-    responseSchema: {},
-    outputBudgetTokens: 64,
-  });
-  assert.deepEqual(context.manifest.evidenceRefs, [ref]);
-});
-
-test("context manifests count only the verified historical excerpts present in a case summary", () => {
-  const excerptEventId = "evt.0123456789abcdef.user.1";
-  const omittedEventId = "evt.0123456789abcdef.user.2";
-  const context = buildRecruitmentContext({
-    stage: "investigate",
-    systemInstructions: "rules",
-    payload: { history: [{ role: "tool", toolName: "case_summary", content: {
-      claimEventIds: [excerptEventId],
-      coveredEventIds: [excerptEventId, omittedEventId],
-    } }] },
-    responseSchema: {},
-    outputBudgetTokens: 10,
-    omittedHistoryEventIds: [omittedEventId],
-  });
-
-  assert.deepEqual(context.manifest.includedHistoryEventIds, [excerptEventId]);
-  assert.deepEqual(context.manifest.omittedHistoryEventIds, [omittedEventId]);
 });
 
 test("context manifests distinguish provider-reported token usage from missing usage", () => {
@@ -236,48 +187,6 @@ test("projected history uses stable case-scoped event IDs and binds protected qu
   assert.ok(first.manifest.omittedEventIds.length > 0);
 });
 
-test("a verified summary can replace covered turns while later projections keep absolute turn IDs", () => {
-  const caseId = "summary-coverage-case";
-  const original = [
-    { role: "user" as const, content: "受保护的早期原话" },
-    { role: "assistant" as const, content: JSON.stringify({ action: "ask_user", question: "早期问题？" }) },
-    { role: "user" as const, content: "已被摘要覆盖的回答" },
-    { role: "user" as const, content: "已被摘要覆盖的更正" },
-    { role: "user" as const, content: "尚未摘要的第四轮" },
-    { role: "user" as const, content: "尚未摘要的第五轮" },
-  ];
-  const afterSummary = projectRecruitmentHistory(original, {
-    caseId,
-    recentUserTurns: Number.MAX_SAFE_INTEGER,
-    coveredUserTurnsThrough: 3,
-    protectedQuotes: ["受保护的早期原话"],
-    preserveAllTools: true,
-  });
-  const caseKey = afterSummary.entries.find(entry => entry.role === "user" && entry.content === "尚未摘要的第四轮")?.eventId?.split(".")[1];
-  assert.deepEqual(afterSummary.entries.filter(entry => entry.role === "user").map(entry => entry.content), [
-    "受保护的早期原话", "尚未摘要的第四轮", "尚未摘要的第五轮",
-  ]);
-  assert.equal(afterSummary.entries.find(entry => entry.content === "受保护的早期原话")?.eventId, `evt.${caseKey}.user.1`);
-  assert.ok(afterSummary.manifest.omittedEventIds.includes(`evt.${caseKey}.user.2`));
-  assert.ok(afterSummary.manifest.omittedEventIds.includes(`evt.${caseKey}.user.3`));
-  assert.equal(afterSummary.manifest.protectedQuoteReferences[0]?.eventId, `evt.${caseKey}.user.1`);
-
-  const nextProjection = projectRecruitmentHistory([
-    ...afterSummary.entries,
-    { role: "user" as const, content: "未摘要的第六轮" },
-  ], {
-    caseId,
-    recentUserTurns: 3,
-    coveredUserTurnsThrough: 3,
-    userTurnOffset: 3,
-    protectedQuotes: ["受保护的早期原话"],
-  });
-  assert.deepEqual(nextProjection.entries.filter(entry => entry.role === "user").map(entry => entry.eventId), [
-    `evt.${caseKey}.user.1`, `evt.${caseKey}.user.4`, `evt.${caseKey}.user.5`, `evt.${caseKey}.user.6`,
-  ]);
-  assert.deepEqual(nextProjection.manifest.protectedQuoteReferences.map(reference => reference.eventId), [`evt.${caseKey}.user.1`]);
-});
-
 test("recent dialogue excludes old quote-protected turns while keeping questions attached to recent answers", () => {
   const history = projectRecruitmentHistory([
     { role: "user", content: "早期原话" },
@@ -344,9 +253,8 @@ test("understanding preserves clarification context and reports only the history
     includedHistoryEventIds?: readonly string[];
     omittedHistoryEventIds?: readonly string[];
   }> = [];
-  for (const mode of ["legacy", "projection"] as const) {
+  for (const mode of ["projection"] as const) {
     const conversation = createRecruitmentConversation({
-      experimentalContextManagementMode: mode,
       experimentalDeterministicSearchMode: "enabled",
       experimentalRetrievalMode: "on_demand",
       briefInterpreter: { async interpret(input) {
@@ -394,19 +302,10 @@ test("understanding preserves clarification context and reports only the history
     assert.ok(modeInterpretation);
     assert.deepEqual(modeInterpretation.validationMessages, ["为巴萨找一名中场", "更看重向前传球"],
       "the immutable user archive remains separate from the model-facing projection for quote validation");
-    if (mode === "projection") {
-      assert.deepEqual(modeInterpretation.recentDialogue?.map(({ role, content }) => ({ role, content })), [
-        { role: "user", content: "为巴萨找一名中场" },
-        { role: "assistant", content: "你更看重向前传球还是持球推进？" },
-      ]);
-      assert.ok(modeInterpretation.includedHistoryEventIds?.some(id => id.includes(".question.")));
-    } else {
-      assert.equal(modeInterpretation.recentDialogue, undefined);
-      assert.equal(modeInterpretation.clarificationQuestion, "你更看重向前传球还是持球推进？");
-      assert.ok(modeInterpretation.includedHistoryEventIds?.some(id => id.includes(".question.")),
-        "the legacy arm sends the actual Planner question in its dedicated clarification field");
-      assert.equal(modeInterpretation.omittedHistoryEventIds?.some(id => id.includes(".question.")), false,
-        "the manifest must not call a separately transmitted clarification question omitted");
-    }
+    assert.deepEqual(modeInterpretation.recentDialogue?.map(({ role, content }) => ({ role, content })), [
+      { role: "user", content: "为巴萨找一名中场" },
+      { role: "assistant", content: "你更看重向前传球还是持球推进？" },
+    ]);
+    assert.ok(modeInterpretation.includedHistoryEventIds?.some(id => id.includes(".question.")));
   }
 });

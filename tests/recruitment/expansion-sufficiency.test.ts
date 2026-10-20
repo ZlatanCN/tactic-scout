@@ -78,7 +78,7 @@ test("a one-capability request with three independently evidenced players finish
     observer(event) {
       if (event.phase === "decision") decisions.push(event);
     },
-    planner: { async decide(input) { plannerCalls++; throw new Error(`Unexpected Planner call: ${input.decisionMode ?? "investigate"}.`); } },
+    planner: { async decide(input) { plannerCalls++; throw new Error(`Unexpected Planner call: ${input.decisionSnapshot.caps.stage ?? "investigate"}.`); } },
   });
 
   const response = await conversation.turn({ threadId: "single-capability-expansion", message });
@@ -88,7 +88,7 @@ test("a one-capability request with three independently evidenced players finish
   assert.equal(response.report?.recommendations.length, 3);
   assert.ok(response.report?.recommendations.every(({ focusEvidenceKeys }) => focusEvidenceKeys.includes("abilityBallPlayingDefender")));
   assert.equal(plannerCalls, 0);
-  assert.ok(decisions.some(event => event.decisionMode === "expand"
+  assert.ok(decisions.some(event => event.action === "finish"
     && event.decisionSource === "policy"
     && event.policyReasonCodes?.includes("evidence_sufficient_for_expansion")), JSON.stringify(decisions));
 });

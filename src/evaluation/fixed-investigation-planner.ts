@@ -1,4 +1,5 @@
 import type { RecruitmentPlanner } from "../recruitment/conversation.js";
+import { messageForRecruitmentAction } from "../recruitment/recruitment-tools.js";
 
 const fixedMethodologyQuery = "足球球员场上职责与比赛表现指标的评估方法";
 
@@ -12,25 +13,26 @@ export function createSinglePassInvestigationPlanner(conclusionPlanner: Recruitm
       preflightContext: (input) => conclusionPlanner.preflightContext!(input),
     } : {}),
     async decide(input) {
-      if (input.decisionMode === "investigate") {
+      const snapshot = input.decisionSnapshot;
+      if (snapshot.caps.stage === "investigate") {
         const completedTools = new Set(input.history
           .filter((entry) => entry.role === "tool")
           .map((entry) => entry.toolName));
 
         if (!completedTools.has("search_methodology")) {
-          return {
+          return messageForRecruitmentAction({
             action: "search_methodology",
-            targetTeam: input.targetTeam,
+            targetTeam: snapshot.case.targetTeam,
             query: fixedMethodologyQuery,
             limit: 4,
-          };
+          }, "fixed-investigation-methodology");
         }
 
         if (!completedTools.has("search_candidates")) {
-          return {
+          return messageForRecruitmentAction({
             action: "search_candidates",
-            targetTeam: input.targetTeam,
-            position: input.confirmedPosition,
+            targetTeam: snapshot.case.targetTeam,
+            position: snapshot.case.confirmedPosition,
             playerName: null,
             maxAge: null,
             minimumMinutes: 0,
@@ -38,11 +40,17 @@ export function createSinglePassInvestigationPlanner(conclusionPlanner: Recruitm
             season: null,
             offset: 0,
             limit: 20,
-          };
+          }, "fixed-investigation-candidates");
         }
       }
 
-      return conclusionPlanner.decide({ ...input, decisionMode: "conclude" });
+      return conclusionPlanner.decide({
+        ...input,
+        decisionSnapshot: {
+          ...snapshot,
+          caps: { ...snapshot.caps, stage: "conclude" },
+        },
+      });
     },
   };
 }

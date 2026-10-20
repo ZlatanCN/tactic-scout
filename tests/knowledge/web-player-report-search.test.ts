@@ -279,14 +279,16 @@ test("whole-graph ablation adds only a qualitative lead and leaves unknown metri
         async getComparisonPlayers() { return [player]; },
       },
       planner: {
-        async decide({ history }) {
+        async decide(input) {
+          const { history } = input;
           const toolNames = history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName);
           const nextAction = actions.shift();
           if (nextAction) return nextAction;
           const reportEntry = history.filter((entry) => entry.role === "tool" && entry.toolName === "search_player_reports").at(-1);
           const reportResults = reportEntry ? (JSON.parse(reportEntry.content) as { results?: Array<{ documentId: string; sourceId: string }> }).results ?? [] : [];
           const webDocument = reportResults.find((result) => result.sourceId.startsWith("web-search:"));
-          assert.ok(toolNames.includes("evaluate_candidates"));
+          assert.ok(input.decisionSnapshot.candidates.evaluatedPlayerIds.includes(player.playerId),
+            "the canonical decision snapshot carries candidate evaluation state when detailed tool history is projected out");
           return {
             action: "finish",
             targetTeam: "Bayern Munich",

@@ -11,7 +11,7 @@ import { asksToRepeatPositionBroadeningQuestion, claimsUnavailablePlayerReports,
 import { investigationCandidates } from "./required-investigation.js";
 import type { State } from "./state.js";
 
-type PlanningMode = NonNullable<Parameters<RecruitmentPlanner["decide"]>[0]["decisionMode"]>;
+type PlanningMode = Parameters<RecruitmentPlanner["decide"]>[0]["decisionSnapshot"]["caps"]["stage"];
 
 function sectionsForUnderstatInspectionApproval(question: string, reason: string): Array<"positions" | "history" | "recent" | "shotProfile"> {
   const text = `${question} ${reason}`.toLocaleLowerCase();

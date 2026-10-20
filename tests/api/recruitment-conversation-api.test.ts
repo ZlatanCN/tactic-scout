@@ -25,7 +25,9 @@ test("conversation API sends a turn to the case endpoint and parses the shared r
   assert.deepEqual(await turnRecruitmentCase("case/one", "回复年龄偏好"), responseBody);
   assert.equal(requestUrl, "/api/v1/recruitment/cases/case%2Fone/turns");
   assert.equal(requestInit?.method, "POST");
-  assert.deepEqual(JSON.parse(String(requestInit?.body)), { message: "回复年龄偏好", expectsExistingState: false });
+  const sentBody = JSON.parse(String(requestInit?.body)) as Record<string, unknown>;
+  assert.deepEqual({ message: sentBody.message, expectsExistingState: sentBody.expectsExistingState }, { message: "回复年龄偏好", expectsExistingState: false });
+  assert.match(String(sentBody.memoryOwnerId), /^[0-9a-f-]{36}$/);
 });
 
 test("conversation API preserves the existing checkpoint for a follow-up turn", async (t) => {
@@ -40,11 +42,13 @@ test("conversation API preserves the existing checkpoint for a follow-up turn", 
 
   await turnRecruitmentCase("existing-case", "补充预算偏好", true, "request-2");
 
-  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+  const sentBody = JSON.parse(String(requestInit?.body)) as Record<string, unknown>;
+  assert.deepEqual({ requestId: sentBody.requestId, message: sentBody.message, expectsExistingState: sentBody.expectsExistingState }, {
     requestId: "request-2",
     message: "补充预算偏好",
     expectsExistingState: true,
   });
+  assert.match(String(sentBody.memoryOwnerId), /^[0-9a-f-]{36}$/);
 });
 
 test("conversation API posts a question-bound player identity choice", async (t) => {
@@ -60,9 +64,11 @@ test("conversation API posts a question-bound player identity choice", async (t)
 
   await turnRecruitmentCase("identity-case", "选择 Joshua Kimmich", true, "request-identity", undefined, undefined, identityAnswer);
 
-  assert.deepEqual(JSON.parse(String(requestInit?.body)), {
+  const sentBody = JSON.parse(String(requestInit?.body)) as Record<string, unknown>;
+  assert.deepEqual({ requestId: sentBody.requestId, message: sentBody.message, expectsExistingState: sentBody.expectsExistingState, playerIdentityAnswer: sentBody.playerIdentityAnswer }, {
     requestId: "request-identity", message: "选择 Joshua Kimmich", expectsExistingState: true, playerIdentityAnswer: identityAnswer,
   });
+  assert.match(String(sentBody.memoryOwnerId), /^[0-9a-f-]{36}$/);
 });
 
 test("conversation API rejects a response that violates the case contract", async (t) => {

@@ -2,7 +2,7 @@ import type { ConversationHistoryEntry } from "./planner-context.js";
 import { DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS, DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS } from "./chat-model.js";
 import { createHash } from "node:crypto";
 
-export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude" | "summarize";
+export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
 
 export interface RecruitmentContextManifest {
   version: 4;
@@ -16,7 +16,6 @@ export interface RecruitmentContextManifest {
   caseRevisionFingerprint: string | null;
   includedHistoryEventIds: string[];
   omittedHistoryEventIds: string[];
-  evidenceRefs: string[];
   estimatedInputTokens: number;
   estimateMethod: "wire-utf8-bytes-divided-by-three-plus-15-percent" | "codex-gpt-6-luna-stage-calibrated-v1";
   inputBudgetTokens: number;
@@ -24,7 +23,7 @@ export interface RecruitmentContextManifest {
   safetyMarginTokens: number;
   contextWindowTokens: number | null;
   status: "within_budget" | "over_budget";
-  budgetStrategy: "assembled" | "conclusion_history_reduced" | "conclusion_candidate_batch" | "planner_protocol_retry";
+  budgetStrategy: "assembled" | "conclusion_candidate_batch" | "planner_protocol_retry";
   exceedsVerifiedWindow: boolean;
   exceedsSoftTarget: boolean;
   omittedHistoryEntries: number;
@@ -51,7 +50,6 @@ export interface BuildRecruitmentContextInput {
   contextRevision?: string;
   includedHistoryEventIds?: readonly string[];
   omittedHistoryEventIds?: readonly string[];
-  evidenceRefs?: readonly string[];
   budgetStrategy?: RecruitmentContextManifest["budgetStrategy"];
 }
 
@@ -118,7 +116,6 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
   const systemBytes = serializedContentBytes(input.systemInstructions);
   const payloadBytes = serializedContentBytes(payload);
   const schemaBytes = serializedContentBytes(schema);
-  const evidenceRefs = [...new Set([...(input.evidenceRefs ?? []), ...collectEvidenceRefs(input.payload)])];
   // The provider receives the response schema/tool definitions with the
   // messages. They consume model context even though they are not chat turns.
   const baseEstimatedInputTokens = estimateRecruitmentInputTokens(wireView);
@@ -155,7 +152,6 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       caseRevisionFingerprint: input.contextRevision ? fingerprint(input.contextRevision) : null,
       includedHistoryEventIds: [...new Set([...(input.includedHistoryEventIds ?? []), ...collectHistoryEventIds(input.payload)])],
       omittedHistoryEventIds: [...new Set(input.omittedHistoryEventIds ?? [])],
-      evidenceRefs,
       estimatedInputTokens,
       estimateMethod: usesMeasuredLunaCalibration
         ? "codex-gpt-6-luna-stage-calibrated-v1"
@@ -176,14 +172,12 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
 
 function measuredStageCalibrationFactor(stage: RecruitmentContextStage): number {
   // A 20-turn codex/gpt-6-luna runtime probe measured actual/estimated P95
-  // ratios of 0.546 (understand, n=23), 0.712 (expand, n=8), and 0.898
-  // (summarize, n=7) with the previous factors. A follow-up run found a higher
-  // understand ratio (0.982, n=8), so use 1.5 there; the current factors leave
+  // ratios of 0.546 (understand, n=23) and 0.712 (expand, n=8). A follow-up
+  // run found a higher understand ratio (0.982, n=8), so use 1.5 there; the factors leave
   // roughly 15–18% headroom at the latest observed P95. Investigate, reorient,
   // and conclude already had conservative observed estimates.
   if (stage === "understand") return 1.5;
   if (stage === "expand" || stage === "expand_recovery") return 1.6;
-  if (stage === "summarize") return 1.9;
   return 1;
 }
 
@@ -195,28 +189,14 @@ function fingerprint(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
-function collectEvidenceRefs(value: unknown): string[] {
-  if (!value || typeof value !== "object") return [];
-  if (Array.isArray(value)) return value.flatMap(collectEvidenceRefs);
-  const record = value as Record<string, unknown>;
-  const found = [record.ref, record.metricEvidenceRef]
-    .filter((ref): ref is string => typeof ref === "string" && /^ev\.[a-f0-9]{12}\.[a-f0-9]{12}\.(?:player_metrics|player_report|methodology)\.[a-f0-9]{16}\.[a-f0-9]{16}$/.test(ref));
-  return [...found, ...Object.values(record).flatMap(collectEvidenceRefs)];
-}
-
 function collectHistoryEventIds(value: unknown): string[] {
   if (!value || typeof value !== "object") return [];
   if (Array.isArray(value)) return value.flatMap(collectHistoryEventIds);
   const record = value as Record<string, unknown>;
-  const summaryClaims = Array.isArray(record.claimEventIds)
-    ? record.claimEventIds.filter((eventId): eventId is string => typeof eventId === "string" && /^evt\.[a-f0-9]{16}\.(?:user\.\d+|question\.\d+\.\d+)$/.test(eventId))
-    : [];
   const found = typeof record.eventId === "string" && /^evt\.[a-f0-9]{16}\.(?:user\.\d+|question\.\d+\.\d+)$/.test(record.eventId)
     ? [record.eventId]
     : [];
-  return [...found, ...summaryClaims, ...Object.entries(record)
-    .filter(([key]) => key !== "coveredEventIds")
-    .flatMap(([, nested]) => collectHistoryEventIds(nested))];
+  return [...found, ...Object.values(record).flatMap(collectHistoryEventIds)];
 }
 
 export interface ProjectedRecruitmentHistory {
@@ -266,17 +246,13 @@ export function projectRecruitmentHistory(
     caseId?: string;
     recentUserTurns?: number;
     protectedQuotes?: readonly string[];
-    preserveAllTools?: boolean;
-    coveredUserTurnsThrough?: number;
-    userTurnOffset?: number;
   } = {},
 ): ProjectedRecruitmentHistory {
   const userIndices = history.flatMap((entry, index) => entry.role === "user" ? [index] : []);
   const caseKey = fingerprint(options.caseId ?? "unscoped");
   const eventIdByIndex = new Map<number, string>();
   const userIdByIndex = new Map<number, string>();
-  let userNumber = Math.max(0, Math.floor(options.userTurnOffset ?? 0));
-  const userTurnByIndex = new Map<number, number>();
+  let userNumber = 0;
   const questionCountByUser = new Map<number, number>();
   let latestUserNumber = userNumber;
   history.forEach((entry, index) => {
@@ -286,7 +262,6 @@ export function projectRecruitmentHistory(
       const turnNumber = existingTurn === undefined ? userNumber + 1 : existingTurn;
       userNumber = Math.max(userNumber, turnNumber);
       latestUserNumber = turnNumber;
-      userTurnByIndex.set(index, turnNumber);
       const eventId = existingTurn === undefined ? `evt.${caseKey}.user.${turnNumber}` : entry.eventId!;
       eventIdByIndex.set(index, eventId);
       userIdByIndex.set(index, eventId);
@@ -304,10 +279,7 @@ export function projectRecruitmentHistory(
   const protectedQuotes = [...new Set((options.protectedQuotes ?? []).filter(quote => quote.trim().length > 0))];
   const keep = new Set<number>();
   const recentTurns = Math.max(1, Math.floor(options.recentUserTurns ?? 3));
-  const coveredUserTurnsThrough = Math.max(0, Math.floor(options.coveredUserTurnsThrough ?? 0));
-  const recentIndices = new Set(userIndices
-    .filter(index => (userTurnByIndex.get(index) ?? 0) > coveredUserTurnsThrough)
-    .slice(-recentTurns));
+  const recentIndices = new Set(userIndices.slice(-recentTurns));
   for (const index of recentIndices) keep.add(index);
 
   const userEventIds: string[] = [];
@@ -336,11 +308,7 @@ export function projectRecruitmentHistory(
     if (entry.role === "tool") latestToolIndices.set(entry.toolName ?? "tool", index);
   });
   if (latestAssistantAction >= 0) keep.add(latestAssistantAction);
-  if (options.preserveAllTools) {
-    history.forEach((entry, index) => { if (entry.role === "tool") keep.add(index); });
-  } else {
-    for (const index of latestToolIndices.values()) keep.add(index);
-  }
+  for (const index of latestToolIndices.values()) keep.add(index);
 
   const entries = history.flatMap((entry, index) => keep.has(index)
     ? [{ ...entry, ...(eventIdByIndex.has(index) ? { eventId: eventIdByIndex.get(index)! } : {}) }]

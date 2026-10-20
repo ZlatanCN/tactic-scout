@@ -24,6 +24,8 @@ import {
   understatRoleCandidate,
   understatRoleResearch,
 } from "./fixtures/recruitment-conversation.js";
+import { RecruitmentGraphNodeFailureError } from "../../src/recruitment/conversation-turn-runtime.js";
+import { createRecruitmentEvidenceEvaluator } from "../../src/recruitment/recruitment-evidence-evaluator.js";
 
 const restoreEnvironment = installRecruitmentConversationTestEnvironment();
 after(restoreEnvironment);
@@ -133,7 +135,7 @@ test("a failed candidate query remains distinct from a successful zero-match sea
       mode: "sportmonks",
       sourceName: "Sportmonks",
       async searchCandidates() {
-        throw Object.assign(new Error(`Sportmonks request failed before a response was received. Authorization: super-secret-token ${"x".repeat(1200)}`), { code: "network" });
+        throw Object.assign(new Error(`Sportmonks request failed before a response was received. Authorization: super-secret-token ${"x".repeat(1200)}`), { code: "provider_failure" });
       },
     },
     planner: {
@@ -161,7 +163,7 @@ test("a failed candidate query remains distinct from a successful zero-match sea
   assert.match(response.message, /候选查询最近一次失败/);
   assert.match(response.message, /不代表没有匹配球员/);
   const failureLimitation = response.report?.limitations.find((item) => /最近一次候选查询失败/.test(item)) ?? "";
-  assert.match(failureLimitation, /Sportmonks.*network.*request failed before a response was received/);
+  assert.match(failureLimitation, /Sportmonks.*provider_failure.*request failed before a response was received/);
   assert.doesNotMatch(failureLimitation, /super-secret-token/);
   assert.ok(failureLimitation.length < 600, "reported provider errors must stay bounded");
   assert.ok(progressUpdates.some((update) => update.stage === "candidate_search" && update.status === "notice"));
@@ -173,12 +175,14 @@ test("ASA network failure finishes with an explicit source error instead of loop
     { action: "search_candidates", position: null, minimumMinutes: 0, limit: 20 },
   ];
   let plannerCalls = 0;
+  let searchAttempts = 0;
   const events: RecruitmentTraceEvent[] = [];
   const conversation = createRecruitmentConversation({
     repository: {
       mode: "asa",
       sourceName: "American Soccer Analysis · 北美五项当前赛季表现",
       async searchCandidates() {
+        searchAttempts += 1;
         throw Object.assign(new Error("ASA could not be reached after bounded transport retries."), { code: "network" });
       },
     },
@@ -194,15 +198,13 @@ test("ASA network failure finishes with an explicit source error instead of loop
     observer: (event) => { events.push(event); },
   });
 
-  const response = await conversation.turn({ threadId: "asa-network-failure", message: "为洛杉矶FC找一名边锋" });
-
-  assert.equal(response.status, "completed");
+  await assert.rejects(
+    conversation.turn({ threadId: "asa-network-failure", message: "为洛杉矶FC找一名边锋" }),
+    (error: unknown) => error instanceof RecruitmentGraphNodeFailureError && error.category === "unavailable",
+  );
   assert.equal(plannerCalls, 2, "after ASA's bounded transport retry, the graph must not ask the model to search unrelated data");
-  assert.deepEqual(response.report?.recommendations, []);
-  assert.match(response.message, /候选查询最近一次失败/);
-  assert.match(response.message, /不代表没有匹配球员/);
-  assert.ok(response.report?.limitations.some((item) => /最近一次候选查询失败.*network/.test(item)));
-  assert.ok(events.some((event) => event.phase === "decision" && event.action === "finish" && event.decisionSource === "policy"));
+  assert.equal(searchAttempts, 2, "LangGraph retries this typed idempotent read exactly once");
+  assert.equal(events.filter((event) => event.phase === "tool" && event.toolName === "evaluate_candidates").length, 0);
 });
 
 test("the LangGraph trace carries one privacy-safe model-usage event per Planner model response", async () => {
@@ -222,7 +224,7 @@ test("the LangGraph trace carries one privacy-safe model-usage event per Planner
     },
     planner: {
       async decide(input) {
-        const callPhase = input.decisionMode ?? "investigate";
+        const callPhase = input.decisionSnapshot.caps.stage ?? "investigate";
         plannerModes.push(callPhase);
         input.onTokenUsage?.({
           callPhase,
@@ -241,12 +243,13 @@ test("the LangGraph trace carries one privacy-safe model-usage event per Planner
     observer: (event) => { events.push(event); },
   });
 
-  const response = await conversation.turn({
-    threadId: "planner-usage-trace",
-    message: "为巴萨找一名中场，重点看推进。",
-  });
-
-  assert.equal(response.status, "completed");
+  await assert.rejects(
+    conversation.turn({
+      threadId: "planner-usage-trace",
+      message: "为巴萨找一名中场，重点看推进。",
+    }),
+    (error: unknown) => error instanceof RecruitmentGraphNodeFailureError && error.category === "unavailable",
+  );
   const usageEvents = events.filter((event) => event.phase === "model_usage");
   assert.equal(usageEvents.length, plannerModes.length);
   assert.deepEqual(usageEvents.map((event) => event.phase === "model_usage" ? event.callPhase : null), plannerModes);
@@ -259,18 +262,20 @@ test("the LangGraph trace carries one privacy-safe model-usage event per Planner
   assert.doesNotMatch(JSON.stringify(usageEvents), /中场|推进|Fixture|query|prompt|completion/i);
 });
 
-test("candidate-source failure stops before the Planner can repeat search or evaluate without candidates", async () => {
+test("candidate-source failure exhausts the bounded read retry and does not become an empty result", async () => {
   const actions: RecruitmentAction[] = [
     { action: "search_methodology", query: "前锋进球与创造机会的评估方法" },
     { action: "search_candidates", position: "ATT", minimumMinutes: 0, limit: 20 },
   ];
   let plannerCalls = 0;
+  let searchAttempts = 0;
   const events: RecruitmentTraceEvent[] = [];
   const conversation = createRecruitmentConversation({
     repository: {
       mode: "understat",
       sourceName: "Injected Understat fixture",
       async searchCandidates() {
+        searchAttempts += 1;
         throw Object.assign(new Error("Injected candidate source could not be reached after bounded transport retries."), { code: "network" });
       },
     },
@@ -286,17 +291,12 @@ test("candidate-source failure stops before the Planner can repeat search or eva
     observer: (event) => { events.push(event); },
   });
 
-  const response = await conversation.turn({ threadId: "candidate-source-failure", message: "为阿森纳找一名进球和创造机会突出的前锋" });
-
-  assert.equal(response.status, "completed");
-  assert.equal(plannerCalls, 2, "the graph closes the source-failure path without another LLM decision");
-  assert.deepEqual(response.report?.recommendations, []);
-  assert.match(response.message, /候选查询最近一次失败/);
-  assert.match(response.message, /无法确认/);
-  assert.match(response.message, /不代表没有匹配球员/);
-  assert.match(response.report?.needSummary ?? "", /无法确认匹配结果/);
-  assert.ok(response.report?.limitations.some((item) => /最近一次候选查询失败.*network/.test(item)));
-  assert.ok(events.some((event) => event.phase === "decision" && event.action === "finish" && event.decisionSource === "policy"));
+  await assert.rejects(
+    conversation.turn({ threadId: "candidate-source-failure", message: "为阿森纳找一名进球和创造机会突出的前锋" }),
+    (error: unknown) => error instanceof RecruitmentGraphNodeFailureError && error.category === "unavailable",
+  );
+  assert.equal(plannerCalls, 2, "the graph fails after the read retry without another LLM decision");
+  assert.equal(searchAttempts, 2, "the idempotent candidate read receives exactly one graph retry");
   assert.equal(events.filter((event) => event.phase === "tool" && event.toolName === "evaluate_candidates").length, 0);
 });
 
@@ -322,7 +322,7 @@ test("a later successful candidate query clears the unresolved source failure", 
       sourceName: "Sportmonks",
       async searchCandidates() {
         searchCount += 1;
-        if (searchCount === 1) throw Object.assign(new Error("temporary network failure"), { code: "network" });
+        if (searchCount === 1) throw Object.assign(new Error("temporary source failure"), { code: "provider_failure" });
         return { players: [], totalRecords: 0, offset: 0, nextOffset: null, appliedFilters: ["position"] };
       },
     },
@@ -799,13 +799,12 @@ test("policy report retrieval covers every evaluated candidate before Planner sy
   let conclusionConstraints: Parameters<RecruitmentPlanner["decide"]>[0]["constraints"];
   const events: RecruitmentTraceEvent[] = [];
   const conversation = createRecruitmentConversation({
-    experimentalContextManagementMode: "unified",
     repository: { mode: "demo", sourceName: "Demo", async loadPlayers() { return players; } },
     planner: {
       async decide(input) {
-        decisionModes.push(input.decisionMode);
-        if (input.decisionMode === "conclude" || input.decisionMode === "reorient") {
-          conclusionConstraints = input.constraints;
+        decisionModes.push(input.decisionSnapshot.caps.stage);
+        if (input.decisionSnapshot.caps.stage === "conclude" || input.decisionSnapshot.caps.stage === "reorient") {
+          conclusionConstraints = input.decisionSnapshot.constraints;
           reorientationHistory = input.history;
           reorientationCaseProgress = input.caseProgress;
         }
@@ -897,7 +896,16 @@ test("missing event coverage and zero pass attempts are reported as unavailable 
       sourceName: "StatsBomb Open Data",
       async loadPlayers() { return [player]; },
     };
-    const conversation = createRecruitmentConversation({ repository, planner, knowledgeBase: { async search() { return []; } } });
+    const evaluator = createRecruitmentEvidenceEvaluator(repository);
+    const evidenceEvaluator = {
+      ...evaluator,
+      async evaluate(...args: Parameters<typeof evaluator.evaluate>) {
+        const result = await evaluator.evaluate(...args);
+        evaluations = Object.values(result.evaluations).flatMap(({ evidence }) => evidence);
+        return result;
+      },
+    };
+    const conversation = createRecruitmentConversation({ repository, planner, evidenceEvaluator, knowledgeBase: { async search() { return []; } } });
     const response = await conversation.turn({ threadId: id, message: "比较这个中锋" });
     return { response, evaluations };
   }

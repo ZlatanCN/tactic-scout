@@ -24,8 +24,9 @@ import { type State } from "./state.js";
 import { projectToolResult } from "./tool-results.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import { replacementTargetMention } from "../replacement-target.js";
-import { caseEvidenceScopeRevision, createCaseEvidenceIndex, readCaseEvidence } from "../case-evidence.js";
 import { recruitmentDataToolNames, recruitmentToolDescription, recruitmentToolInputSchema } from "../recruitment-tools.js";
+import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
+import { TransientRecruitmentReadError } from "./node-policies.js";
 
 function providerErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object" || !("code" in error)) return undefined;
@@ -42,6 +43,16 @@ function safeToolFailure(error: unknown): { code: string | null; message: string
   return { code: providerErrorCode(error) ?? null, message: message || "数据工具调用失败。" };
 }
 
+const retryableReadActions = new Set<ToolActionName>([
+  "search_candidates",
+  "search_methodology",
+  "search_player_reports",
+  "inspect_team",
+  "inspect_player",
+  "inspect_candidate_group",
+  "inspect_match",
+]);
+
 function mismatchedActionFields(invoked: unknown, authorized: unknown, name: ToolActionName): string[] {
   if (!invoked || typeof invoked !== "object" || !authorized || typeof authorized !== "object") return ["action"];
   const invokedRecord = invoked as Record<string, unknown>;
@@ -57,19 +68,12 @@ function mismatchedActionFields(invoked: unknown, authorized: unknown, name: Too
 }
 
 export function createToolNode(input: {
-  repository: PlayerRepository;
-  teamRosterEnrichment?: TeamRosterEnrichmentProvider;
-  referenceNameResolver?: PlayerNameResolver;
-  knowledgeBase: KnowledgeRepository;
-  evidenceEvaluator: RecruitmentEvidenceEvaluator;
-  observer: RecruitmentTraceObserver | undefined;
-  groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
   methodologyReuseEnabled: boolean;
 }) {
-  const executeRecruitmentAction = createToolStateUpdateHandler(input);
   const tools = recruitmentDataToolNames().map((name) => tool(
     async (args, runtime: ToolRuntime) => {
       const state = runtime.state as State;
+      const context = requireRecruitmentRuntimeContext(runtime.context as RecruitmentRuntimeContext | undefined);
       const invokedAction = RecruitmentActionSchema.parse({ action: name, ...args });
       const authorizedAction = state.action;
       const actionMismatches = mismatchedActionFields(invokedAction, authorizedAction, name);
@@ -81,7 +85,12 @@ export function createToolNode(input: {
         ].filter((field, index, fields) => fields.indexOf(field) === index).sort();
         throw new Error(`工具调用与经过策略校验的案件动作不一致：${mismatchSummary.join(", ")}`);
       }
-      const update = await executeRecruitmentAction({ ...state, action: authorizedAction }, runtime.config as LangGraphRunnableConfig);
+      const update = await executeRecruitmentStateAction(
+        { ...state, action: authorizedAction },
+        runtime.config as LangGraphRunnableConfig,
+        context,
+        input.methodologyReuseEnabled,
+      );
       return new Command({
         update: {
           ...update,
@@ -98,37 +107,21 @@ export function createToolNode(input: {
   return new ToolNode(tools, { handleToolErrors: false });
 }
 
-export function createLegacyRecruitmentActionNode(input: {
-  repository: PlayerRepository;
-  teamRosterEnrichment?: TeamRosterEnrichmentProvider;
-  referenceNameResolver?: PlayerNameResolver;
-  knowledgeBase: KnowledgeRepository;
-  evidenceEvaluator: RecruitmentEvidenceEvaluator;
-  observer: RecruitmentTraceObserver | undefined;
-  groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
-  methodologyReuseEnabled: boolean;
-}) {
-  const executeRecruitmentAction = createToolStateUpdateHandler(input);
-  return async (state: State, config: LangGraphRunnableConfig) => {
-    if (!state.action || state.action.action === "ask_user" || state.action.action === "finish") {
-      throw new Error("旧版 action 分发只接受经过策略校验的数据动作。");
-    }
-    return executeRecruitmentAction(state, config);
-  };
-}
-
-function createToolStateUpdateHandler(input: {
-  repository: PlayerRepository;
-  teamRosterEnrichment?: TeamRosterEnrichmentProvider;
-  referenceNameResolver?: PlayerNameResolver;
-  knowledgeBase: KnowledgeRepository;
-  evidenceEvaluator: RecruitmentEvidenceEvaluator;
-  observer: RecruitmentTraceObserver | undefined;
-  groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
-  methodologyReuseEnabled: boolean;
-}) {
-  const { repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords } = input;
-  return async (state: State, config: LangGraphRunnableConfig): Promise<Partial<State>> => {
+async function executeRecruitmentStateAction(
+  state: State,
+  config: LangGraphRunnableConfig,
+  context: RecruitmentRuntimeContext,
+  methodologyReuseEnabled: boolean,
+): Promise<Partial<State>> {
+    const {
+      repository,
+      knowledgeBase,
+      evidenceEvaluator,
+      observer,
+      candidateIdentityGrouper: groupCandidateRecords,
+      teamRosterEnrichment,
+      referenceNameResolver,
+    } = context;
     throwIfTurnCancelled(config.signal);
     const action = state.action;
     if (!action || action.action === "ask_user" || action.action === "finish") {
@@ -149,7 +142,6 @@ function createToolStateUpdateHandler(input: {
           : "正在计算候选球员的可观察比赛表现",
       },
       search_player_reports: { stage: "report_search", message: "正在检索候选球员的报告资料" },
-      read_case_evidence: { stage: "evidence_read", message: "正在核对已找到的证据原文" },
     };
     emitProgress(config, { ...progressByTool[action.action], completedSteps: state.decisionSteps });
     const completeToolProgress = (message: string, status: RecruitmentProgressEventStatus = "completed") => emitProgress(config, {
@@ -174,36 +166,6 @@ function createToolStateUpdateHandler(input: {
       })),
       state.decisionSteps,
     );
-    if (action.action === "read_case_evidence") {
-      const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
-      const index = createCaseEvidenceIndex({
-        caseId,
-        scopeRevision: caseEvidenceScopeRevision({
-          brief: state.brief,
-          confirmedPositions: state.confirmedPositions,
-          replacementReferencePosition: state.replacementReferencePosition,
-          positionBroadeningApproved: state.positionBroadeningApproved,
-          datasetScope: state.datasetScope,
-        }),
-        evaluations: Object.values(evaluatedPlayersForConstraint(state)),
-        documents: Object.values(state.retrievedKnowledge),
-      });
-      const result = readCaseEvidence(index, action);
-      const toolUses = { ...state.toolUses, read_case_evidence: (state.toolUses.read_case_evidence ?? 0) + 1 };
-      const filters = {
-        requestedReferenceCount: action.refs.length,
-        requestedFields: action.fields,
-        limit: action.limit,
-        cursorProvided: action.cursor !== null,
-      };
-      observer?.({ phase: "tool", toolName: "read_case_evidence", elapsedMs: Math.round(performance.now() - toolStartedAt), ok: true, filters, resultCount: result.results.filter(item => item.status === "ok").length });
-      completeToolProgress(`已核对 ${result.results.filter(item => item.status === "ok").length} 份已取得的证据`);
-      return {
-        toolUses,
-        hasInvestigated: true,
-        history: [{ role: "tool", toolName: "read_case_evidence", content: JSON.stringify(result) }],
-      };
-    }
     const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
     const alreadySearchedReportNames = new Set(state.searchedReportPlayerNames.map(normalizeSearchText));
     const reportNames = action.action === "search_player_reports"
@@ -219,7 +181,7 @@ function createToolStateUpdateHandler(input: {
       ? createHash("sha256").update(JSON.stringify([action.query, action.limit])).digest("hex")
       : null;
     const previousResultCount = methodologyKey === null ? undefined : state.successfulMethodologyQueries[methodologyKey];
-    if (input.methodologyReuseEnabled && previousResultCount !== undefined) {
+    if (methodologyReuseEnabled && previousResultCount !== undefined) {
       observer?.({ phase: "tool_reuse", toolName: "search_methodology", resultCount: previousResultCount, reason: "successful_same_turn_query" });
       completeToolProgress(`本轮相同方法查询已完成，沿用已有的 ${previousResultCount} 条资料`);
       return {
@@ -287,8 +249,8 @@ function createToolStateUpdateHandler(input: {
         repository,
         knowledgeBase,
         evaluator: evidenceEvaluator,
-        ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}),
-        ...(input.referenceNameResolver ? { referenceNameResolver: input.referenceNameResolver } : {}),
+        ...(teamRosterEnrichment ? { teamRosterEnrichment } : {}),
+        ...(referenceNameResolver ? { referenceNameResolver } : {}),
         signal: config.signal,
       });
       throwIfTurnCancelled(config.signal);
@@ -316,6 +278,10 @@ function createToolStateUpdateHandler(input: {
     } catch (error) {
       throwIfTurnCancelled(config.signal);
       if (error instanceof RecruitmentTurnCancelledError) throw error;
+      const retryCode = providerErrorCode(error);
+      if (retryableReadActions.has(action.action) && (retryCode === "network" || retryCode === "timeout")) {
+        throw new TransientRecruitmentReadError();
+      }
       const failure = safeToolFailure(error);
       observer?.({
         phase: "tool",
@@ -347,5 +313,4 @@ function createToolStateUpdateHandler(input: {
         }],
       };
     }
-  };
 }

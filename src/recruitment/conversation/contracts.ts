@@ -12,8 +12,6 @@ export type RecruitmentTraceEvent =
   | { phase: "brief_failure"; failureKind: string; failureCode?: string; failureStatus?: number; outputLimitTokens?: number; validationCode?: RecruitmentBriefValidationCode; validationFailure?: string; issuePaths?: string[] }
   | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
   | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
-  | { phase: "summary_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
-  | { phase: "summary_failure"; failureKind: string }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
   | { phase: "tool_reuse"; toolName: "search_methodology"; resultCount: number; reason: "successful_same_turn_query" }
   | {
@@ -73,6 +71,7 @@ export type RecruitmentTraceObserver = (event: RecruitmentTraceEvent) => void;
 
 export interface RecruitmentConversation {
   turn(input: RecruitmentTurnInput): Promise<ConversationTurnResponse>;
+  inspectCaseRun?(input: { threadId: string; limit?: number }): Promise<import("./case-run-inspection.js").CaseRunInspection>;
 }
 
 export interface PendingQuestion {

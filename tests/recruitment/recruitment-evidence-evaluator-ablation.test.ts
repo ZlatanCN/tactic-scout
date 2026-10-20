@@ -69,8 +69,8 @@ async function runFullGraph(evidenceWithheld: boolean, reviewerMode: "enabled" |
   const planner: RecruitmentPlanner = {
     async decide(input) {
       const completedReportSearch = input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_player_reports");
-      if (input.decisionMode === "conclude" || completedReportSearch) {
-        const observedCandidate = input.constraints?.evaluatedCandidates.find(({ playerId, evidenceKeys }) => (
+      if (input.decisionSnapshot.caps.stage === "conclude" || completedReportSearch) {
+        const observedCandidate = input.decisionSnapshot.constraints?.evaluatedCandidates.find(({ playerId, evidenceKeys }) => (
           playerId === player.playerId && evidenceKeys.includes(requestedMetricKey)
         ));
         return {

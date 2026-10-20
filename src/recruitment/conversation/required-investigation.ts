@@ -16,7 +16,7 @@ import { maxDecisionsPerTurn, type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
 import type { PendingQuestion, UnderstatResearchMode } from "./contracts.js";
 
-interface InvestigationDirective {
+export interface InvestigationDirective {
   action: ParsedRecruitmentAction;
   message: string;
   suppressedMessage?: string;
@@ -137,11 +137,6 @@ export function nextRequiredInvestigation(
         suppressedMessage: "对照组已关闭追问，年龄条件无法核验，已安全暂停",
       };
     }
-    if (source.mode === "asa" && ["network", "timeout"].includes(state.candidateSearchFailure.code ?? "")) return terminal(
-      `${source.sourceName} 在完成一次有界传输重试后仍无法读取；当前不能确认候选匹配结果。`,
-      `${source.sourceName} 暂时无法连接，已停止本轮候选调查；这不代表没有匹配球员。请稍后重新分析。`,
-      "ASA 数据请求重试后仍失败，正在如实说明来源状态",
-    );
     if (source.mode === "fpl" || source.mode === "premier_league"
       || ((source.mode === "understat" || source.mode === "mosaic") && state.candidateSearchFailure.code !== "unsupported_scope")) return terminal(
         `${source.sourceName} 候选查询未成功，当前无法确认匹配结果。`,

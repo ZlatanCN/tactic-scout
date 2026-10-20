@@ -229,15 +229,8 @@ test("SkillCorner performance evidence reaches the report without inventing unav
         limitationKeys: [],
       },
     ];
-    let evaluationMetrics: Array<Record<string, unknown>> = [];
     const planner: RecruitmentPlanner = {
-      async decide({ history }) {
-        const evaluation = history.filter((entry) => entry.role === "tool" && entry.toolName === "evaluate_candidates").at(-1);
-        if (evaluation) {
-          evaluationMetrics = (JSON.parse(evaluation.content) as {
-            evaluations: Array<{ metrics: Array<Record<string, unknown>> }>;
-          }).evaluations[0]?.metrics ?? [];
-        }
+      async decide() {
         const action = actions.shift();
         assert.ok(action, "the investigation should finish with its scripted evidence path");
         return action;
@@ -258,12 +251,12 @@ test("SkillCorner performance evidence reaches the report without inventing unav
     assert.equal(response.report?.recommendations[0]?.evidence.some(({ key }) =>
       CapabilityMetricDefinitions.some((definition) => definition.key === key),
     ), false);
-    assert.ok(evaluationMetrics.some((metric) => metric.key === "highIntensityDistancePer90"
-      && metric.value === 1000
-      && metric.sampleMatches === 10
-      && metric.sourceField === "hi_distance_full_all"));
-    assert.equal(evaluationMetrics.some((metric) => metric.key === "goals"), false);
-    assert.equal(evaluationMetrics.some((metric) => metric.key === "sprintDistancePer90"), false);
+    const reportedMetric = response.report?.recommendations[0]?.evidence.find(({ key }) => key === "highIntensityDistancePer90");
+    assert.ok(reportedMetric);
+    assert.equal(reportedMetric.value, 1000);
+    assert.equal(reportedMetric.sampleMatches, 10);
+    assert.equal(reportedMetric.sourceField, "hi_distance_full_all");
+    assert.equal(response.report?.recommendations[0]?.evidence.some(({ key }) => key === "goals" || key === "sprintDistancePer90"), false);
   } finally {
     await rm(aggregatesDirectory, { recursive: true, force: true });
   }

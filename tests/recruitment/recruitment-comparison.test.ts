@@ -200,7 +200,7 @@ test("on-demand retrieval skips unnecessary RAG and search planning for a measur
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
     planner: { async decide(input) {
       plannerCalls++;
-      assert.notEqual(input.decisionMode, "investigate");
+      assert.notEqual(input.decisionSnapshot.caps.stage, "investigate");
       return { action: "finish", targetTeam: "拜仁", needSummary: "依据进球产出保留候选", capabilityProfile: ["进球产出"], recommendations: [{ playerId: "a", evidenceKeys: ["goals"] }], limitationKeys: [] };
     } },
     knowledgeBase: { search: async () => { retrievalCalls++; return []; } },
@@ -241,7 +241,7 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
     knowledgeBase: { search: async input => { searchedCorpora.push(input.corpus); return []; } },
     plannerFactory: () => ({ async decide(input) {
       calls++;
-      assert.notEqual(input.decisionMode, "investigate");
+      assert.notEqual(input.decisionSnapshot.caps.stage, "investigate");
       return { action: "finish", targetTeam: "拜仁", needSummary: "依据产出比较", capabilityProfile: ["进球产出"], recommendations: [{ playerId: "a", evidenceKeys: ["goals"] }], limitationKeys: [] };
     } }),
   });

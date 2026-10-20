@@ -370,8 +370,9 @@ test("the full graph uses normalized capability intent for search, review, and r
   const response = await conversation.turn({ threadId: "normalized-capability-intent", message });
 
   assert.equal(response.status, "completed", response.message);
-  assert.equal(plannerRequests[0]?.decisionMode, "reorient");
-  assert.deepEqual(plannerRequests[0]?.availableActions, ["search_candidates", "ask_user", "finish"]);
+  const decisionSnapshot = plannerRequests[0]?.decisionSnapshot as { caps?: { stage?: string; availableActions?: string[] } } | undefined;
+  assert.equal(decisionSnapshot?.caps?.stage, "reorient");
+  assert.deepEqual(decisionSnapshot?.caps?.availableActions, ["search_candidates", "ask_user", "finish"]);
   assert.ok(trace.some(event => event.phase === "tool" && event.toolName === "search_candidates"));
   assert.ok(trace.some(event => event.phase === "tool" && event.toolName === "evaluate_candidates"));
   assert.ok(!trace.some(event => event.phase === "tool" && event.toolName === "search_methodology"), "on-demand retrieval should not run a fixed methodology lookup for an observable capability");

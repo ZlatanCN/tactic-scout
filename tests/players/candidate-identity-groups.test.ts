@@ -231,7 +231,7 @@ test("the full LangGraph Reviewer blocks duplicate recommendations only when exa
     const remainingActions = [...finishActions];
     return {
       async decide(input) {
-        if (input.decisionMode === "investigate") {
+        if (input.decisionSnapshot.caps.stage === "investigate") {
           const completedTools = new Set(input.history
             .filter((entry) => entry.role === "tool")
             .map((entry) => entry.toolName));
@@ -242,7 +242,7 @@ test("the full LangGraph Reviewer blocks duplicate recommendations only when exa
             return {
               action: "search_candidates",
               targetTeam: "拜仁",
-              position: input.confirmedPosition,
+              position: input.decisionSnapshot.case.confirmedPosition,
               playerName: null,
               maxAge: null,
               minimumMinutes: 0,

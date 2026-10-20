@@ -19,9 +19,9 @@ export function positionSelectionFixture() {
   let plannerCalls = 0;
   const planner: RecruitmentPlanner = { async decide(input) {
     plannerCalls++;
-    if (input.constraints) return {
-      action: "finish", targetTeam: input.targetTeam, needSummary: "按已确认位置调查防守表现", capabilityProfile: ["抢断和拦截"],
-      recommendations: input.constraints.evaluatedCandidates.slice(0, 5).map(({ playerId, evidenceKeys }) => ({ playerId, evidenceKeys: evidenceKeys.filter((key) => key === "tacklesInterceptions") })),
+    if (input.decisionSnapshot.constraints) return {
+      action: "finish", targetTeam: input.decisionSnapshot.case.targetTeam, needSummary: "按已确认位置调查防守表现", capabilityProfile: ["抢断和拦截"],
+      recommendations: input.decisionSnapshot.constraints.evaluatedCandidates.slice(0, 5).map(({ playerId, evidenceKeys }) => ({ playerId, evidenceKeys: evidenceKeys.filter((key) => key === "tacklesInterceptions") })),
       limitationKeys: [],
     };
     if (!input.history.some((entry) => entry.role === "tool" && entry.toolName === "search_methodology")) return { action: "search_methodology", query: "防守表现" };

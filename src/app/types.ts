@@ -1,4 +1,4 @@
-import type { BaseCheckpointSaver } from "@langchain/langgraph";
+import type { BaseCheckpointSaver, BaseStore } from "@langchain/langgraph";
 import type { RecruitmentConversation, RecruitmentPlanner } from "../recruitment/conversation.js";
 import type { KnowledgeBase, KnowledgeRepository } from "../knowledge/index.js";
 import type { PlayerRepository } from "../players/repository.js";
@@ -16,5 +16,7 @@ export interface CreateAppOptions {
   playerObservationsPath?: string;
   checkpointer?: BaseCheckpointSaver;
   checkpointPath?: string;
+  preferenceStore?: BaseStore;
+  preferenceStorePath?: string;
   teamRosterEnrichment?: TeamRosterEnrichmentProvider;
 }

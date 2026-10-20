@@ -13,6 +13,18 @@ const requestedHistory: ConversationHistoryEntry[] = [{
   content: "为拜仁找一名英超 23 岁以下、至少 900 分钟的中锋，2024/25 赛季",
 }];
 
+function plannerProgress(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+  const progress = input.caseProgress as {
+    hasSearchedMethodology?: boolean;
+    hasSearchedPlayerReports?: boolean;
+    currentTurnCandidatePages?: unknown[];
+  };
+  const snapshot = input.decisionSnapshot;
+  const evaluated = new Set(snapshot.candidates.evaluatedPlayerIds);
+  const pending = snapshot.candidates.eligiblePlayerIds.filter((playerId) => !evaluated.has(playerId));
+  return { progress, snapshot, pending };
+}
+
 function player(playerId: string, age: number, position: PlayerProfile["position"]): PlayerProfile {
   return {
     playerId,
@@ -272,19 +284,18 @@ test("the full LangGraph clamps an adversarial proposal before query, evaluation
     },
     planner: {
       async decide(input) {
-        const latestUserIndex = input.history.map((entry) => entry.role === "user").lastIndexOf(true);
-        const turnHistory = input.history.slice(latestUserIndex + 1);
-        const tools = new Set(turnHistory.filter((entry) => entry.role === "tool").map((entry) => entry.toolName));
-        const hasFilterClarification = input.history.some((entry) => entry.role === "user" && entry.content.includes("至少 900 分钟"));
-        const hasClearedFilters = input.history.some((entry) => entry.role === "user" && entry.content.includes("年龄不限"));
-        if (!tools.has("search_methodology")) return { action: "search_methodology", query: "中锋的可观察比赛能力证据" };
-        if (!tools.has("search_candidates") && !hasClearedFilters) {
+        const { progress, snapshot, pending } = plannerProgress(input);
+        const latestRequest = snapshot.case.latestUserRequest;
+        const hasFilterClarification = latestRequest.includes("至少 900 分钟");
+        const hasClearedFilters = latestRequest.includes("年龄不限");
+        if (!progress.hasSearchedMethodology) return { action: "search_methodology", query: "中锋的可观察比赛能力证据" };
+        if (!(progress.currentTurnCandidatePages?.length) && !hasClearedFilters) {
           return { action: "search_candidates", position: "ST", minimumMinutes: 0, limit: 20 };
         }
-        if (!tools.has("evaluate_candidates") && !hasFilterClarification) {
-          return { action: "evaluate_candidates", playerIds: repositoryRecords.map(({ playerId }) => playerId) };
+        if (pending.length && !hasFilterClarification) {
+          return { action: "evaluate_candidates", playerIds: pending };
         }
-        if (!tools.has("search_player_reports")) {
+        if (!progress.hasSearchedPlayerReports && snapshot.candidates.eligiblePlayerIds.length) {
           return {
             action: "search_player_reports",
             query: "候选人的球探报告",
@@ -297,7 +308,7 @@ test("the full LangGraph clamps an adversarial proposal before query, evaluation
           targetTeam: "Other Club",
           needSummary: "寻找符合确认范围的中锋候选。",
           capabilityProfile: ["进球产出"],
-          recommendations: repositoryRecords.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })),
+          recommendations: snapshot.constraints?.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })) ?? [],
           limitationKeys: ["other"],
         };
       },
@@ -373,11 +384,10 @@ test("the full LangGraph re-queries a changed broad-position scope before accept
     },
     planner: {
       async decide(input) {
-        const latestUserIndex = input.history.map((entry) => entry.role === "user").lastIndexOf(true);
-        const turnHistory = input.history.slice(latestUserIndex + 1);
-        const tools = new Set(turnHistory.filter((entry) => entry.role === "tool").map((entry) => entry.toolName));
-        const clarifiedScope = input.history.some((entry) => entry.role === "user" && entry.content.includes("23 岁以下"));
-        if (!tools.has("search_methodology")) return { action: "search_methodology", query: "前锋的可观察比赛能力证据" };
+        const { progress, snapshot } = plannerProgress(input);
+        const latestRequest = snapshot.case.latestUserRequest;
+        const clarifiedScope = latestRequest.includes("23 岁以下");
+        if (!progress.hasSearchedMethodology) return { action: "search_methodology", query: "前锋的可观察比赛能力证据" };
         if (clarifiedScope) {
           return {
             action: "finish",
@@ -388,8 +398,8 @@ test("the full LangGraph re-queries a changed broad-position scope before accept
             limitationKeys: ["other"],
           };
         }
-        if (!tools.has("search_candidates")) return { action: "search_candidates", position: null, minimumMinutes: 0, limit: 20 };
-        if (!tools.has("search_player_reports")) {
+        if (!(progress.currentTurnCandidatePages?.length)) return { action: "search_candidates", position: null, minimumMinutes: 0, limit: 20 };
+        if (!progress.hasSearchedPlayerReports) {
           return { action: "search_player_reports", query: "候选人的球探报告", playerNames: repositoryRecords.map(({ name }) => name), limit: 4 };
         }
         return {
@@ -458,22 +468,20 @@ test("the full LangGraph preserves negated age limits and re-queries a later pos
     },
     planner: {
       async decide(input) {
-        const latestUserIndex = input.history.map((entry) => entry.role === "user").lastIndexOf(true);
-        const turnHistory = input.history.slice(latestUserIndex + 1);
-        const tools = new Set(turnHistory.filter((entry) => entry.role === "tool").map((entry) => entry.toolName));
-        if (!tools.has("search_methodology")) return { action: "search_methodology", query: "中锋的可观察比赛能力证据" };
-        if (!tools.has("search_candidates")) {
+        const { progress, snapshot, pending } = plannerProgress(input);
+        if (!progress.hasSearchedMethodology) return { action: "search_methodology", query: "中锋的可观察比赛能力证据" };
+        if (!(progress.currentTurnCandidatePages?.length)) {
           return { action: "search_candidates", position: "CB", maxAge: null, competition: "英超", limit: 20 };
         }
-        if (!tools.has("evaluate_candidates")) {
-          return { action: "evaluate_candidates", playerIds: records.map(({ playerId }) => playerId) };
+        if (pending.length) {
+          return { action: "evaluate_candidates", playerIds: pending };
         }
         return {
           action: "finish",
           targetTeam: "Other Club",
           needSummary: "寻找符合条件的中锋候选。",
           capabilityProfile: ["进球产出"],
-          recommendations: records.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })),
+          recommendations: snapshot.constraints?.evaluatedCandidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["goals"] })) ?? [],
           limitationKeys: ["other"],
         };
       },

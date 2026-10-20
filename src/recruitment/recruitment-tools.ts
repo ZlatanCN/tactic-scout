@@ -1,7 +1,7 @@
 import { AIMessage } from "@langchain/core/messages";
 import { tool, type DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod/v4";
-import { FinishLimitationKeySchema, RecruitmentActionSchema, type ParsedRecruitmentAction, type RecruitmentAction, type RecruitmentPlannerAction, type ToolActionName, toolBudgets } from "./recruitment-actions.js";
+import { FinishLimitationKeySchema, RecruitmentActionSchema, type ParsedRecruitmentAction, type RecruitmentPlannerAction, type ToolActionName, toolBudgets } from "./recruitment-actions.js";
 
 const toolDescriptions: Record<RecruitmentPlannerAction, string> = {
   inspect_team: "读取指定球队在当前数据源中的样本，并检查用户提到的参考球员线索。",
@@ -9,7 +9,6 @@ const toolDescriptions: Record<RecruitmentPlannerAction, string> = {
   inspect_candidate_group: "读取一组已发现候选球员的可用详细资料。",
   inspect_match: "读取一个已知比赛 ID 对应的名单和射门记录。",
   search_candidates: "按当前招募需求搜索球员。仅使用当前图状态提供的候选范围与下一页游标。",
-  read_case_evidence: "按案件证据目录中的 ref 读取已取得的证据字段；每次最多读取 4 个 ref。",
   search_methodology: "检索球员职责和比赛表现评估方法资料。",
   search_player_reports: "检索本轮已评估候选人的球探报告和可引用观察；检索对象由系统按案件状态限定，不要填写球员姓名。",
   evaluate_candidates: "评估已发现且符合当前资格条件的候选球员。",
@@ -90,14 +89,25 @@ export class RecruitmentToolProtocolError extends Error {
   }
 }
 
-export type RecruitmentPlannerOutput = RecruitmentAction | ParsedRecruitmentAction | AIMessage;
+/** OpenAI returns native tool calls; in-process planners may return a typed domain action directly. */
+export type RecruitmentPlannerOutput = AIMessage | ParsedRecruitmentAction;
 
 export function parseRecruitmentPlannerOutput(
   output: RecruitmentPlannerOutput,
   availableActions?: readonly RecruitmentPlannerAction[],
   targetTeam?: string | null,
-): { action: ParsedRecruitmentAction; nativeMessage: AIMessage | null } {
-  if (!(output instanceof AIMessage)) return { action: RecruitmentActionSchema.parse(output), nativeMessage: null };
+): { action: ParsedRecruitmentAction; nativeMessage: AIMessage } {
+  if (!(output instanceof AIMessage)) {
+    const parsed = RecruitmentActionSchema.safeParse(normalizePlannerActionPayload(output, targetTeam));
+    if (!parsed.success) {
+      const issuePaths = [...new Set(parsed.error.issues.map(issue => issue.path.map(String).join(".") || "$"))].slice(0, 8);
+      const issueCodes = [...new Set(parsed.error.issues.map(issue => `${issue.path.map(String).join(".") || "$"}:${issue.code}`))].slice(0, 8);
+      throw new RecruitmentToolProtocolError("invalid_arguments", 1, issuePaths, issueCodes);
+    }
+    // In-process planners may propose beyond the current menu; the graph's
+    // deterministic validate_decision node is the authoritative action gate.
+    return { action: parsed.data, nativeMessage: messageForRecruitmentAction(parsed.data, "typed-planner-action") };
+  }
   const calls = output.tool_calls ?? [];
   if (calls.length === 0) throw new RecruitmentToolProtocolError("missing_tool_call", 0);
   if (calls.length !== 1) throw new RecruitmentToolProtocolError("multiple_tool_calls", calls.length);
@@ -135,7 +145,6 @@ export function normalizePlannerActionPayload(candidate: unknown, targetTeam?: s
     inspect_player: ["sections"],
     inspect_candidate_group: ["playerIds", "sections"],
     search_candidates: ["positions"],
-    read_case_evidence: ["refs", "fields"],
     evaluate_candidates: ["playerIds"],
   };
   for (const field of listFieldsByAction[payload.action as RecruitmentPlannerAction] ?? []) {

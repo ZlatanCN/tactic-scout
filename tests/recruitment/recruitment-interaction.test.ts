@@ -73,7 +73,7 @@ test("the full graph runs the frozen single-page investigation before shared con
   const planner = createSinglePassInvestigationPlanner({
     async decide(input) {
       conclusionInputs.push(input);
-      assert.equal(input.decisionMode, "conclude");
+      assert.equal(input.decisionSnapshot.caps.stage, "conclude");
       return {
         action: "finish",
         targetTeam: "拜仁",
@@ -116,7 +116,7 @@ test("the full graph runs the frozen single-page investigation before shared con
   assert.equal(candidateSearches.length, 1, "the graph waits for a concrete position rather than sampling mixed roles first");
   assert.equal(candidateSearches[0]?.phase === "tool" ? candidateSearches[0].filters.position : null, "ST");
   assert.equal(events.filter((event) => event.phase === "review" && event.outcome === "passed").length, 1);
-  assert.ok(conclusionInputs.some((input) => input.constraints?.evaluatedCandidates.some(({ playerId }) => playerId === player.playerId)),
+  assert.ok(conclusionInputs.some((input) => input.decisionSnapshot.constraints?.evaluatedCandidates.some(({ playerId }) => playerId === player.playerId)),
     "the shared conclusion model receives the evaluated candidate evidence before report completion");
 });
 
@@ -253,13 +253,12 @@ test("a recruitment case investigates, pauses for a material choice, resumes, an
       };
     },
   };
-  const observedToolOrders: string[][] = [];
+  const graphEvents: RecruitmentTraceEvent[] = [];
   const planner: RecruitmentPlanner = {
     async decide(input) {
-      const tools = input.history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName);
-      observedToolOrders.push(tools.filter((toolName): toolName is string => Boolean(toolName)));
-      if (input.decisionMode === "conclude" || input.decisionMode === "reorient") {
-        const hasAnswer = input.history.some((entry) => entry.role === "user" && entry.content.includes("未来两三年接班"));
+      const tools = input.decisionSnapshot.history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName);
+      if (input.decisionSnapshot.caps.stage === "conclude" || input.decisionSnapshot.caps.stage === "reorient") {
+        const hasAnswer = input.decisionSnapshot.history.some((entry) => entry.role === "user" && entry.content.includes("未来两三年接班"));
         return hasAnswer ? {
           action: "finish",
           targetTeam: "Bayern Munich",
@@ -278,30 +277,50 @@ test("a recruitment case investigates, pauses for a material choice, resumes, an
       return { action: "finish", targetTeam: "Bayern Munich", needSummary: "继续核验已有的中锋候选。", capabilityProfile: ["禁区终结"], recommendations: [], limitationKeys: [] };
     },
   };
-  const app = createApp({ recruitmentConversation: createRecruitmentConversation({ repository, planner, knowledgeBase }) });
+  const app = createApp({ recruitmentConversation: createRecruitmentConversation({
+    repository, planner, knowledgeBase, observer: (event) => graphEvents.push(event),
+  }) });
   const threadId = "case-bayern-kane-resume";
 
   try {
     const firstTurn = await app.inject({
       method: "POST",
-      url: `/api/v1/recruitment/cases/${threadId}/turns`,
-      payload: { message: "为拜仁寻找凯恩的替代者" },
+      url: `/api/v1/recruitment/cases/${threadId}/turns/stream`,
+      headers: { accept: "text/event-stream" },
+      payload: { requestId: "b845e006-0fe5-4afb-9bfd-f5759b95bf61", message: "为拜仁寻找凯恩的替代者" },
     });
 
     assert.equal(firstTurn.statusCode, 200);
-    assert.equal(firstTurn.json().status, "needs_input");
-    assert.match(firstTurn.json().message, /即战力|培养空间/);
-    assert.doesNotMatch(firstTurn.json().message, /延续.*角色.*还是.*不同.*位置/);
+    const firstEvents = firstTurn.payload.split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6)) as { type: string; response?: any });
+    const firstResponse = firstEvents.find((event) => event.type === "result")?.response;
+    assert.equal(firstResponse?.status, "needs_input");
+    assert.match(firstResponse?.message ?? "", /即战力|培养空间/);
+    assert.doesNotMatch(firstResponse?.message ?? "", /延续.*角色.*还是.*不同.*位置/);
+    assert.ok(firstEvents.some((event) => event.type === "candidates"), "candidate previews are delivered over SSE");
 
     const resumedTurn = await app.inject({
       method: "POST",
-      url: `/api/v1/recruitment/cases/${threadId}/turns`,
-      payload: { message: "未来两三年接班，但希望有主力潜质" },
+      url: `/api/v1/recruitment/cases/${threadId}/turns/stream`,
+      headers: { accept: "text/event-stream" },
+      payload: {
+        requestId: "4c0d237b-907e-4877-9190-59a48d063a9d",
+        expectsExistingState: true,
+        message: "未来两三年接班，但希望有主力潜质",
+      },
     });
 
     assert.equal(resumedTurn.statusCode, 200);
-    const body = resumedTurn.json();
+    const resumedEvents = resumedTurn.payload.split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6)) as { type: string; progress?: { stage: string }; response?: any });
+    const body = resumedEvents.find((event) => event.type === "result")?.response;
     assert.equal(body.status, "completed");
+    assert.ok(resumedEvents.some((event) => event.type === "progress" && event.progress?.stage === "review"),
+      "the final SSE turn reports the evidence review stage");
+    assert.ok(graphEvents.some((event) => event.phase === "review" && event.outcome === "passed"),
+      "the final shortlist passes the Reviewer");
     assert.equal(body.report.recommendations[0].player.name, "Jonas Vale");
     assert.deepEqual(body.report.recommendations[0].focusEvidenceKeys, ["goals", "passCompletionPct"]);
     assert.equal(body.report.recommendations[0].evidence.length, 8);
@@ -337,9 +356,9 @@ test("a recruitment case investigates, pauses for a material choice, resumes, an
       playerReportSearchFailed: false,
       playerReportChunksRetrieved: 0,
     });
-    const lastObservedTools = observedToolOrders.at(-1) ?? [];
-    assert.ok(lastObservedTools.indexOf("search_methodology") < lastObservedTools.indexOf("search_candidates"));
-    assert.ok(lastObservedTools.indexOf("evaluate_candidates") < lastObservedTools.indexOf("search_player_reports"));
+    const observedTools = graphEvents.filter((event) => event.phase === "tool" && event.ok).map((event) => event.toolName);
+    assert.ok(observedTools.indexOf("search_methodology") < observedTools.indexOf("search_candidates"));
+    assert.ok(observedTools.indexOf("evaluate_candidates") < observedTools.indexOf("search_player_reports"));
     assert.deepEqual(body.report.searchScopes, [{
       position: "ST",
       maxAge: null,

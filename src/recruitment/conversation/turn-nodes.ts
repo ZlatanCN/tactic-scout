@@ -8,6 +8,8 @@ import { emptyToolUseCounts } from "../recruitment-actions.js";
 import { extractExplicitTargetTeam } from "../target-team-context.js";
 import { candidateSearchObservationIndexForIntent, hasCandidateSearchFilterScopeChanged, hasCandidateSearchScopeChanged, resolvedCandidateSearchIntent } from "./candidate-context.js";
 import { type State } from "./state.js";
+import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
+import type { Runtime } from "@langchain/langgraph";
 import { replacementTargetMention } from "../replacement-target.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { resolveCandidateSearchIntent } from "../candidate-search-intent.js";
@@ -31,12 +33,14 @@ export function createRecordUserTurnNode(input: {
   historicalArchiveSetup: ReturnType<typeof createConfiguredHistoricalArchive>;
 }) {
   const { disabledPlayerEloCoverage, historicalArchiveSetup } = input;
-  return (state: State): Partial<State> => {
-    const positionIntent = resolvedCandidateSearchIntent({ ...state, abilityProfilesEnabled: input.abilityProfilesEnabled ?? false }, state.userMessage);
+  return (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Partial<State> => {
+    const context = requireRecruitmentRuntimeContext(runtime.context);
+    const abilityProfilesEnabled = context.repository.supportsAbilityProfiles ?? false;
+    const positionIntent = resolvedCandidateSearchIntent({ ...state, abilityProfilesEnabled }, state.userMessage);
     const positionChange = positionIntent.latestPositionChange;
     const referenceChanged = changesReference(state, state.userMessage);
-    const detectedSearchScopeChange = referenceChanged || hasCandidateSearchScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, input.abilityProfilesEnabled);
-    const reportFollowupFilterScopeChanged = referenceChanged || hasCandidateSearchFilterScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, input.abilityProfilesEnabled);
+    const detectedSearchScopeChange = referenceChanged || hasCandidateSearchScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, abilityProfilesEnabled);
+    const reportFollowupFilterScopeChanged = referenceChanged || hasCandidateSearchFilterScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, abilityProfilesEnabled);
     const explicitTargetTeam = extractExplicitTargetTeam(state.userMessage);
     const reportFollowupContext = createReportFollowupContext({
       message: state.userMessage,
@@ -53,7 +57,7 @@ export function createRecordUserTurnNode(input: {
       ? candidateSearchObservationIndexForIntent(positionIntent, state.candidateSearchObservations)
       : null;
     return {
-      abilityProfilesEnabled: input.abilityProfilesEnabled ?? false,
+      abilityProfilesEnabled,
       incomingPositions: null,
       briefAnswerKind: state.incomingPositions?.length ? "positions" : null,
       briefQuestionContext: null,
@@ -84,6 +88,7 @@ export function createRecordUserTurnNode(input: {
       playerReportSearchFailed: false,
       sourceAccessFailure: null,
       candidateSearchFailure: null,
+      runtimeFailure: null,
       candidateSearchSucceededThisTurn: false,
       candidateSearchScopeChanged: searchScopeChanged,
       confirmedPositionNoMatchQuestionAsked: false,

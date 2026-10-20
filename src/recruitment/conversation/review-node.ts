@@ -1,16 +1,19 @@
-import { type LangGraphRunnableConfig } from "@langchain/langgraph";
+import { type LangGraphRunnableConfig, type Runtime } from "@langchain/langgraph";
 import { alignRecommendationEvidenceToRequestedCapabilities, validateConclusion } from "../conclusion-policy.js";
 import { userMessages } from "./candidate-context.js";
 import { type RecruitmentReviewerMode, type RecruitmentTraceEvent, type RecruitmentTraceObserver } from "./contracts.js";
 import { emitProgress } from "./progress.js";
 import { type State } from "./state.js";
+import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
 
 export function createReviewNode(input: {
-  observer: RecruitmentTraceObserver | undefined;
   reviewerMode: RecruitmentReviewerMode;
 }) {
-  const { observer, reviewerMode } = input;
-  return (state: State, config: LangGraphRunnableConfig): Partial<State> => {
+  const { reviewerMode } = input;
+  return (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Partial<State> => {
+    const context = requireRecruitmentRuntimeContext(runtime.context);
+    const observer = context.observer;
+    const config = runtime as LangGraphRunnableConfig;
     const reviewStartedAt = performance.now();
     const recordReview = (event: Omit<Extract<RecruitmentTraceEvent, { phase: "review" }>, "elapsedMs">) => {
       observer?.({ ...event, elapsedMs: Math.round(performance.now() - reviewStartedAt) });

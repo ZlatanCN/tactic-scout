@@ -8,7 +8,6 @@ import {
   AskUserActionSchema,
   FinishActionSchema,
   SearchCandidatesActionSchema,
-  ReadCaseEvidenceActionSchema,
   RecruitmentActionSchema,
   type RecruitmentPlannerAction,
   type ParsedRecruitmentAction,
@@ -91,7 +90,7 @@ export function summarizeRequestedCapabilityCoverage(input: {
 
 export function createConstrainedConclusionSchema(
   constraints: RecruitmentDecisionConstraints,
-  options: { allowAskUser?: boolean; allowReadCaseEvidence?: boolean; maxRecommendations?: number } = {},
+  options: { allowAskUser?: boolean; maxRecommendations?: number } = {},
 ) {
   const requestedMetricKeys = new Set(constraints.requestedCapabilityCoverage.flatMap(({ requestedMetricKeys }) => requestedMetricKeys));
   const requestedCapabilitiesExist = requestedMetricKeys.size > 0;
@@ -156,13 +155,9 @@ export function createConstrainedConclusionSchema(
     reason: z.string().trim().min(1).max(300),
   });
   if (options.allowAskUser === false) {
-    return options.allowReadCaseEvidence
-      ? z.discriminatedUnion("action", [constrainedFinishActionSchema, ReadCaseEvidenceActionSchema])
-      : constrainedFinishActionSchema;
+    return constrainedFinishActionSchema;
   }
-  return options.allowReadCaseEvidence
-    ? z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema, ReadCaseEvidenceActionSchema])
-    : z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
+  return z.discriminatedUnion("action", [constrainedAskUserActionSchema, constrainedFinishActionSchema]);
 }
 
 function constrainedFinishSchemaFrom(schema: unknown): typeof FinishActionSchema | undefined {
@@ -354,19 +349,11 @@ function coverageStatusLabel(status: RequestedCapabilityCoverage["status"]): str
   }
 }
 
-export function createConstrainedReorientationSchema(
-  constraints: RecruitmentDecisionConstraints,
-  options: { allowReadCaseEvidence?: boolean } = {},
-) {
-  const conclusionSchema = createConstrainedConclusionSchema(constraints, options);
+export function createConstrainedReorientationSchema(constraints: RecruitmentDecisionConstraints) {
+  const conclusionSchema = createConstrainedConclusionSchema(constraints);
   const constrainedFinishActionSchema = constrainedFinishSchemaFrom(conclusionSchema);
   if (!constrainedFinishActionSchema) throw new Error("Constrained finish action schema is missing.");
-  return options.allowReadCaseEvidence ? z.discriminatedUnion("action", [
-    SearchCandidatesActionSchema,
-    AskUserActionSchema,
-    constrainedFinishActionSchema,
-    ReadCaseEvidenceActionSchema,
-  ]) : z.discriminatedUnion("action", [
+  return z.discriminatedUnion("action", [
     SearchCandidatesActionSchema,
     AskUserActionSchema,
     constrainedFinishActionSchema,
