@@ -402,8 +402,8 @@ export class UnderstatPlayerRepository implements PlayerRepository, UnderstatRes
 
   async inspectCandidateGroup(playerIds: readonly string[], sections: readonly UnderstatPlayerSection[], signal?: AbortSignal): Promise<UnderstatPlayerInsight[]> {
     throwIfAborted(signal);
-    if (playerIds.length < 2 || playerIds.length > 12 || new Set(playerIds).size !== playerIds.length) {
-      throw new UnderstatProviderError("unsupported_scope", "候选组细查需要 2–12 名互不重复的已发现球员。");
+    if (playerIds.length < 1 || playerIds.length > 12 || new Set(playerIds).size !== playerIds.length) {
+      throw new UnderstatProviderError("unsupported_scope", "候选组细查需要 1–12 名互不重复的已发现球员。");
     }
     const players = await this.loadPlayers(false, signal);
     throwIfAborted(signal);

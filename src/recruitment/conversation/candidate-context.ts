@@ -20,8 +20,12 @@ export function candidateSearchScopeKey(action: CandidateSearchAction, discovery
   });
 }
 
-function candidateSearchScopeKeyForIntent(intent: CandidateSearchIntent): string {
-  return candidateSearchScopeKey({
+export function candidateSearchScopeKeyForIntent(intent: CandidateSearchIntent): string {
+  return candidateSearchScopeKey(candidateSearchActionForIntent(intent), intent.discoveryMetricGroups);
+}
+
+function candidateSearchActionForIntent(intent: CandidateSearchIntent): CandidateSearchAction {
+  return {
     action: "search_candidates",
     ...positionSearchForIntent(intent),
     playerName: null,
@@ -31,7 +35,15 @@ function candidateSearchScopeKeyForIntent(intent: CandidateSearchIntent): string
     season: intent.season,
     offset: 0,
     limit: 20,
-  }, intent.discoveryMetricGroups);
+  };
+}
+
+function candidateSearchFilterScopeKeyForIntent(intent: CandidateSearchIntent): string {
+  return candidateSearchScopeKey(candidateSearchActionForIntent(intent));
+}
+
+export function sameCandidateSearchScope(left: CandidateSearchIntent, right: CandidateSearchIntent): boolean {
+  return candidateSearchScopeKeyForIntent(left) === candidateSearchScopeKeyForIntent(right);
 }
 
 export function candidateSearchObservationIndexForIntent(
@@ -152,6 +164,26 @@ export function hasCandidateSearchScopeChanged(
     latestMessage,
   });
   return candidateSearchScopeKeyForIntent(priorIntent) !== candidateSearchScopeKeyForIntent(latestIntent);
+}
+
+export function hasCandidateSearchFilterScopeChanged(
+  history: ConversationHistoryEntry[],
+  latestMessage: string,
+  confirmedPosition: Position | null,
+  replacementReferencePosition: Position | null = null,
+  abilityProfilesEnabled = false,
+): boolean {
+  const priorMessages = userMessages(history);
+  if (priorMessages.length === 0) return false;
+  const priorIntent = resolveCandidateSearchIntent({ userMessages: priorMessages, confirmedPosition, replacementReferencePosition, abilityProfilesEnabled });
+  const latestIntent = resolveCandidateSearchIntent({
+    abilityProfilesEnabled,
+    userMessages: [...priorMessages, latestMessage],
+    confirmedPosition,
+    replacementReferencePosition,
+    latestMessage,
+  });
+  return candidateSearchFilterScopeKeyForIntent(priorIntent) !== candidateSearchFilterScopeKeyForIntent(latestIntent);
 }
 
 export function discoveredPlayersForConstraint(

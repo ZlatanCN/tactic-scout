@@ -5,15 +5,16 @@ export const DEFAULT_OPENAI_TIMEOUT_MS = 180_000;
 export const DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 8_192;
 export const DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS = 60_000;
 export const DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS = 1_024;
-export const DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = 4_096;
+export const DEFAULT_OPENAI_PLANNER_MAX_OUTPUT_TOKENS = 2_048;
+export const DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = 2_048;
 export const DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS = 8_192;
 export const DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS = 1_024;
 
 export function modelContextWindowTokens(value = process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS): number | undefined {
   if (!value?.trim()) return undefined;
   const tokens = Number(value);
-  if (!Number.isSafeInteger(tokens) || tokens < 4_096 || tokens > 131_072) {
-    throw new Error("TACTISCOUT_CONTEXT_WINDOW_TOKENS must be an integer between 4096 and 131072.");
+  if (!Number.isSafeInteger(tokens) || tokens < 4_096 || tokens > 258_000) {
+    throw new Error("TACTISCOUT_CONTEXT_WINDOW_TOKENS must be an integer between 4096 and 258000.");
   }
   return tokens;
 }
@@ -137,6 +138,13 @@ export function openAIExpansionMaxOutputTokens(
   return boundedStageOutputTokens(value, "OPENAI_EXPANSION_MAX_OUTPUT_TOKENS", DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS, generalBudget);
 }
 
+export function openAIPlannerMaxOutputTokens(
+  value = process.env.OPENAI_PLANNER_MAX_OUTPUT_TOKENS,
+  generalBudget = process.env.OPENAI_MAX_OUTPUT_TOKENS,
+): number {
+  return boundedStageOutputTokens(value, "OPENAI_PLANNER_MAX_OUTPUT_TOKENS", DEFAULT_OPENAI_PLANNER_MAX_OUTPUT_TOKENS, generalBudget);
+}
+
 export function isChatModelTimeout(error: unknown): boolean {
   const seen = new Set<unknown>();
   let current = error;
@@ -171,9 +179,24 @@ export function createChatModel(
     ...(baseURL ? {
       configuration: {
         baseURL,
+        fetch: fetchWithRateLimitRetry,
         ...(isLoopbackModelEndpoint(baseURL) ? { fetchOptions: { redirect: "manual" as const } } : {}),
       },
     } : {}),
     ...(reasoningEffort ? { modelKwargs: { reasoning_effort: reasoningEffort } } : {}),
   });
+}
+
+async function fetchWithRateLimitRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  let response = await fetch(input, init);
+  for (let attempt = 0; attempt < 2 && response.status === 429; attempt += 1) {
+    const retryAfterSeconds = Number(response.headers.get("retry-after"));
+    const delayMs = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds > 0 && retryAfterSeconds <= 10
+      ? retryAfterSeconds * 1_000
+      : 1_000 * (attempt + 1);
+    await response.body?.cancel().catch(() => undefined);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    response = await fetch(input, init);
+  }
+  return response;
 }

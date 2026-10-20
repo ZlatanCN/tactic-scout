@@ -58,7 +58,8 @@ const broadenAttackingPositionsPattern = /(?:扩大|扩展|放宽).{0,10}(?:其�
 const broadenPositionPattern = /位置不限|不限.{0,8}位置|不限定.{0,8}(?:位置|中锋|中后卫|后腰|中前卫|前腰)|放宽.{0,10}(?:位置|范围|其他位置|任意位置)|(?:扩大|扩展).{0,10}(?:其他|别的|任意)?位置|(?:其他|任何|所有|别的)位置(?:都)?(?:可以|行|继续)?|(?:前锋|后卫|中场)都(?:可以|行)|不必局限.{0,10}(?:位置|中锋|后卫)|改(?:为|成)(?:任何位置)/;
 const positionNegationPattern = /(?:不|别|不要|不找|不考虑|排除|而非|不是).{0,4}$/;
 const declinePositionBroadeningPattern = /(?:不考虑|不要|不想|不愿|无需|不需要).{0,8}(?:扩大|放宽|其他位置|其他前锋|不同位置)|(?:只|仍然|还是|继续)[^，。；！？\n]{0,8}(?:找|要|限定|保留)?[^，。；！？\n]{0,6}(?:中锋|位置)|(?:保留|坚持).{0,8}(?:中锋|位置)/;
-const broadAnyPositionPattern = /位置不限|不限(?:球员)?位置|不限定位置|任何位置都可以|位置都可以/i;
+const broadAnyPositionPattern = /位置不限|不限(?:球员)?位置|不限定位置|任何位置都可以|(?<!子)位置都可以/i;
+const subpositionFreedomPattern = /(?:不限定|不限|不限制)(?:具体|特定)?子位置|(?:各|不同|多个|所有)?子位置(?:都)?(?:可以|行|不限)/i;
 const explicitCompetitionPattern = /(英超|英冠|德甲|德乙|西甲|意甲|法甲|荷甲|葡超|苏超|MLS|Major League Soccer|Premier League|Bundesliga|La Liga|Serie A|Ligue 1)/i;
 const constraintRemovalActionPattern = /(?:取消|移除|删除|清除|解除|不再限制|remove|clear|drop)/gi;
 
@@ -83,7 +84,7 @@ function positionConstraintChange(message: string, currentPosition: Position | n
   if (currentPosition !== null && broadenAttackingPositionsPattern.test(message) && !declinesBroadening) {
     return currentPosition === "ATT" ? { changed: false } : { changed: true, position: "ATT" };
   }
-  if (broadenPositionPattern.test(message) && !declinesBroadening) {
+  if (broadenPositionPattern.test(message) && !subpositionFreedomPattern.test(message) && !declinesBroadening) {
     return currentPosition === null ? { changed: false } : { changed: true, position: null };
   }
   const matches: Array<{ position: Position; index: number }> = [];
@@ -168,6 +169,11 @@ export function explicitPositionState(userMessages: readonly string[]): { positi
       return [{ position, start: index, end }];
     }));
     const mentioned = [...new Set([...specific, ...broad].sort((left, right) => left.start - right.start).map(item => item.position))];
+    if (subpositionFreedomPattern.test(message) && broad.length) {
+      positions = [...new Set(broad.map(({ position }) => position))];
+      allowsAnyPosition = false;
+      continue;
+    }
     if (mentioned.length) {
       positions = mentioned;
       allowsAnyPosition = false;
@@ -176,7 +182,11 @@ export function explicitPositionState(userMessages: readonly string[]): { positi
   return { positions, allowsAnyPosition };
 }
 
-function explicitMaxAge(userMessages: readonly string[]): number | null {
+export function explicitAgeConstraint(userMessages: readonly string[]): {
+  mentioned: boolean;
+  maxAge: number | null;
+  quote: string | null;
+} {
   const patterns = [
     /(\d{1,2})\s*岁(?:以下|以内|不超过)/,
     /(?:不超过|最多|最大年龄|年龄上限)(?:为|是|[:：])?\s*(\d{1,2})\s*岁?/,
@@ -186,14 +196,18 @@ function explicitMaxAge(userMessages: readonly string[]): number | null {
   for (const message of [...userMessages].reverse()) {
     if (explicitlyRemovesConstraint(message, /年龄|age/i)
       || /(?:年龄(?:上限|限制|要求)?|age limit)\s*(?:不限|不限制|不设限|没有限制|不重要|is unrestricted|isn't restricted)|(?:不限|不设限|不限制)(?:任何)?年龄/i.test(message)) {
-      return null;
+      return { mentioned: true, maxAge: null, quote: null };
     }
     for (const pattern of patterns) {
       const match = message.match(pattern);
-      if (match?.[1]) return Number(match[1]);
+      if (match?.[1]) return { mentioned: true, maxAge: Number(match[1]), quote: match[0] };
     }
   }
-  return null;
+  return { mentioned: false, maxAge: null, quote: null };
+}
+
+function explicitMaxAge(userMessages: readonly string[]): number | null {
+  return explicitAgeConstraint(userMessages).maxAge;
 }
 
 function explicitCompetition(userMessages: readonly string[]): string | null {
@@ -279,7 +293,7 @@ export function resolveCandidateSearchIntent(input: {
   const positionMessages = activeReferenceMessages(userMessages);
   const explicitPosition = input.brief ? input.brief.positions[0] ?? null : explicitPositionState(positionMessages).positions[0] ?? null;
   const allowsAnyPosition = input.brief ? input.brief.allowsAnyPosition : positionMessages.some((message) => broadAnyPositionPattern.test(message)
-    || (broadenPositionPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
+    || (broadenPositionPattern.test(message) && !subpositionFreedomPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
       && !declinePositionBroadeningPattern.test(message)));
   const selectedPositions = input.brief?.allowsAnyPosition ? [] : latestPositionChange.changed ? [] : input.confirmedPositions?.length ? input.confirmedPositions
     : input.brief?.positions.length ? input.brief.positions : input.brief?.referencePlayer ? input.referencePositions ?? [] : [];

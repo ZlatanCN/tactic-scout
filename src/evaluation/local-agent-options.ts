@@ -22,6 +22,7 @@ export const usage = [
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --scenario understat-five-league-xg-creation --compare-understat-research --runs 3",
   "  TACTISCOUT_DATA_MODE=understat pnpm eval:local-agent -- --message \"为巴萨寻找一个新的后卫，要能参与出球和高位防守\" --expected-position DEF --compare-expansion-sufficiency --runs 3",
   "  TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- --scenario barcelona-under-23-midfielder --compare-context-management --runs 5",
+  "  TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- --scenario barcelona-under-23-midfielder --compare-tool-protocol --runs 3",
   "  TACTISCOUT_DATA_MODE=curated pnpm eval:local-agent -- --scenario barcelona-under-23-midfielder --compare-context-management --context-preflight-only",
   "  pnpm eval:local-agent -- --message \"自定义球探需求\" [--answer \"补充回答\"] [--expected-position ST]",
   "  pnpm eval:local-agent -- --message \"我想给拜仁补强阵容，但位置还没定\" --expect-position-clarification",
@@ -44,7 +45,8 @@ export const usage = [
   "  --compare-understat-research 在同一 Understat 候选调查整图中比较目录、固定四组资料和动态调查（至少 3 轮）",
   "  --compare-expansion-sufficiency 在同一整图配对比较证据充分时的确定性收束与保留扩页 Planner（至少 3 对）",
   "  --compare-context-management 在同一长对话整图分别消融旧策略、历史投影、证据读取、组合策略和原话摘要（至少 5 组五臂配对；仅 curated 数据）",
-  "  --context-preflight-only 只运行一次 legacy 基线预检，不启动上下文策略长实验",
+  "  --compare-tool-protocol 在完整 LangGraph 中配对比较旧 action 分发与原生具名工具 + ToolNode（至少 3 对；仅 curated 数据）",
+  "  --context-preflight-only 只运行一次 legacy 上下文策略预检，不启动上下文策略长实验",
   "  --help               显示本帮助",
 ].join("\n");
 
@@ -151,14 +153,15 @@ export async function parseLocalAgentOptions() {
   const compareEvidenceEvaluator = process.argv.includes("--compare-evidence-evaluator");
   const compareExpansionSufficiency = process.argv.includes("--compare-expansion-sufficiency");
   const compareContextManagement = process.argv.includes("--compare-context-management");
+  const compareToolProtocol = process.argv.includes("--compare-tool-protocol");
   const contextManagementPreflightOnly = process.argv.includes("--context-preflight-only");
   if (contextManagementPreflightOnly && !compareContextManagement) {
     throw new Error("--context-preflight-only 必须与 --compare-context-management 一起使用。");
   }
-  if ([compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency, compareContextManagement].filter(Boolean).length > 1) {
+  if ([compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency, compareContextManagement, compareToolProtocol].filter(Boolean).length > 1) {
     throw new Error("比较实验选项一次只能使用一个。");
   }
-  if (summaryOutputPath && [compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency, compareContextManagement].some(Boolean)) {
+  if (summaryOutputPath && [compareReviewer, compareInteraction, compareAskPolicy, compareMethodologyRag, compareInvestigationPlanning, compareHistoricalArchive, compareEvidenceEvaluator, compareUnderstatResearch, compareExpansionSufficiency, compareContextManagement, compareToolProtocol].some(Boolean)) {
     throw new Error("--summary-output 目前只支持普通 Harness 运行，不能与消融实验选项一起使用。");
   }
   if (summaryOutputPath) await assertIdentityFreeSummaryPathAvailable(summaryOutputPath);
@@ -294,6 +297,24 @@ export async function parseLocalAgentOptions() {
       throw new Error("--compare-context-management 需要 TACTISCOUT_DATA_MODE=curated，以固定候选数据快照。");
     }
   }
+  if (compareToolProtocol) {
+    const scenarioId = option("--scenario");
+    if (!scenarioId || scenarioId === "all") {
+      throw new Error("--compare-tool-protocol 必须与单个已登记场景一起使用。");
+    }
+    if (option("--message") || options("--answer").length || option("--expected-position")) {
+      throw new Error("--compare-tool-protocol 使用登记场景和固定补答，不能与自定义输入或补答一起使用。");
+    }
+    if (runsPerScenario < 3) {
+      throw new Error("--compare-tool-protocol 至少需要 --runs 3，才能完成三组交错配对复跑。");
+    }
+    if (scenarios[0]?.kind !== "shortlist" || !scenarios[0].requiredTools.includes("search_candidates")) {
+      throw new Error("--compare-tool-protocol 必须使用需要实际调用数据工具的 shortlist 场景。");
+    }
+    if (configuredDataMode !== "curated") {
+      throw new Error("--compare-tool-protocol 需要 TACTISCOUT_DATA_MODE=curated，以固定候选数据快照。");
+    }
+  }
   let historicalArchivePreflight: Awaited<ReturnType<typeof preflightConfiguredHistoricalArchive>> | null = null;
   if (compareHistoricalArchive) {
     const scenarioId = option("--scenario");
@@ -319,6 +340,6 @@ export async function parseLocalAgentOptions() {
     }
   }
 
-  const comparison = compareReviewer ? "reviewer" as const : compareInteraction ? "interaction" as const : compareAskPolicy ? "ask_policy" as const : compareMethodologyRag ? "methodology_rag" as const : compareInvestigationPlanning ? "investigation_planning" as const : compareHistoricalArchive ? "historical_archive" as const : compareEvidenceEvaluator ? "evidence_evaluator" as const : compareUnderstatResearch ? "understat_research" as const : compareExpansionSufficiency ? "expansion_sufficiency" as const : compareContextManagement ? "context_management" as const : null;
+  const comparison = compareReviewer ? "reviewer" as const : compareInteraction ? "interaction" as const : compareAskPolicy ? "ask_policy" as const : compareMethodologyRag ? "methodology_rag" as const : compareInvestigationPlanning ? "investigation_planning" as const : compareHistoricalArchive ? "historical_archive" as const : compareEvidenceEvaluator ? "evidence_evaluator" as const : compareUnderstatResearch ? "understat_research" as const : compareExpansionSufficiency ? "expansion_sufficiency" as const : compareContextManagement ? "context_management" as const : compareToolProtocol ? "tool_protocol" as const : null;
   return { scenarios, runsPerScenario, summaryOutputPath, comparison, historicalArchivePreflight, contextManagementPreflightOnly };
 }

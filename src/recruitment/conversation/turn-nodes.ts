@@ -6,11 +6,12 @@ import { createConfiguredHistoricalArchive } from "../../sources/reep/historical
 import { type ExternalSignalCoverage } from "../../domain/external-evidence.js";
 import { emptyToolUseCounts } from "../recruitment-actions.js";
 import { extractExplicitTargetTeam } from "../target-team-context.js";
-import { candidateSearchObservationIndexForIntent, hasCandidateSearchScopeChanged, resolvedCandidateSearchIntent } from "./candidate-context.js";
+import { candidateSearchObservationIndexForIntent, hasCandidateSearchFilterScopeChanged, hasCandidateSearchScopeChanged, resolvedCandidateSearchIntent } from "./candidate-context.js";
 import { type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { resolveCandidateSearchIntent } from "../candidate-search-intent.js";
+import { createReportFollowupContext } from "./report-followup-context.js";
 
 function changesReference(state: State, message: string): boolean {
   const before = state.history.filter(entry => entry.role === "user").map(entry => entry.content);
@@ -34,11 +35,23 @@ export function createRecordUserTurnNode(input: {
     const positionIntent = resolvedCandidateSearchIntent({ ...state, abilityProfilesEnabled: input.abilityProfilesEnabled ?? false }, state.userMessage);
     const positionChange = positionIntent.latestPositionChange;
     const referenceChanged = changesReference(state, state.userMessage);
-    const searchScopeChanged = referenceChanged || hasCandidateSearchScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, input.abilityProfilesEnabled);
+    const detectedSearchScopeChange = referenceChanged || hasCandidateSearchScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, input.abilityProfilesEnabled);
+    const reportFollowupFilterScopeChanged = referenceChanged || hasCandidateSearchFilterScopeChanged(state.history, state.userMessage, state.confirmedPosition, state.replacementReferencePosition, input.abilityProfilesEnabled);
+    const explicitTargetTeam = extractExplicitTargetTeam(state.userMessage);
+    const reportFollowupContext = createReportFollowupContext({
+      message: state.userMessage,
+      report: state.report,
+      brief: state.brief,
+      targetTeam: explicitTargetTeam ?? state.targetTeam,
+      searchScopeChanged: reportFollowupFilterScopeChanged,
+      pendingQuestion: state.pendingQuestion !== null,
+      structuredAnswer: Boolean(state.incomingPositions?.length),
+    });
+    const searchScopeChanged = detectedSearchScopeChange && reportFollowupContext === null;
+    const canReuseScopeEvidence = !searchScopeChanged;
     const priorCandidateSearchIndex = !searchScopeChanged && positionIntent.position !== null
       ? candidateSearchObservationIndexForIntent(positionIntent, state.candidateSearchObservations)
       : null;
-    const explicitTargetTeam = extractExplicitTargetTeam(state.userMessage);
     return {
       abilityProfilesEnabled: input.abilityProfilesEnabled ?? false,
       incomingPositions: null,
@@ -52,6 +65,7 @@ export function createRecordUserTurnNode(input: {
       history: [{ role: "user" as const, content: state.userMessage }],
       ...(explicitTargetTeam ? { targetTeam: explicitTargetTeam } : {}),
       report: null,
+      reportFollowupContext,
       externalSignals: {},
       externalSignalCoverage: disabledPlayerEloCoverage,
       historicalArchiveSamplesByPlayerId: {},
@@ -63,10 +77,10 @@ export function createRecordUserTurnNode(input: {
       reviewAttempts: 0,
       reviewResult: "valid" as const,
       forcedLimitReached: false,
-      hasSearchedMethodology: false,
-      hasSearchedPlayerReports: false,
+      hasSearchedMethodology: canReuseScopeEvidence && state.hasSearchedMethodology,
+      hasSearchedPlayerReports: canReuseScopeEvidence && state.hasSearchedPlayerReports,
       methodologySearchFailed: false,
-      successfulMethodologyQueries: {},
+      successfulMethodologyQueries: canReuseScopeEvidence ? state.successfulMethodologyQueries : {},
       playerReportSearchFailed: false,
       sourceAccessFailure: null,
       candidateSearchFailure: null,
@@ -81,7 +95,7 @@ export function createRecordUserTurnNode(input: {
       policyBlockedRepeatCount: 0,
       policyLoopStopped: false,
       searchedReportPlayerNames: [],
-      retrievedKnowledge: {},
+      retrievedKnowledge: canReuseScopeEvidence ? state.retrievedKnowledge : {},
       confirmedPositionSearchObservationIndex: priorCandidateSearchIndex,
       ...(positionChange.changed ? { confirmedPosition: positionChange.position, confirmedPositions: [] } : {}),
       ...(referenceChanged ? resetReference(state.userMessage) : {}),

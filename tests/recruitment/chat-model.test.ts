@@ -6,9 +6,11 @@ import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_EXPANSION_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_PLANNER_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_EXPANSION_TIMEOUT_MS,
   openAIExpansionMaxOutputTokens,
   openAIConclusionMaxOutputTokens,
+  openAIPlannerMaxOutputTokens,
   openAIExpansionRequestTimeoutMs,
   openAIMaxOutputTokens,
   structuredOutputMethod,
@@ -39,11 +41,19 @@ test("planner response token budget leaves room for a complete evidence-backed r
 });
 
 test("conclusion reports use a stage-specific output budget", () => {
-  assert.equal(DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS, 4_096);
-  assert.equal(openAIConclusionMaxOutputTokens("", "8192"), 4_096);
+  assert.equal(DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS, 2_048);
+  assert.equal(openAIConclusionMaxOutputTokens("", "8192"), 2_048);
   assert.equal(openAIConclusionMaxOutputTokens("2048", "8192"), 2_048);
   assert.equal(openAIConclusionMaxOutputTokens("8192", "4096"), 4_096);
   assert.throws(() => openAIConclusionMaxOutputTokens("128", "8192"), /OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS/);
+});
+
+test("investigation planner actions use a compact stage-specific output budget", () => {
+  assert.equal(DEFAULT_OPENAI_PLANNER_MAX_OUTPUT_TOKENS, 2_048);
+  assert.equal(openAIPlannerMaxOutputTokens("", "8192"), 2_048);
+  assert.equal(openAIPlannerMaxOutputTokens("1024", "8192"), 1_024);
+  assert.equal(openAIPlannerMaxOutputTokens("4096", "2048"), 2_048);
+  assert.throws(() => openAIPlannerMaxOutputTokens("128", "8192"), /OPENAI_PLANNER_MAX_OUTPUT_TOKENS/);
 });
 
 test("candidate expansion decisions use a bounded output budget", () => {
@@ -98,5 +108,39 @@ test("LangChain sends the expansion token cap and Ollama reasoning setting in th
     else process.env.OPENAI_BASE_URL = previousBaseUrl;
     if (previousReasoningEffort === undefined) delete process.env.OPENAI_REASONING_EFFORT;
     else process.env.OPENAI_REASONING_EFFORT = previousReasoningEffort;
+  }
+});
+
+test("the model client retries only transient rate-limit responses", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
+  const requestUrls: string[] = [];
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestUrls.push(String(input));
+    if (requestUrls.length === 1) {
+      return new Response(JSON.stringify({ error: { message: "rate limited" } }), {
+        status: 429,
+        headers: { "content-type": "application/json", "retry-after": "0" },
+      });
+    }
+    return new Response(JSON.stringify({
+      id: "chatcmpl-after-rate-limit",
+      object: "chat.completion",
+      created: 1,
+      model: "qwen3.5:9b",
+      choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    const model = createChatModel("ollama", "qwen3.5:9b");
+    const response = await model.invoke("ping");
+    assert.equal(requestUrls.length, 2);
+    assert.equal(response.content, "ok");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
   }
 });

@@ -115,6 +115,113 @@ test("shortlist context ablation: a comparison follow-up retains the prior visib
     "the previous reviewer accepts an empty shortlist without an exit rationale");
 });
 
+test("same-scope report follow-ups reuse the validated brief and preserve the original shortlist", async () => {
+  const candidates = [1, 2, 3, 4].map((index) => {
+    const candidateBase = roleConstraintPlayer(`same-scope-report-followup-${index}`, `Report Follow-up Candidate ${index}`, "CB");
+    return {
+      ...candidateBase,
+      stats: { ...candidateBase.stats, keyPasses: index * 6 },
+      availableStats: ["keyPasses"],
+    };
+  });
+  const brief: RecruitmentBrief = {
+    task: "reinforcement",
+    targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" },
+    referencePlayer: null,
+    selectedCandidateId: null,
+    positions: ["CB"],
+    allowsAnyPosition: false,
+    priorities: [{ value: "关键传球", basis: "explicit", quote: "重点看关键传球" }],
+    constraints: [],
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    unresolved: [],
+  };
+  let briefInterpretations = 0;
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret({ message }) {
+      briefInterpretations += 1;
+      if (message.includes("直接指标")) throw new Error("Simulated long-context brief validation failure");
+      return brief;
+    } },
+    repository: {
+      mode: "demo",
+      sourceName: "Fixture",
+      async loadPlayers() { return candidates; },
+      async searchCandidates(query) {
+        return { players: candidates, totalRecords: candidates.length, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    planner: { async decide(input) {
+      const userTurns = input.history.filter((entry) => entry.role === "user").length;
+      const currentTurnHistory = input.history.slice(input.history.map((entry, index) => entry.role === "user" ? index : -1).filter(index => index >= 0).at(-1));
+      const currentTools = new Set(currentTurnHistory.filter((entry) => entry.role === "tool").map((entry) => entry.toolName));
+      if (userTurns === 1 && !currentTools.has("search_candidates")) {
+        return { action: "search_candidates", targetTeam: "拜仁", position: "CB", minimumMinutes: 0, limit: 20 };
+      }
+      if (userTurns === 1 && !currentTools.has("evaluate_candidates")) {
+        return { action: "evaluate_candidates", playerIds: candidates.map(({ playerId }) => playerId) };
+      }
+      return {
+        action: "finish",
+        targetTeam: "拜仁",
+        needSummary: "按原有中卫需求整理关键传球证据。",
+        capabilityProfile: ["关键传球"],
+        recommendations: userTurns === 1
+          ? candidates.slice(0, 3).map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] }))
+          : userTurns >= 4
+            ? candidates.map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] }))
+            : candidates.slice(0, 1).map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] })),
+        limitationKeys: [],
+      };
+    } },
+    knowledgeBase: { async search() { return []; } },
+    experimentalReviewerMode: "bypassed",
+  });
+
+  const threadId = "same-scope-report-followup";
+  const first = await conversation.turn({ threadId, message: "为拜仁找中卫，重点看关键传球" });
+  assert.equal(first.status, "completed", first.message);
+  assert.equal(first.report?.recommendations.length, 3);
+
+  const followUp = await conversation.turn({
+    threadId,
+    message: "保持最初完整需求和全部筛选条件，不增不减。请分别说明向前传球与持球推进目前有哪些直接指标，不要把它们混成一个分数。",
+    expectsExistingState: true,
+  });
+
+  assert.equal(followUp.status, "completed", followUp.message);
+  assert.ok(followUp.report, "a same-scope report question must not discard the completed case report");
+  assert.deepEqual(
+    followUp.report?.recommendations.map(({ player }) => player.playerId),
+    first.report?.recommendations.map(({ player }) => player.playerId),
+    "a read-only report follow-up must retain the original shortlist even if the Planner returns only a subset",
+  );
+  assert.deepEqual(followUp.report?.requestedCapabilityCoverage, first.report?.requestedCapabilityCoverage);
+  assert.equal(briefInterpretations, 1, "report-only follow-ups should reuse the current validated brief instead of reparsing it");
+
+  const explicitRerank = await conversation.turn({
+    threadId,
+    message: "请重新排序，优先考虑关键传球表现，不改变位置及筛选条件。",
+    expectsExistingState: true,
+  });
+
+  assert.equal(explicitRerank.status, "completed", explicitRerank.message);
+  assert.equal(explicitRerank.report?.recommendations.length, 1, "an explicit rerank request should allow the Planner to produce a new shortlist");
+  assert.equal(briefInterpretations, 2, "an explicit rerank request should be parsed instead of treated as a read-only report follow-up");
+
+  const moreCandidates = await conversation.turn({
+    threadId,
+    message: "保持原筛选条件不变，再多找几名候选。",
+    expectsExistingState: true,
+  });
+
+  assert.equal(moreCandidates.status, "completed", moreCandidates.message);
+  assert.equal(moreCandidates.report?.recommendations.length, candidates.length,
+    "an explicit request to find more candidates should allow the shortlist to expand");
+  assert.equal(briefInterpretations, 3,
+    "candidate expansion should be parsed as a new investigation request, not a read-only report follow-up");
+});
+
 test("shortlist continuation explains candidates without direct evidence for the requested comparison", async () => {
   const candidates = [1, 2, 3].map((index) => {
     const player = roleConstraintPlayer(`missing-metric-${index}`, `Metric Candidate ${index}`, "CB");

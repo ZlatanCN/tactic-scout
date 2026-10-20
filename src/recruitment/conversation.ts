@@ -7,6 +7,7 @@ import { createConfiguredPlayerNameResolver, type PlayerNameResolver } from "../
 import { createPlayerNameVariantGenerator } from "./player-name-variants.js";
 import type { TeamRosterEnrichmentProvider } from "../sources/thesportsdb/roster.js";
 import { type BaseCheckpointSaver, Command, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import { toolsCondition } from "@langchain/langgraph/prebuilt";
 import { createConfiguredHistoricalArchive } from "../sources/reep/historical-archive-enrichment.js";
 import { type PlayerRepository } from "../players/repository.js";
 import { createConfiguredPlayerEloReportClient } from "../sources/playerelo/client.js";
@@ -25,7 +26,7 @@ import { createPlanningNode } from "./conversation/planning-node.js";
 import { createReportProjection } from "./conversation/report-projection.js";
 import { createReviewNode } from "./conversation/review-node.js";
 import { type State, maxDecisionsPerTurn, RecruitmentState } from "./conversation/state.js";
-import { createToolNode } from "./conversation/tool-node.js";
+import { createLegacyRecruitmentActionNode, createToolNode } from "./conversation/tool-node.js";
 import { createRecordUserTurnNode, waitForUser } from "./conversation/turn-nodes.js";
 import { type RecruitmentEvidenceEvaluator, createRecruitmentEvidenceEvaluator } from "./recruitment-evidence-evaluator.js";
 import { createCaseSummaryGenerator, type CaseSummaryGenerator } from "./case-summary.js";
@@ -70,6 +71,7 @@ export function createRecruitmentConversation(input: {
   experimentalPreviousShortlistContextMode?: "enabled" | "bypassed";
   experimentalShortlistComparisonMode?: "enabled" | "bypassed";
   experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
+  experimentalToolExecutionMode?: "langgraph_tool_node" | "legacy_action_dispatch";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
   experimentalContextManagementMode?: ContextManagementMode;
@@ -84,6 +86,7 @@ export function createRecruitmentConversation(input: {
   const candidatePolicyMode = input.experimentalCandidatePolicyMode ?? "enabled";
   const candidateSearchFreshnessMode = input.experimentalCandidateSearchFreshnessMode ?? "enabled";
   const expansionSufficiencyMode = input.experimentalExpansionSufficiencyMode ?? "enabled";
+  const toolExecutionMode = input.experimentalToolExecutionMode ?? "langgraph_tool_node";
   const contextManagementMode = input.experimentalContextManagementMode ?? "legacy";
   // Keep graph construction side-effect free; configured callers inject the
   // model-backed generator explicitly, tests can supply a deterministic one.
@@ -100,7 +103,7 @@ export function createRecruitmentConversation(input: {
     .addNode("understand_request", createUnderstandingNode({ interpreter: input.briefInterpreter, repository, resolver: input.referenceNameResolver, observer, referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed", contextManagementMode }))
     .addNode("compact_case_context", createContextCompactionNode({ mode: contextManagementMode, ...(caseSummaryGenerator ? { generator: caseSummaryGenerator } : {}), observer }))
     .addNode("choose_next_action", createPlanningNode({ repository, planner, observer, groupCandidateRecords, askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, deterministicSearchEnabled: input.experimentalDeterministicSearchMode === "enabled", expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled", previousShortlistContextEnabled: input.experimentalPreviousShortlistContextMode !== "bypassed", shortlistComparisonEnabled: input.experimentalShortlistComparisonMode !== "bypassed", retrievalMode: input.experimentalRetrievalMode ?? "fixed", understatResearchMode: input.experimentalUnderstatResearchMode, contextManagementMode }))
-    .addNode("execute_tool", createToolNode({ repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords, methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed", ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}), referenceNameResolver: input.referenceNameResolver }))
+    .addNode("execute_tool", (toolExecutionMode === "langgraph_tool_node" ? createToolNode : createLegacyRecruitmentActionNode)({ repository, knowledgeBase, evidenceEvaluator, observer, groupCandidateRecords, methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed", ...(input.teamRosterEnrichment ? { teamRosterEnrichment: input.teamRosterEnrichment } : {}), referenceNameResolver: input.referenceNameResolver }))
     .addNode("wait_for_user", waitForUser)
     .addNode("review_recommendation", createReviewNode({ observer, reviewerMode }))
     .addNode("enrich_external_signals", createExternalSignalNode({ playerEloSetup, disabledPlayerEloCoverage }))
@@ -127,7 +130,8 @@ export function createRecruitmentConversation(input: {
         if (!state.hasInvestigated && !state.brief && !state.briefFailure && !unresolvedReplacementPosition && !unresolvedReferenceIdentity) return "replan";
         return state.action.action === "ask_user" ? "ask" : "review";
       }
-      return "tool";
+      if (toolExecutionMode === "legacy_action_dispatch") return state.action ? "tool" : "replan";
+      return toolsCondition(state) === "tools" ? "tool" : "replan";
     }, { ask: "wait_for_user", compact: "compact_case_context", replan: "choose_next_action", review: "review_recommendation", tool: "execute_tool" })
     .addEdge("execute_tool", "compact_case_context")
     .addConditionalEdges("review_recommendation", (state: State) => {
@@ -209,6 +213,7 @@ export interface ConfiguredRecruitmentConversationOptions {
   experimentalReferenceComparisonMode?: "enabled" | "bypassed";
   experimentalCandidateComparisonMode?: "enabled" | "bypassed";
   experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
+  experimentalToolExecutionMode?: "langgraph_tool_node" | "legacy_action_dispatch";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
   experimentalContextManagementMode?: ContextManagementMode;
@@ -242,6 +247,7 @@ export function configuredRecruitmentConversation(
       experimentalReferenceComparisonMode: options.experimentalReferenceComparisonMode,
       experimentalCandidateComparisonMode: options.experimentalCandidateComparisonMode,
       experimentalExpansionSufficiencyMode: options.experimentalExpansionSufficiencyMode ?? "enabled",
+      experimentalToolExecutionMode: options.experimentalToolExecutionMode ?? "langgraph_tool_node",
       experimentalUnderstatResearchMode: options.experimentalUnderstatResearchMode,
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       candidateIdentityGrouper: groupCandidatesWithConfiguredReepIndex,

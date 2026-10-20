@@ -318,12 +318,13 @@ export function createReportProjection(input: {
     const discoveredForConstraint = discoveredPlayersForConstraint(state);
     const discoveredForConstraintIds = new Set(discoveredForConstraint.map(({ playerId }) => playerId));
     const evaluatedForConstraintById = new Map(Object.values(eligibleEvaluatedPlayers).map((candidate) => [candidate.player.playerId, candidate]));
+    const selectedRecommendations = state.reportFollowupContext?.recommendations ?? action.recommendations;
     const requestedPosition = state.confirmedPositions.length > 1 ? null : resolvedCandidateSearchIntent(state).position;
     const allPositionLeadRecords = positionLeadRecords(state);
     const positionLeads = allPositionLeadRecords.slice(0, 12);
     const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, requestedPosition, state.abilityProfilesEnabled);
     const backgroundOnly = !state.referenceProfiles.length && requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
-    const recommendedIds = new Set(action.recommendations.map(({ playerId }) => playerId));
+    const recommendedIds = new Set(selectedRecommendations.map(({ playerId }) => playerId));
     const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && (requestedPosition || state.confirmedPositions.length > 1)
       ? Object.values(eligibleEvaluatedPlayers)
         .filter(({ player, evidence }) => player.positionEvidence?.provider === "understat"
@@ -331,14 +332,14 @@ export function createReportProjection(input: {
           && (player.positionEvidence.targetPosition === requestedPosition || state.confirmedPositions.includes(player.positionEvidence.targetPosition as typeof state.confirmedPositions[number]))
           && player.positionEvidence.status === "compatible"
           && !recommendedIds.has(player.playerId))
-        .slice(0, Math.max(0, 5 - action.recommendations.length))
+        .slice(0, Math.max(0, 5 - selectedRecommendations.length))
         .map(({ player, evidence }) => ({
           playerId: player.playerId,
           evidenceKeys: requestedEvidenceAreas.flatMap(({ metricKeys }) => metricKeys)
             .filter((key) => evidence.some((item) => item.key === key)),
         }))
       : [];
-    const reportRecommendationItems = [...action.recommendations, ...adjacentPositionLeadItems];
+    const reportRecommendationItems = [...selectedRecommendations, ...adjacentPositionLeadItems];
     const recommendations = reportRecommendationItems
       .filter((item) => Object.hasOwn(eligibleEvaluatedPlayers, item.playerId))
       .map((item) => {

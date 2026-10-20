@@ -1,6 +1,10 @@
 import type { TeamRosterEnrichmentProvider } from "../../sources/thesportsdb/roster.js";
 import { createHash } from "node:crypto";
-import { type LangGraphRunnableConfig } from "@langchain/langgraph";
+import { isDeepStrictEqual } from "node:util";
+import { Command, type LangGraphRunnableConfig } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { ToolMessage } from "@langchain/core/messages";
+import { tool, type ToolRuntime } from "@langchain/core/tools";
 import { type PlayerRepository } from "../../players/repository.js";
 import { type RecruitmentProgressEventStatus } from "../../domain/conversation.js";
 import { type PlayerProfile } from "../../domain/players.js";
@@ -9,7 +13,7 @@ import { type CandidateIdentityGroup } from "../../players/identity/candidate-gr
 import { type KnowledgeRepository } from "../../knowledge/index.js";
 import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
 import { summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
-import { type ToolActionName } from "../recruitment-actions.js";
+import { RecruitmentActionSchema, type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
 import { type RecruitmentToolExecutionRequest, executeRecruitmentToolAction } from "../recruitment-tool-executor.js";
 import { RecruitmentTurnCancelledError, throwIfTurnCancelled } from "../turn-cancellation.js";
@@ -21,6 +25,7 @@ import { projectToolResult } from "./tool-results.js";
 import type { PlayerNameResolver } from "../../players/identity/name-resolver.js";
 import { replacementTargetMention } from "../replacement-target.js";
 import { caseEvidenceScopeRevision, createCaseEvidenceIndex, readCaseEvidence } from "../case-evidence.js";
+import { recruitmentDataToolNames, recruitmentToolDescription, recruitmentToolInputSchema } from "../recruitment-tools.js";
 
 function providerErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== "object" || !("code" in error)) return undefined;
@@ -37,7 +42,82 @@ function safeToolFailure(error: unknown): { code: string | null; message: string
   return { code: providerErrorCode(error) ?? null, message: message || "数据工具调用失败。" };
 }
 
+function mismatchedActionFields(invoked: unknown, authorized: unknown, name: ToolActionName): string[] {
+  if (!invoked || typeof invoked !== "object" || !authorized || typeof authorized !== "object") return ["action"];
+  const invokedRecord = invoked as Record<string, unknown>;
+  const authorizedRecord = authorized as Record<string, unknown>;
+  const fields = new Set([...Object.keys(invokedRecord), ...Object.keys(authorizedRecord)]);
+  const serverOwnedFields = name === "search_player_reports"
+    ? new Set(["playerNames", "targetTeam"])
+    : new Set(["targetTeam"]);
+  return [...fields]
+    .filter(field => !serverOwnedFields.has(field))
+    .filter(field => !isDeepStrictEqual(invokedRecord[field], authorizedRecord[field]))
+    .sort();
+}
+
 export function createToolNode(input: {
+  repository: PlayerRepository;
+  teamRosterEnrichment?: TeamRosterEnrichmentProvider;
+  referenceNameResolver?: PlayerNameResolver;
+  knowledgeBase: KnowledgeRepository;
+  evidenceEvaluator: RecruitmentEvidenceEvaluator;
+  observer: RecruitmentTraceObserver | undefined;
+  groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
+  methodologyReuseEnabled: boolean;
+}) {
+  const executeRecruitmentAction = createToolStateUpdateHandler(input);
+  const tools = recruitmentDataToolNames().map((name) => tool(
+    async (args, runtime: ToolRuntime) => {
+      const state = runtime.state as State;
+      const invokedAction = RecruitmentActionSchema.parse({ action: name, ...args });
+      const authorizedAction = state.action;
+      const actionMismatches = mismatchedActionFields(invokedAction, authorizedAction, name);
+      if (runtime.toolCall?.name !== name || state.action?.action !== name || actionMismatches.length > 0) {
+        const mismatchSummary = [
+          ...(runtime.toolCall?.name !== name ? ["tool_name"] : []),
+          ...(state.action?.action !== name ? ["action"] : []),
+          ...actionMismatches,
+        ].filter((field, index, fields) => fields.indexOf(field) === index).sort();
+        throw new Error(`工具调用与经过策略校验的案件动作不一致：${mismatchSummary.join(", ")}`);
+      }
+      const update = await executeRecruitmentAction({ ...state, action: authorizedAction }, runtime.config as LangGraphRunnableConfig);
+      return new Command({
+        update: {
+          ...update,
+          messages: [new ToolMessage({
+            name,
+            content: "工具结果已写入案件状态，可依据结构化调查记录规划下一步。",
+            tool_call_id: runtime.toolCallId,
+          })],
+        },
+      });
+    },
+    { name, description: recruitmentToolDescription(name), schema: recruitmentToolInputSchema(name) },
+  ));
+  return new ToolNode(tools, { handleToolErrors: false });
+}
+
+export function createLegacyRecruitmentActionNode(input: {
+  repository: PlayerRepository;
+  teamRosterEnrichment?: TeamRosterEnrichmentProvider;
+  referenceNameResolver?: PlayerNameResolver;
+  knowledgeBase: KnowledgeRepository;
+  evidenceEvaluator: RecruitmentEvidenceEvaluator;
+  observer: RecruitmentTraceObserver | undefined;
+  groupCandidateRecords: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
+  methodologyReuseEnabled: boolean;
+}) {
+  const executeRecruitmentAction = createToolStateUpdateHandler(input);
+  return async (state: State, config: LangGraphRunnableConfig) => {
+    if (!state.action || state.action.action === "ask_user" || state.action.action === "finish") {
+      throw new Error("旧版 action 分发只接受经过策略校验的数据动作。");
+    }
+    return executeRecruitmentAction(state, config);
+  };
+}
+
+function createToolStateUpdateHandler(input: {
   repository: PlayerRepository;
   teamRosterEnrichment?: TeamRosterEnrichmentProvider;
   referenceNameResolver?: PlayerNameResolver;
@@ -131,7 +211,7 @@ export function createToolNode(input: {
         .map(({ player }) => player.name)
         .filter((name) => !alreadySearchedReportNames.has(normalizeSearchText(name)))
       : [];
-    let filters: Record<string, string | number | boolean | null | string[]> = {};
+    let filters: Record<string, string | number | boolean | null | string[] | string[][]> = {};
     const toolUses = { ...state.toolUses, [action.action]: state.toolUses[action.action] + 1 };
     // Only fixed methodology evidence is reusable. Candidate/roster reads and evaluator
     // cohorts may change; their existing cursor and eligibility policies remain authoritative.
@@ -166,6 +246,7 @@ export function createToolNode(input: {
         .filter((player) => reportNames.includes(player.name))
         .slice(0, 10)
         .map(({ name: playerName, team, competition, season }) => ({ playerName, team, competition, season }))
+        .filter(({ team, competition, season }) => [team, competition, season].every(value => typeof value === "string" && value.trim().length > 0))
       : [];
     const similarityReference = state.brief?.task === "similarity"
       ? state.referenceProfiles.find(profile => profile.abilitySnapshotId && profile.abilityRolePriorities) : undefined;
@@ -173,7 +254,7 @@ export function createToolNode(input: {
       ? {
         ...action,
         playerNames: reportNames,
-        requestedPlayerCount: action.playerNames.length,
+        requestedPlayerCount: reportNames.length,
         ...(reportCapabilityGaps.length && reportPlayerContexts.length ? {
           capabilityGaps: reportCapabilityGaps,
           playerContexts: reportPlayerContexts,
@@ -235,16 +316,17 @@ export function createToolNode(input: {
     } catch (error) {
       throwIfTurnCancelled(config.signal);
       if (error instanceof RecruitmentTurnCancelledError) throw error;
+      const failure = safeToolFailure(error);
       observer?.({
         phase: "tool",
         toolName: action.action,
         elapsedMs: Math.round(performance.now() - toolStartedAt),
         ok: false,
+        ...(failure.code ? { errorCode: failure.code } : {}),
         filters,
         resultCount: 0,
       });
       completeToolProgress("这项查询没有成功，Agent 正在判断是否有其他调查路径", "notice");
-      const failure = safeToolFailure(error);
       const { message, code } = failure;
       return {
         toolUses,

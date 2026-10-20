@@ -2,16 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   evaluateLocalAgentScenario,
+  evaluateContextStressTurn,
   localAgentEvaluationScenarios,
   summarizeEvaluationRuns,
   understatLocalAgentEvaluationScenario,
   type EvaluationProgressEvent,
 } from "../../src/evaluation/harness-evaluation.js";
 import { privacySafeTraceEvent } from "../../src/evaluation/trace-privacy.js";
-import { createObservedPlanner, operationLatencySamplesFromTrace } from "../../src/evaluation/local-agent-run.js";
+import { canRunContextManagementComparison, createObservedPlanner, isComparableContextCapacityPreflight, operationLatencySamplesFromTrace, summarizeFirstUsefulProgress, summarizeHarnessErrors, withConversationCompletionCheck } from "../../src/evaluation/local-agent-run.js";
+import { contextSummaryMechanismWasExercised, summarizeContextManagementErrors, summarizeContextRequests } from "../../src/evaluation/local-agent-comparisons.js";
 import type { RecruitmentTraceEvent } from "../../src/recruitment/conversation.js";
 import { conclusionInstructions, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
-import { buildRecruitmentContext } from "../../src/recruitment/context.js";
+import { buildRecruitmentContext, RecruitmentContextCapacityError, withContextModelUsage } from "../../src/recruitment/context.js";
 import { type ConversationTurnResponse } from "../../src/domain/conversation.js";
 import { type HistoricalArchiveSample } from "../../src/domain/external-evidence.js";
 
@@ -33,7 +35,7 @@ function decision(
 
 function tool(
   toolName: Extract<RecruitmentTraceEvent, { phase: "tool" }> ["toolName"],
-  filters: Record<string, string | number | boolean | null | string[]>,
+  filters: Record<string, string | number | boolean | null | string[] | string[][]>,
   options: { ok?: boolean; resultCount?: number; matchingRecordCount?: number } = {},
 ): RecruitmentTraceEvent {
   const resultCount = options.resultCount ?? 1;
@@ -114,6 +116,289 @@ test("Harness planner instrumentation preserves prototype context preflight meth
   assert.equal(requestAttempts, 0, "a context preflight is not a model decision request");
   assert.equal((await observed.decide(input)).action, "finish");
   assert.equal(requestAttempts, 1);
+});
+
+test("context-capacity preflight is comparable only after a successful Planner response", () => {
+  assert.equal(isComparableContextCapacityPreflight({
+    errors: [{ name: "RecruitmentContextCapacityError", category: "context_capacity" }],
+    plannerResponseCount: 1,
+  }), true);
+  assert.equal(isComparableContextCapacityPreflight({
+    errors: [{ name: "RecruitmentContextCapacityError", category: "context_capacity" }],
+    plannerResponseCount: 0,
+  }), false);
+  assert.equal(isComparableContextCapacityPreflight({
+    errors: [{ name: "APIConnectionError", category: "endpoint_unreachable" }],
+    plannerResponseCount: 1,
+  }), false);
+  assert.equal(isComparableContextCapacityPreflight({
+    errors: [
+      { name: "RecruitmentContextCapacityError", category: "context_capacity" },
+      { name: "ZodError", category: "schema_validation" },
+    ],
+    plannerResponseCount: 1,
+  }), false);
+});
+
+test("Harness records conversation completion consistently for reports and error exits", () => {
+  assert.deepEqual(withConversationCompletionCheck({ evidence: true }, "completed", true), {
+    conversationCompleted: true,
+    evidence: true,
+  });
+  assert.deepEqual(withConversationCompletionCheck({ evidence: false }, "completed", false), {
+    conversationCompleted: false,
+    evidence: false,
+  });
+  assert.deepEqual(withConversationCompletionCheck({}, null, false), { conversationCompleted: false });
+});
+
+test("context comparison accepts a completed report with failed quality checks as an observable baseline", () => {
+  assert.equal(canRunContextManagementComparison({
+    allChecksPassed: true,
+    finalStatus: "completed",
+    reportGenerated: true,
+    errors: [],
+    plannerResponseCount: 3,
+  }), true);
+  assert.equal(canRunContextManagementComparison({
+    allChecksPassed: false,
+    finalStatus: "completed",
+    reportGenerated: true,
+    errors: [],
+    plannerResponseCount: 2,
+  }), true, "quality failures belong in arm success rates instead of suppressing the experiment");
+  assert.equal(canRunContextManagementComparison({
+    allChecksPassed: false,
+    finalStatus: null,
+    reportGenerated: false,
+    errors: [{ category: "endpoint_unreachable" }],
+    plannerResponseCount: 0,
+  }), false, "a provider/setup failure cannot enter the comparison");
+  assert.equal(canRunContextManagementComparison({
+    allChecksPassed: false,
+    finalStatus: null,
+    reportGenerated: false,
+    errors: [{ category: "context_capacity" }],
+    plannerResponseCount: 1,
+  }), true, "a genuine context limit after a model response is comparable evidence");
+});
+
+test("first-useful-progress measurement separates immediate status from completed work", () => {
+  assert.deepEqual(summarizeFirstUsefulProgress([
+    { sequence: 1, turn: 1, stage: "understanding", status: "started", message: "开始理解", completedSteps: 0, elapsedMs: 4 },
+    { sequence: 2, turn: 1, stage: "planning", status: "started", message: "规划", completedSteps: 0, elapsedMs: 6 },
+    { sequence: 3, turn: 1, stage: "understanding", status: "completed", message: "理解完成", completedSteps: 0, elapsedMs: 1_204 },
+  ]), {
+    firstVisibleProgressMs: 4,
+    firstUsefulProgressMs: 1_204,
+    firstUsefulProgressStage: "understanding",
+    firstUsefulProgressStatus: "completed",
+  });
+  assert.deepEqual(summarizeFirstUsefulProgress([
+    { sequence: 1, turn: 1, stage: "understanding", status: "started", message: "开始理解", completedSteps: 0 },
+  ]), {
+    firstVisibleProgressMs: null,
+    firstUsefulProgressMs: null,
+    firstUsefulProgressStage: null,
+    firstUsefulProgressStatus: null,
+  });
+});
+
+test("context request summary reports provider token usage per stage and labels incomplete samples", () => {
+  const manifest = (stage: "understand" | "investigate", payload: string) => buildRecruitmentContext({
+    stage,
+    systemInstructions: "scouting request",
+    payload,
+    responseSchema: {},
+    outputBudgetTokens: 64,
+  }).manifest;
+  const understand = withContextModelUsage(manifest("understand", "brief"), {
+    inputTokens: 120,
+    outputTokens: 8,
+    totalTokens: 128,
+  });
+  const investigateReported = withContextModelUsage(manifest("investigate", "candidate evidence"), {
+    inputTokens: 300,
+    outputTokens: 20,
+    totalTokens: 320,
+  });
+  const investigateUnavailable = withContextModelUsage(manifest("investigate", "candidate evidence plus history"), {});
+
+  const summary = summarizeContextRequests([understand, investigateReported, investigateUnavailable]);
+
+  assert.equal(summary.actualTokenUsage.inputTokens.status, "partial");
+  assert.equal(summary.actualTokenUsage.inputTokens.total, null);
+  assert.equal(summary.actualTokenUsage.inputTokens.observedTotal, 420);
+  assert.deepEqual(summary.byStage.understand?.actualInputTokens, {
+    status: "complete",
+    total: 120,
+    observedTotal: 120,
+    observed: 1,
+    requestCount: 1,
+  });
+  assert.deepEqual(summary.byStage.investigate?.actualInputTokens, {
+    status: "partial",
+    total: null,
+    observedTotal: 300,
+    observed: 1,
+    requestCount: 2,
+  });
+  assert.equal(summary.byStage.understand?.inputEstimateErrorTokens,
+    understand.estimatedInputTokens - 120);
+  assert.equal(summary.byStage.investigate?.inputEstimateErrorTokens, null);
+});
+
+test("Harness error summaries preserve safe context-capacity dimensions", () => {
+  assert.deepEqual(summarizeHarnessErrors(new RecruitmentContextCapacityError("investigate", 12_174, 7_168)), [{
+    name: "RecruitmentContextCapacityError",
+    category: "context_capacity",
+    stage: "investigate",
+    estimatedInputTokens: 12_174,
+    inputBudgetTokens: 7_168,
+  }]);
+
+  const protocolError = Object.assign(new Error("Planner response was malformed."), {
+    name: "RecruitmentPlannerOutputError",
+    diagnostics: {
+      failure: "tool_call_protocol",
+      toolCallProtocolFailure: "invalid_arguments",
+      contentKind: "other",
+      hasReasoningContent: false,
+      toolCallCount: 1,
+    },
+  });
+  assert.deepEqual(summarizeHarnessErrors(protocolError), [{
+    name: "RecruitmentPlannerOutputError",
+    category: "tool_call_protocol",
+    plannerResponseDiagnostics: {
+      failure: "tool_call_protocol",
+      toolCallProtocolFailure: "invalid_arguments",
+      contentKind: "other",
+      hasReasoningContent: false,
+      toolCallCount: 1,
+    },
+  }]);
+});
+
+test("observed Planner failures keep safe diagnostics while preserving the error", async () => {
+  const failure = Object.assign(new Error("invalid schema input"), {
+    name: "ZodError",
+    issues: [{ path: ["recommendations", 0, "evidenceKeys"], code: "invalid_value", input: "private-player-data" }],
+  });
+  const attempts: string[] = [];
+  const diagnostics: Array<{ decisionMode: string | null; errors: ReturnType<typeof summarizeHarnessErrors> }> = [];
+  const observed = createObservedPlanner({
+    async decide() { throw failure; },
+  }, () => undefined, (input, error) => {
+    attempts.push(input.decisionMode ?? "unknown");
+    diagnostics.push({ decisionMode: input.decisionMode ?? null, errors: summarizeHarnessErrors(error) });
+  });
+
+  await assert.rejects(observed.decide({
+    history: [],
+    dataMode: "curated",
+    dataSource: "curated",
+    targetTeam: "Barcelona",
+    confirmedPosition: "CM",
+    decisionMode: "conclude",
+  }), failure);
+
+  assert.deepEqual(attempts, ["conclude"]);
+  assert.deepEqual(diagnostics, [{
+    decisionMode: "conclude",
+    errors: [{
+      name: "ZodError",
+      category: "schema_validation",
+      validationIssuePaths: ["recommendations.0.evidenceKeys"],
+      validationIssueCodes: ["recommendations.0.evidenceKeys:invalid_value"],
+    }],
+  }]);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private-player-data/);
+});
+
+test("Harness schema errors expose only safe issue paths and codes", () => {
+  const schemaError = Object.assign(new Error("invalid schema input"), {
+    name: "ZodError",
+    issues: [
+      { path: ["recommendations", 1, "evidenceKeys", 1], code: "invalid_value", input: "private-evidence-value" },
+      { path: ["capabilityProfile"], code: "too_big", input: ["private-player-data"] },
+      { path: ["player name from user input"], code: "custom", input: "private-player-name" },
+    ],
+  });
+  const summary = summarizeHarnessErrors(schemaError);
+
+  assert.deepEqual(summary, [{
+    name: "ZodError",
+    category: "schema_validation",
+    validationIssuePaths: ["recommendations.1.evidenceKeys.1", "capabilityProfile", "field"],
+    validationIssueCodes: ["recommendations.1.evidenceKeys.1:invalid_value", "capabilityProfile:too_big", "field:custom"],
+  }]);
+  assert.doesNotMatch(JSON.stringify(summary), /private-evidence-value|private-player-data|player name from user input|private-player-name/);
+});
+
+test("context-management summaries retain allowlisted Planner failure diagnostics without arguments", () => {
+  const result = summarizeContextManagementErrors([[
+    {
+      name: "RecruitmentPlannerOutputError",
+      category: "tool_call_protocol",
+      stage: "investigate",
+      plannerResponseDiagnostics: {
+        failure: "tool_call_protocol",
+        toolCallProtocolFailure: "invalid_arguments",
+        toolCallIssuePaths: ["search_candidates.positions"],
+        toolCallIssueCodes: ["search_candidates.positions:invalid_type"],
+        contentKind: "other",
+        contentLength: 16,
+        finishReason: "tool_calls",
+        hasReasoningContent: false,
+        toolCallCount: 1,
+        rawArguments: "must not be retained",
+      },
+    },
+  ]]);
+
+  assert.deepEqual(result, [[{
+    name: "RecruitmentPlannerOutputError",
+    category: "tool_call_protocol",
+    stage: "investigate",
+    plannerResponseDiagnostics: {
+      failure: "tool_call_protocol",
+      toolCallProtocolFailure: "invalid_arguments",
+      toolCallIssuePaths: ["search_candidates.positions"],
+      toolCallIssueCodes: ["search_candidates.positions:invalid_type"],
+      contentKind: "other",
+      contentLength: 16,
+      finishReason: "tool_calls",
+      hasReasoningContent: false,
+      toolCallCount: 1,
+    },
+  }]]);
+});
+
+test("context-management summaries retain only sanitized schema issue paths and codes", () => {
+  const result = summarizeContextManagementErrors([[
+    {
+      name: "ZodError",
+      category: "schema_validation",
+      validationIssuePaths: ["recommendations.1.evidenceKeys.1", "field.capabilityProfile"],
+      validationIssueCodes: ["recommendations.1.evidenceKeys.1:invalid_value", "field.capabilityProfile:too_big"],
+      rawInput: "must not be retained",
+    },
+  ]]);
+
+  assert.deepEqual(result, [[{
+    name: "ZodError",
+    category: "schema_validation",
+    validationIssuePaths: ["recommendations.1.evidenceKeys.1", "field.capabilityProfile"],
+    validationIssueCodes: ["recommendations.1.evidenceKeys.1:invalid_value", "field.capabilityProfile:too_big"],
+  }]]);
+  assert.doesNotMatch(JSON.stringify(result), /must not be retained/);
+});
+
+test("a summary ablation run counts only an accepted summary as exercised", () => {
+  assert.equal(contextSummaryMechanismWasExercised({ modelRequests: 0, acceptedSummaries: 0 }), false);
+  assert.equal(contextSummaryMechanismWasExercised({ modelRequests: 1, acceptedSummaries: 0 }), false);
+  assert.equal(contextSummaryMechanismWasExercised({ modelRequests: 1, acceptedSummaries: 1 }), true);
 });
 
 function recommendation(position = "CM") {
@@ -559,7 +844,7 @@ test("a custom one-turn investigation does not inherit the shortlist multi-model
     threadId,
   });
 
-  assert.equal(evaluation.checks.usedMultipleModelActions, true);
+  assert.equal(evaluation.checks.usedMultipleAgentActions, true);
 });
 
 test("the Harness rejects an investigation that never invoked the Planner", () => {
@@ -592,7 +877,7 @@ test("the Harness rejects an investigation that never invoked the Planner", () =
     threadId,
   });
 
-  assert.equal(evaluation.checks.usedMultipleModelActions, false);
+  assert.equal(evaluation.checks.usedMultipleAgentActions, false);
 });
 
 test("an intentional Planner timeout fallback still records that the model path was invoked", () => {
@@ -634,7 +919,7 @@ test("an intentional Planner timeout fallback still records that the model path 
     threadId,
   });
 
-  assert.equal(evaluation.checks.usedMultipleModelActions, true);
+  assert.equal(evaluation.checks.usedMultipleAgentActions, true);
 });
 
 test("the Harness accepts explicit source position groups when the provider leaves the primary label unknown", () => {
@@ -716,6 +1001,65 @@ test("the Harness accepts a source failure only when the report preserves unknow
   ).checks.candidateSearchOutcomeIsExplicit, false);
 });
 
+test("a single Planner response that calls multiple tools counts as a multi-step shortlist investigation", () => {
+  const threadId = "case-shortlist-batched-tool-calls";
+  const candidate = recommendation("MID");
+  const events: RecruitmentTraceEvent[] = [
+    decision("search_candidates", undefined, { decisionSource: "planner" }),
+    tool("search_methodology", { corpus: "methodology" }),
+    tool("search_candidates", { position: "MID", candidateIds: ["player-1"] }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+  ];
+  const finalResponse = response({ threadId, position: "MID", recommendations: [candidate] });
+  const evaluation = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events,
+    firstTurnResponse: finalResponse,
+    response: finalResponse,
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(evaluation.checks.usedMultipleAgentActions, true);
+});
+
+test("the shortlist Harness accepts verified source position groups when the primary label is unknown", () => {
+  const threadId = "case-shortlist-source-position-group";
+  const candidate = recommendation("UNKNOWN");
+  candidate.player.sourceIdentity = {
+    provider: "curated",
+    playerId: "source-player",
+    seasonId: "snapshot",
+    positionGroups: ["CM"],
+    retrievedAt: "2026-10-20T00:00:00.000Z",
+  };
+  const events: RecruitmentTraceEvent[] = [
+    decision("search_methodology"),
+    tool("search_methodology", { corpus: "methodology" }),
+    decision("search_candidates"),
+    tool("search_candidates", { position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null, candidateIds: ["player-1"] }),
+    decision("evaluate_candidates"),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+    decision("search_player_reports"),
+    tool("search_player_reports", { corpus: "player_report" }),
+  ];
+  const finalResponse = response({ threadId, position: "MID", recommendations: [candidate] });
+  const evaluation = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events,
+    firstTurnResponse: finalResponse,
+    response: finalResponse,
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId,
+  });
+
+  assert.equal(evaluation.checks.recommendationsRespectRequestedPosition, true);
+});
+
 test("conclusion instructions require evidence tied to the abilities requested by the user", () => {
   const instructions = conclusionInstructions("curated");
 
@@ -787,6 +1131,160 @@ test("the Harness rejects repeated policy-blocked actions even when LangGraph sa
 
   const fallback = evaluate([], ["Agent 连续两次重复提出被调查策略拒绝的相同动作；已停止继续调用模型并只报告当前可验证证据。"]);
   assert.equal(fallback.checks.didNotHitDecisionOrPolicyLoopLimit, false);
+});
+
+test("context-stress evaluation scopes pagination and policy retries to their user turn", () => {
+  const caseId = "case-context-stress-turn-scope";
+  const firstTurnSearch = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    offset: 0, nextOffset: null,
+  });
+  const stressTurnSearch = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    offset: 0, nextOffset: null,
+  });
+  const blockedSearch: RecruitmentTraceEvent = {
+    phase: "decision", action: "search_candidates", elapsedMs: 1, ok: true, policyBlocked: true,
+  };
+  const blockedSearchInStressTurn: RecruitmentTraceEvent = { ...blockedSearch };
+  const result = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events: [firstTurnSearch, blockedSearch, stressTurnSearch, blockedSearchInStressTurn],
+    eventTurns: [1, 1, 2, 2],
+    firstTurnResponse: response({ threadId: caseId }),
+    response: response({ threadId: caseId }),
+    firstTurnEvents: [firstTurnSearch, blockedSearch],
+    continuedEvents: [stressTurnSearch, blockedSearchInStressTurn],
+    answersUsed: 0,
+    contextStressTurnsAttempted: 1,
+    contextStressTurnsCompleted: 1,
+    threadId: caseId,
+  });
+
+  assert.equal(result.checks.candidatePagesFollowCursors, true, "a new user turn may start a fresh search at offset zero");
+  assert.equal(result.checks.didNotRepeatPolicyBlockedAction, true, "policy retry loops are evaluated within a turn");
+});
+
+test("the context-stress aggregate accepts a same-scope next page resumed in a later user turn", () => {
+  const caseId = "case-context-stress-cross-turn-cursor";
+  const firstPage = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    offset: 0, limit: 20, nextOffset: 20,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const continuedPage = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    offset: 20, limit: 20, nextOffset: 40,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const result = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events: [firstPage, continuedPage],
+    eventTurns: [1, 2],
+    firstTurnResponse: response({ threadId: caseId }),
+    response: response({ threadId: caseId }),
+    firstTurnEvents: [firstPage],
+    continuedEvents: [continuedPage],
+    answersUsed: 0,
+    contextStressTurnsAttempted: 1,
+    contextStressTurnsCompleted: 1,
+    threadId: caseId,
+  });
+
+  assert.equal(result.checks.candidatePagesFollowCursors, true,
+    "the aggregate check must validate the first turn while the stress-turn matrix validates resumed cursors against prior pages");
+});
+
+test("context-stress progress validation includes every completed user turn", () => {
+  const caseId = "case-context-stress-progress";
+  const firstTurnSearch = tool("search_candidates", { position: "MID", maxAge: 23 });
+  const stressTurnSearch = tool("search_candidates", { position: "MID", maxAge: 23 });
+  const result = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events: [firstTurnSearch, stressTurnSearch],
+    eventTurns: [1, 2],
+    firstTurnResponse: response({ threadId: caseId }),
+    response: response({ threadId: caseId }),
+    firstTurnEvents: [firstTurnSearch],
+    continuedEvents: [stressTurnSearch],
+    progressEvents: progressForTurns([
+      { turn: 1, toolStages: ["candidate_search"], completed: true },
+      { turn: 2, toolStages: ["candidate_search"], completed: true },
+    ]),
+    answersUsed: 0,
+    contextStressTurnsAttempted: 1,
+    contextStressTurnsCompleted: 1,
+    threadId: caseId,
+  });
+
+  assert.equal(result.checks.progressMatchesObservedToolsAndTurnState, true);
+});
+
+test("context-stress correctness matrix checks report scope and evidence on each turn", () => {
+  const caseId = "case-context-stress-matrix";
+  const goodTurn = evaluateContextStressTurn({
+    scenario: shortlistScenario,
+    response: response({ threadId: caseId, recommendations: [], limitations: ["推进指标缺失，压迫指标缺失。"] }),
+    events: [],
+    progressEvents: [{
+      sequence: 1, turn: 2, stage: "completed", status: "completed", message: "报告完成", completedSteps: 0,
+    }],
+    turn: 2,
+  });
+  assert.equal(goodTurn.allPassed, true, JSON.stringify(goodTurn.checks));
+
+  const driftedTurn = evaluateContextStressTurn({
+    scenario: shortlistScenario,
+    response: response({ threadId: caseId, targetTeam: "Bayern Munich", recommendations: [], limitations: ["推进指标缺失，压迫指标缺失。"] }),
+    events: [tool("search_candidates", {
+      position: "ATT", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+      playerNameFilterUsed: false,
+    })],
+    progressEvents: progressForTurns([{ turn: 2, toolStages: ["candidate_search"], completed: true }]),
+    turn: 2,
+  });
+  assert.equal(driftedTurn.checks.targetTeamContextPreserved, false);
+  assert.equal(driftedTurn.checks.searchScopesPreserved, false);
+  assert.equal(driftedTurn.allPassed, false);
+});
+
+test("context-stress pagination continues from the prior page only for the same search scope", () => {
+  const previousPage = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    playerNameFilterUsed: false, discoveryMetricGroups: [["pressures"]], offset: 0, limit: 20, nextOffset: 20,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const continuedPage = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    playerNameFilterUsed: false, discoveryMetricGroups: [["pressures"]], offset: 20, limit: 20, nextOffset: 40,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const stalePage = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    playerNameFilterUsed: false, discoveryMetricGroups: [["pressures"]], offset: 0, limit: 20, nextOffset: 20,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const newScopePage = tool("search_candidates", {
+    position: "DEF", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    playerNameFilterUsed: false, offset: 0, limit: 20, nextOffset: 20,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const newMetricScopePage = tool("search_candidates", {
+    position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null,
+    playerNameFilterUsed: false, discoveryMetricGroups: [["xg"]], offset: 0, limit: 20, nextOffset: 20,
+  }, { resultCount: 20, matchingRecordCount: 45 });
+  const turnResponse = response({ threadId: "case-context-stress-pagination" });
+  const progressEvents = [{
+    sequence: 1, turn: 2, stage: "completed" as const, status: "completed" as const,
+    message: "报告完成", completedSteps: 1,
+  }];
+  const evaluate = (events: RecruitmentTraceEvent[]) => evaluateContextStressTurn({
+    scenario: shortlistScenario,
+    response: turnResponse,
+    events,
+    previousEvents: [previousPage],
+    progressEvents,
+    turn: 2,
+  });
+
+  assert.equal(evaluate([continuedPage]).checks.candidatePagesFollowCursors, true);
+  assert.equal(evaluate([stalePage]).checks.candidatePagesFollowCursors, false);
+  assert.equal(evaluate([newScopePage]).checks.candidatePagesFollowCursors, true);
+  assert.equal(evaluate([newMetricScopePage]).checks.candidatePagesFollowCursors, true);
 });
 
 test("the harness rejects progress activity with no matching tool trace", () => {
@@ -1149,6 +1647,28 @@ test("the harness requires coherent coverage counts and the scenario's requested
 
   assert.equal(evaluate(valid).checks.requestedCapabilityCoverageIsConsistent, true);
   assert.equal(evaluate(valid).checks.requestedCapabilityCoverageMatchesScenario, true);
+
+  const enrichedCoverage = response({
+    threadId: "case-capability-coverage",
+    requestedCapabilityCoverage: [
+      {
+        ...valid.report!.requestedCapabilityCoverage[0]!,
+        requestedMetricKeys: [...valid.report!.requestedCapabilityCoverage[0]!.requestedMetricKeys, "abilityCarrying"],
+      },
+      valid.report!.requestedCapabilityCoverage[1]!,
+      {
+        name: "高位压迫适配",
+        requestedMetricKeys: [],
+        observedMetricKeys: [],
+        evaluatedCandidateCount: 1,
+        candidatesWithEvidenceCount: 0,
+        status: "missing",
+      },
+    ],
+  });
+  assert.equal(evaluate(enrichedCoverage).checks.requestedCapabilityCoverageIsConsistent, true);
+  assert.equal(evaluate(enrichedCoverage).checks.requestedCapabilityCoverageMatchesScenario, true,
+    "the report may add coherent role-specific dimensions and metrics while preserving every scenario requirement");
 
   const missingDimension = response({ threadId: "case-capability-coverage", requestedCapabilityCoverage: [] });
   assert.equal(evaluate(missingDimension).checks.requestedCapabilityCoverageMatchesScenario, false);
@@ -1858,6 +2378,30 @@ test("player report retrieval must follow a successful match-data evaluation", (
   assert.equal(result.checks.searchedReportsAfterEvaluatingEvidence, false);
 });
 
+test("a bounded report lookup remains valid when later evidence batches are evaluated", () => {
+  const events: RecruitmentTraceEvent[] = [
+    tool("search_methodology", { corpus: "methodology" }),
+    tool("search_candidates", { position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null, candidateIds: ["player-1"] }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-1"] }),
+    tool("search_player_reports", { corpus: "player_report", searchedPlayerIds: ["player-1"] }),
+    tool("search_candidates", { position: "MID", maxAge: 23, minimumMinutes: 0, competition: null, season: null, offset: 10, candidateIds: ["player-2"] }),
+    tool("evaluate_candidates", { evaluatedPlayerIds: ["player-2"] }),
+  ];
+  const result = evaluateLocalAgentScenario({
+    scenario: shortlistScenario,
+    events,
+    firstTurnResponse: response({ threadId: "case-bounded-report-search" }),
+    response: response({ threadId: "case-bounded-report-search", recommendations: [] }),
+    firstTurnEvents: events,
+    continuedEvents: [],
+    answersUsed: 0,
+    threadId: "case-bounded-report-search",
+  });
+
+  assert.equal(result.checks.searchedReportsAfterEvaluatingEvidence, true,
+    "the evaluator uses a bounded qualitative lookup after an evidence batch, not after every later batch");
+});
+
 test("Understat investigation ablation does not require unrelated methodology or player-report searches", () => {
   const events: RecruitmentTraceEvent[] = [
     tool("search_candidates", {
@@ -1918,9 +2462,23 @@ test("public tool traces omit raw query and team names but preserve safe data bo
     candidateIds: ["player-1"],
     playerNameFilterUsed: true,
   }));
+  const briefFailure = privacySafeTraceEvent({
+    phase: "brief_failure",
+    failureKind: "RecruitmentBriefValidationError",
+    failureCode: "ECONNREFUSED",
+    validationCode: "quote_not_verbatim",
+    validationFailure: "private club and player details",
+    issuePaths: ["private-player-name"],
+  });
 
-  const output = JSON.stringify([decisionEvent, teamLookup, methodologySearch, search]);
-  assert.doesNotMatch(output, /FC Bayern München|Barcelona/);
+  const output = JSON.stringify([decisionEvent, teamLookup, methodologySearch, search, briefFailure]);
+  assert.doesNotMatch(output, /FC Bayern München|Barcelona|private club and player details|private-player-name/);
+  assert.deepEqual(briefFailure, {
+    phase: "brief_failure",
+    failureKind: "RecruitmentBriefValidationError",
+    failureCode: "ECONNREFUSED",
+    validationCode: "quote_not_verbatim",
+  });
   assert.deepEqual(decisionEvent, {
     phase: "decision",
     action: "finish",

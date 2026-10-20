@@ -41,7 +41,7 @@ test("Planner applies a safe conclusion-history fallback before sending an over-
       { role: "assistant" as const, content: JSON.stringify({ action: "ask_user", question: "是否限制年龄？" }) },
       { role: "user" as const, content: "不设年龄限制，继续比较" },
     ];
-    await createRecruitmentPlanner().decide({
+    await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history,
       dataMode: "demo",
       dataSource: "Fixture",
@@ -110,7 +110,7 @@ test("Planner preflight uses the exact context manifest that decide later sends 
   }) as typeof fetch;
 
   try {
-    const planner = createRecruitmentPlanner();
+    const planner = createRecruitmentPlanner({ protocol: "legacy_action" });
     const input = {
       history: [
         ...Array.from({ length: 8 }, (_, index) => ({ role: "user" as const, content: `旧用户消息 ${index}：${"历史对话内容".repeat(100)}` })),
@@ -148,6 +148,60 @@ test("Planner preflight uses the exact context manifest that decide later sends 
     assert.equal(observedManifest?.schemaFingerprint, preflight.schemaFingerprint);
     assert.equal(observedManifest?.estimatedInputTokens, preflight.estimatedInputTokens);
     assert.equal(observedManifest?.budgetStrategy, preflight.budgetStrategy);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      if (previousEnvironment[key] === undefined) delete process.env[key];
+      else process.env[key] = previousEnvironment[key];
+    }
+  }
+});
+
+test("investigation Planner budgets model messages and sends its compact action output cap", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = [
+    "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS",
+    "OPENAI_PLANNER_MAX_OUTPUT_TOKENS", "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS",
+    "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS",
+  ] as const;
+  const previousEnvironment = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  let requestBody: { max_tokens?: number } | undefined;
+  process.env.OPENAI_API_KEY = "fixture-key";
+  process.env.OPENAI_MODEL = "fixture";
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "8192";
+  delete process.env.OPENAI_PLANNER_MAX_OUTPUT_TOKENS;
+  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "16384";
+  process.env.TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS = "8192";
+  process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requestBody = JSON.parse(String(init?.body)) as typeof requestBody;
+    return Response.json({
+      id: "fixture", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({
+        action: "search_methodology", query: "midfield progression", limit: 4,
+      }) } }],
+      usage: { prompt_tokens: 3_000, completion_tokens: 50, total_tokens: 3_050 },
+    });
+  }) as typeof fetch;
+
+  try {
+    const planner = createRecruitmentPlanner({ protocol: "legacy_action" });
+    const input = {
+      history: [{ role: "user" as const, content: `为巴萨寻找中场。${"保留当前范围并继续调查。".repeat(150)}` }],
+      dataMode: "curated" as const,
+      dataSource: "Fixture",
+      targetTeam: "Barcelona",
+      decisionMode: "investigate" as const,
+      availableActions: ["inspect_team", "inspect_player", "inspect_candidate_group", "inspect_match", "search_candidates", "read_case_evidence", "search_methodology", "search_player_reports", "evaluate_candidates"] as const,
+    };
+    const preflight = await planner.preflightContext!(input);
+    assert.equal(preflight.outputBudgetTokens, 2_048);
+    assert.equal(preflight.exceedsVerifiedWindow, false, "response schema is not model-message input and should not consume the 16K prompt budget");
+
+    await planner.decide(input);
+    assert.equal(requestBody?.max_tokens, 2_048, "the wire output cap must match the budget reserved by preflight");
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of keys) {
@@ -207,7 +261,7 @@ test("an oversized conclusion compares every candidate in balanced bounded batch
   }));
   const evidenceKeys = ["goals", "assists", "keyPasses", "progressivePasses", "progressiveCarries", "pressures"] as const;
   try {
-    const result = await createRecruitmentPlanner().decide({
+    const result = await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: "Fixture", decisionMode: "conclude", confirmedPosition: "CM",
       availableActions: ["finish"],
       constraints: {
@@ -269,7 +323,7 @@ test("candidate batching does not hide an oversized non-candidate request", asyn
     metrics: [{ key: "goals", value: index / 10, unit: "per90", basis: "match_per90", sampleMinutes: 1_200 }],
   }));
   try {
-    await assert.rejects(createRecruitmentPlanner().decide({
+    await assert.rejects(createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [{ role: "user", content: `这是与候选人无关的超长案件背景。${"用户提供的背景资料。".repeat(8_000)}` }],
       dataMode: "demo", dataSource: "Fixture", targetTeam: "Fixture", decisionMode: "conclude", confirmedPosition: "CM",
       constraints: {
@@ -333,7 +387,7 @@ test("candidate ID schema overflow uses candidate batches when each batch fits",
     });
   }) as typeof fetch;
   try {
-    const result = await createRecruitmentPlanner().decide({
+    const result = await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: "Fixture", decisionMode: "conclude", confirmedPosition: "CM",
       constraints: {
         targetTeam: "Fixture",
@@ -430,7 +484,7 @@ test("conclusion context reserves the same response cap that the Planner sends",
     });
   }) as typeof fetch;
   try {
-    await createRecruitmentPlanner().decide({
+    await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: "Bayern", decisionMode: "conclude", confirmedPosition: "ATT",
       constraints: { targetTeam: "Bayern", evaluatedCandidates: [{ playerId: "candidate", evidenceKeys: ["goals"] }], reportObservations: [], requestedCapabilityCoverage: [] },
       onTokenUsage: usage => { manifest = usage.contextManifest as unknown as typeof manifest; },
@@ -447,10 +501,60 @@ test("conclusion context reserves the same response cap that the Planner sends",
   }
 });
 
-test("investigation context reserves the configured general response cap", async () => {
+test("a large conclusion request fits the verified window with the compact stage default", async () => {
   const originalFetch = globalThis.fetch;
   const keys = [
     "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS",
+    "OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS", "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS",
+    "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS",
+  ] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  let requestBody: { max_tokens?: number } | undefined;
+  let manifest: { estimatedInputTokens?: number; outputBudgetTokens?: number; exceedsVerifiedWindow?: boolean } | undefined;
+  process.env.OPENAI_API_KEY = "fixture";
+  process.env.OPENAI_MODEL = "fixture";
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "8192";
+  delete process.env.OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS;
+  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "24576";
+  process.env.TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS = "131072";
+  process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    requestBody = JSON.parse(String(init?.body)) as typeof requestBody;
+    return Response.json({
+      id: "fixture", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify({
+        action: "finish", targetTeam: "Bayern", needSummary: "完成比较。", capabilityProfile: [],
+        recommendations: [], limitationKeys: [], reportObservations: [],
+      }) } }],
+      usage: { prompt_tokens: 7_500, completion_tokens: 200, total_tokens: 7_700 },
+    });
+  }) as typeof fetch;
+  try {
+    await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
+      history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: "Bayern", decisionMode: "conclude", confirmedPosition: "ATT",
+      caseProgress: { compactCandidateEvidence: "x".repeat(28_000) },
+      onTokenUsage: usage => { manifest = usage.contextManifest as unknown as typeof manifest; },
+    });
+    assert.ok((manifest?.estimatedInputTokens ?? 0) > 11_264, "exercise a prompt that requires the smaller conclusion output reserve");
+    assert.ok((manifest?.estimatedInputTokens ?? Infinity) <= 21_504, "input plus compact output and safety margin fits the verified window");
+    assert.equal(requestBody?.max_tokens, 2_048);
+    assert.equal(manifest?.outputBudgetTokens, requestBody?.max_tokens);
+    assert.equal(manifest?.exceedsVerifiedWindow, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
+test("investigation context reserves the stage-specific Planner response cap", async () => {
+  const originalFetch = globalThis.fetch;
+  const keys = [
+    "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL", "OPENAI_STRUCTURED_OUTPUT_METHOD", "OPENAI_MAX_OUTPUT_TOKENS", "OPENAI_PLANNER_MAX_OUTPUT_TOKENS",
     "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS",
     "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS",
   ] as const;
@@ -462,6 +566,7 @@ test("investigation context reserves the configured general response cap", async
   process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
   process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
   process.env.OPENAI_MAX_OUTPUT_TOKENS = "8192";
+  delete process.env.OPENAI_PLANNER_MAX_OUTPUT_TOKENS;
   process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "24576";
   process.env.TACTISCOUT_CONTEXT_SOFT_INPUT_TOKENS = "131072";
   process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
@@ -477,14 +582,14 @@ test("investigation context reserves the configured general response cap", async
     });
   }) as typeof fetch;
   try {
-    await createRecruitmentPlanner().decide({
+    await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: "Barcelona", decisionMode: "investigate",
       availableActions: [], confirmedPosition: null,
       onTokenUsage: usage => { manifest = usage.contextManifest as unknown as typeof manifest; },
     });
-    assert.equal(requestBody?.max_tokens, 8_192);
+    assert.equal(requestBody?.max_tokens, 2_048);
     assert.equal(manifest?.outputBudgetTokens, requestBody?.max_tokens);
-    assert.equal(manifest?.inputBudgetTokens, 15_360, "the verified window reserves the sent response cap and safety margin");
+    assert.equal(manifest?.inputBudgetTokens, 21_504, "the verified window reserves the sent Planner response cap and safety margin");
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of keys) {
@@ -519,7 +624,7 @@ test("expand requests preserve the assessed pool count while omitting metrics un
       playerId: `candidate-${index}`,
       evidenceKeys: ["goals", "assists", "pressures"] as const,
     }));
-    await createRecruitmentPlanner().decide({
+    await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: "Barcelona", decisionMode: "expand", confirmedPosition: "MID",
       constraints: {
         targetTeam: "Barcelona", evaluatedCandidates, reportObservations: [],
@@ -567,7 +672,7 @@ test("expand requests send stage-relevant progress instead of replaying unrelate
     });
   }) as typeof fetch;
   try {
-    await createRecruitmentPlanner().decide({
+    await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({
       history: [{ role: "user", content: "为巴萨寻找中场" }], dataMode: "demo", dataSource: "Fixture", targetTeam: "Barcelona",
       decisionMode: "expand", confirmedPosition: "MID",
       constraints: {

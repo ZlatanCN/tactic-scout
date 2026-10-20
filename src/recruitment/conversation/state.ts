@@ -1,4 +1,5 @@
 import { Annotation } from "@langchain/langgraph";
+import type { BaseMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
 import { type PlayerSearchFilter, type PlayerSearchPage } from "../../players/repository.js";
 import { type DatasetScope } from "../../domain/datasets.js";
@@ -16,6 +17,7 @@ import { type EvaluatedCandidate } from "../recruitment-evidence-evaluator.js";
 import { type ReferencePlayerProfile } from "../recruitment-comparison.js";
 import { type PendingQuestion } from "./contracts.js";
 import { type CaseSummary } from "../case-summary.js";
+import type { ReportFollowupContext } from "./report-followup-context.js";
 
 export type EvaluatedPlayer = EvaluatedCandidate;
 
@@ -39,6 +41,9 @@ export interface CandidateSearchObservation {
 }
 
 export const RecruitmentState = Annotation.Root({
+  // ToolNode/toolsCondition consume one transient planner call at a time. Domain
+  // history remains in the typed `history` channel below.
+  messages: replaceable<BaseMessage[]>(() => []),
   brief: replaceable<import("../brief.js").RecruitmentBrief | null>(() => null),
   briefFailure: replaceable<string | null>(() => null),
   briefFailureKind: replaceable<string | null>(() => null),
@@ -104,6 +109,7 @@ export const RecruitmentState = Annotation.Root({
   replacementPositionClarificationAsked: replaceable<boolean>(() => false),
   pendingQuestion: replaceable<PendingQuestion | null>(() => null),
   report: replaceable<RecruitmentReport | null>(() => null),
+  reportFollowupContext: replaceable<ReportFollowupContext | null>(() => null),
   datasetScope: replaceable<DatasetScope | undefined>(() => undefined),
   responseMessage: replaceable<string>(() => ""),
   decisionSteps: replaceable<number>(() => 0),

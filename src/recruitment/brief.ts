@@ -3,7 +3,7 @@ import { normalizeSearchText } from "../domain/text-matching.js";
 import { positionFamilyFor, positionMatches } from "../domain/positions.js";
 import { PositionSchema } from "../domain/position-contracts.js";
 import { explicitCapabilityPrioritiesFromMessages } from "../domain/recruitment-capabilities.js";
-import { explicitPositionState, resolveCandidateSearchIntent } from "./candidate-search-intent.js";
+import { explicitAgeConstraint, explicitPositionState, resolveCandidateSearchIntent } from "./candidate-search-intent.js";
 export { RecruitmentBriefSchema, type RecruitmentBrief } from "../domain/recruitment-brief.js";
 
 export interface RecruitmentBriefInterpreter {
@@ -57,8 +57,27 @@ function explicitAgeQuote(messages: readonly string[], age: number): string | nu
   return null;
 }
 
+export type RecruitmentBriefValidationCode =
+  | "stale_reference_recheck"
+  | "broad_position_conflict"
+  | "quote_not_verbatim"
+  | "inferred_hard_constraint"
+  | "filter_missing_constraint"
+  | "numeric_filter_mismatch"
+  | "invalid_candidate_selection"
+  | "reference_name_not_preserved"
+  | "position_used_as_reference"
+  | "reference_contains_capability"
+  | "missing_reference_player"
+  | "reference_task_mismatch"
+  | "invalid_brief";
+
 export class RecruitmentBriefValidationError extends Error {
   override name = "RecruitmentBriefValidationError";
+
+  constructor(message: string, readonly validationCode: RecruitmentBriefValidationCode = "invalid_brief", options?: ErrorOptions) {
+    super(message, options);
+  }
 }
 
 export class RecruitmentBriefOutputLimitError extends Error {
@@ -70,8 +89,25 @@ export class RecruitmentBriefOutputLimitError extends Error {
 }
 
 /** Reject fabricated explicit evidence before it can become a search condition. */
-export function validateRecruitmentBrief(value: unknown, userMessages: readonly string[], visibleCandidates: readonly VisibleRecruitmentCandidate[] = []): RecruitmentBrief {
+export function validateRecruitmentBrief(
+  value: unknown,
+  userMessages: readonly string[],
+  visibleCandidates: readonly VisibleRecruitmentCandidate[] = [],
+  previousBrief?: RecruitmentBrief | null,
+): RecruitmentBrief {
   const brief = RecruitmentBriefSchema.parse(value);
+  const explicitAge = explicitAgeConstraint(userMessages);
+  if (explicitAge.mentioned) {
+    brief.filters.maxAge = explicitAge.maxAge;
+    brief.constraints = brief.constraints.filter(item => item.kind !== "age");
+    if (explicitAge.maxAge !== null && explicitAge.quote !== null) {
+      brief.constraints.push({
+        kind: "age",
+        strength: "required",
+        requirement: { value: explicitAge.quote, basis: "explicit", quote: explicitAge.quote },
+      });
+    }
+  }
   const representedPriorities = new Set(brief.priorities.map(priority => normalizeSearchText(priority.value)));
   for (const priority of explicitCapabilityPrioritiesFromMessages(userMessages)) {
     const key = normalizeSearchText(priority.value);
@@ -79,7 +115,7 @@ export function validateRecruitmentBrief(value: unknown, userMessages: readonly 
     brief.priorities.push(priority);
     representedPriorities.add(key);
   }
-  if (brief.filters.maxAge !== null
+  if (!explicitAge.mentioned && brief.filters.maxAge !== null
     && !brief.constraints.some(item => item.kind === "age" && item.strength === "required" && item.requirement.basis === "explicit")) {
     const quote = explicitAgeQuote(userMessages, brief.filters.maxAge);
     if (quote) brief.constraints.push({
@@ -88,7 +124,7 @@ export function validateRecruitmentBrief(value: unknown, userMessages: readonly 
       requirement: { value: quote, basis: "explicit", quote },
     });
   }
-  if (brief.referenceRecheck && !userMessages.at(-1)?.includes(brief.referenceRecheck.quote)) throw new RecruitmentBriefValidationError("身份重查必须引用本轮用户的原话，不继承旧轮次的重查要求。");
+  if (brief.referenceRecheck && !userMessages.at(-1)?.includes(brief.referenceRecheck.quote)) throw new RecruitmentBriefValidationError("身份重查必须引用本轮用户的原话，不继承旧轮次的重查要求。", "stale_reference_recheck");
   const explicitPositions = explicitPositionState(userMessages);
   brief.positions = explicitPositions.positions;
   brief.allowsAnyPosition = explicitPositions.allowsAnyPosition;
@@ -107,10 +143,27 @@ export function validateRecruitmentBrief(value: unknown, userMessages: readonly 
     return true;
   });
   if (brief.allowsAnyPosition) brief.positions = [];
-  const latestPosition = [...userMessages].reverse().map(message => resolveCandidateSearchIntent({
-    userMessages: [message], latestMessage: message, confirmedPosition: null,
-  }).position).find(position => position !== null);
+  const latestPosition = [...userMessages].reverse().map(message => {
+    const explicitPositions = explicitPositionState([message]).positions;
+    return explicitPositions.at(-1) ?? resolveCandidateSearchIntent({
+      userMessages: [message], latestMessage: message, confirmedPosition: null,
+    }).position;
+  }).find(position => position !== null);
   const latestMessage = userMessages.at(-1) ?? "";
+  const explicitlySelectedCandidate = visibleCandidates.find(candidate => (
+    explicitlySelectsCandidate(latestMessage, candidate, visibleCandidates)
+  ));
+  if (explicitlySelectedCandidate) {
+    brief.selectedCandidateId = explicitlySelectedCandidate.playerId;
+    brief.referencePlayer = { value: explicitlySelectedCandidate.name, basis: "explicit", quote: latestMessage };
+  } else if (brief.selectedCandidateId) {
+    const modelSelectedCandidate = visibleCandidates.find(candidate => candidate.playerId === brief.selectedCandidateId);
+    brief.selectedCandidateId = null;
+    if (modelSelectedCandidate && brief.referencePlayer?.value === modelSelectedCandidate.name && previousBrief) {
+      brief.task = previousBrief.task;
+      brief.referencePlayer = previousBrief.referencePlayer;
+    }
+  }
   const selectedCandidate = visibleCandidates.find(candidate => candidate.playerId === brief.selectedCandidateId);
   // Resolve presentation metadata from the actual visible list and current user
   // selection. The model cannot supply a different identity or invent a quote.
@@ -131,49 +184,49 @@ export function validateRecruitmentBrief(value: unknown, userMessages: readonly 
   }
   if (!brief.allowsAnyPosition && latestPosition && brief.positions.length === 1
     && brief.positions[0] !== latestPosition && positionMatches(latestPosition, brief.positions[0]!)) {
-    throw new RecruitmentBriefValidationError(`用户明确提到细分位置 ${latestPosition}，不能将 positions 放宽为 ${brief.positions[0]}。请保留用户要求的全部细分位置；只有用户明确不限位置时才允许扩大范围。`);
+    throw new RecruitmentBriefValidationError(`用户明确提到细分位置 ${latestPosition}，不能将 positions 放宽为 ${brief.positions[0]}。请保留用户要求的全部细分位置；只有用户明确不限位置时才允许扩大范围。`, "broad_position_conflict");
   }
   const quotes = [brief.targetTeam, brief.referencePlayer, ...brief.priorities,
     ...brief.constraints.map(item => item.requirement)].filter(item => item !== null);
   for (const item of quotes) {
     if (item.basis === "explicit" && (!item.quote.trim() || !userMessages.some(message => message.includes(item.quote)))) {
-      throw new RecruitmentBriefValidationError(`明确条件 ${JSON.stringify(item.value)} 的 quote=${JSON.stringify(item.quote)} 不是用户连续原文。quote 必须逐字引用 recentMessages/message；候选指代应引用“第三个”等用户原话，候选姓名只放 value。不能编造引文。`);
+      throw new RecruitmentBriefValidationError(`明确条件 ${JSON.stringify(item.value)} 的 quote=${JSON.stringify(item.quote)} 不是用户连续原文。quote 必须逐字引用 recentMessages/message；候选指代应引用“第三个”等用户原话，候选姓名只放 value。不能编造引文。`, "quote_not_verbatim");
     }
   }
   if (brief.constraints.some(item => item.strength === "required" && item.requirement.basis !== "explicit")) {
-    throw new RecruitmentBriefValidationError("推断偏好不能成为硬性筛选条件。");
+    throw new RecruitmentBriefValidationError("推断偏好不能成为硬性筛选条件。", "inferred_hard_constraint");
   }
   for (const [kind, active] of [["age", brief.filters.maxAge !== null], ["minutes", brief.filters.minimumMinutes > 0],
     ["competition", brief.filters.competition !== null || brief.filters.excludedCompetitions.length > 0], ["season", brief.filters.season !== null]] as const) {
     if (active && !brief.constraints.some(item => item.kind === kind && item.strength === "required" && item.requirement.basis === "explicit")) {
-      throw new RecruitmentBriefValidationError(`筛选条件 ${kind} 缺少对应约束。请在 constraints 添加 {kind:"${kind}",strength:"required",requirement:{value:用户条件,basis:"explicit",quote:用户连续原文}}；只可引用真实用户条件，用户未要求时必须清除该 filter。`);
+      throw new RecruitmentBriefValidationError(`筛选条件 ${kind} 缺少对应约束。请在 constraints 添加 {kind:"${kind}",strength:"required",requirement:{value:用户条件,basis:"explicit",quote:用户连续原文}}；只可引用真实用户条件，用户未要求时必须清除该 filter。`, "filter_missing_constraint");
     }
   }
   for (const [kind, value] of [["age", brief.filters.maxAge], ["minutes", brief.filters.minimumMinutes || null]] as const) {
     if (value !== null && !brief.constraints.some(item => item.kind === kind && item.strength === "required"
       && item.requirement.quote.match(/\d+/g)?.some(number => Number(number) === value))) {
-      throw new RecruitmentBriefValidationError("数值筛选条件与用户原话不一致。");
+      throw new RecruitmentBriefValidationError("数值筛选条件与用户原话不一致。", "numeric_filter_mismatch");
     }
   }
   if (brief.selectedCandidateId && (!selectedCandidate || !brief.referencePlayer || brief.referencePlayer.value !== selectedCandidate.name
-    || !explicitlySelectsCandidate(brief.referencePlayer.quote, selectedCandidate, visibleCandidates))) {
-    throw new RecruitmentBriefValidationError("候选指代必须对应上一份可见报告中的具体人选和正确序号；不确定时请澄清。");
+    || !explicitlySelectsCandidate(latestMessage, selectedCandidate, visibleCandidates))) {
+    throw new RecruitmentBriefValidationError("候选指代必须对应上一份可见报告中的具体人选和正确序号；不确定时请澄清。", "invalid_candidate_selection");
   }
   if (brief.referencePlayer && (brief.referencePlayer.basis !== "explicit" || (!selectedCandidate && !brief.referencePlayer.quote.includes(brief.referencePlayer.value)))) {
-    throw new RecruitmentBriefValidationError("参考称呼必须保留用户提及，不能用模型猜测的名字替换。");
+    throw new RecruitmentBriefValidationError("参考称呼必须保留用户提及，不能用模型猜测的名字替换。", "reference_name_not_preserved");
   }
   if (brief.referencePlayer && /^(?:门将|守门员|后卫|中卫|中后卫|边后卫|左后卫|右后卫|翼卫|中场|后腰|中前卫|前腰|边锋|前锋|中锋|GK|DEF|CB|FB|LB|RB|LWB|RWB|MID|DM|CM|AM|ATT|WG|LW|RW|ST)$/i.test(brief.referencePlayer.value.trim())) {
-    throw new RecruitmentBriefValidationError("位置或职责名称不是参考球员；没有提及具体人时应使用 reinforcement，并将 referencePlayer 设为 null。");
+    throw new RecruitmentBriefValidationError("位置或职责名称不是参考球员；没有提及具体人时应使用 reinforcement，并将 referencePlayer 设为 null。", "position_used_as_reference");
   }
   if (brief.referencePlayer && brief.positions.length && brief.priorities.some(priority => priority.value.length > 3
     && brief.referencePlayer!.value.includes(priority.value) && brief.referencePlayer!.value.includes("的"))) {
-    throw new RecruitmentBriefValidationError("referencePlayer 混入了已提取的能力与位置描述。用户没有指定具名人物时，应为 reinforcement，referencePlayer=null，能力留在 priorities。");
+    throw new RecruitmentBriefValidationError("referencePlayer 混入了已提取的能力与位置描述。用户没有指定具名人物时，应为 reinforcement，referencePlayer=null，能力留在 priorities。", "reference_contains_capability");
   }
   if (brief.task !== "reinforcement" && brief.referencePlayer === null && brief.unresolved.length === 0) {
-    throw new RecruitmentBriefValidationError("参考球员任务需要名称或具体澄清问题。");
+    throw new RecruitmentBriefValidationError("参考球员任务需要名称或具体澄清问题。", "missing_reference_player");
   }
   if (brief.task === "reinforcement" && brief.referencePlayer !== null) {
-    throw new RecruitmentBriefValidationError("具名参考球员与任务类型矛盾；有相似或替代参照时应选择对应任务，没有参照才是 reinforcement。");
+    throw new RecruitmentBriefValidationError("具名参考球员与任务类型矛盾；有相似或替代参照时应选择对应任务，没有参照才是 reinforcement。", "reference_task_mismatch");
   }
   return brief;
 }

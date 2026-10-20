@@ -1,8 +1,10 @@
 import { type RecruitmentAskUserMode, type RecruitmentReviewerMode } from "../recruitment/conversation.js";
 import type { RecruitmentTraceEvent } from "../recruitment/conversation/contracts.js";
+import type { RecruitmentPlannerResponseDiagnostics } from "../recruitment/recruitment-planner.js";
 import { type KnowledgeRepository } from "../knowledge/index.js";
+import type { RecruitmentContextManifest } from "../recruitment/context.js";
 import { type EvaluationScenario, summarizeEvaluationRuns } from "./harness-evaluation.js";
-import { type LocalAgentRun, operationLatencySamplesFromTrace, summarizeModelUsageAcrossRuns } from "./local-agent-run.js";
+import { type LocalAgentRun, operationLatencySamplesFromTrace, summarizeFirstUsefulProgress, summarizeModelUsageAcrossRuns } from "./local-agent-run.js";
 
 export function suppressMethodologyCorpus(knowledgeBase: KnowledgeRepository): KnowledgeRepository {
   return {
@@ -15,7 +17,7 @@ export function suppressMethodologyCorpus(knowledgeBase: KnowledgeRepository): K
 
 function historicalArchiveTrace(run: LocalAgentRun): Array<Record<string, unknown>> {
   const safeFilterKeys = [
-    "position", "maxAge", "minimumMinutes", "competition", "season", "requestedOffset", "offset", "limit",
+    "position", "maxAge", "minimumMinutes", "competition", "season", "discoveryMetricGroups", "requestedOffset", "offset", "limit",
     "nextOffset", "playerNameFilterUsed", "requestedPlayerCount", "searchedPlayerCount", "evaluatedMetricKeys",
   ];
   return run.trace.flatMap<Record<string, unknown>>((event) => {
@@ -158,53 +160,149 @@ export function summarizeContextManagementArm(id: "legacy" | "projection" | "evi
     id,
     summary,
     modelUsage,
-    contextRequests: summarizeContextRequests(runs),
+    contextRequests: summarizeContextRequests(runs.flatMap(run => run.trace.flatMap(event => {
+      const value = event.contextManifest;
+      return value && typeof value === "object" ? [value as RecruitmentContextManifest] : [];
+    }))),
     contextStressTurnsRequested: runs.map(run => run.contextStressTurnsRequested),
+    contextStressTurnsAttempted: runs.map(run => run.contextStressTurnsAttempted),
     contextStressTurnsCompleted: runs.map(run => run.contextStressTurnsCompleted),
+    contextStressCorrectnessMatrix: runs.map(run => ({
+      run: run.run,
+      turns: run.contextStressTurnMatrix,
+    })),
+    mechanismExercise: runs.map(summarizeContextManagementMechanisms),
+    errors: summarizeContextManagementErrors(runs.map(run => "errors" in run ? run.errors : [])),
+    plannerRequestFailures: runs.map(({ run, plannerRequestFailures }) => ({ run, failures: plannerRequestFailures })),
     summaryRequests: runs.map(run => run.trace.filter(event => event.phase === "summary_usage").length),
     summaryFailures: runs.map(run => run.trace.filter(event => event.phase === "summary_failure").length),
     compactionProgressEvents: runs.map(run => run.progress.filter(event => event.stage === "context_compaction").length),
     toolCallCounts: runs.map(run => run.toolCallCount),
     plannerRequestAttempts: runs.map(run => run.plannerRequestAttempts),
+    firstProgress: runs.map(run => summarizeFirstUsefulProgress(run.progress)),
   };
 }
 
-function summarizeContextRequests(runs: readonly LocalAgentRun[]) {
-  const requests = runs.flatMap(run => run.trace.flatMap(event => {
-    const value = event.contextManifest;
-    return value && typeof value === "object" ? [value as Record<string, unknown>] : [];
+export function summarizeContextManagementMechanisms(run: Pick<LocalAgentRun, "trace" | "progress">) {
+  const trace = run.trace as readonly Record<string, unknown>[];
+  return {
+    projectedPlannerRequests: trace.filter(event => {
+      if (event.phase !== "model_usage" || !event.contextManifest || typeof event.contextManifest !== "object") return false;
+      const omitted = (event.contextManifest as { omittedHistoryEventIds?: unknown }).omittedHistoryEventIds;
+      return Array.isArray(omitted) && omitted.length > 0;
+    }).length,
+    evidenceReadCalls: trace.filter(event => event.phase === "tool" && event.toolName === "read_case_evidence").length,
+    summaryModelRequests: trace.filter(event => event.phase === "summary_usage").length,
+    acceptedSummaries: run.progress.filter(event => event.stage === "context_compaction" && event.status === "completed").length,
+    summaryFailures: trace.filter(event => event.phase === "summary_failure").length,
+  };
+}
+
+export function contextSummaryMechanismWasExercised(input: { modelRequests: number; acceptedSummaries: number }): boolean {
+  return Number.isSafeInteger(input.modelRequests) && input.modelRequests > 0
+    && Number.isSafeInteger(input.acceptedSummaries) && input.acceptedSummaries > 0;
+}
+
+type ContextManagementRunError = {
+  name: string;
+  category: string;
+  code?: string;
+  status?: number;
+  stage?: string;
+  estimatedInputTokens?: number;
+  inputBudgetTokens?: number;
+  validationIssuePaths?: string[];
+  validationIssueCodes?: string[];
+  plannerResponseDiagnostics?: RecruitmentPlannerResponseDiagnostics;
+};
+
+export function summarizeContextManagementErrors(
+  errorsByRun: readonly (readonly ContextManagementRunError[] | undefined)[],
+) {
+  return errorsByRun.map(errors => (errors ?? []).map((error) => {
+    const diagnostics = error.plannerResponseDiagnostics;
+    return {
+      name: error.name,
+      category: error.category,
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.status !== undefined ? { status: error.status } : {}),
+      ...(error.stage ? { stage: error.stage } : {}),
+      ...(error.estimatedInputTokens !== undefined ? { estimatedInputTokens: error.estimatedInputTokens } : {}),
+      ...(error.inputBudgetTokens !== undefined ? { inputBudgetTokens: error.inputBudgetTokens } : {}),
+      ...(error.validationIssuePaths?.length ? { validationIssuePaths: error.validationIssuePaths.slice(0, 8) } : {}),
+      ...(error.validationIssueCodes?.length ? { validationIssueCodes: error.validationIssueCodes.slice(0, 8) } : {}),
+      ...(diagnostics ? {
+        plannerResponseDiagnostics: {
+          failure: diagnostics.failure,
+          ...(diagnostics.toolCallProtocolFailure ? { toolCallProtocolFailure: diagnostics.toolCallProtocolFailure } : {}),
+          ...(diagnostics.toolCallIssuePaths?.length ? { toolCallIssuePaths: diagnostics.toolCallIssuePaths.slice(0, 8) } : {}),
+          ...(diagnostics.toolCallIssueCodes?.length ? { toolCallIssueCodes: diagnostics.toolCallIssueCodes.slice(0, 8) } : {}),
+          contentKind: diagnostics.contentKind,
+          ...(diagnostics.contentLength !== undefined ? { contentLength: diagnostics.contentLength } : {}),
+          ...(diagnostics.finishReason ? { finishReason: diagnostics.finishReason } : {}),
+          hasReasoningContent: diagnostics.hasReasoningContent,
+          toolCallCount: diagnostics.toolCallCount,
+        },
+      } : {}),
+    };
   }));
-  const metric = (select: (manifest: Record<string, unknown>) => unknown) => {
-    const values = requests.map(select);
+}
+
+export function summarizeContextRequests(requests: readonly RecruitmentContextManifest[]) {
+  const metric = (values: readonly unknown[], requestCount = requests.length) => {
     const numbers = values.filter((value): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
-    const status = requests.length === 0 || numbers.length === 0 ? "unavailable"
-      : numbers.length === requests.length ? "complete" : "partial";
-    return { status, total: status === "complete" ? numbers.reduce((sum, value) => sum + value, 0) : null, observed: numbers.length, requestCount: requests.length };
+    const status = requestCount === 0 || numbers.length === 0 ? "unavailable"
+      : numbers.length === requestCount ? "complete" : "partial";
+    const observedTotal = numbers.reduce((sum, value) => sum + value, 0);
+    return {
+      status,
+      total: status === "complete" ? observedTotal : null,
+      observedTotal,
+      observed: numbers.length,
+      requestCount,
+    };
   };
   const actualUsageStatus: Record<string, number> = {};
   const budgetStrategyCounts: Record<string, number> = {};
   for (const request of requests) {
     const budgetStrategy = typeof request.budgetStrategy === "string" ? request.budgetStrategy : "not_observed";
     budgetStrategyCounts[budgetStrategy] = (budgetStrategyCounts[budgetStrategy] ?? 0) + 1;
-    const usage = typeof request.actualTokenUsage === "object" && request.actualTokenUsage !== null
-      ? request.actualTokenUsage as Record<string, unknown> : null;
-    const status = typeof usage?.status === "string" ? usage.status : "not_observed";
+    const status = request.actualTokenUsage?.status ?? "not_observed";
     actualUsageStatus[status] = (actualUsageStatus[status] ?? 0) + 1;
   }
   const stages = [...new Set(requests.flatMap(request => typeof request.stage === "string" ? [request.stage] : []))].sort();
   const byStage = Object.fromEntries(stages.map(stage => {
     const subset = requests.filter(request => request.stage === stage);
-    const total = (field: string) => {
-      const values = subset.map(request => request[field]);
-      const numbers = values.filter((value): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
-      return { total: numbers.length === subset.length ? numbers.reduce((sum, value) => sum + value, 0) : null, observed: numbers.length, requestCount: subset.length };
-    };
-    return [stage, { requestCount: subset.length, estimatedInputTokens: total("estimatedInputTokens"), requestBytes: total("requestBytes") }];
+    const estimatedInputTokens = metric(subset.map(request => request.estimatedInputTokens), subset.length);
+    const actualInputTokens = metric(subset.map(request => request.actualTokenUsage?.inputTokens), subset.length);
+    const actualOutputTokens = metric(subset.map(request => request.actualTokenUsage?.outputTokens), subset.length);
+    const actualTotalTokens = metric(subset.map(request => request.actualTokenUsage?.totalTokens), subset.length);
+    const inputEstimateErrorTokens = estimatedInputTokens.total === null || actualInputTokens.total === null
+      ? null
+      : estimatedInputTokens.total - actualInputTokens.total;
+    const inputEstimateRelativeError = estimatedInputTokens.total === null || actualInputTokens.total === null || actualInputTokens.total === 0
+      ? null
+      : inputEstimateErrorTokens! / actualInputTokens.total;
+    return [stage, {
+      requestCount: subset.length,
+      estimatedInputTokens,
+      requestBytes: metric(subset.map(request => request.requestBytes), subset.length),
+      actualInputTokens,
+      actualOutputTokens,
+      actualTotalTokens,
+      inputEstimateErrorTokens,
+      inputEstimateRelativeError,
+    }];
   }));
   return {
     requestCount: requests.length,
-    estimatedInputTokens: metric(manifest => manifest.estimatedInputTokens),
-    requestBytes: metric(manifest => manifest.requestBytes),
+    estimatedInputTokens: metric(requests.map(manifest => manifest.estimatedInputTokens)),
+    requestBytes: metric(requests.map(manifest => manifest.requestBytes)),
+    actualTokenUsage: {
+      inputTokens: metric(requests.map(manifest => manifest.actualTokenUsage?.inputTokens)),
+      outputTokens: metric(requests.map(manifest => manifest.actualTokenUsage?.outputTokens)),
+      totalTokens: metric(requests.map(manifest => manifest.actualTokenUsage?.totalTokens)),
+    },
     overBudgetRequests: requests.filter(manifest => manifest.status === "over_budget").length,
     includedHistoryEventCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.includedHistoryEventIds) ? manifest.includedHistoryEventIds.length : 0), 0),
     omittedHistoryEventCount: requests.reduce((sum, manifest) => sum + (Array.isArray(manifest.omittedHistoryEventIds) ? manifest.omittedHistoryEventIds.length : 0), 0),
@@ -570,6 +668,77 @@ export function summarizeInvestigationPlanningArm(
     modelUsage: summarizeModelUsageAcrossRuns(runs.map((run) => run.modelUsage)),
     meanToolCallCount: mean(runSummaries.map(({ toolCallCount }) => toolCallCount)),
     runs: runSummaries,
+  };
+}
+
+export function summarizeToolProtocolArm(protocol: "legacy_action" | "native_tools", runs: LocalAgentRun[]) {
+  const runSummaries = runs.map(run => ({
+    run: run.run,
+    protocol: run.plannerProtocol,
+    firstTurnStatus: run.firstTurnStatus,
+    finalStatus: run.finalStatus,
+    allPassed: run.allPassed,
+    failedChecks: Object.entries(run.checks).flatMap(([name, passed]) => passed ? [] : [name]),
+    elapsedMs: run.elapsedMs,
+    plannerRequestAttempts: run.plannerRequestAttempts,
+    modelUsage: run.modelUsage,
+    toolCallCount: run.toolCallCount,
+    recommendationCount: run.report?.recommendations.length ?? 0,
+    evidenceReferenceCount: run.report?.recommendations.reduce((count, candidate) => count + candidate.evidenceKeys.length, 0) ?? 0,
+    reportGenerated: run.report !== null,
+    errors: "errors" in run ? run.errors.map(({ name, category, code, status, stage, plannerResponseDiagnostics }) => ({
+      name,
+      category,
+      code: code ?? null,
+      status: status ?? null,
+      stage: stage ?? null,
+      ...(plannerResponseDiagnostics ? { plannerResponseDiagnostics } : {}),
+    })) : [],
+    plannerRequestFailures: run.plannerRequestFailures,
+  }));
+  const mean = (values: number[]) => values.length
+    ? Math.round(values.reduce((total, value) => total + value, 0) / values.length * 100) / 100
+    : null;
+  return {
+    protocol,
+    summary: summarizeEvaluationRuns(runs.map(run => ({
+      checks: run.checks,
+      elapsedMs: run.elapsedMs,
+      operationLatencySamples: operationLatencySamplesFromTrace(run.trace),
+    }))),
+    meanPlannerRequestAttempts: mean(runSummaries.map(run => run.plannerRequestAttempts)),
+    meanToolCallCount: mean(runSummaries.map(run => run.toolCallCount)),
+    modelUsage: summarizeModelUsageAcrossRuns(runs.map(run => run.modelUsage)),
+    runs: runSummaries,
+  };
+}
+
+export function summarizeToolProtocolPair(legacy: LocalAgentRun, native: LocalAgentRun) {
+  return {
+    run: legacy.run,
+    legacyPassed: legacy.allPassed,
+    nativePassed: native.allPassed,
+    checksIdentical: JSON.stringify(legacy.checks) === JSON.stringify(native.checks),
+    firstTurnStatusSame: legacy.firstTurnStatus === native.firstTurnStatus,
+    finalStatusSame: legacy.finalStatus === native.finalStatus,
+    recommendationOrderSame: sameRecommendationOrder(legacy, native),
+    recommendationEvidenceSame: sameRecommendationEvidenceOrder(legacy, native),
+    recommendationCount: {
+      legacy: legacy.report?.recommendations.length ?? 0,
+      native: native.report?.recommendations.length ?? 0,
+    },
+    plannerRequests: {
+      legacy: legacy.plannerRequestAttempts,
+      native: native.plannerRequestAttempts,
+    },
+    toolCalls: {
+      legacy: legacy.toolCallCount,
+      native: native.toolCallCount,
+    },
+    elapsedMs: {
+      legacy: legacy.elapsedMs,
+      native: native.elapsedMs,
+    },
   };
 }
 

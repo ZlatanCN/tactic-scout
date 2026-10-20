@@ -1,8 +1,8 @@
 # TactiScout 上下文管理落地方案
 
-Status: implementation updated behind the legacy default; five-arm local-model ablation is still pending
+Status: implementation remains behind the legacy default; the earlier five-arm local-model ablation was inconclusive. A report-retention regression was fixed and the current summarized-mode 20-turn replay passed its per-turn correctness matrix, but did not cross the summary payload threshold. See the latest run record at the end of this document.
 
-日期：2026-10-19。本文记录上下文管理的研究、设计与当前实现边界。新策略保持实验开关，默认不切换到未经实测的投影或摘要模式。
+日期：2026-10-19，2026-10-20 更新。本文记录上下文管理的研究、设计与当前实现边界。新策略保持实验开关；真实五臂结果未达到正确性门槛，默认继续使用 legacy。
 
 ## 产品目标与约束
 
@@ -222,3 +222,73 @@ src/recruitment/
 本轮最终本机验证：全量 `pnpm test` 为 724/724 通过，`pnpm build` 与 `git diff --check` 通过。它们验证软件行为与类型完整性，不替代尚未完成的 Ollama 五臂消融。
 
 原有 `.scratch/planner-context-serialization/` 下的四份未跟踪实验脚本保留，未修改。
+
+## 2026-10-20 Luna 五臂实测更新
+
+原始脱敏 Harness 汇总：`.data/evaluations/context-management-five-arm-luna-current-20261020-v11.json`。模型为 `codex/gpt-6-luna`，curated 数据快照固定，单次 3/3 Planner 响应预检通过。五臂各 5 次，按轮换顺序串行运行，每次最多追加 20 轮压力对话。实验运行完整，但 Harness 结果为 `inconclusive`：4/25 次在 Planner 工具调用协议或结构化输出参数阶段失败；并且 25/25 次都未通过整轮正确性门槛。因此它没有证明任何新策略可安全成为默认。
+
+| 策略 | 20 轮全部完成 | Harness 通过 | 每臂 p50 耗时 | 实际输入 token | 主要终止原因 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| legacy | 0/5 | 0/5 | 109 秒 | 5.82M（149/154 请求有 usage，部分值未知） | 5/5 在 investigate 请求达到 8,192 输入预算后容量停止；完成 5–10 轮 |
+| projection | 4/5 | 0/5 | 296 秒 | 7.81M（完整，353 请求） | 1 次 missing_tool_call；其余全程但重复策略动作、游标或能力覆盖检查失败 |
+| evidence | 0/5 | 0/5 | 137 秒 | 8.36M（180/185 请求有 usage，部分值未知） | 4 次上下文容量、1 次模型超时；完成 5–10 轮 |
+| unified | 3/5 | 0/5 | 280 秒 | 8.19M（完整，349 请求） | 2 次工具参数协议错误；其余全程但仍有报告覆盖、游标或重复策略动作失败 |
+| summarized | 3/5 | 0/5 | 289 秒 | 7.96M（完整，391 请求） | 1 次 missing_tool_call、1 次提前追问；另外三次到 20 轮但业务正确性未通过 |
+
+摘要臂的机制确实被执行：5 次运行产生并接受 33 次逐字来源校验摘要，摘要生成没有失败；但摘要不保证需求覆盖、报告生成或不追问，故不能把“摘要接受”当成正确性通过。全部策略的通过率均为 0/5，端到端延迟也因完成轮数和模型失败不同而不可直接解释为策略收益。保持 `legacy` 默认；同时不应将此压力脚本的每轮重复策略动作直接等同于真实用户体验，需与真实长对话回归分开看。
+
+本次实际 usage 还校准了 Luna 摘要阶段：33 次摘要请求估算输入 120,544 token，Provider 报告实际输入 190,281 token，实际/估算比为 1.58。`measuredStageCalibrationFactor("summarize")` 现设为 1.8，留约 14% pooled reserve。已用 `buildRecruitmentContext` 公开 seam 增加回归断言。其他阶段本次带修正后的估算整体偏保守；因 investigate 请求存在未返回 usage 的容量错误，不能借它们反推准确 tokenizer。
+
+仍未解决的门槛：修复并复验重复受策略拒绝动作、分页 nextOffset 偏离、长程能力覆盖/报告丢失，以及长上下文中的工具参数错误；完成登记的长对话回归矩阵；在正确性通过后再比较 token/延迟并判断是否启用任一新策略。全量实验不能取代这些修复。
+
+## 2026-10-20 摘要臂运行时校准与诊断
+
+摘要模式的额外真实运行记录：
+
+| 探针 | 有效模型响应 | 压力轮完成 | 结果与限制 |
+| --- | ---: | ---: | --- |
+| `context-management-summary-runtime-luna-current-20261020-v2.json` | 102/102 | 20/20 | 接受 7 份摘要；Harness 仍因重复策略拦截及长对话正确性检查失败，不能据摘要机制被触发就认定上下文正确。 |
+| `context-management-summary-runtime-luna-current-20261020-v3.json` | 32/32 | 6/20 | 第 7 次压力轮遇到 `ZodError`，之前若干轮重复策略动作；错误摘要起初未保留结构字段路径。 |
+| `context-management-summary-runtime-luna-current-20261020-v4.json` 至 `...-v8.json` | 0/21 | 20/20（确定性回退） | 运行环境最初未获准访问本机网关，请求实际以 `EPERM` 失败；图的确定性回退仍返回 completed，但这不是有效模型实验，也不产生 token 校准证据。v5 起探针加入模型运行有效性标记；`modelRunValidForCalibration=false` 时不得拿估算 token 或回退报告当作模型实验结果。v8 进一步证实失败发生在 brief understanding（21 次），Planner 未被调用；v9 在获准访问网关后重跑。 |
+
+v2 阶段实测 actual/estimate P95：understand 0.546（n=23）、expand 0.712（n=8）、investigate 0.708（n=34）、reorient 0.776（n=29）、conclude 0.771（n=1）、summarize 0.898（n=7）。v3 在 understand 使用旧系数 1.3 时达到 0.982（n=8）；因此 `src/recruitment/context.ts` 当前 understand 系数调至 1.5，expand 保持 1.6，summarize 调至 1.9。以已观测样本计算，理解、扩页和摘要大致留有 15–18% 的估算余量；其他阶段在这些样本中更保守。样本量和场景仍有限，这只是 Luna 当前请求构造的暂定系数，不是精确 tokenizer 或其他模型的校准结论。
+
+Harness 的 schema 错误摘要现提取有限字段路径与 Zod 错误码；字段段采用白名单，未知段输出为 `field`，不保留 issue 的 `input`、消息或原始 payload。每次 Harness Planner 异常也会在对应决策阶段留下同样的安全摘要，即使 LangGraph 在图内完成回退；这能区分“回退后 completed”与有效模型响应。brief 需求理解失败轨迹现在仅保留错误类型和输出上限，不再暴露校验错误文本或原始 issue 路径。整图事件摘要带有所属对话轮次，供下一次有效运行定位重复策略动作和结构失败发生在哪一轮。上述脱敏行为已通过 Harness 单元回归和 TypeScript 检查；新一轮端到端确认仍待网关恢复。五臂消融、长对话正确性矩阵与是否切换默认策略仍未完成。
+
+## 2026-10-20 最新运行、约束修复与剩余门槛
+
+本机网关恢复后，Curated Barcelona 基线 `.data/evaluations/context-baseline-luna-current-20261020-v2.json` 通过 32/32 Harness 检查：2 次模型请求、5 次工具调用、19 名评估候选、3 项推荐、13,002 输入 token、10.9 秒。它证明当前单轮主要链路可运行，不证明长对话策略有效。
+
+摘要运行时探针 `.data/evaluations/context-management-summary-runtime-luna-current-20261020-v22.json` 完成 8/8 压力回合，34/34 模型请求返回 usage，共 702,722 输入 token；接受 2 份摘要。但 Harness 未通过，失败包括重复策略动作及报告/证据检查。该探针实际/估算输入 token P95 比率为：understand 0.851（n=9）、investigate 0.709（n=10）、reorient 0.780（n=11）、summarize 0.852（n=2）、expand 0.845（n=1）、conclude 0.862（n=1）。这些样本未显示低估；摘要及少样本阶段不足以据此放宽预算。
+
+长对话审查发现确定性需求校验中的真实边界缺陷：用户把年龄上限从 23 改到 24 时，模型输出的旧 `age` constraint 会与新 filter 冲突，使校验拒绝更新；明确说“年龄不限”时，旧 filter/constraint 也可能残留。现在 `explicitAgeConstraint` 解析最近一次明确年龄表达，brief 校验同步替换或清除对应约束。新增纯函数回归覆盖“23→24”与“撤销年龄限制”，并扩展完整 LangGraph 测试：25 轮摘要后修正年龄，随后再次取消年龄；新查询分别采用新值及无年龄过滤。简报/摘要和候选意图相关 40 项测试通过，当前 `pnpm build` 通过，完整 `pnpm test` 775/775 通过。
+
+上述修复没有被当前五臂压力脚本覆盖，因为脚本每回合重复同一段“保持所有条件不变”的提示。早停复核 `.data/evaluations/context-management-pilot-luna-current-20261020-v12.json` 每臂只运行 1 次，不能当作完整重复消融：legacy 在第 12/20 轮遇容量错误；projection 和 summarized 完成 20 轮但重复策略动作、分页或回合正确性检查失败；evidence 首回合就请求用户输入；unified 完成 20 轮但仍有重复受阻动作。summarized 接受 8 份摘要也没有通过正确性检查。因上一份 v11 已有完整五臂、每臂 5 次结果且 0/25 Harness 通过，而该复核既未改上下文策略也未覆盖年龄修复，停止其余重复轮次。v11 与 v12 均不支持启用新策略；`legacy` 仍是默认，但旧策略本身在 20 轮压力场景有容量失败，长对话产品目标仍未达成。
+
+LangGraph 原生工具协议复核 `.data/evaluations/langgraph-native-tool-protocol-luna-current-20261020-v10.json` 预检通过并完成 5 对：legacy action 3/5 报告通过，原生具名工具 + `ToolNode` 5/5；但有两组 legacy 未生成报告，整体比较标记 inconclusive。原生工具臂使用约 125,547 输入 token、延迟 p50 12.2 秒；legacy 约 64,450 输入 token、p50 7.8 秒。它支持继续采用当前原生 LangGraph 工具调用作为产品实现，但不足以宣称其更省 token 或更快。
+
+仍未完成：修复长对话中的重复受阻动作及游标/报告覆盖失败；让上下文五臂实验使用能覆盖真实用户纠正、证据追问和候选指代的有效多轮场景，并在 Harness 正确性通过后按计划完成配对重复；扩大少样本阶段的预算校准；完整跑过注册的长对话正确性矩阵。当前没有依据启用 projection、evidence、unified 或 summarized 为默认。
+
+同范围报告追问修复已落地：案件已有完整、无待澄清的 brief，用户明确要求沿用原需求且只询问报告证据时，需求理解节点复用已验证 brief，不重复解析；范围变化、待答问题或新增硬条件仍走正常解析。真实模型首轮回放发现另一处连续性缺陷：报告追问虽复用了 brief，Planner 仍能把三人名单缩为一人。现在整图把原报告的推荐球员与证据键保存在同范围只读追问上下文中，报告投影沿用原名单；明确重排、换人、扩充候选或改条件仍允许改变名单。全图回归故意让第二轮 Planner 只返回一名候选，验证只读追问保留三人；同时验证显式重排可改变名单，“保持原筛选条件不变，再多找几名候选”可从原三人扩展到四人。相关整图场景与完整测试套件通过，`pnpm build` 与 `git diff --check` 通过。
+
+修复后使用 `codex/gpt-6-luna`、本机 Curated 快照完成双轮真实模型回放 `.data/evaluations/context-report-followup-real-model-2026-10-20T03-32-38.437Z.json`：首轮 3 名候选，5 次工具调用、2 次模型请求、9.0 秒；报告追问 3 名候选、0 次工具调用、1 次模型请求、8.4 秒。第二轮需求解析调用为 0，推荐身份集合及四项能力覆盖状态与首轮完全一致，整体验收 5/5 通过。此为单一输入的一次链路验证，不是准确率评测，也不代表五臂消融或长对话目标已经完成。
+
+2026-10-20 真实长上下文重放发现报告追问的新边界：用户明确要求保留原需求，只询问“向前传球与持球推进有哪些直接指标”时，需求解析仍被调用两次并以校验失败结束，导致本轮 `completed` 但 `report:null`。根因是 `hasCandidateSearchScopeChanged` 将追问提到的能力指标词也计入候选发现排序范围；报告追问识别因此误判为搜索范围变化。现在候选过滤范围变化与发现指标组变化分开计算：常规候选搜索仍保留指标组对分页/排序的作用；明确只读报告追问仅在位置、年龄、赛事、赛季和分钟等过滤范围未变时复用已验证 brief 与报告名单。回归先在完整 LangGraph 测试中复现空报告，再修复通过；独立测试覆盖能力词汇变化与真实年龄过滤变化。修复后使用 `codex/gpt-6-luna` 复跑原三条连续追问：第 2–4 回合均 `completedWithReport`，完整检查各 3/3 通过；本次 9 个模型请求、174,169 输入/输出合计 token、38.9 秒。诊断轨迹 `.data/evaluations/context-report-retention-repro-1792468405369.json` 仅保存脱敏阶段、决策和工具元数据。此回放验证报告连续性，不验证摘要策略优劣；重复策略阻断与完整五臂消融仍待后续。
+
+## 2026-10-20 报告保留修复后的 20 轮复核
+
+针对上述真实模型报告丢失，先在 `createRecruitmentConversation` 完整 LangGraph 回归中复现 `completed + report:null`，再以过滤范围比较替代发现指标组比较修复。全量测试 779/779 通过，`pnpm build` 与 `git diff --check` 通过。随后用 `codex/gpt-6-luna` 对同一 Barcelona U23 场景运行 20 轮范围保持追问：20/20 回合均有报告，报告/能力覆盖/进度检查 20/20 通过；没有策略阻断，48 次模型请求均成功，耗时 260.7 秒。脱敏轨迹 `.data/evaluations/context-report-retention-repro-1792468919333.json`。
+
+这次长对话有 0 次摘要调用，不代表摘要服务未连接。该压力脚本的 18 条较早用户事件合计 3,971 字节，按当前估算约 1,531 token，低于上下文整理节点的 2,048-token 摘要最低收益门槛；有界历史投影仍继续执行。此前真实模型运行已接受摘要（五臂记录 33 份，单独摘要探针也观察到 7 份），完整 LangGraph 的 25 轮摘要测试也覆盖了摘要生成、后续 Planner 使用和摘要后的年龄条件修正。因此可确认摘要分支能运行；本轮不适合作为摘要收益消融样本。
+
+该 20 轮复核只证明已修复的同范围报告追问连续性，不是上下文策略消融。早期五臂结果仍因正确性接受率 0/25 而无结论；摘要机制的新增收益，以及 projection/evidence/unified/summarized 是否改善真实长对话任务，仍没有有效的配对结论，`legacy` 继续作为默认。下一次消融应先采用能真实触发摘要、包含用户纠正/引用旧结论/证据追问的同案脚本，并为每臂保存相同场景的报告、工具轨迹、token 和耗时；不得把本轮“未触发摘要”的结果计为摘要臂验证。
+
+## 2026-10-20 工具参数反馈与网关限流修复
+
+回归发现新的协议故障：Planner 首次调用 `read_case_evidence` 时一次传入超过 4 个 ref，服务端 schema 安全拒绝后，重试提示只包含 `refs:too_big`，没有告诉模型准确上限，导致反馈不可执行。现在工具参数校验摘要保留 Zod 的安全数值边界，例如 `refs:too_big:max=4`；重试指令明确要求重试数组不得超过报告上限，否则拆成后续独立工具调用。
+
+同时，本机 Magpie 网关在一次五臂重跑中返回 429；旧模型客户端设置 `maxRetries=0`，一次瞬时限流会使后续全部请求失败，产生 `21/21` 次无响应的伪实验结果。模型客户端现在仅在 HTTP 429 时进行最多两次有界短退避（优先采用不超过 10 秒的 `Retry-After`，否则 1/2 秒递增）。302、响应体超时、截断输出、网络错误或其他 HTTP 错误仍只尝试一次，保留既有的 fail-closed 与时限语义。
+
+新增公开回归验证原生 Planner 的具名工具协议会把 `max=4` 写入同案重试请求，并验证模型客户端只重试 429。受影响的本机 HTTP、真实模型集成、重定向、输出上限和流式接口测试全部通过；最终全量 `pnpm test` 为 783/783，`pnpm build` 与 `git diff --check` 通过。
+
+本次被 429 打断的长实验不形成上下文策略结果。修复已经消除了“瞬时限流直接导致整组 21 次请求失败”的 Harness 混淆，但下一轮有意义的消融仍需采用会触发摘要、包含条件更正和证据追问的多轮脚本；现有 `legacy` 默认值不变。

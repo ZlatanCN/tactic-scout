@@ -461,3 +461,117 @@ test("a failed budget-triggered summary falls back to projected history without 
   assert.ok(plannerCalls.at(-1)?.history.every(entry => !entry.content.includes("早期背景")),
     "after summary failure, the same planner request retries with bounded history while the full case remains checkpointed");
 });
+
+test("the full LangGraph preserves late hard-constraint edits through a summarized case", async () => {
+  const candidate = roleConstraintPlayer("context-25-turn-candidate", "Context 25 Turn Candidate", "CB");
+  const baseBrief: RecruitmentBrief = {
+    task: "reinforcement", targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" },
+    referencePlayer: null, referenceClues: [], referenceRecheck: null, selectedCandidateId: null,
+    positions: ["CB"], allowsAnyPosition: false,
+    filters: { maxAge: 23, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [], constraints: [], unresolved: [],
+  };
+  const summaries: CaseSummaryEvent[][] = [];
+  const plannerCalls: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];
+  const candidateQueries: Array<{ position: string | null; maxAge: number | null }> = [];
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      const previous = input.previous ?? baseBrief;
+      const changedAge = input.message.includes("24 岁以下") ? 24 : previous.filters.maxAge;
+      const brief = {
+        ...previous,
+        filters: { ...previous.filters, maxAge: changedAge },
+      };
+      return validateRecruitmentBrief(
+        brief,
+        input.validationMessages ?? [...input.recentMessages, input.message],
+        input.visibleCandidates,
+        input.previous,
+      );
+    } },
+    repository: {
+      mode: "demo", sourceName: "Fixture",
+      async loadPlayers() { return [candidate]; },
+      async searchCandidates(query) {
+        candidateQueries.push({ position: query.position, maxAge: query.maxAge });
+        return { players: [candidate], totalRecords: 1, nextOffset: null, offset: query.offset, appliedFilters: ["position", "maxAge"] };
+      },
+    },
+    planner: Object.assign({
+      async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        plannerCalls.push(input);
+        return {
+          action: "finish", targetTeam: "巴萨", needSummary: "按最新范围整理候选",
+          capabilityProfile: [], recommendations: [], limitationKeys: [],
+        } as RecruitmentAction;
+      },
+    }, {
+      preflightContext(input: Parameters<RecruitmentPlanner["decide"]>[0]) {
+        return buildRecruitmentContext({
+          stage: input.decisionMode ?? "investigate",
+          systemInstructions: "固定规划规则",
+          payload: { history: input.history, brief: input.brief },
+          responseSchema: { type: "object" },
+          outputBudgetTokens: 1_024,
+          contextWindowTokens: 32_768,
+          softInputBudgetTokens: 1_024,
+          safetyMarginTokens: 256,
+        }).manifest;
+      },
+    }),
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    experimentalContextManagementMode: "summarized",
+    caseSummaryGenerator: {
+      async summarize(input) {
+        summaries.push([...input.events]);
+        return {
+          claims: input.events.map(event => ({ eventId: event.id, quote: event.text.slice(0, 48) })),
+          coveredEventIds: input.events.map(event => event.id),
+        };
+      },
+    },
+    knowledgeBase: { async search() { return []; } },
+  });
+
+  let response = await conversation.turn({
+    threadId: "context-25-turn-flow",
+    message: `为巴萨找一名 23 岁以下的中卫。早期背景：${"仅供这次案件参考的旧说明。".repeat(180)}`,
+  });
+  assert.equal(response.status, "completed", response.message);
+  for (let turn = 2; turn <= 25; turn += 1) {
+    const message = turn === 25
+      ? "把年龄上限改为24 岁以下，继续找巴萨中卫。"
+      : `第 ${turn} 轮补充：仍按目前确认的巴萨中卫范围整理，缺失信息继续标为未知。${"这段是本案的历史背景，不增加新的筛选条件。".repeat(32)}`;
+    response = await conversation.turn({
+      threadId: "context-25-turn-flow",
+      message,
+      expectsExistingState: true,
+    });
+    assert.equal(response.status, "completed", `turn ${turn}: ${response.message}`);
+  }
+
+  assert.equal(response.brief?.targetTeam?.value, "巴萨");
+  assert.equal(response.brief?.positions[0], "CB");
+  assert.equal(response.brief?.filters.maxAge, 24);
+  assert.ok(candidateQueries.some(query => ["CB", "DEF"].includes(query.position ?? "") && query.maxAge === 24),
+    "the changed age limit must produce a current-scope source query after compaction");
+  assert.ok(summaries.length > 0, "a 25-turn case that exceeds its configured soft budget should create a verified navigation summary");
+  const summaryPlannerCall = plannerCalls.find(call => call.history.some(entry => entry.role === "tool" && entry.toolName === "case_summary"));
+  assert.ok(summaryPlannerCall, "the full graph must pass the verified summary into a later Planner call");
+  assert.ok(summaryPlannerCall.history.some(entry => entry.role === "user" && entry.content.startsWith("为巴萨找一名 23 岁以下的中卫.")) === false,
+    "the original oversized background should be replaced in the Planner view after its events are covered");
+  assert.ok(plannerCalls.at(-1)?.history.some(entry => entry.role === "user" && entry.content.includes("24 岁以下")),
+    "the latest correction must remain beside the prior summary");
+
+  response = await conversation.turn({
+    threadId: "context-25-turn-flow",
+    message: "年龄不限，继续找巴萨中卫。",
+    expectsExistingState: true,
+  });
+
+  assert.equal(response.status, "completed", response.message);
+  assert.equal(response.brief?.filters.maxAge, null);
+  assert.ok(candidateQueries.some(query => query.position === "CB" && query.maxAge === null),
+    "removing the age ceiling after compaction must clear it from the new source query");
+});

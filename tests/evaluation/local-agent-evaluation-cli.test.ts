@@ -32,8 +32,56 @@ test("the local evaluation CLI documents named and repeated scenarios", () => {
   assert.match(result.stdout, /历史投影、证据读取/);
   assert.match(result.stdout, /--compare-historical-archive/);
   assert.match(result.stdout, /--compare-evidence-evaluator/);
+  assert.match(result.stdout, /--compare-tool-protocol/);
   assert.match(result.stdout, /--summary-output <path>/);
   assert.match(result.stdout, /--expect-position-clarification/);
+});
+
+test("the tool-protocol comparison requires a curated fixed scenario and three counterbalanced pairs", () => {
+  const tooFew = runCli([
+    "--scenario", "bayern-kane-replacement",
+    "--compare-tool-protocol",
+    "--runs", "2",
+  ], { ...process.env, TACTISCOUT_DATA_MODE: "curated" });
+  assert.equal(tooFew.status, 2);
+  assert.match(tooFew.stderr, /至少需要 --runs 3/);
+  assert.doesNotMatch(tooFew.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const clarificationOnly = runCli([
+    "--scenario", "bayern-kane-replacement",
+    "--compare-tool-protocol",
+    "--runs", "3",
+  ], { ...process.env, TACTISCOUT_DATA_MODE: "curated" });
+  assert.equal(clarificationOnly.status, 2);
+  assert.match(clarificationOnly.stderr, /必须使用需要实际调用数据工具的 shortlist 场景/);
+  assert.doesNotMatch(clarificationOnly.stderr, /ECONNREFUSED|fetch failed/i);
+
+  const unpinned = runCli([
+    "--scenario", "barcelona-under-23-midfielder",
+    "--compare-tool-protocol",
+    "--runs", "3",
+  ], { ...process.env, TACTISCOUT_DATA_MODE: "demo" });
+  assert.equal(unpinned.status, 2);
+  assert.match(unpinned.stderr, /需要 TACTISCOUT_DATA_MODE=curated/);
+  assert.doesNotMatch(unpinned.stderr, /ECONNREFUSED|fetch failed/i);
+});
+
+test("the tool-protocol comparison preflights the native product protocol, not the legacy control", () => {
+  const result = runCli([
+    "--scenario", "barcelona-under-23-midfielder",
+    "--compare-tool-protocol",
+    "--runs", "3",
+  ], {
+    ...process.env,
+    TACTISCOUT_DATA_MODE: "curated",
+    OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+    OPENAI_TIMEOUT_MS: "1000",
+  });
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /"preflightProtocol":\s*"native_tools"/);
+  assert.match(result.stdout, /"experimentInformative":\s*false/);
+  assert.doesNotMatch(result.stdout, /旧版基线未完成/);
 });
 
 test("the context-management comparison requires a fixed curated scenario and five counterbalanced arms", () => {

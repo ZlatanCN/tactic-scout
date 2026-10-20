@@ -16,6 +16,22 @@ import { z } from "zod/v4";
 import { identityRecordKey } from "../../players/identity/player-identity-resolver.js";
 import type { PlayerProfile } from "../../domain/players.js";
 import { contextManagementFeatures, type ContextManagementMode } from "./context-compaction-node.js";
+import { resolvedCandidateSearchIntent, sameCandidateSearchScope } from "./candidate-context.js";
+
+function safeFailureMetadata(error: unknown): { failureCode?: string; failureStatus?: number } {
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const record = current as { code?: unknown; status?: unknown; cause?: unknown };
+    if (typeof record.code === "string" && /^[A-Z0-9_-]{1,40}$/i.test(record.code)) {
+      return { failureCode: record.code };
+    }
+    if (typeof record.status === "number" && Number.isInteger(record.status) && record.status >= 100 && record.status <= 599) {
+      return { failureStatus: record.status };
+    }
+    current = record.cause;
+  }
+  return {};
+}
 
 export function createUnderstandingNode(input: {
   interpreter?: RecruitmentBriefInterpreter;
@@ -78,7 +94,22 @@ export function createUnderstandingNode(input: {
     ];
     const structuredAnswer = state.briefAnswerKind !== null;
     let brief = state.brief;
-    if (state.briefInterpretedThrough !== messages.length && !structuredAnswer) {
+    const reuseValidatedBrief = !structuredAnswer && state.reportFollowupContext !== null;
+    if (reuseValidatedBrief) {
+      emitProgress(config, {
+        stage: "understanding",
+        status: "started",
+        message: "正在沿用已确认的找人条件，整理本轮报告问题",
+        completedSteps: 0,
+      });
+      emitProgress(config, {
+        stage: "understanding",
+        status: "completed",
+        message: "已沿用确认过的找人条件，继续整理这次报告问题",
+        completedSteps: 0,
+      });
+    }
+    if (state.briefInterpretedThrough !== messages.length && !structuredAnswer && !reuseValidatedBrief) {
       emitProgress(config, { stage: "understanding", message: "正在理解你的找人需求", completedSteps: 0 });
       const startedAt = performance.now();
       try {
@@ -96,9 +127,11 @@ export function createUnderstandingNode(input: {
       } catch (error) {
         throwIfTurnCancelled(config.signal);
         input.observer?.({ phase: "brief_failure", failureKind: error instanceof Error ? error.name : "unknown",
+          ...safeFailureMetadata(error),
           ...(error instanceof RecruitmentBriefOutputLimitError ? { outputLimitTokens: error.maxOutputTokens } : {}),
+          ...(error instanceof RecruitmentBriefValidationError ? { validationCode: error.validationCode } : {}),
           ...(error instanceof z.ZodError ? { issuePaths: error.issues.map(issue => issue.path.join(".")) } : {}),
-          ...(error instanceof RecruitmentBriefValidationError ? { validationFailure: error.message } : {}) });
+        });
         return { briefFailure: error instanceof RecruitmentBriefOutputLimitError
           ? `模型在 ${error.maxOutputTokens} 个输出 token 的预算内未能完成需求解析，调查尚未开始。原始输入已保留，可以重试。`
           : error instanceof RecruitmentContextCapacityError ? `${error.message} 原始输入已保留。`
@@ -123,7 +156,10 @@ export function createUnderstandingNode(input: {
     const rejected = !changed && recheck?.reject ? priorCandidates : [];
     const excludedIds = changed ? [] : [...new Set([...(state.rejectedReferenceIds ?? []), ...rejected.map(candidate => candidate.entityId)])];
     const excludedRecordIds = changed ? [] : [...new Set([...(state.rejectedReferenceRecordIds ?? []), ...rejected.flatMap(candidate => candidate.recordIds ?? [])])];
-    const scopeChanged = changed || JSON.stringify(brief) !== JSON.stringify(state.brief);
+    const scopeChanged = changed || !sameCandidateSearchScope(
+      resolvedCandidateSearchIntent(state),
+      resolvedCandidateSearchIntent({ ...state, brief }),
+    );
     const update: Partial<State> = {
       brief, briefFailure: null, briefFailureKind: null, briefAnswerKind: null, briefInterpretedThrough: messages.length,
       rejectedReferenceIds: excludedIds, rejectedReferenceRecordIds: excludedRecordIds,

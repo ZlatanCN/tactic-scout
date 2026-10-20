@@ -2,6 +2,19 @@ import { z } from "zod/v4";
 import { CapabilityMetricKeySchema } from "../domain/capabilities.js";
 import { PositionSchema } from "../domain/position-contracts.js";
 
+export const FinishLimitationKeySchema = z.enum([
+  "current_roster",
+  "budget",
+  "market_value",
+  "contract",
+  "injury",
+  "physical",
+  "potential",
+  "registration",
+  "work_permit",
+  "other",
+]);
+
 export const FinishActionSchema = z.object({
   action: z.literal("finish"),
   targetTeam: z.string().nullable(),
@@ -11,18 +24,7 @@ export const FinishActionSchema = z.object({
     playerId: z.string().min(1),
     evidenceKeys: z.array(CapabilityMetricKeySchema).min(1).describe("仅引用直接支持用户明确提出能力与角色的评估指标；不能用不相关指标凑足推荐依据。"),
   })).max(5),
-  limitationKeys: z.array(z.enum([
-    "current_roster",
-    "budget",
-    "market_value",
-    "contract",
-    "injury",
-    "physical",
-    "potential",
-    "registration",
-    "work_permit",
-    "other",
-  ])).max(10),
+  limitationKeys: z.array(FinishLimitationKeySchema).max(10),
   reportObservations: z.array(z.object({
     playerId: z.string().min(1),
     documentId: z.string().min(1),
@@ -57,7 +59,7 @@ export const SearchCandidatesActionSchema = z.object({
 export const ReadCaseEvidenceActionSchema = z.object({
   ...targetTeamContextField,
   action: z.literal("read_case_evidence"),
-  refs: z.array(z.string().min(1).max(160)).min(1).max(2),
+  refs: z.array(z.string().min(1).max(160)).min(1).max(4),
   fields: z.array(z.enum(["metadata", "body"])).min(1).max(2).default(["body"]),
   cursor: z.string().regex(/^\d{1,8}$/).nullable().default(null),
   limit: z.number().int().min(1).max(4_000).default(1_800),
@@ -79,7 +81,7 @@ export const RecruitmentActionSchema = z.discriminatedUnion("action", [
   z.object({
     ...targetTeamContextField,
     action: z.literal("inspect_candidate_group"),
-    playerIds: z.array(z.string().min(1)).min(2).max(12),
+    playerIds: z.array(z.string().min(1)).min(1).max(12),
     sections: z.array(z.enum(["positions", "history", "recent", "shotProfile"])).min(1).max(4)
       .default(["positions", "history", "recent", "shotProfile"]),
   }),
@@ -100,7 +102,7 @@ export const RecruitmentActionSchema = z.discriminatedUnion("action", [
     ...targetTeamContextField,
     action: z.literal("search_player_reports"),
     query: z.string().trim().min(2).max(2000),
-    playerNames: z.array(z.string().trim().min(1)).min(1).max(10),
+  playerNames: z.array(z.string().trim().min(1)).max(10).default([]),
     limit: z.number().int().min(1).max(8).default(4),
   }),
   z.object({

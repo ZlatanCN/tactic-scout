@@ -27,7 +27,7 @@ test("real Planner HTTP output contract bounds the limitation array that exhaust
     process.env.OPENAI_MODEL = "fixture";
     process.env.OPENAI_BASE_URL = `http://127.0.0.1:${address.port}/v1`;
     process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
-    const result = await createRecruitmentPlanner().decide({ history: [], dataMode: "demo", dataSource: "Fixture",
+    const result = await createRecruitmentPlanner({ protocol: "legacy_action" }).decide({ history: [], dataMode: "demo", dataSource: "Fixture",
       targetTeam: "Bayern", decisionMode: "expand", confirmedPosition: "ATT",
       constraints: { targetTeam: "Bayern", evaluatedCandidates: [{ playerId: "candidate", evidenceKeys: ["goals"] }], reportObservations: [], requestedCapabilityCoverage: [] },
       expansionConstraints: { targetTeam: "Bayern", position: "ATT", playerName: null, maxAge: null, minimumMinutes: 0, competition: null, season: null, nextOffset: 20 },
@@ -65,7 +65,7 @@ test("Planner deadline includes a response body that stays open after HTTP heade
     process.env.OPENAI_STRUCTURED_OUTPUT_METHOD = "jsonSchema";
     process.env.OPENAI_TIMEOUT_MS = "1000";
     const started = performance.now();
-    await assert.rejects(createRecruitmentPlanner().decide({ history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: null, decisionMode: "conclude", confirmedPosition: null }),
+    await assert.rejects(createRecruitmentPlanner({ protocol: "legacy_action" }).decide({ history: [], dataMode: "demo", dataSource: "Fixture", targetTeam: null, decisionMode: "conclude", confirmedPosition: null }),
       (error: unknown) => error instanceof Error && error.name === "RecruitmentModelTimeoutError");
     assert.ok(performance.now() - started < 2200, "deadline must cover body reading, not just arrival of headers");
   } finally {

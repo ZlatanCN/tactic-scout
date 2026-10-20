@@ -50,8 +50,13 @@ export function selectRelevantDocumentExcerpt(
     index,
     score: scoreSentence(sentence.text, gapTerms, 5) + scoreSentence(sentence.text, contextTerms, 1),
   }));
-  const best = ranked.reduce<(typeof ranked)[number] | undefined>((current, sentence) =>
-    !current || sentence.score > current.score ? sentence : current, undefined);
+  const best = ranked.reduce<(typeof ranked)[number] | undefined>((current, sentence) => {
+    if (!current || sentence.score > current.score) return sentence;
+    if (sentence.score === current.score
+      && hasCounterevidenceSignal(sentence.text)
+      && !hasCounterevidenceSignal(current.text)) return sentence;
+    return current;
+  }, undefined);
 
   if (best && best.score > 0) {
     if (best.end - best.start > limit) {
@@ -68,7 +73,7 @@ export function selectRelevantDocumentExcerpt(
     while (true) {
       const left = ranked[first - 1];
       const right = ranked[last + 1];
-      const leftFits = Boolean(left && best.end - left.start <= limit);
+      const leftFits = Boolean(left && ranked[last]!.end - left.start <= limit);
       const rightFits = Boolean(right && right.end - ranked[first]!.start <= limit);
       if (!leftFits && !rightFits) break;
       if (leftFits && rightFits) {
@@ -150,6 +155,10 @@ function normalizeExcerptText(value: string): string {
 function scoreSentence(sentence: string, terms: readonly RelevanceTerm[], weight: number): number {
   const normalized = normalizeExcerptText(sentence);
   return terms.reduce((score, term) => normalized.includes(term.value) ? score + weight + Math.min(8, term.value.length) / 8 : score, 0);
+}
+
+function hasCounterevidenceSignal(sentence: string): boolean {
+  return /\b(?:although|but|despite|failed|fails|failure|however|struggles?|unable|weakness|yet)\b|不过|但是|然而|未能|难以|不足|失败|失误|暴露/iu.test(sentence);
 }
 
 /** Keep exact, resolved source records for one player inside the same comparison batch. */

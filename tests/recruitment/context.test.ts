@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRecruitmentContext, projectRecentRecruitmentDialogue, projectRecruitmentHistory, selectTransmittedHistoryEventIds, withContextModelUsage } from "../../src/recruitment/context.js";
+import { buildRecruitmentContext, estimateRecruitmentInputTokens, projectRecentRecruitmentDialogue, projectRecruitmentHistory, selectTransmittedHistoryEventIds, withContextModelUsage } from "../../src/recruitment/context.js";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { createRecruitmentConversation } from "../../src/recruitment/conversation.js";
 import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
@@ -21,7 +21,7 @@ test("buildRecruitmentContext returns the complete staged request and a privacy-
   assert.equal(context.manifest.outputBudgetTokens, 1_024);
   assert.equal(context.manifest.contextWindowTokens, 16_384);
   assert.equal(context.manifest.status, "within_budget");
-  assert.equal(context.manifest.version, 3);
+  assert.equal(context.manifest.version, 4);
   assert.equal(context.manifest.budgetStrategy, "assembled");
   assert.doesNotMatch(JSON.stringify(context.manifest), /巴萨|后卫|brief/);
   assert.match(context.manifest.promptFingerprint, /^[a-f0-9]{16}$/);
@@ -29,6 +29,75 @@ test("buildRecruitmentContext returns the complete staged request and a privacy-
   assert.match(context.manifest.payloadFingerprint, /^[a-f0-9]{16}$/);
   assert.equal(context.manifest.componentBytes.system + context.manifest.componentBytes.payload + context.manifest.componentBytes.schema + context.manifest.componentBytes.framing, context.manifest.requestBytes);
   assert.deepEqual(context.manifest.evidenceRefs, []);
+});
+
+test("input-token estimates include structured-output schemas in the provider request budget", () => {
+  const base = {
+    stage: "investigate" as const,
+    systemInstructions: "Planner rules",
+    payload: { request: "Find a midfielder", history: [] },
+    outputBudgetTokens: 2_048,
+    contextWindowTokens: 16_384,
+  };
+  const previousModel = process.env.OPENAI_MODEL;
+  process.env.OPENAI_MODEL = "another-compatible-model";
+  const compactSchemaValue = { type: "object" };
+  const largeSchemaValue = { type: "object", description: "schema detail ".repeat(3_000) };
+  const compactSchema = buildRecruitmentContext({ ...base, responseSchema: compactSchemaValue });
+  const largeSchema = buildRecruitmentContext({ ...base, responseSchema: largeSchemaValue });
+
+  assert.ok(largeSchema.manifest.estimatedInputTokens > compactSchema.manifest.estimatedInputTokens);
+  assert.ok(largeSchema.manifest.componentBytes.schema > compactSchema.manifest.componentBytes.schema);
+  assert.ok(largeSchema.manifest.requestBytes > compactSchema.manifest.requestBytes);
+  const wire = (request: typeof compactSchema, schema: unknown) => JSON.stringify([
+    ...request.messages,
+    { response_schema: JSON.stringify(schema) },
+  ]);
+  assert.equal(compactSchema.manifest.estimatedInputTokens, estimateRecruitmentInputTokens(wire(compactSchema, compactSchemaValue)));
+  assert.equal(largeSchema.manifest.estimatedInputTokens, estimateRecruitmentInputTokens(wire(largeSchema, largeSchemaValue)));
+  assert.equal(largeSchema.manifest.estimateMethod, "wire-utf8-bytes-divided-by-three-plus-15-percent");
+  if (previousModel === undefined) delete process.env.OPENAI_MODEL;
+  else process.env.OPENAI_MODEL = previousModel;
+});
+
+test("context estimates apply measured Luna stage corrections only to the observed model", () => {
+  const previousModel = process.env.OPENAI_MODEL;
+  const common = {
+    systemInstructions: "Planner rules",
+    payload: { request: "为巴萨寻找一名参与出球的中卫", history: [{ role: "user", content: "重点看压力下的向前传球" }] },
+    responseSchema: { type: "object" },
+    outputBudgetTokens: 1_024,
+  };
+
+  try {
+    process.env.OPENAI_MODEL = "codex/gpt-6-luna";
+    const understand = buildRecruitmentContext({ ...common, stage: "understand" });
+    const expand = buildRecruitmentContext({ ...common, stage: "expand" });
+    const summarize = buildRecruitmentContext({ ...common, stage: "summarize" });
+    const investigate = buildRecruitmentContext({ ...common, stage: "investigate" });
+    const estimateWire = (request: typeof understand) => JSON.stringify([
+      ...request.messages,
+      { response_schema: JSON.stringify(common.responseSchema) },
+    ]);
+    const baseEstimate = estimateRecruitmentInputTokens(estimateWire(understand));
+    const expandBaseEstimate = estimateRecruitmentInputTokens(estimateWire(expand));
+    const summarizeBaseEstimate = estimateRecruitmentInputTokens(estimateWire(summarize));
+    const investigateBaseEstimate = estimateRecruitmentInputTokens(estimateWire(investigate));
+
+    assert.equal(understand.manifest.estimatedInputTokens, Math.ceil(baseEstimate * 1.5));
+    assert.equal(expand.manifest.estimatedInputTokens, Math.ceil(expandBaseEstimate * 1.6));
+    assert.equal(summarize.manifest.estimatedInputTokens, Math.ceil(summarizeBaseEstimate * 1.9));
+    assert.equal(investigate.manifest.estimatedInputTokens, investigateBaseEstimate, "stages whose measured estimates were already conservative keep the generic estimate");
+    assert.equal(understand.manifest.estimateMethod, "codex-gpt-6-luna-stage-calibrated-v1");
+
+    process.env.OPENAI_MODEL = "another-compatible-model";
+    const otherModel = buildRecruitmentContext({ ...common, stage: "understand" });
+    assert.equal(otherModel.manifest.estimatedInputTokens, baseEstimate);
+    assert.equal(otherModel.manifest.estimateMethod, "wire-utf8-bytes-divided-by-three-plus-15-percent");
+  } finally {
+    if (previousModel === undefined) delete process.env.OPENAI_MODEL;
+    else process.env.OPENAI_MODEL = previousModel;
+  }
 });
 
 test("context manifest records when the conclusion-specific budget fallback was selected", () => {

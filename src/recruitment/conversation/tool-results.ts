@@ -13,7 +13,7 @@ import { type CandidateIdentityGroup, toCandidateIdentityGroupReferences } from 
 import { sourcePlayerKey } from "../../players/identity/source-player-key.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
 import type { RecruitmentToolExecutionResult } from "../recruitment-tool-executor.js";
-import { evaluatedPlayersForConstraint, resolvedCandidateSearchIntent } from "./candidate-context.js";
+import { candidateSearchObservationIndexForIntent, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent } from "./candidate-context.js";
 import type { RecruitmentTraceEvent } from "./contracts.js";
 import { type CandidateSearchObservation, type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
@@ -302,6 +302,16 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
     case "search_candidates": {
       const { page: result, request } = execution;
       const requestedOffset = state.candidateSearchCursorAdjustment?.requestedOffset ?? request.offset;
+      const currentSearchIntent = resolvedCandidateSearchIntent(state);
+      const minimumObservationIndex = state.candidateSearchScopeChanged ? state.candidateSearchTurnStartIndex : 0;
+      const priorMatchingObservationIndex = candidateSearchObservationIndexForIntent(
+        currentSearchIntent,
+        state.candidateSearchObservations,
+        minimumObservationIndex,
+      );
+      const priorMatchingObservation = priorMatchingObservationIndex === null
+        ? null
+        : state.candidateSearchObservations[priorMatchingObservationIndex] ?? null;
       const targetPosition = request.position && isDetailedPosition(request.position)
         && result.appliedFilters.includes("positionFamily")
         ? request.position
@@ -312,6 +322,12 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         minimumMinutes: request.minimumMinutes,
         competition: request.competition,
         season: request.season,
+        discoveryMetricGroups: request.discoveryMetricGroups ?? [],
+        caseSearchObservationCount: state.candidateSearchObservations.length,
+        currentTurnObservationStartIndex: state.candidateSearchTurnStartIndex,
+        candidateSearchScopeChanged: state.candidateSearchScopeChanged,
+        priorMatchingSearchFound: priorMatchingObservation !== null,
+        priorMatchingNextOffset: priorMatchingObservation?.nextOffset ?? null,
         requestedOffset,
         offset: request.offset,
         limit: request.limit,

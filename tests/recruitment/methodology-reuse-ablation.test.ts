@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createRecruitmentConversation, type RecruitmentAction, type RecruitmentTraceEvent } from "../../src/recruitment/conversation.js";
 import type { KnowledgeSearchResult } from "../../src/knowledge/schemas.js";
+import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
 
 const finish: RecruitmentAction = { action: "finish", targetTeam: null, needSummary: "资料不足，继续考察。", capabilityProfile: [], recommendations: [], limitationKeys: [] };
 const query: RecruitmentAction = { action: "search_methodology", query: "前锋评估方法", limit: 4 };
@@ -77,6 +78,126 @@ test("checkpoint resume clears same-turn reuse so a new user answer can refresh 
   assert.equal(second.status, "completed");
   assert.equal(run.calls(), 2);
   assert.equal(run.trace.filter(event => event.phase === "tool_reuse").length, 0);
+});
+
+test("same-scope follow-up keeps methodology evidence available without searching it again", async () => {
+  const candidates = [
+    roleConstraintPlayer("context-continuity-cm-1", "Context Continuity CM One", "CM"),
+    roleConstraintPlayer("context-continuity-cm-2", "Context Continuity CM Two", "CM"),
+  ];
+  const methodology: KnowledgeSearchResult = {
+    id: "context-continuity-methodology",
+    documentId: "context-continuity-methodology-doc",
+    corpus: "methodology",
+    text: "中场推进应分别观察向前传球与持球推进。",
+    title: "Midfield progression methodology",
+    url: "https://example.test/context-continuity-methodology",
+    sourceId: "context-continuity-methodology-source",
+    sourceName: "Synthetic methodology source",
+    publisher: "Fixture",
+    author: "Fixture",
+    publishedAt: null,
+    license: "CC0",
+    attribution: "Synthetic evaluation fixture",
+    entityIds: [],
+    entityNames: [],
+    competition: null,
+    season: null,
+    displayAllowed: true,
+  };
+  let methodologySearches = 0;
+  const candidatePageOffsets: number[] = [];
+  const decisions: RecruitmentTraceEvent[] = [];
+  const conversation = createRecruitmentConversation({
+    repository: {
+      mode: "demo",
+      sourceName: "Synthetic context continuity fixture",
+      async loadPlayers() { return candidates; },
+      async searchCandidates(query) {
+        candidatePageOffsets.push(query.offset);
+        const player = candidates[query.offset];
+        const players = player ? [player] : [];
+        return {
+          players,
+          totalRecords: candidates.length,
+          offset: query.offset,
+          nextOffset: query.offset + players.length < candidates.length ? query.offset + players.length : null,
+          appliedFilters: ["position"],
+        };
+      },
+    },
+    planner: {
+      async decide(input) {
+        const lastUserIndex = input.history.reduce((last, entry, index) => entry.role === "user" ? index : last, -1);
+        const currentTurnTools = new Set(input.history.slice(lastUserIndex + 1)
+          .filter(entry => entry.role === "tool")
+          .map(entry => entry.toolName));
+        const userTurnCount = input.history.filter(entry => entry.role === "user").length;
+
+        if (userTurnCount > 1 && !currentTurnTools.has("search_candidates")) {
+          return currentTurnTools.has("investigation_policy")
+            ? { action: "search_methodology", query: "中场推进方法", limit: 4 }
+            : { action: "search_candidates", position: "CM", minimumMinutes: 0, limit: 20 };
+        }
+        if (!currentTurnTools.has("search_methodology")) {
+          return { action: "search_methodology", query: "中场推进方法", limit: 4 };
+        }
+        if (!currentTurnTools.has("search_candidates")) {
+          return { action: "search_candidates", position: "CM", minimumMinutes: 0, limit: 20 };
+        }
+        const playerId = userTurnCount > 1 ? candidates[1]!.playerId : candidates[0]!.playerId;
+        if (!currentTurnTools.has("evaluate_candidates")) {
+          return { action: "evaluate_candidates", playerIds: [playerId] };
+        }
+        if (!currentTurnTools.has("search_player_reports")) {
+          return { action: "search_player_reports", playerNames: [candidates[userTurnCount > 1 ? 1 : 0]!.name], limit: 4 };
+        }
+        return {
+          action: "finish",
+          targetTeam: "巴萨",
+          needSummary: "沿用同一案件中已经核验的方法资料，继续查看下一页候选。",
+          capabilityProfile: ["中场推进"],
+          recommendations: [],
+          limitationKeys: [],
+        };
+      },
+    },
+    knowledgeBase: {
+      async search(query) {
+        if (query.corpus === "methodology") {
+          methodologySearches += 1;
+          return [methodology];
+        }
+        return [];
+      },
+    },
+    experimentalRetrievalMode: "fixed",
+    observer(event) { if (event.phase === "decision") decisions.push(event); },
+  });
+
+  const first = await conversation.turn({ threadId: "context-continuity", message: "为巴萨找中场，重点看推进能力" });
+  assert.equal(first.status, "completed", first.message);
+  assert.equal(first.report?.knowledgeCoverage.methodologyChunksRetrieved, 1);
+
+  const second = await conversation.turn({
+    threadId: "context-continuity",
+    message: "继续沿用当前范围，查看下一页候选",
+    expectsExistingState: true,
+  });
+
+  assert.equal(second.status, "completed", second.message);
+  assert.deepEqual(candidatePageOffsets, [0, 1], JSON.stringify({
+    message: second.message,
+    status: second.status,
+    methodologySearches,
+    decisions: decisions.map(event => event.phase === "decision" ? {
+      action: event.action,
+      policyBlocked: event.policyBlocked,
+      policyReasonCodes: event.policyReasonCodes,
+    } : null),
+  }));
+  assert.equal(methodologySearches, 1, "the unchanged case should reuse its verified methodology result");
+  assert.equal(second.report?.knowledgeCoverage.methodologyChunksRetrieved, 1, "the same-scope report should retain its methodology evidence");
 });
 
 test("different blocked tool requests are not mistaken for the identical no-progress action", async () => {

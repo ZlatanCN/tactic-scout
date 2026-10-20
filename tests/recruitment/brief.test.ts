@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
+import { RecruitmentBriefValidationError, validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../../src/recruitment/candidate-search-intent.js";
 import { searchPlayerPage } from "../../src/players/repository.js";
 import type { PlayerSearchQuery } from "../../src/players/search.js";
@@ -29,6 +29,68 @@ test("brief validation grounds an explicit numeric age filter in the user's exac
     strength: "required",
     requirement: { value: "23 岁以下", basis: "explicit", quote: "23 岁以下" },
   }]);
+});
+
+test("brief validation normalizes an explicit age ceiling to the value parsed from the user's words", () => {
+  const candidate = {
+    ...makeBrief(),
+    filters: { ...makeBrief().filters, maxAge: 22 },
+    constraints: [{
+      kind: "age" as const,
+      strength: "required" as const,
+      requirement: { value: "23 岁以下", basis: "explicit" as const, quote: "23 岁以下" },
+    }],
+  };
+
+  const brief = validateRecruitmentBrief(candidate, ["推荐类似切尔基的球员，23 岁以下"]);
+
+  assert.equal(brief.filters.maxAge, 23);
+  assert.equal(brief.constraints[0]?.requirement.quote, "23 岁以下");
+});
+
+test("brief validation replaces an older age constraint when the user changes the ceiling", () => {
+  const prior = validateRecruitmentBrief({
+    ...makeBrief(),
+    task: "reinforcement",
+    targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" },
+    referencePlayer: null,
+    filters: { ...makeBrief().filters, maxAge: 23 },
+  }, ["为巴萨找中卫，23 岁以下"]);
+  const modelOutput = {
+    ...prior,
+    filters: { ...prior.filters, maxAge: 24 },
+  };
+
+  const brief = validateRecruitmentBrief(modelOutput, [
+    "为巴萨找中卫，23 岁以下",
+    "把年龄上限改为24 岁以下，继续找巴萨中卫。",
+  ], [], prior);
+
+  assert.equal(brief.filters.maxAge, 24);
+  assert.deepEqual(brief.constraints.filter(item => item.kind === "age"), [{
+    kind: "age",
+    strength: "required",
+    requirement: { value: "24 岁以下", basis: "explicit", quote: "24 岁以下" },
+  }]);
+});
+
+test("brief validation removes a prior age constraint when the user makes age unrestricted", () => {
+  const prior = validateRecruitmentBrief({
+    ...makeBrief(),
+    task: "reinforcement",
+    targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" },
+    referencePlayer: null,
+    filters: { ...makeBrief().filters, maxAge: 23 },
+  }, ["为巴萨找中卫，23 岁以下"]);
+  const modelOutput = { ...prior };
+
+  const brief = validateRecruitmentBrief(modelOutput, [
+    "为巴萨找中卫，23 岁以下",
+    "年龄不限，继续找巴萨中卫。",
+  ], [], prior);
+
+  assert.equal(brief.filters.maxAge, null);
+  assert.deepEqual(brief.constraints.filter(item => item.kind === "age"), []);
 });
 
 test("brief validation preserves every explicit capability omitted by the model summary", () => {
@@ -79,6 +141,26 @@ test("an explicit fine position cannot be broadened by model output", () => {
   assert.deepEqual(validateRecruitmentBrief({ ...brief, positions: ["WG"] }, ["找一位右边锋"]).positions, ["RW"]);
   const accepted = validateRecruitmentBrief({ ...brief, positions: ["CM", "DM"] }, ["中前卫或后腰都可以"]);
   assert.deepEqual(accepted.positions, ["CM", "DM"]);
+});
+
+test("unrestricted midfield subpositions stay within the midfield group even if the model says any position", () => {
+  const message = "为巴萨找一名 23 岁以下的中场候选，CM、DM、AM 等子位置都可以，不限定具体子位置；重点看推进和前场压迫能力。";
+  const modelBrief = {
+    ...makeBrief(),
+    task: "reinforcement" as const,
+    targetTeam: { value: "巴萨", basis: "explicit" as const, quote: "巴萨" },
+    referencePlayer: null,
+    positions: [],
+    allowsAnyPosition: true,
+  };
+
+  const brief = validateRecruitmentBrief(modelBrief, [message]);
+  const intent = resolveCandidateSearchIntent({ brief, userMessages: [message], confirmedPosition: null });
+
+  assert.deepEqual(brief.positions, ["MID"]);
+  assert.equal(brief.allowsAnyPosition, false);
+  assert.equal(intent.position, "MID");
+  assert.equal(intent.allowsAnyPosition, false);
 });
 
 test("grounding rejects fabricated explicit quotes, inferred hard constraints and ungrounded filters", () => {
@@ -145,11 +227,14 @@ test("an identity ambiguity uses verified options and resumes the same graph wit
 test("an interpreter failure does not fall through to a guessed search or an empty-market claim", async () => {
   let reads = 0;
   const stages: string[] = [];
+  const traces: Array<Record<string, unknown>> = [];
+  const networkFailure = Object.assign(new Error("secret transport details"), { code: "ECONNREFUSED" });
   const conversation = createRecruitmentConversation({
-    briefInterpreter: { async interpret() { throw new Error("invalid output"); } },
+    briefInterpreter: { async interpret() { throw new Error("secret validation details", { cause: networkFailure }); } },
     repository: { mode: "demo", sourceName: "Fixture", async loadPlayers() { reads++; return []; } },
     planner: { async decide() { throw new Error("must not plan a guessed task"); } },
     knowledgeBase: { async search() { return []; } },
+    observer: event => traces.push(event),
   });
   const response = await conversation.turn({ threadId: "failed-understanding", message: "推荐类似切尔基的球员", onProgress: event => stages.push(event.stage) });
   assert.match(response.message, /重试|补充/);
@@ -158,6 +243,32 @@ test("an interpreter failure does not fall through to a guessed search or an emp
   assert.equal(response.report, null);
   assert.equal(response.retryMessage, "推荐类似切尔基的球员");
   assert.equal(stages.at(-1), "failed");
+  assert.deepEqual(traces.find(event => event.phase === "brief_failure"), {
+    phase: "brief_failure",
+    failureKind: "Error",
+    failureCode: "ECONNREFUSED",
+  });
+  assert.doesNotMatch(JSON.stringify(traces), /secret validation details|secret transport details/);
+});
+
+test("brief validation failures expose a safe reason code without raw validation text", async () => {
+  const traces: Array<Record<string, unknown>> = [];
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret() { throw new RecruitmentBriefValidationError("PRIVATE_QUOTE_DO_NOT_EXPORT", "quote_not_verbatim"); } },
+    repository: { mode: "demo", sourceName: "Fixture", async loadPlayers() { return []; } },
+    planner: { async decide() { throw new Error("must not plan an invalid brief"); } },
+    knowledgeBase: { async search() { return []; } },
+    observer: event => traces.push(event),
+  });
+
+  await conversation.turn({ threadId: "brief-safe-validation-code", message: "推荐类似切尔基的球员" });
+
+  assert.deepEqual(traces.find(event => event.phase === "brief_failure"), {
+    phase: "brief_failure",
+    failureKind: "RecruitmentBriefValidationError",
+    validationCode: "quote_not_verbatim",
+  });
+  assert.doesNotMatch(JSON.stringify(traces), /PRIVATE_QUOTE_DO_NOT_EXPORT/);
 });
 
 test("structured removal overrides an older explicit age limit", () => {
@@ -298,14 +409,72 @@ test("league exclusion recognizes provider names before pagination and leaves un
   assert.equal(candidateMatchesSearchIntent(players[2]!, intent), false);
 });
 
-test("visible candidate pointers validate the actual order rather than accepting an arbitrary source id", () => {
+test("visible candidate pointers resolve from the actual order rather than trusting a model-selected id", () => {
   const candidates = [{ playerId: "one", name: "First", rank: 1 }, { playerId: "two", name: "Second", rank: 2 }, { playerId: "three", name: "Third", rank: 3 }];
   const brief = { ...makeBrief(), selectedCandidateId: "three", referencePlayer: { value: "Third", quote: "第三个", basis: "explicit" as const } };
   assert.equal(validateRecruitmentBrief(brief, ["第三个这种类型"], candidates).selectedCandidateId, "three");
   const normalized = validateRecruitmentBrief({ ...brief, referencePlayer: { ...brief.referencePlayer, quote: "Third" } }, ["第三个这种类型"], candidates);
   assert.equal(normalized.referencePlayer?.quote, "第三个这种类型");
-  assert.throws(() => validateRecruitmentBrief({ ...brief, selectedCandidateId: "two", referencePlayer: { ...brief.referencePlayer, value: "Second" } }, ["第三个这种类型"], candidates));
+  const corrected = validateRecruitmentBrief({ ...brief, selectedCandidateId: "two", referencePlayer: { ...brief.referencePlayer, value: "Second" } }, ["第三个这种类型"], candidates);
+  assert.equal(corrected.selectedCandidateId, "three");
+  assert.equal(corrected.referencePlayer?.value, "Third");
   assert.throws(() => validateRecruitmentBrief(brief, ["第三个这种类型"], []));
+});
+
+test("an unselected visible candidate cannot replace the prior reference during a continuation", () => {
+  const candidates = [{ playerId: "one", name: "First", rank: 1 }, { playerId: "two", name: "Second", rank: 2 }];
+  const previous = makeBrief();
+  const continuation = "继续当前调查，保留已经看过的候选";
+  const modelBrief = {
+    ...previous,
+    selectedCandidateId: "two",
+    referencePlayer: { value: "Second", quote: continuation, basis: "explicit" as const },
+  };
+
+  const validated = validateRecruitmentBrief(modelBrief, ["推荐类似切尔基的球员", continuation], candidates, previous);
+
+  assert.equal(validated.selectedCandidateId, null);
+  assert.equal(validated.task, previous.task);
+  assert.deepEqual(validated.referencePlayer, previous.referencePlayer);
+});
+
+test("the full graph keeps its reference when a continuation does not select a shortlist candidate", async () => {
+  const reference = roleConstraintPlayer("original-reference", "Rayan Cherki", "AM");
+  const candidates = [1, 2, 3].map(index => roleConstraintPlayer(`candidate-${index}`, `Candidate ${index}`, "AM"));
+  let continuationSelectionWasRemoved = false;
+  const continuation = "继续当前调查，保留已经看过的候选";
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret(input) {
+      if (!input.previous) return makeBrief();
+      const selected = input.visibleCandidates?.[0];
+      assert.ok(selected);
+      const validated = validateRecruitmentBrief({
+        ...input.previous,
+        selectedCandidateId: selected.playerId,
+        referencePlayer: { value: selected.name, quote: continuation, basis: "explicit" },
+      }, [...input.recentMessages, input.message], input.visibleCandidates, input.previous);
+      continuationSelectionWasRemoved = validated.selectedCandidateId === null;
+      return validated;
+    } },
+    referenceNameResolver: async mention => ({ status: "resolved", mention, resolutionMethod: "wikidata_exact", player: {
+      entityId: "Q123", preferredName: reference.name, names: [reference.name, "切尔基"], match: "exact_alias", sourceUrl: "https://www.wikidata.org/wiki/Q123",
+    } }),
+    repository: { mode: "demo", sourceName: "Fixture", async findPlayersByNames() { return [reference]; }, async loadPlayers() { return [reference, ...candidates]; } },
+    experimentalDeterministicSearchMode: "enabled", experimentalRetrievalMode: "on_demand",
+    knowledgeBase: { async search() { return []; } },
+    planner: { async decide() { return { action: "finish", targetTeam: null, needSummary: "继续比较当前候选。", capabilityProfile: [],
+      recommendations: candidates.map(player => ({ playerId: player.playerId, evidenceKeys: ["shotAssists"] })), limitationKeys: [] }; } },
+  });
+
+  const first = await conversation.turn({ threadId: "continue-shortlist-without-selection", message: "推荐类似切尔基的球员" });
+  assert.equal(first.status, "completed", first.message);
+  const second = await conversation.turn({ threadId: "continue-shortlist-without-selection", message: continuation, expectsExistingState: true });
+
+  assert.equal(second.status, "completed", second.message);
+  assert.equal(continuationSelectionWasRemoved, true);
+  assert.equal(second.brief?.selectedCandidateId, null);
+  assert.equal(second.brief?.referencePlayer?.value, "切尔基");
+  assert.equal(second.brief?.task, "similarity");
 });
 
 test("full graph follows the third visible candidate as the next reference without another identity lookup", async () => {

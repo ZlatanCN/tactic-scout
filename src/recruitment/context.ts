@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 export type RecruitmentContextStage = "understand" | "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude" | "summarize";
 
 export interface RecruitmentContextManifest {
-  version: 3;
+  version: 4;
   stage: RecruitmentContextStage;
   requestBytes: number;
   componentBytes: { system: number; payload: number; schema: number; framing: number };
@@ -18,13 +18,13 @@ export interface RecruitmentContextManifest {
   omittedHistoryEventIds: string[];
   evidenceRefs: string[];
   estimatedInputTokens: number;
-  estimateMethod: "utf8-bytes-divided-by-three-plus-15-percent";
+  estimateMethod: "wire-utf8-bytes-divided-by-three-plus-15-percent" | "codex-gpt-6-luna-stage-calibrated-v1";
   inputBudgetTokens: number;
   outputBudgetTokens: number;
   safetyMarginTokens: number;
   contextWindowTokens: number | null;
   status: "within_budget" | "over_budget";
-  budgetStrategy: "assembled" | "conclusion_history_reduced" | "conclusion_candidate_batch";
+  budgetStrategy: "assembled" | "conclusion_history_reduced" | "conclusion_candidate_batch" | "planner_protocol_retry";
   exceedsVerifiedWindow: boolean;
   exceedsSoftTarget: boolean;
   omittedHistoryEntries: number;
@@ -109,17 +109,23 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
   const payload = JSON.stringify(input.payload);
   const schema = JSON.stringify(input.responseSchema);
   const humanContent = `案件上下文（${input.stage}）：\n${payload}`;
-  const wireView = JSON.stringify([
+  const messages: RecruitmentContextRequest["messages"] = [
     { role: "system", content: input.systemInstructions },
     { role: "human", content: humanContent },
-    { response_schema: schema },
-  ]);
+  ];
+  const wireView = JSON.stringify([...messages, { response_schema: schema }]);
   const requestBytes = Buffer.byteLength(wireView, "utf8");
   const systemBytes = serializedContentBytes(input.systemInstructions);
   const payloadBytes = serializedContentBytes(payload);
   const schemaBytes = serializedContentBytes(schema);
   const evidenceRefs = [...new Set([...(input.evidenceRefs ?? []), ...collectEvidenceRefs(input.payload)])];
-  const estimatedInputTokens = estimateRecruitmentInputTokens(wireView);
+  // The provider receives the response schema/tool definitions with the
+  // messages. They consume model context even though they are not chat turns.
+  const baseEstimatedInputTokens = estimateRecruitmentInputTokens(wireView);
+  const usesMeasuredLunaCalibration = process.env.OPENAI_MODEL?.trim().toLowerCase() === "codex/gpt-6-luna";
+  const estimatedInputTokens = usesMeasuredLunaCalibration
+    ? Math.ceil(baseEstimatedInputTokens * measuredStageCalibrationFactor(input.stage))
+    : baseEstimatedInputTokens;
   const outputBudgetTokens = Math.max(0, Math.floor(input.outputBudgetTokens));
   const safetyMarginTokens = input.safetyMarginTokens ?? DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS;
   const softBudget = input.softInputBudgetTokens ?? DEFAULT_CONTEXT_SOFT_INPUT_BUDGET_TOKENS;
@@ -131,12 +137,9 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
     && estimatedInputTokens + outputBudgetTokens + safetyMarginTokens > input.contextWindowTokens;
 
   return {
-    messages: [
-      { role: "system", content: input.systemInstructions },
-      { role: "human", content: humanContent },
-    ],
+    messages,
     manifest: {
-      version: 3,
+      version: 4,
       stage: input.stage,
       requestBytes,
       componentBytes: {
@@ -154,7 +157,9 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       omittedHistoryEventIds: [...new Set(input.omittedHistoryEventIds ?? [])],
       evidenceRefs,
       estimatedInputTokens,
-      estimateMethod: "utf8-bytes-divided-by-three-plus-15-percent",
+      estimateMethod: usesMeasuredLunaCalibration
+        ? "codex-gpt-6-luna-stage-calibrated-v1"
+        : "wire-utf8-bytes-divided-by-three-plus-15-percent",
       inputBudgetTokens,
       outputBudgetTokens,
       safetyMarginTokens,
@@ -167,6 +172,19 @@ export function buildRecruitmentContext(input: BuildRecruitmentContextInput): Re
       protectedQuoteCount: input.protectedQuoteCount ?? 0,
     },
   };
+}
+
+function measuredStageCalibrationFactor(stage: RecruitmentContextStage): number {
+  // A 20-turn codex/gpt-6-luna runtime probe measured actual/estimated P95
+  // ratios of 0.546 (understand, n=23), 0.712 (expand, n=8), and 0.898
+  // (summarize, n=7) with the previous factors. A follow-up run found a higher
+  // understand ratio (0.982, n=8), so use 1.5 there; the current factors leave
+  // roughly 15–18% headroom at the latest observed P95. Investigate, reorient,
+  // and conclude already had conservative observed estimates.
+  if (stage === "understand") return 1.5;
+  if (stage === "expand" || stage === "expand_recovery") return 1.6;
+  if (stage === "summarize") return 1.9;
+  return 1;
 }
 
 function serializedContentBytes(value: string): number {

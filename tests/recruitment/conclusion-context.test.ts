@@ -22,6 +22,23 @@ test("document context selects a complete relevant passage beyond the opening an
   assert.equal(excerpt.strategy, "relevance_window");
 });
 
+test("document context keeps late counterevidence when an earlier passage supports the same capability", () => {
+  const supportingPassage = "Player X's progressive passing consistently breaks the first line and creates clear access to the final third.";
+  const counterevidence = "However, Player X's progressive passing breaks down under pressure, with repeated loose passes that expose his team.";
+  const text = `${"An unrelated opening sentence about the squad and match setting. ".repeat(4)}${supportingPassage}${" The report then describes unrelated training observations and match background. ".repeat(28)}${counterevidence}`;
+  const excerpt = selectRelevantDocumentExcerpt({
+    text,
+    title: "Player X scouting report",
+    entityNames: ["Player X"],
+    matchedCapabilityGaps: ["progressive passing"],
+  });
+
+  assert.equal(excerpt.text.includes(counterevidence), true, "late counterevidence about the requested capability must not be hidden by an earlier supporting passage");
+  assert.equal(excerpt.text, text.slice(excerpt.startOffset, excerpt.endOffset));
+  assert.ok(excerpt.text.length <= 900, "the selected evidence window must stay within the configured character bound");
+  assert.ok(excerpt.startOffset > text.indexOf(supportingPassage));
+});
+
 test("conclusion excerpts retain the exact case ref for same-title document chunks", () => {
   const relevantPassage = "Player X repeatedly found the progressive passing lane, but his forward pass completion fell under pressure.";
   const sourceText = `${"An unrelated match detail. ".repeat(60)}${relevantPassage}${" More unrelated match details. ".repeat(60)}`;

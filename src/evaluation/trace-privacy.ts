@@ -13,7 +13,14 @@ export function privacySafeTraceEvent(event: RecruitmentTraceEvent): Record<stri
   if (event.phase === "identity_usage") return { ...event };
   if (event.phase === "summary_usage") return { ...event };
   if (event.phase === "summary_failure") return { ...event };
-  if (event.phase === "brief_failure") return { ...event };
+  if (event.phase === "brief_failure") return {
+    phase: event.phase,
+    failureKind: event.failureKind,
+    ...(event.failureCode ? { failureCode: event.failureCode } : {}),
+    ...(event.failureStatus !== undefined ? { failureStatus: event.failureStatus } : {}),
+    ...(event.outputLimitTokens !== undefined ? { outputLimitTokens: event.outputLimitTokens } : {}),
+    ...(event.validationCode && /^[a-z_]{1,48}$/.test(event.validationCode) ? { validationCode: event.validationCode } : {}),
+  };
   if (event.phase === "tool_reuse") return { ...event };
 
   const filters = { ...event.filters };

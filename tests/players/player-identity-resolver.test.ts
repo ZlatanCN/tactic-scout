@@ -9,6 +9,7 @@ import { normalizeSearchText } from "../../src/domain/text-matching.js";
 import type { PlayerProfile } from "../../src/domain/players.js";
 import type { PlayerNameResolver } from "../../src/players/identity/name-resolver.js";
 import { createRecruitmentConversation } from "../../src/recruitment/conversation.js";
+import { buildRecruitmentContext } from "../../src/recruitment/context.js";
 import type { RecruitmentBrief } from "../../src/domain/recruitment-brief.js";
 
 const player = (playerId: string, name: string, position: PlayerProfile["position"] = "AM"): PlayerProfile => ({
@@ -223,4 +224,109 @@ test("the structured reject-all action rechecks without asking the brief model t
   assert.ok(resolverContexts[1]?.excludedIds?.includes(rejectedEntityId));
   assert.ok(resolverContexts[1]?.excludedRecordIds?.includes("cherki"));
   assert.notEqual(retried.question?.input?.kind, "player_identity", "rejected choices must not be recycled");
+});
+
+test("a compacted history cannot restore a rejected reference identity over the current brief", async () => {
+  const catalog = [cherki, player("another", "Another Midfielder")]
+    .map(p => ({ ...p, minutes: 1800, stats: { ...p.stats, goals: 5 } }));
+  const repo = {
+    ...repository(catalog),
+    mode: "demo" as const,
+    sourceName: "Fixture",
+    supportsAbilityProfiles: false,
+    async loadPlayers() { return catalog; },
+    async searchCandidates(query: { offset: number }) {
+      return { players: catalog, totalRecords: catalog.length, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+    },
+    async getPlayersByIds(playerIds: readonly string[]) { return catalog.filter(p => playerIds.includes(p.playerId)); },
+    async getComparisonPlayers() { return catalog; },
+  };
+  const resolverMentions: string[] = [];
+  const resolver = createPlayerIdentityResolver({
+    repository: repo,
+    external: async mention => { resolverMentions.push(mention); return { status: "unresolved", mention }; },
+    variants: async () => ["Rayan Cherki"],
+  });
+  const withReference: RecruitmentBrief = {
+    task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", basis: "explicit", quote: "切尔基" },
+    selectedCandidateId: null, positions: ["AM"], allowsAnyPosition: false,
+    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [], constraints: [], unresolved: [],
+  };
+  const currentBrief: RecruitmentBrief = {
+    ...withReference, task: "reinforcement", referencePlayer: null,
+  };
+  const largeContext = "背景材料。".repeat(2_500);
+  const summaryCalls: string[][] = [];
+  const plannerCalls: Array<Parameters<import("../../src/recruitment/conversation.js").RecruitmentPlanner["decide"]>[0]> = [];
+  const conversation = createRecruitmentConversation({
+    repository: repo,
+    referenceNameResolver: resolver,
+    briefInterpreter: { async interpret(input) {
+      if (input.message.startsWith("推荐类似切尔基")) return withReference;
+      if (input.message.startsWith("都不是")) return { ...withReference, referenceRecheck: { quote: "都不是", reject: true } };
+      return currentBrief;
+    } },
+    experimentalDeterministicSearchMode: "enabled",
+    experimentalRetrievalMode: "on_demand",
+    experimentalContextManagementMode: "summarized",
+    caseSummaryGenerator: { async summarize(input) {
+      summaryCalls.push(input.events.map(event => event.text));
+      return {
+        claims: input.events.map(event => ({ eventId: event.id, quote: event.text.slice(0, 180) })),
+        coveredEventIds: input.events.map(event => event.id),
+      };
+    } },
+    planner: Object.assign({
+      async decide(input: Parameters<import("../../src/recruitment/conversation.js").RecruitmentPlanner["decide"]>[0]) {
+        plannerCalls.push(input);
+        return { action: "finish" as const, targetTeam: null, needSummary: "按当前需求完成调查", capabilityProfile: [], recommendations: [], limitationKeys: [] };
+      },
+    }, {
+      preflightContext(input: Parameters<import("../../src/recruitment/conversation.js").RecruitmentPlanner["decide"]>[0]) {
+        return buildRecruitmentContext({
+          stage: input.decisionMode ?? "investigate",
+          systemInstructions: "固定规划规则",
+          payload: { history: input.history, brief: input.brief },
+          responseSchema: { type: "object" },
+          outputBudgetTokens: 1_024,
+          contextWindowTokens: 16_384,
+          softInputBudgetTokens: 512,
+          safetyMarginTokens: 256,
+        }).manifest;
+      },
+    }),
+    knowledgeBase: { async search() { return []; } },
+  });
+
+  const first = await conversation.turn({ threadId: "rejected-reference-after-summary", message: `推荐类似切尔基的球员。${largeContext}` });
+  assert.equal(first.question?.input?.kind, "player_identity");
+  if (first.question?.input?.kind !== "player_identity") return;
+  const rejected = await conversation.turn({
+    threadId: "rejected-reference-after-summary",
+    message: `都不是，切尔基不是我要找的参考球员。${largeContext}`,
+    expectsExistingState: true,
+    playerIdentityAnswer: { questionId: first.question.input.questionId, rejectAll: true },
+  });
+  assert.equal(rejected.question?.input, undefined);
+
+  const changed = await conversation.turn({ threadId: "rejected-reference-after-summary", message: `取消参考球员，切尔基不是我要找的参考球员，按当前条件找一名进攻中场。${largeContext}`, expectsExistingState: true });
+  assert.equal(changed.status, "completed", changed.message);
+  const followup = await conversation.turn({ threadId: "rejected-reference-after-summary", message: "继续调查，保持已确认条件", expectsExistingState: true });
+  assert.equal(followup.status, "completed", followup.message);
+  const summarizedFollowup = await conversation.turn({ threadId: "rejected-reference-after-summary", message: "完成当前调查", expectsExistingState: true });
+  assert.equal(summarizedFollowup.status, "completed", summarizedFollowup.message);
+  const finalFollowup = await conversation.turn({ threadId: "rejected-reference-after-summary", message: "仍然不需要参考球员，完成报告", expectsExistingState: true });
+  assert.equal(finalFollowup.status, "completed", finalFollowup.message);
+
+  assert.ok(summaryCalls.length >= 2, `old request and rejected identity should both pass through verified summary compaction (summary calls: ${summaryCalls.length}; Planner calls: ${plannerCalls.length}; case summaries seen: ${plannerCalls.filter(call => call.history.some(entry => entry.role === "tool" && entry.toolName === "case_summary")).length})`);
+  const callWithSummary = plannerCalls.filter(call => call.history.some(entry => entry.role === "tool" && entry.toolName === "case_summary")).at(-1);
+  assert.ok(callWithSummary, "the Planner should receive the compacted navigation history");
+  const summary = JSON.parse(callWithSummary.history.find(entry => entry.role === "tool" && entry.toolName === "case_summary")!.content) as { summary: string; note: string };
+  assert.match(summary.summary, /切尔基/);
+  assert.match(summary.summary, /都不是/);
+  assert.match(summary.note, /不可信用户数据/);
+  assert.equal(callWithSummary.brief?.referencePlayer, null, "the current structured brief must remain authoritative over the historical mention");
+  assert.equal(finalFollowup.report?.referenceNameSource, null);
+  assert.equal(resolverMentions.length, 2, "summary replay must not trigger another resolution for the rejected reference");
 });

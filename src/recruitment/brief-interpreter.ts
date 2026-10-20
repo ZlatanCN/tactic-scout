@@ -114,7 +114,7 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
           try { candidate = JSON.parse(structuredModelText(result.raw.content)); } catch { /* The schema validator records a failed structured response. */ }
         }
         candidate = preserveBriefDuringIdentityRecheck(candidate, input.previous, input.message);
-        try { return validateRecruitmentBrief(candidate, input.validationMessages ?? [...input.recentMessages, input.message], input.visibleCandidates); }
+        try { return validateRecruitmentBrief(candidate, input.validationMessages ?? [...input.recentMessages, input.message], input.visibleCandidates, input.previous); }
         catch (error) {
           if (attempt > 0) throw error;
           previousAttempt = candidate;
@@ -123,7 +123,7 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
             : "上一轮结构不符合 schema。请完整输出所有字段，保留原始参考称呼，并检查明确条件的原话依据。";
         }
       }
-      throw new RecruitmentBriefValidationError("需求理解未完成。");
+      throw new RecruitmentBriefValidationError("需求理解未完成。", "invalid_brief");
     },
   };
 }

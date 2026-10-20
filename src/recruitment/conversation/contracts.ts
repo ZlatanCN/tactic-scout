@@ -4,9 +4,12 @@ import { type RecruitmentTurnInput } from "../conversation-turn-runtime.js";
 import { type ToolActionName } from "../recruitment-actions.js";
 import { type RecruitmentPlannerUsageObservation } from "../recruitment-planner.js";
 import type { RecruitmentContextManifest } from "../context.js";
+import type { RecruitmentBriefValidationCode } from "../brief.js";
+
+type RecruitmentTraceFilterValue = string | number | boolean | null | string[] | string[][];
 
 export type RecruitmentTraceEvent =
-  | { phase: "brief_failure"; failureKind: string; outputLimitTokens?: number; validationFailure?: string; issuePaths?: string[] }
+  | { phase: "brief_failure"; failureKind: string; failureCode?: string; failureStatus?: number; outputLimitTokens?: number; validationCode?: RecruitmentBriefValidationCode; validationFailure?: string; issuePaths?: string[] }
   | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number; contextStatus?: "within_budget" | "over_budget"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
   | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
   | { phase: "summary_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
@@ -32,7 +35,8 @@ export type RecruitmentTraceEvent =
     toolName: ToolActionName;
     elapsedMs: number;
     ok: boolean;
-    filters: Record<string, string | number | boolean | null | string[]>;
+    errorCode?: string;
+    filters: Record<string, RecruitmentTraceFilterValue>;
     resultCount: number;
     matchingRecordCount?: number;
   }

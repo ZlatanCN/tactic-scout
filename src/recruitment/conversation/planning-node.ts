@@ -25,6 +25,7 @@ import { emitProgress } from "./progress.js";
 import { investigationCandidates, nextRequiredInvestigation } from "./required-investigation.js";
 import { type State } from "./state.js";
 import { preserveExplicitShortlistComparison } from "./shortlist-comparison.js";
+import { messageForRecruitmentAction, parseRecruitmentPlannerOutput, type RecruitmentPlannerOutput } from "../recruitment-tools.js";
 
 type PlanningMode = NonNullable<Parameters<RecruitmentPlanner["decide"]>[0]["decisionMode"]>;
 
@@ -105,6 +106,7 @@ export function createPlanningNode(input: {
       completePlanning(suppressed ? required.suppressedMessage ?? required.message : required.message);
       return {
         action: isQuestion ? actionForAskPolicy(action, askUserMode) : action,
+        messages: [messageForRecruitmentAction(isQuestion ? actionForAskPolicy(action, askUserMode) : action, `policy-${state.decisionSteps}-${action.action}`)],
         decisionSteps: state.decisionSteps + 1,
         policyBlocked: false,
         policyBlockedRepeatCount: 0,
@@ -332,7 +334,7 @@ export function createPlanningNode(input: {
       ...(observer ? { onTokenUsage: (usage: RecruitmentPlannerUsageObservation) => observer({ phase: "model_usage", ...usage }) } : {}),
     };
     try {
-      let modelAction: RecruitmentAction;
+      let modelAction: RecruitmentPlannerOutput;
       if (input.expansionSufficiencyEnabled !== false
         && decisionMode === "expand"
         && decisionConstraints
@@ -441,7 +443,7 @@ export function createPlanningNode(input: {
           throw error;
         }
       }
-      proposedAction = RecruitmentActionSchema.parse(modelAction);
+      proposedAction = parseRecruitmentPlannerOutput(modelAction, plannerInput.availableActions, state.targetTeam).action;
       const enforced = enforceInvestigationAction(proposedAction, state, { candidatePolicyMode, enforceCurrentTurnObservation, decisionMode, expansionConstraints, retrievalNeeds, understatResearchMode: input.understatResearchMode });
       ({ action, candidateSearchCursorAdjustment, candidateSearchExhausted } = enforced);
       policyOverrodePlanner = policyOverrodePlanner || enforced.policyOverrodePlanner || Boolean(plannerFallback);
@@ -545,6 +547,7 @@ export function createPlanningNode(input: {
       });
       return {
         action: fallback,
+        messages: [messageForRecruitmentAction(fallback, `guard-${state.decisionSteps}`)],
         decisionSteps: state.decisionSteps + 1,
         policyBlocked: false,
         policyBlockedRepeatCount: 0,
@@ -557,6 +560,7 @@ export function createPlanningNode(input: {
     }
     return {
       action: stateAction,
+      messages: [messageForRecruitmentAction(stateAction, `planner-${state.decisionSteps}-${stateAction.action}`)],
       decisionSteps: state.decisionSteps + 1,
       policyBlocked: blockedByPolicy,
       policyBlockedRepeatCount,

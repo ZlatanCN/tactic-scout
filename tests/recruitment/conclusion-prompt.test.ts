@@ -24,7 +24,7 @@ test("the final decision prompt is short while retaining evidence and historical
   assert.match(prompt, /现役俱乐部/);
   assert.match(prompt, /参考球员不可推荐/);
   assert.doesNotMatch(prompt, /referenceProfiles|candidateComparison/);
-  assert.match(prompt, /只输出 schema 要求的一个 JSON action/);
+  assert.match(prompt, /只调用一个数据工具/);
   assert.match(prompt, /字段文字精炼/);
   assert.doesNotMatch(prompt, /search_methodology|最多 10 步/);
 });

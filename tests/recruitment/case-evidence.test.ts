@@ -24,6 +24,23 @@ test("case evidence refs read bounded report pages and return an explicit contin
   assert.equal(second.results[0]?.nextCursor, null);
 });
 
+test("case evidence reads resolve every ref in a bounded four-item batch", () => {
+  const documents = Array.from({ length: 4 }, (_, index) => ({
+    id: `knowledge-${index + 1}`, documentId: `doc-${index + 1}`, corpus: "player_report" as const,
+    text: `evidence ${index + 1}`, title: `Player report ${index + 1}`,
+    url: `https://example.test/report/${index + 1}`, sourceId: "source", sourceName: "Source",
+    publisher: "Publisher", author: "Author", publishedAt: null, license: "CC BY",
+    attribution: "Source", entityIds: [`player-${index + 1}`], entityNames: [`Player ${index + 1}`],
+    competition: "League", season: "2025", displayAllowed: true,
+  }));
+  const index = createCaseEvidenceIndex({ caseId: "case-batch", scopeRevision: "brief-v1", evaluations: [], documents });
+  const result = readCaseEvidence(index, { refs: index.directory.map(entry => entry.ref), fields: ["body"] });
+
+  assert.equal(result.results.length, 4);
+  assert.deepEqual(result.results.map(item => item.status), ["ok", "ok", "ok", "ok"]);
+  assert.equal(result.directoryRefusedCount, 0);
+});
+
 test("case evidence refs survive same-scope follow-up turns but reject changed scopes and cross-case references", () => {
   const document = {
     id: "knowledge-1", documentId: "doc-1", corpus: "player_report" as const, text: "evidence",

@@ -1,6 +1,58 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../../src/recruitment/candidate-search-intent.js";
+import { hasCandidateSearchFilterScopeChanged, hasCandidateSearchScopeChanged, sameCandidateSearchScope } from "../../src/recruitment/conversation/candidate-context.js";
+import type { RecruitmentBrief } from "../../src/recruitment/brief.js";
+
+test("candidate search scope ignores presentation-only brief changes but tracks query constraints and metric groups", () => {
+  const brief: RecruitmentBrief = {
+    task: "reinforcement",
+    targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" },
+    referencePlayer: null,
+    referenceClues: [],
+    referenceRecheck: null,
+    selectedCandidateId: null,
+    positions: ["MID"],
+    allowsAnyPosition: false,
+    filters: { maxAge: 23, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    priorities: [{ value: "推进", basis: "explicit", quote: "推进" }],
+    constraints: [],
+    unresolved: [],
+  };
+  const intent = (value: RecruitmentBrief) => resolveCandidateSearchIntent({
+    brief: value,
+    userMessages: ["为巴萨寻找年轻中场，重点看推进"],
+    confirmedPosition: null,
+  });
+  const first = intent(brief);
+  const presentationOnly = intent({
+    ...brief,
+    targetTeam: { value: "FC Barcelona", basis: "explicit", quote: "巴萨" },
+    unresolved: [{ topic: "preference", question: "是否有预算上限？", impact: "可能影响取舍。" }],
+  });
+  const changedAge = intent({ ...brief, filters: { ...brief.filters, maxAge: 22 } });
+  const changedPriority = intent({
+    ...brief,
+    priorities: [{ value: "终结", basis: "explicit", quote: "终结" }],
+  });
+
+  assert.equal(sameCandidateSearchScope(first, presentationOnly), true);
+  assert.equal(sameCandidateSearchScope(first, changedAge), false);
+  assert.equal(sameCandidateSearchScope(first, changedPriority), false);
+});
+
+test("an explicit report follow-up can discuss other metrics without changing the candidate filters", () => {
+  const initial = "为巴萨找一名 23 岁以下的中场候选，CM、DM、AM 等子位置都可以，不限定具体子位置；重点看推进和前场压迫能力，暂不增加预算、国籍或联赛限制。";
+  const followUp = "保持最初完整需求和全部筛选条件，不增不减。请分别说明向前传球与持球推进目前有哪些直接指标，不要把它们混成一个分数。";
+  const history = [{ role: "user" as const, content: initial }];
+
+  assert.equal(hasCandidateSearchScopeChanged(history, followUp, "MID"), true,
+    "the follow-up's metric vocabulary changes discovery ordering inputs");
+  assert.equal(hasCandidateSearchFilterScopeChanged(history, followUp, "MID"), false,
+    "asking about evidence metrics does not change position, age, competition, season, or minutes filters");
+  assert.equal(hasCandidateSearchFilterScopeChanged(history, "保持原范围，年龄上限改为 22 岁。", "MID"), true,
+    "an explicit filter change must still disable report-only reuse");
+});
 
 test("accepted broad source positions take precedence over the specific role left for verification", () => {
   const answer = "同意按前锋大类继续检索，中锋职责标为待核实。保持五大联赛、年龄不限，继续生成候选名单。";
@@ -51,6 +103,16 @@ test("English fine-position requests preserve their explicit position", () => {
     const intent = resolveCandidateSearchIntent({ userMessages: [message], confirmedPosition: null });
     assert.equal(intent.position, expected, message);
   }
+});
+
+test("allowing CM, DM, and AM keeps a midfield request inside the midfield family", () => {
+  const intent = resolveCandidateSearchIntent({
+    userMessages: ["为巴萨找一名 23 岁以下的中场候选，CM、DM、AM 等子位置都可以，不限定具体子位置；重点看推进和前场压迫能力。"],
+    confirmedPosition: null,
+  });
+
+  assert.equal(intent.position, "MID");
+  assert.equal(intent.allowsAnyPosition, false);
 });
 
 test("a confirmed Wikidata identity excludes only its uniquely matched provider record, never same-name records from other providers", () => {

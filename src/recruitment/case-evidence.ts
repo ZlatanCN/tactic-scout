@@ -139,7 +139,7 @@ export function readCaseEvidence(index: CaseEvidenceIndex, input: {
   const limit = Math.max(1, Math.min(4_000, Math.floor(input.limit ?? 1_800)));
   const offset = input.cursor === undefined || input.cursor === null ? 0 : Number(input.cursor);
   const cursorIsValid = Number.isSafeInteger(offset) && offset >= 0;
-  const results = input.refs.slice(0, 2).map(ref => {
+  const results = input.refs.slice(0, 4).map(ref => {
     const refParts = parseRef(ref);
     if (!refParts) return { ref, status: "not_found" as const, content: "该引用格式无效或不存在于本案。", nextCursor: null };
     if (refParts.caseKey !== index.caseKey) return { ref, status: "foreign_case" as const, content: "该证据引用属于其他案件，无法读取。", nextCursor: null };
@@ -164,7 +164,7 @@ export function readCaseEvidence(index: CaseEvidenceIndex, input: {
   });
   return {
     results,
-    directoryRefusedCount: Math.max(0, input.refs.length - 2),
+    directoryRefusedCount: Math.max(0, input.refs.length - 4),
     note: "只读取当前案件目录中已取得的证据；不会联网、访问本地路径或重新计算指标。摘要/截取片段不是完整原文，hasMore=true 时须沿 nextCursor 继续读取。",
   };
 }

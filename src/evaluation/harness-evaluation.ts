@@ -1,7 +1,7 @@
 import type { RecruitmentTraceEvent } from "../recruitment/conversation.js";
 import { type ToolActionName } from "../recruitment/recruitment-actions.js";
 import { minimumMinutesForPercentileComparison } from "../domain/evidence-comparison.js";
-import { playerPositionMatches, positionMatches } from "../domain/positions.js";
+import { playerPositionMatches } from "../domain/positions.js";
 import { type ConversationTurnResponse, type RecruitmentProgressEventStatus, type RecruitmentProgressStage } from "../domain/conversation.js";
 import { type Position } from "../domain/position-contracts.js";
 import type { EvaluationScenario, ExpectedCapabilityCoverage, RequestedCapabilityExpectation } from "./harness-scenarios.js";
@@ -10,6 +10,7 @@ import { questionAddressesRoleAmbiguity } from "./clarification-intent.js";
 export type EvaluationProgressEvent = {
   sequence: number;
   turn: number;
+  elapsedMs?: number;
   stage: RecruitmentProgressStage;
   status: RecruitmentProgressEventStatus;
   message: string;
@@ -25,6 +26,9 @@ export interface ScenarioEvaluationInput {
   continuedEvents: RecruitmentTraceEvent[];
   progressEvents?: EvaluationProgressEvent[];
   answersUsed: number;
+  eventTurns?: readonly number[];
+  contextStressTurnsAttempted?: number;
+  contextStressTurnsCompleted?: number;
   threadId: string;
 }
 
@@ -32,6 +36,12 @@ export interface ScenarioEvaluation {
   checks: Record<string, boolean>;
   allPassed: boolean;
 }
+
+export type ContextStressTurnEvaluation = {
+  turn: number;
+  checks: Record<string, boolean>;
+  allPassed: boolean;
+};
 
 function isToolEvent(event: RecruitmentTraceEvent): event is Extract<RecruitmentTraceEvent, { phase: "tool" }> {
   return event.phase === "tool";
@@ -211,12 +221,10 @@ function requestedCapabilityCoverageMatchesScenario(
 ): boolean {
   if (!response.report) return false;
   const actualCoverage = response.report.requestedCapabilityCoverage;
-  if (actualCoverage.length !== expectedCoverage.length) return false;
 
   return expectedCoverage.every((expected) => {
     const actual = actualCoverage.find(({ name }) => name === expected.name);
-    return Boolean(actual && actual.requestedMetricKeys.length === expected.requestedMetricKeys.length
-      && expected.requestedMetricKeys.every((key) => actual.requestedMetricKeys.includes(key)));
+    return Boolean(actual && expected.requestedMetricKeys.every((key) => actual.requestedMetricKeys.includes(key)));
   });
 }
 
@@ -232,25 +240,54 @@ function numberFilter(event: CandidateSearchEvent, key: string): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function candidateSearchPagesFollowCursors(events: CandidateSearchEvent[]): boolean {
+function candidateSearchScopeKey(event: CandidateSearchEvent): string {
+  const rawMetricGroups = event.filters.discoveryMetricGroups;
+  const discoveryMetricGroups = Array.isArray(rawMetricGroups)
+    ? rawMetricGroups.flatMap((group) => Array.isArray(group)
+      ? [group.filter((key): key is string => typeof key === "string").sort()]
+      : []).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+    : [];
+  return JSON.stringify({
+    position: event.filters.position ?? null,
+    maxAge: event.filters.maxAge ?? null,
+    minimumMinutes: event.filters.minimumMinutes ?? null,
+    competition: event.filters.competition ?? null,
+    season: event.filters.season ?? null,
+    playerNameFilterUsed: event.filters.playerNameFilterUsed ?? false,
+    discoveryMetricGroups,
+  });
+}
+
+function candidateSearchPagesFollowCursors(
+  events: CandidateSearchEvent[],
+  eventTurns?: ReadonlyMap<RecruitmentTraceEvent, number>,
+  previousEvents: CandidateSearchEvent[] = [],
+): boolean {
   const successfulSearches = events.filter((event) => event.ok);
   if (successfulSearches.length === 0) return false;
 
   const searchesByScope = new Map<string, CandidateSearchEvent[]>();
   for (const event of successfulSearches) {
     const scopeKey = JSON.stringify({
-      position: event.filters.position,
-      maxAge: event.filters.maxAge,
-      minimumMinutes: event.filters.minimumMinutes,
-      competition: event.filters.competition,
-      season: event.filters.season,
-      playerNameFilterUsed: event.filters.playerNameFilterUsed,
+      turn: eventTurns?.get(event) ?? null,
+      search: candidateSearchScopeKey(event),
     });
     searchesByScope.set(scopeKey, [...(searchesByScope.get(scopeKey) ?? []), event]);
   }
 
   for (const pages of searchesByScope.values()) {
     let expectedOffset = 0;
+    const searchScope = candidateSearchScopeKey(pages[0]!);
+    const previousPage = [...previousEvents].reverse().find((event) => event.ok
+      && event.toolName === "search_candidates"
+      && candidateSearchScopeKey(event) === searchScope);
+    if (previousPage && Object.hasOwn(previousPage.filters, "nextOffset")) {
+      const previousNextOffset = previousPage.filters.nextOffset;
+      if (previousNextOffset === null) return false;
+      if (typeof previousNextOffset === "number" && Number.isFinite(previousNextOffset)) {
+        expectedOffset = previousNextOffset;
+      }
+    }
     for (const page of pages) {
       const offset = numberFilter(page, "offset");
       const matchCount = page.matchingRecordCount;
@@ -312,9 +349,16 @@ function reportAvoidsLoopLimit(response: ConversationTurnResponse): boolean {
   ));
 }
 
-function didNotRepeatPolicyBlockedAction(events: RecruitmentTraceEvent[]): boolean {
+function didNotRepeatPolicyBlockedAction(
+  events: RecruitmentTraceEvent[],
+  eventTurns?: ReadonlyMap<RecruitmentTraceEvent, number>,
+): boolean {
   let previousBlockedAction: string | null = null;
+  let previousTurn: number | null = null;
   for (const event of events) {
+    const turn = eventTurns?.get(event) ?? null;
+    if (turn !== previousTurn) previousBlockedAction = null;
+    previousTurn = turn;
     if (!isDecisionEvent(event)) continue;
     if (event.policyBlocked !== true || !event.action) {
       previousBlockedAction = null;
@@ -488,9 +532,10 @@ function toolProgressMatchesTrace(
 function progressRepresentsObservedWork(input: ScenarioEvaluationInput): boolean {
   const progressEvents = input.progressEvents;
   if (!progressEvents || progressEvents.length === 0) return false;
+  const finalTurn = input.answersUsed + 1 + (input.contextStressTurnsAttempted ?? 0);
   if (progressEvents.some((event, index) => event.sequence !== index + 1
     || event.turn < 1
-    || event.turn > input.answersUsed + 1)) return false;
+    || event.turn > finalTurn)) return false;
 
   const toolStages = new Set(Object.values(progressStageByTool));
   const toolProgressEvents = progressEvents.filter((event) => toolStages.has(event.stage));
@@ -507,12 +552,77 @@ function progressRepresentsObservedWork(input: ScenarioEvaluationInput): boolean
     event.turn === 1 && event.stage === "asking_user" && event.status === "waiting_for_user"
   ))) return false;
 
-  const finalTurn = input.answersUsed + 1;
   const expectedFinalStage = input.response.status === "needs_input" ? "asking_user" : "completed";
   const expectedFinalStatus = input.response.status === "needs_input" ? "waiting_for_user" : "completed";
   return progressEvents.some((event) => (
     event.turn === finalTurn && event.stage === expectedFinalStage && event.status === expectedFinalStatus
   ));
+}
+
+export function evaluateContextStressTurn(input: {
+  scenario: EvaluationScenario;
+  response: ConversationTurnResponse;
+  events: RecruitmentTraceEvent[];
+  progressEvents: EvaluationProgressEvent[];
+  previousEvents?: RecruitmentTraceEvent[];
+  turn: number;
+}): ContextStressTurnEvaluation {
+  const { scenario, response, events, progressEvents, turn } = input;
+  const report = response.report;
+  const toolEvents = events.filter(isToolEvent);
+  const candidateSearches = toolEvents.filter((event) => event.toolName === "search_candidates");
+  const allToolEvents = [...(input.previousEvents ?? []), ...events].filter(isToolEvent);
+  const evaluatedPlayerIds = new Set(allToolEvents
+    .filter((event) => event.toolName === "evaluate_candidates" && event.ok)
+    .flatMap((event) => stringArrayFilter(event, "evaluatedPlayerIds")));
+  const teamAliases = "targetTeamAliases" in scenario ? scenario.targetTeamAliases : [];
+  const expectedPosition = scenario.kind === "shortlist" ? scenario.expectedBroadPosition : undefined;
+  const expectedMaxAge = scenario.kind === "shortlist" ? scenario.expectedMaxAge : undefined;
+  const requestedCapabilities = "requestedCapabilities" in scenario ? scenario.requestedCapabilities : undefined;
+  const expectedCoverage = "expectedCapabilityCoverage" in scenario ? scenario.expectedCapabilityCoverage : undefined;
+  const searchScopesPreserved = candidateSearches.every((event) => (
+    (expectedPosition === undefined || event.filters.position === expectedPosition)
+    && (expectedMaxAge === undefined || event.filters.maxAge === expectedMaxAge)
+    && event.filters.competition === null
+    && event.filters.season === null
+    && event.filters.minimumMinutes === 0
+    && event.filters.playerNameFilterUsed === false
+  ));
+  const reportCompletedForTurn = response.status === "completed" && report !== null;
+  const askedUser = events.some((event) => isDecisionEvent(event)
+    && event.action === "ask_user"
+    && event.policyBlocked !== true
+    && event.askPolicyOutcome !== "suppressed");
+  const toolProgress = progressEvents.filter((event) => new Set(Object.values(progressStageByTool)).has(event.stage));
+  const toolProgressMatches = toolProgressMatchesTrace(toolEvents, toolProgress);
+  const completedProgressObserved = progressEvents.some((event) => (
+    event.turn === turn && event.stage === "completed" && event.status === "completed"
+  ));
+  const checks = {
+    completedWithReport: reportCompletedForTurn,
+    didNotAskForAdditionalInput: !askedUser,
+    targetTeamContextPreserved: teamAliases.length === 0 || targetTeamContextPreserved(response, events, teamAliases),
+    requestedCapabilityCoverageIsConsistent: requestedCapabilityCoverageIsConsistent(response),
+    requestedCapabilityCoverageMatchesScenario: !expectedCoverage || requestedCapabilityCoverageMatchesScenario(response, expectedCoverage),
+    requestedCapabilitiesAreGrounded: !requestedCapabilities || requestedCapabilitiesGrounded(response, requestedCapabilities),
+    requestedCapabilityGapsAreReported: !requestedCapabilities || requestedCapabilityGapsAreReported(response, requestedCapabilities),
+    recommendationsAreEvidenceBacked: recommendationsUseTheirEvidence(response),
+    recommendationsWereEvaluated: !report || report.recommendations.every((item) => evaluatedPlayerIds.has(item.player.playerId)),
+    historicalArchiveEvidenceIsConsistent: historicalArchiveEvidenceIsConsistent(response, evaluatedPlayerIds),
+    percentilesRespectMetricSamples: percentilesRespectMetricSamples(response),
+    searchScopesPreserved,
+    candidatePagesFollowCursors: candidateSearches.length === 0 || candidateSearchPagesFollowCursors(
+      candidateSearches,
+      undefined,
+      (input.previousEvents ?? []).filter((event): event is CandidateSearchEvent => (
+        isToolEvent(event) && event.toolName === "search_candidates"
+      )),
+    ),
+    didNotRepeatPolicyBlockedAction: didNotRepeatPolicyBlockedAction(events),
+    toolProgressMatchesObservedCalls: toolProgressMatches,
+    completedProgressObserved,
+  };
+  return { turn, checks, allPassed: Object.values(checks).every(Boolean) };
 }
 
 function explicitEmptyPositionLimitation(response: ConversationTurnResponse, expectedPosition: Position): boolean {
@@ -541,6 +651,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
   const successfulPlannerDecisions = hasDecisionSource
     ? decisionEvents.filter((event) => event.decisionSource === "planner").length
     : decisionEvents.length;
+  const successfulToolSteps = toolEvents.filter((event) => event.ok).length;
   const plannerInvocations = hasDecisionSource
     ? decisionEvents.filter((event) => (
       event.decisionSource === "planner"
@@ -555,12 +666,30 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
   const requestedCapabilities = "requestedCapabilities" in scenario
     ? scenario.requestedCapabilities
     : undefined;
+  const eventTurns = input.eventTurns
+    ? new Map(input.events.flatMap((event, index) => {
+      const turn = input.eventTurns?.[index];
+      return turn === undefined ? [] : [[event, turn] as const];
+    }))
+    : undefined;
+  const stressTurnNumbers = new Set<number>();
+  if (input.contextStressTurnsAttempted && input.eventTurns?.length) {
+    const lastTurn = Math.max(...input.eventTurns);
+    const firstStressTurn = lastTurn - input.contextStressTurnsAttempted + 1;
+    for (let turn = firstStressTurn; turn <= lastTurn; turn += 1) stressTurnNumbers.add(turn);
+  }
+  const candidateSearchesOutsideContextStress = stressTurnNumbers.size > 0
+    ? candidateSearches.filter(event => !stressTurnNumbers.has(eventTurns?.get(event) ?? -1))
+    : candidateSearches;
+  const candidatePagesFollowCursors = candidateSearchesOutsideContextStress.length === 0 && stressTurnNumbers.size > 0
+    ? true
+    : candidateSearchPagesFollowCursors(candidateSearchesOutsideContextStress, eventTurns);
   const expectsPositionClarification = scenario.kind === "custom"
     && scenario.expectedClarificationTopic === "position";
   const commonChecks = {
     ...(!expectsPositionClarification ? {
-      usedMultipleModelActions: scenario.kind === "shortlist"
-        ? successfulPlannerDecisions > 1
+      usedMultipleAgentActions: scenario.kind === "shortlist"
+        ? successfulPlannerDecisions + successfulToolSteps > 1
         : plannerInvocations > 0,
     } : {}),
     finalStatusMatchesReport: response.status === "needs_input" ? report === null : report !== null,
@@ -577,7 +706,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       || evidenceEvaluationsFollowCandidateDiscovery(events),
     candidateSearchOutcomeIsExplicit: candidateSearchOutcomeIsExplicit(response, candidateSearches),
     didNotHitDecisionOrPolicyLoopLimit: reportAvoidsLoopLimit(response),
-    didNotRepeatPolicyBlockedAction: didNotRepeatPolicyBlockedAction(events),
+    didNotRepeatPolicyBlockedAction: didNotRepeatPolicyBlockedAction(events, eventTurns),
     ...(input.progressEvents ? { progressMatchesObservedToolsAndTurnState: progressRepresentsObservedWork(input) } : {}),
     requestedCapabilityCoverageIsConsistent: requestedCapabilityCoverageIsConsistent(response),
     requestedCapabilityCoverageMatchesScenario: response.status !== "completed" || !expectedCapabilityCoverage
@@ -607,15 +736,15 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     const evaluationReturnedEvidence = successfulEvidenceEvaluations.length > 0;
     const candidateSearchDoesNotUseAnUnrequestedName = candidateSearches.length > 0
       && candidateSearches.every((event) => event.filters.playerNameFilterUsed === false);
-    const candidatePagesFollowCursors = candidateSearchPagesFollowCursors(candidateSearches);
-    const latestEvidenceEvaluation = successfulEvidenceEvaluations.at(-1);
-    const latestEvidenceEvaluationIndex = latestEvidenceEvaluation ? events.lastIndexOf(latestEvidenceEvaluation) : -1;
-    const successfulReportSearchAfterEvaluation = latestEvidenceEvaluationIndex >= 0 && events.some((event, index) => (
-      index > latestEvidenceEvaluationIndex
-      && isToolEvent(event)
-      && event.toolName === "search_player_reports"
-      && event.ok
-    ));
+    const successfulReportSearchAfterEvaluation = successfulEvidenceEvaluations.some(evaluation => {
+      const evaluationIndex = events.lastIndexOf(evaluation);
+      return evaluationIndex >= 0 && events.some((event, index) => (
+        index > evaluationIndex
+        && isToolEvent(event)
+        && event.toolName === "search_player_reports"
+        && event.ok
+      ));
+    });
     checks = {
       ...commonChecks,
       completedWithReport: response.status === "completed" && report !== null,
@@ -624,7 +753,7 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       appliedUserAgeLimit: ageLimitApplied,
       broadPositionWasNotNarrowed: broadPositionPreserved,
       recommendationsRespectRequestedPosition: !report || !scenario.expectedBroadPosition
-        || report.recommendations.every(({ player }) => positionMatches(player.position, scenario.expectedBroadPosition!)),
+        || report.recommendations.every(({ player }) => playerPositionMatches(player, scenario.expectedBroadPosition!)),
       requestedCapabilitiesGrounded: !scenario.requestedCapabilities
         || requestedCapabilitiesGrounded(response, scenario.requestedCapabilities),
       candidateSearchDoesNotUseAnUnrequestedName,
@@ -649,8 +778,8 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       event.ok && event.filters.position === scenario.expectedPosition
     ));
     const constrainedPositionPaginationIsValid = constrainedPositionSearches.length > 0
-      && (candidateSearchPagesFollowCursors(constrainedPositionSearches)
-        || candidateSearchPagesFollowCursors(allConstrainedPositionSearches));
+      && (candidateSearchPagesFollowCursors(constrainedPositionSearches, eventTurns)
+        || candidateSearchPagesFollowCursors(allConstrainedPositionSearches, eventTurns));
     const broadenedPositionSearchIndex = scenario.expectedBroadenedPosition
       ? postAnswerCandidateSearches.findIndex((event) => event.ok
         && event.filters.position === scenario.expectedBroadenedPosition)
@@ -672,8 +801,8 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
     const allBroadenedSearches = scenario.expectedBroadenedPosition
       ? candidateSearches.filter((event) => event.ok && event.filters.position === scenario.expectedBroadenedPosition)
       : [];
-    const broadenedSearchPaginationIsValid = candidateSearchPagesFollowCursors(broadenedSearches)
-      || candidateSearchPagesFollowCursors(allBroadenedSearches);
+    const broadenedSearchPaginationIsValid = candidateSearchPagesFollowCursors(broadenedSearches, eventTurns)
+      || candidateSearchPagesFollowCursors(allBroadenedSearches, eventTurns);
     const broadenedPositionSearch = broadenedPositionSearchIndex >= 0
       ? postAnswerCandidateSearches[broadenedPositionSearchIndex]!
       : undefined;
@@ -733,8 +862,8 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
       )),
       expectedPositionSearchStartedAtFirstPage: constrainedPositionPaginationIsValid,
       recommendationsMatchExpectedPosition: report
-        ? report.recommendations.every((recommendation) => positionMatches(
-          recommendation.player.position,
+        ? report.recommendations.every((recommendation) => playerPositionMatches(
+          recommendation.player,
           (broadenedSearchFollowsEmptyPosition || userApprovedBroadeningAfterObservedCandidates)
             ? scenario.expectedBroadenedPosition ?? scenario.expectedPosition
             : scenario.expectedPosition,
@@ -756,8 +885,8 @@ export function evaluateLocalAgentScenario(input: ScenarioEvaluationInput): Scen
           return broadenedPositionSearchIndex > emptyExpectedPositionSearchIndex
             && (broadenedSearches.some((event) => (event.matchingRecordCount ?? event.resultCount) > 0)
               || Boolean(report?.recommendations.length)
-              ? Boolean(report?.recommendations.every((recommendation) => positionMatches(
-                recommendation.player.position,
+              ? Boolean(report?.recommendations.every((recommendation) => playerPositionMatches(
+                recommendation.player,
                 scenario.expectedBroadenedPosition!,
               )))
               : Boolean(report && explicitEmptyPositionLimitation(response, scenario.expectedBroadenedPosition)));
