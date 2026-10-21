@@ -9,14 +9,14 @@ test("buildRecruitmentContext returns the complete staged request and a privacy-
   const context = buildRecruitmentContext({
     stage: "conclude",
     systemInstructions: "固定规则",
-    payload: { brief: { positions: ["CB"] }, history: [{ role: "user", content: "为巴萨找后卫" }] },
+    payload: { brief: { criteria: [{ field: "position", operator: "in", value: ["CB"], strength: "required", quote: "后卫" }] }, history: [{ role: "user", content: "为巴萨找后卫" }] },
     responseSchema: { type: "object", required: ["action"] },
     outputBudgetTokens: 1_024,
     contextWindowTokens: 16_384,
   });
 
   assert.equal(context.messages[0]?.content, "固定规则");
-  assert.match(context.messages[1]?.content ?? "", /\"positions\":\[\"CB\"\]/);
+  assert.match(context.messages[1]?.content ?? "", /\"field\":\"position\"/);
   assert.ok(context.manifest.estimatedInputTokens > 0);
   assert.equal(context.manifest.outputBudgetTokens, 1_024);
   assert.equal(context.manifest.contextWindowTokens, 16_384);
@@ -292,11 +292,8 @@ test("understanding preserves clarification context and reports only the history
     referenceClues: [],
     referenceRecheck: null,
     selectedCandidateId: null,
-    positions: ["MID"],
-    allowsAnyPosition: false,
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
-    priorities: [],
-    constraints: [],
+    criteria: [{ field: "position", operator: "in", value: ["MID"], unit: null, attributeKey: null,
+      strength: "required", basis: "explicit", quote: "中场" }],
     unresolved: [],
   };
   const interpretations: Array<{

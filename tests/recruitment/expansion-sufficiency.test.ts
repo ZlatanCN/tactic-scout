@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
+import { compileRecruitmentCriteria } from "../../src/recruitment/criterion-compiler.js";
 import { createRecruitmentConversation } from "../../src/recruitment/conversation.js";
 import type { PlayerProfile } from "../../src/domain/players.js";
 import { searchLoadedPlayers } from "../../src/players/search.js";
@@ -52,11 +53,12 @@ test("a one-capability request with three independently evidenced players finish
     referenceClues: [],
     referenceRecheck: null,
     selectedCandidateId: null,
-    positions: [],
-    allowsAnyPosition: false,
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
-    priorities: [{ value: "后场出球", basis: "explicit", quote: "后场出球" }],
-    constraints: [],
+    criteria: [
+      { field: "position", operator: "in", value: ["LB"], unit: null, attributeKey: null,
+        strength: "required", basis: "explicit", quote: "left-back" },
+      { field: "capability", operator: "match", value: "后场出球", unit: null, attributeKey: null,
+        strength: "required", basis: "explicit", quote: "后场出球" },
+    ],
     unresolved: [],
   };
   const decisions: Array<{ action: string | null; decisionMode?: string; decisionSource?: string; policyReasonCodes?: string[] }> = [];
@@ -84,7 +86,7 @@ test("a one-capability request with three independently evidenced players finish
   const response = await conversation.turn({ threadId: "single-capability-expansion", message });
 
   assert.equal(response.status, "completed", response.message);
-  assert.equal(response.brief?.positions[0], "LB", "the explicit left-back intent survives an empty model position list");
+  assert.equal(compileRecruitmentCriteria(response.brief).positions[0], "LB", "the canonical brief keeps the explicit left-back condition");
   assert.equal(response.report?.recommendations.length, 3);
   assert.ok(response.report?.recommendations.every(({ focusEvidenceKeys }) => focusEvidenceKeys.includes("abilityBallPlayingDefender")));
   assert.equal(plannerCalls, 0);

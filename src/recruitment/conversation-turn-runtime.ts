@@ -76,7 +76,9 @@ export class RecruitmentGraphNodeFailureError extends Error {
           : "证据复核";
     super(failure.category === "timeout"
       ? `${phase}超过运行时限，本轮未生成新报告；案件状态已保留，可以稍后重试。`
-      : `${phase}遇到运行时故障，本轮未生成新报告；案件状态已保留，可以稍后重试。`);
+      : failure.category === "unavailable"
+        ? `${phase}所需的模型或数据服务暂时不可用，有限自动重试已结束；本轮未生成新报告，案件状态已保留，可以稍后重试。`
+        : `${phase}遇到运行时故障，本轮未生成新报告；案件状态已保留，可以稍后重试。`);
     this.name = "RecruitmentGraphNodeFailureError";
     this.category = failure.category;
   }
@@ -259,7 +261,7 @@ export function createRecruitmentTurnRuntime(input: {
         }
         const response = ConversationTurnResponseSchema.parse({
           threadId,
-          status: "completed",
+          status: state.retryMessage ? "failed" : "completed",
           message: state.responseMessage || "调查已完成。",
           question: null,
           report: state.report,

@@ -48,7 +48,14 @@ export function createPlanDecisionNode() {
       completedSteps: state.decisionSteps,
     });
     try {
-      modelAction = await planner.decide({ ...plannerInput, signal: runtime.signal });
+      modelAction = await planner.decide({
+        ...plannerInput,
+        signal: runtime.signal,
+        onModelRetry: ({ attempt, maxRetries, reason }) => {
+          const cause = reason === "rate_limit" ? "模型服务正在限流" : reason === "request_timeout" ? "模型服务响应超时" : reason === "server_error" ? "模型服务暂时异常" : "模型连接中断";
+          emitProgress(config, { stage: "planning", status: "notice", message: `${cause}，系统自动重试（${attempt}/${maxRetries}）`, completedSteps: state.decisionSteps });
+        },
+      });
     } catch (error) {
       if (error instanceof RecruitmentModelTimeoutError
         && (decisionMode === "expand" || decisionMode === "expand_recovery")

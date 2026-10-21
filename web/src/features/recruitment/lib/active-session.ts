@@ -9,7 +9,7 @@ const schema = z.object({
   messages: z.array(ConversationMessageSchema),
   report: RecruitmentReportSchema.nullable(),
   reportAt: z.string().nullable(),
-  status: z.enum(["ready", "needs_input", "completed"]),
+  status: z.enum(["ready", "needs_input", "completed", "failed"]),
   originalBrief: z.string(),
   planName: z.string(),
   activePlanId: z.string().nullable(),

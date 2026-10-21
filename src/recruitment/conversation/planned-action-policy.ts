@@ -5,7 +5,7 @@ import { buildDecisionConstraints, conclusionPlannerOutputFallback, type Recruit
 import { emptyDecision, isToolAction, RecruitmentActionSchema, toolBudgets, type ParsedRecruitmentAction } from "../recruitment-actions.js";
 import { applyRecruitmentCandidatePolicy } from "../recruitment-candidate-policy.js";
 import type { RecruitmentPlanner } from "../recruitment-planner.js";
-import { candidateSearchObservationIndexForIntent, positionEvaluationIsCurrent, discoveredPlayersForConstraint, routeCandidateSearch, userMessages } from "./candidate-context.js";
+import { candidateSearchObservationIndexForIntent, constrainSearchActionToIntent, positionEvaluationIsCurrent, discoveredPlayersForConstraint, routeCandidateSearch, userMessages } from "./candidate-context.js";
 import type { RecruitmentCandidatePolicyMode, UnderstatResearchMode } from "./contracts.js";
 import { asksToRepeatPositionBroadeningQuestion, claimsUnavailablePlayerReports, positionLabels, redundantReplacementRoleQuestion, replacementPositionClarification, unsupportedCurrentAffiliationFeedback } from "./interaction-policy.js";
 import { investigationCandidates } from "./required-investigation.js";
@@ -68,6 +68,7 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
         : conclusionPlannerOutputFallback(buildDecisionConstraints({
           targetTeam: state.targetTeam,
           brief: state.brief,
+          includeAbilityProfiles: state.abilityProfilesEnabled,
           confirmedPosition: state.confirmedPosition,
           confirmedPositions: state.confirmedPositions,
           userMessages: userMessages(state.history),
@@ -91,7 +92,10 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
   }
   if (action.action === "search_candidates" && (intent.positions?.length ?? 0) > 1) {
     action = RecruitmentActionSchema.parse({ ...action, ...positionSearchForIntent(intent),
-      maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes, competition: intent.competition, season: intent.season });
+      maxAge: intent.maxAge, ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+      agePreference: intent.agePreference ?? null,
+      ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
+      minimumMinutes: intent.minimumMinutes, competition: intent.competition, season: intent.season });
   }
   if (action.action === "search_candidates"
     && intent.replacementRequest
@@ -112,6 +116,9 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
       ...(expansionConstraints.positions ? { positions: expansionConstraints.positions } : {}),
       playerName: expansionConstraints.playerName,
       maxAge: expansionConstraints.maxAge,
+        ...(expansionConstraints.minAge == null ? {} : { minAge: expansionConstraints.minAge }),
+        agePreference: expansionConstraints.agePreference ?? null,
+        ...(expansionConstraints.fmCriteria?.length ? { fmCriteria: [...expansionConstraints.fmCriteria] } : {}),
       minimumMinutes: expansionConstraints.minimumMinutes,
       competition: expansionConstraints.competition,
       season: expansionConstraints.season,
@@ -126,6 +133,10 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
     state.candidateSearchScopeChanged ? state.candidateSearchTurnStartIndex : 0,
   );
   const intentSearchIsMissing = enforceCurrentTurnObservation
+    // A material clarification can be the correct first turn when the role or
+    // identity is unresolved. The normal feedback checks below still reject
+    // questions asked before any useful investigation.
+    && action.action !== "ask_user"
     && intentSearchObservationIndex === null
     && (state.candidateSearchScopeChanged
       || state.confirmedPosition !== null
@@ -151,6 +162,9 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
         targetTeam: state.targetTeam,
         ...positionSearchForIntent(intent),
         maxAge: intent.maxAge,
+        ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+        agePreference: intent.agePreference ?? null,
+        ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
         minimumMinutes: intent.minimumMinutes,
         competition: intent.competition,
         season: intent.season,
@@ -160,6 +174,7 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
     }
   }
   if (action.action === "search_candidates") {
+    action = constrainSearchActionToIntent(action, intent);
     const cursor = routeCandidateSearch(action, state, enforceCurrentTurnObservation);
     action = cursor.action;
     candidateSearchCursorAdjustment = cursor.requestedOffset === cursor.effectiveOffset

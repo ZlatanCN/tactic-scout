@@ -15,6 +15,7 @@ import type { State } from "./state.js";
 import { candidateIdentityGroupReferencesFor, confirmedPositionSearchObservation, userMessages } from "./candidate-context.js";
 import type { RecruitmentPlannerAction } from "../recruitment-actions.js";
 import type { RecruitmentPreference } from "../preferences/schemas.js";
+import { compileRecruitmentCriteria } from "../criterion-compiler.js";
 
 export type PlanningMode = "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
 
@@ -82,6 +83,7 @@ export function buildPlanningSnapshot(input: {
     : buildDecisionConstraints({
       targetTeam: state.targetTeam,
       brief: state.brief,
+      includeAbilityProfiles: state.abilityProfilesEnabled,
       confirmedPosition: state.confirmedPosition,
       confirmedPositions: state.confirmedPositions,
       userMessages: userMessages(state.history),
@@ -90,7 +92,8 @@ export function buildPlanningSnapshot(input: {
       candidateIdentityGroups: candidateIdentityGroupReferencesFor(state, input.groupCandidateRecords),
     });
   const currentRequest = state.userMessage.toLocaleLowerCase();
-  const explicitCompetition = Boolean(state.brief?.filters.competition)
+  const compiledCriteria = compileRecruitmentCriteria(state.brief, { abilityProfilesEnabled: state.abilityProfilesEnabled });
+  const explicitCompetition = Boolean(compiledCriteria.competition || compiledCriteria.excludedCompetitions.length)
     || /premier\s+league|la\s+liga|bundesliga|serie\s+a|ligue\s+1|英超|西甲|德甲|意甲|法甲/.test(currentRequest);
   const explicitAnalysisFocus = /防守|推进|创造机会|对抗|defensive actions|progression|chance creation|duels/i.test(currentRequest);
   const userPreferences = (input.userPreferences ?? []).flatMap((preference) => {

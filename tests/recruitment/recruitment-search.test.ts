@@ -555,7 +555,7 @@ test("a conclusion Planner timeout preserves the completed LangGraph evidence in
 test("a blocked expansion question gets one model-directed recovery without asking again", async () => {
   const players = Array.from({ length: 21 }, (_, index) => ({
     ...roleConstraintPlayer(`recovery-player-${index}`, `Recovery Player ${index}`, "CM"),
-    // Keep this below the three-independent-lead sufficiency gate so the test exercises
+    // Keep this below the five-independent-lead sufficiency gate so the test exercises
     // the blocked ask → expand_recovery branch instead of the normal early-finish policy.
     availableStats: index < 2 ? ["goals"] as const : [] as const,
   }));
@@ -837,7 +837,7 @@ test("a jointly evidenced shortlist bypasses the expensive expansion Planner", a
   const result = await conversation.turn({ threadId: "preserve-evidenced-shortlist", message: "为巴萨找前锋，重点看进球产出和创造机会。" });
   assert.equal(result.status, "completed");
   assert.equal(expansionCalls, 0);
-  assert.equal(result.report?.recommendations.length, 3);
+  assert.equal(result.report?.recommendations.length, 5);
   assert.doesNotMatch(result.report?.needSummary ?? "", /扩围未能完成/);
   assert.equal(trace.filter(event => event.phase === "tool" && event.toolName === "search_candidates").length, 1);
   assert.ok(result.report?.requestedCapabilityCoverage.some(area => area.status === "partial"));
@@ -886,7 +886,7 @@ test("the expansion-sufficiency experiment can retain the model-directed expansi
 
   assert.equal(result.status, "completed");
   assert.equal(expansionCalls, 1);
-  assert.equal(result.report?.recommendations.length, 3);
+  assert.equal(result.report?.recommendations.length, 5);
 });
 
 test("a broad defender request excludes a midfielder with a part-time centre-back rating", async () => {
@@ -938,7 +938,7 @@ test("a broad defender request excludes a midfielder with a part-time centre-bac
   const players = [defender, defensiveMidfielder];
   const events: RecruitmentTraceEvent[] = [];
   const conversation = createRecruitmentConversation({
-    briefInterpreter: { async interpret() { return { task: "reinforcement", targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" }, referencePlayer: null, referenceClues: [], referenceRecheck: null, selectedCandidateId: null, positions: ["DEF"], allowsAnyPosition: false, priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null, excludedCompetitions: [] }, unresolved: [] }; } },
+    briefInterpreter: { async interpret() { return { task: "reinforcement", targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" }, referencePlayer: null, referenceClues: [], referenceRecheck: null, selectedCandidateId: null, criteria: [{ field: "position", operator: "in", value: ["DEF"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "后卫" }], unresolved: [] }; } },
     repository: {
       mode: "understat",
       sourceName: "Understat fixture",

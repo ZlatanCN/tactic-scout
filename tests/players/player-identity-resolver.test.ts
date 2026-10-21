@@ -149,7 +149,7 @@ test("the full graph confirms a local record and excludes only that record, not 
   const repo = { ...repository(catalog), mode: "demo" as const, sourceName: "Fixture", async loadPlayers() { return catalog; } };
   const resolver = createPlayerIdentityResolver({ repository: repo, external: missing, variants: async () => ["Rayan Cherki"] });
   const brief: RecruitmentBrief = { task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", basis: "explicit", quote: "切尔基" },
-    selectedCandidateId: null, positions: ["AM"], allowsAnyPosition: false, filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null }, priorities: [], constraints: [], unresolved: [] };
+    selectedCandidateId: null, criteria: [], unresolved: [] };
   const conversation = createRecruitmentConversation({ repository: repo, referenceNameResolver: resolver, briefInterpreter: { async interpret() { return brief; } },
     knowledgeBase: { async search() { return []; } }, experimentalDeterministicSearchMode: "enabled", experimentalRetrievalMode: "on_demand",
     planner: { async decide() { return { action: "finish", targetTeam: null, needSummary: "寻找相似球员", capabilityProfile: ["进球产出"],
@@ -176,7 +176,7 @@ test("the full graph remembers rejected choices and clears those exclusions for 
   const repo = { ...repository(catalog), mode: "demo" as const, sourceName: "Fixture", async loadPlayers() { return catalog; } };
   const resolver = createPlayerIdentityResolver({ repository: repo, external: missing, variants: async () => ["Rayan Cherki"] });
   const base: RecruitmentBrief = { task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", basis: "explicit", quote: "切尔基" }, selectedCandidateId: null,
-    positions: ["AM"], allowsAnyPosition: false, filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null }, priorities: [], constraints: [], unresolved: [] };
+    criteria: [], unresolved: [] };
   const conversation = createRecruitmentConversation({ repository: repo, referenceNameResolver: resolver,
     briefInterpreter: { async interpret(input) {
       if (input.message === "都不是") return { ...base, referenceRecheck: { quote: "都不是", reject: true } };
@@ -204,7 +204,7 @@ test("the structured reject-all action rechecks without asking the brief model t
     external: async (mention, _signal, context) => { resolverContexts.push(context ?? {}); return { status: "unresolved", mention }; },
     variants: async () => ["Rayan Cherki"] });
   const base: RecruitmentBrief = { task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", basis: "explicit", quote: "切尔基" }, selectedCandidateId: null,
-    positions: ["AM"], allowsAnyPosition: false, filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null }, priorities: [], constraints: [], unresolved: [] };
+    criteria: [], unresolved: [] };
   let interpretationCalls = 0;
   const conversation = createRecruitmentConversation({ repository: repo, referenceNameResolver: resolver,
     briefInterpreter: { async interpret() { interpretationCalls++; return base; } },
@@ -248,12 +248,16 @@ test("a projected history cannot restore a rejected reference identity over the 
   });
   const withReference: RecruitmentBrief = {
     task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", basis: "explicit", quote: "切尔基" },
-    selectedCandidateId: null, positions: ["AM"], allowsAnyPosition: false,
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
-    priorities: [], constraints: [], unresolved: [],
+    selectedCandidateId: null, criteria: [], unresolved: [],
   };
   const currentBrief: RecruitmentBrief = {
-    ...withReference, task: "reinforcement", referencePlayer: null,
+    ...withReference,
+    task: "reinforcement",
+    referencePlayer: null,
+    criteria: [{
+      field: "position", operator: "in", value: ["AM"], unit: null, attributeKey: null,
+      strength: "required", basis: "explicit", quote: "进攻中场",
+    }],
   };
   const plannerCalls: Array<Parameters<import("../../src/recruitment/conversation.js").RecruitmentPlanner["decide"]>[0]> = [];
   const conversation = createRecruitmentConversation({

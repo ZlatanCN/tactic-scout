@@ -537,8 +537,8 @@ function progressRepresentsObservedWork(input: ScenarioEvaluationInput): boolean
     event.turn === 1 && event.stage === "asking_user" && event.status === "waiting_for_user"
   ))) return false;
 
-  const expectedFinalStage = input.response.status === "needs_input" ? "asking_user" : "completed";
-  const expectedFinalStatus = input.response.status === "needs_input" ? "waiting_for_user" : "completed";
+  const expectedFinalStage = input.response.status === "needs_input" ? "asking_user" : input.response.status === "failed" ? "failed" : input.response.status === "cancelled" ? "cancelled" : "completed";
+  const expectedFinalStatus = input.response.status === "needs_input" ? "waiting_for_user" : input.response.status === "failed" ? "failed" : input.response.status === "cancelled" ? "cancelled" : "completed";
   return progressEvents.some((event) => (
     event.turn === finalTurn && event.stage === expectedFinalStage && event.status === expectedFinalStatus
   ));

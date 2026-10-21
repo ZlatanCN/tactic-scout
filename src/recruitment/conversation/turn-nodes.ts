@@ -266,6 +266,7 @@ export const waitForUser = (state: State) => {
       positionBroadeningApproved: answeredEmptyPositionQuestion && positionChange.changed
         ? true
         : positionChange.changed ? false : state.positionBroadeningApproved,
+      ...(searchScopeChanged ? { candidateSearchFailure: null } : {}),
       ...(positionChange.changed ? { confirmedPosition: positionChange.position, confirmedPositions: [] } : {}),
       ...(referenceChanged ? resetReference(answerText) : {}),
       ...(pendingQuestion.input?.kind === "player_identity" && !referenceChanged ? {

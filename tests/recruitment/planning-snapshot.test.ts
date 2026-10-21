@@ -109,17 +109,15 @@ test("the decision snapshot uses the current request and the exact latest page c
 test("mutating the decision snapshot cannot mutate canonical case facts", () => {
   const state = plannerState({
     brief: {
-      task: "recruitment",
-      targetTeam: "Bayern",
+      task: "reinforcement",
+      targetTeam: { value: "Bayern", basis: "explicit", quote: "Bayern" },
       referencePlayer: null,
       referenceClues: [],
-      desiredPositions: ["ST"],
-      explicitPositions: ["ST"],
-      constraints: [],
-      filters: {
-        excludedCompetitions: [],
-        excludedNationalities: [],
-      },
+      selectedCandidateId: null,
+      criteria: [{
+        field: "position", operator: "in", value: ["ST"], unit: null, attributeKey: null,
+        strength: "required", basis: "explicit", quote: "striker",
+      }],
       unresolved: [],
     } as unknown as State["brief"],
   });
@@ -137,7 +135,7 @@ test("mutating the decision snapshot cannot mutate canonical case facts", () => 
   (snapshot.case.confirmedPositions as string[]).push("CB");
   snapshot.budget.search_candidates = 99;
 
-  assert.equal(state.brief?.targetTeam, "Bayern");
+  assert.equal(state.brief?.targetTeam?.value, "Bayern");
   assert.deepEqual(state.confirmedPositions, ["ST"]);
   assert.equal(state.toolUses.search_candidates, 0);
 });

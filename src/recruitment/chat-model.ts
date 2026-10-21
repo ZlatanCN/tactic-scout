@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { isIP } from "node:net";
 
 export const DEFAULT_OPENAI_TIMEOUT_MS = 180_000;
@@ -9,6 +10,79 @@ export const DEFAULT_OPENAI_PLANNER_MAX_OUTPUT_TOKENS = 2_048;
 export const DEFAULT_OPENAI_CONCLUSION_MAX_OUTPUT_TOKENS = 2_048;
 export const DEFAULT_CONTEXT_SAFETY_MARGIN_TOKENS = 1_024;
 export const DEFAULT_CONTEXT_COMPACTION_RATIO = 0.9;
+
+export type ModelRetryReason = "rate_limit" | "request_timeout" | "server_error" | "network_error";
+
+export interface ModelRetryNotice {
+  attempt: number;
+  maxRetries: number;
+  reason: ModelRetryReason;
+}
+
+export interface ModelAttemptBudget {
+  attempts: number;
+  retries: number;
+  readonly maxAttempts: number;
+  readonly maxRetries: number;
+  readonly signal?: AbortSignal;
+  readonly onRetry?: (notice: ModelRetryNotice) => void;
+}
+
+export const MAX_MODEL_ATTEMPTS_PER_OPERATION = 4;
+export const MAX_AUTOMATIC_MODEL_RETRIES_PER_OPERATION = 1;
+
+export function createModelAttemptBudget(input: {
+  signal?: AbortSignal;
+  onRetry?: (notice: ModelRetryNotice) => void;
+} = {}): ModelAttemptBudget {
+  return {
+    attempts: 0,
+    retries: 0,
+    maxAttempts: MAX_MODEL_ATTEMPTS_PER_OPERATION,
+    maxRetries: MAX_AUTOMATIC_MODEL_RETRIES_PER_OPERATION,
+    ...(input.signal ? { signal: input.signal } : {}),
+    ...(input.onRetry ? { onRetry: input.onRetry } : {}),
+  };
+}
+
+export class ModelAttemptBudgetExceededError extends Error {
+  constructor(readonly maxAttempts = MAX_MODEL_ATTEMPTS_PER_OPERATION) {
+    super(`The model operation reached its ${maxAttempts}-request safety limit.`);
+    this.name = "ModelAttemptBudgetExceededError";
+  }
+}
+
+export function isTransientModelFailure(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 6 && current && !seen.has(current); depth += 1) {
+    seen.add(current);
+    if (current instanceof ModelAttemptBudgetExceededError || transientNetworkError(current)) return true;
+    if (typeof current !== "object") break;
+    const record = current as { status?: unknown; cause?: unknown };
+    if (typeof record.status === "number" && (record.status === 408 || record.status === 429 || record.status >= 500 && record.status <= 599)) return true;
+    current = record.cause;
+  }
+  return false;
+}
+
+const modelAttemptContext = new AsyncLocalStorage<ModelAttemptBudget>();
+
+/** Share one retry and four total provider requests across compaction and repair calls. */
+export function invokeWithModelAttemptBudget<T>(
+  budget: ModelAttemptBudget,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return modelAttemptContext.run(budget, async () => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (budget.signal?.aborted || !isChatModelTimeout(error) || !consumeRetry(budget, "request_timeout")) throw error;
+      await waitBeforeRetry(jitteredBackoffMs(), budget.signal);
+      return operation();
+    }
+  });
+}
 
 export function modelContextWindowTokens(value = process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS): number | undefined {
   if (!value?.trim()) return undefined;
@@ -185,7 +259,7 @@ const contextOverflowMessage = /context[_ -]length[_ -]exceeded|maximum context(
 export function createChatModel(
   apiKey: string,
   modelName: string,
-  options: { maxOutputTokens?: number; timeoutMs?: number } = {},
+  options: { maxOutputTokens?: number; timeoutMs?: number; onRetry?: (notice: ModelRetryNotice) => void } = {},
 ): ChatOpenAI {
   const baseURL = process.env.OPENAI_BASE_URL?.trim();
   const reasoningEffort = process.env.OPENAI_REASONING_EFFORT?.trim();
@@ -200,27 +274,123 @@ export function createChatModel(
     timeout: options.timeoutMs ?? openAIRequestTimeoutMs(),
     maxTokens: options.maxOutputTokens ?? openAIMaxOutputTokens(),
     maxRetries: 0,
-    ...(baseURL ? {
-      configuration: {
-        baseURL,
-        fetch: fetchWithRateLimitRetry,
-        ...(isLoopbackModelEndpoint(baseURL) ? { fetchOptions: { redirect: "manual" as const } } : {}),
-      },
-    } : {}),
+    configuration: {
+      ...(baseURL ? { baseURL } : {}),
+      fetch: (input, init) => fetchWithBoundedRetry(input, init, options.onRetry),
+      ...(isLoopbackModelEndpoint(baseURL) ? { fetchOptions: { redirect: "manual" as const } } : {}),
+    },
     ...(reasoningEffort ? { modelKwargs: { reasoning_effort: reasoningEffort } } : {}),
   });
 }
 
-async function fetchWithRateLimitRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  let response = await fetch(input, init);
-  for (let attempt = 0; attempt < 2 && response.status === 429; attempt += 1) {
-    const retryAfterSeconds = Number(response.headers.get("retry-after"));
-    const delayMs = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds > 0 && retryAfterSeconds <= 10
-      ? retryAfterSeconds * 1_000
-      : 1_000 * (attempt + 1);
-    await response.body?.cancel().catch(() => undefined);
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-    response = await fetch(input, init);
+const maximumRetryDelayMs = 5_000;
+
+function retryAfterDelayMs(response: Response): number | null | undefined {
+  const value = response.headers.get("retry-after")?.trim();
+  if (!value) return undefined;
+  const seconds = Number(value);
+  const delay = Number.isFinite(seconds) && seconds >= 0
+    ? seconds * 1_000
+    : Date.parse(value) - Date.now();
+  if (!Number.isFinite(delay) || delay < 0) return 0;
+  return delay <= maximumRetryDelayMs ? delay : null;
+}
+
+function transientHttpReason(status: number): ModelRetryReason | null {
+  if (status === 429) return "rate_limit";
+  if (status === 408) return "request_timeout";
+  if (status >= 500 && status <= 599) return "server_error";
+  return null;
+}
+
+function transientNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name === "AbortError") return false;
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current && !seen.has(current); depth += 1) {
+    seen.add(current);
+    if (typeof current === "object") {
+      const code = (current as { code?: unknown }).code;
+      if (typeof code === "string" && /^(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET|ERR_SOCKET_CLOSED)$/i.test(code)) return true;
+      current = (current as { cause?: unknown }).cause;
+      continue;
+    }
+    break;
   }
-  return response;
+  return /^(?:TypeError: )?(?:fetch failed|network error|socket hang up|connection reset|connect timeout)$/i.test(error.message.trim());
+}
+
+function consumeRetry(budget: ModelAttemptBudget, reason: ModelRetryReason): boolean {
+  if (budget.retries >= budget.maxRetries || budget.attempts >= budget.maxAttempts) return false;
+  budget.retries += 1;
+  budget.onRetry?.({ attempt: budget.retries, maxRetries: budget.maxRetries, reason });
+  return true;
+}
+
+function requestBudget(fallbackSignal?: AbortSignal, onRetry?: (notice: ModelRetryNotice) => void): ModelAttemptBudget {
+  const active = modelAttemptContext.getStore();
+  if (active) return active;
+  return createModelAttemptBudget({ ...(fallbackSignal ? { signal: fallbackSignal } : {}), ...(onRetry ? { onRetry } : {}) });
+}
+
+function reserveAttempt(budget: ModelAttemptBudget): void {
+  if (budget.attempts >= budget.maxAttempts) throw new ModelAttemptBudgetExceededError(budget.maxAttempts);
+  budget.attempts += 1;
+}
+
+function abortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error("The request was aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+async function waitBeforeRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw abortError(signal);
+  if (delayMs <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(done, delayMs);
+    function done() {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }
+    function abort() {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(signal ? abortError(signal) : new Error("The request was aborted."));
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
+function jitteredBackoffMs(): number {
+  // One retry only: keep the delay short while spreading simultaneous retries.
+  return Math.floor(Math.random() * 500);
+}
+
+async function fetchWithBoundedRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  onRetry?: (notice: ModelRetryNotice) => void,
+): Promise<Response> {
+  const signal = init?.signal ?? modelAttemptContext.getStore()?.signal;
+  const budget = requestBudget(signal, onRetry);
+  while (true) {
+    if (signal?.aborted) throw abortError(signal);
+    reserveAttempt(budget);
+    let response: Response;
+    try {
+      response = await fetch(input instanceof Request ? input.clone() : input, init);
+    } catch (error) {
+      if (signal?.aborted || !transientNetworkError(error) || !consumeRetry(budget, "network_error")) throw error;
+      await waitBeforeRetry(jitteredBackoffMs(), signal);
+      continue;
+    }
+    const reason = transientHttpReason(response.status);
+    if (!reason) return response;
+    const retryAfter = retryAfterDelayMs(response);
+    if (retryAfter === null || !consumeRetry(budget, reason)) return response;
+    await response.body?.cancel().catch(() => undefined);
+    await waitBeforeRetry(retryAfter ?? jitteredBackoffMs(), signal);
+  }
 }

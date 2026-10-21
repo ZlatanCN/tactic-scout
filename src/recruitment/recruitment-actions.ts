@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { CapabilityMetricKeySchema } from "../domain/capabilities.js";
 import { PositionSchema } from "../domain/position-contracts.js";
+import { FmSearchCriterionSchema } from "../domain/recruitment-brief.js";
 
 export const FinishLimitationKeySchema = z.enum([
   "current_roster",
@@ -15,6 +16,8 @@ export const FinishLimitationKeySchema = z.enum([
   "other",
 ]);
 
+export const MAX_RECOMMENDATIONS_PER_REPORT = 5;
+
 export const FinishActionSchema = z.object({
   action: z.literal("finish"),
   targetTeam: z.string().nullable(),
@@ -23,7 +26,7 @@ export const FinishActionSchema = z.object({
   recommendations: z.array(z.object({
     playerId: z.string().min(1),
     evidenceKeys: z.array(CapabilityMetricKeySchema).min(1).describe("仅引用直接支持用户明确提出能力与角色的评估指标；不能用不相关指标凑足推荐依据。"),
-  })).max(5),
+  })).max(MAX_RECOMMENDATIONS_PER_REPORT),
   limitationKeys: z.array(FinishLimitationKeySchema).max(10),
   reportObservations: z.array(z.object({
     playerId: z.string().min(1),
@@ -48,9 +51,13 @@ export const SearchCandidatesActionSchema = z.object({
   position: PositionSchema.nullable().default(null),
   positions: z.array(PositionSchema).min(1).max(12).optional(),
   playerName: z.string().trim().min(1).nullable().default(null),
-  maxAge: z.number().int().min(15).max(45).nullable().default(null),
+  maxAge: z.number().int().min(0).max(45).nullable().default(null),
+  minAge: z.number().int().min(0).max(45).nullable().optional(),
+  agePreference: z.enum(["younger", "older"]).nullable().optional(),
   minimumMinutes: z.number().int().min(0).max(5000).default(0),
+  fmCriteria: z.array(FmSearchCriterionSchema).max(16).optional(),
   competition: z.string().nullable().default(null),
+  excludedCompetitions: z.array(z.string().trim().min(1)).max(16).optional(),
   season: z.string().nullable().default(null),
   offset: z.number().int().min(0).default(0),
   limit: z.number().int().min(1).max(20).default(20),

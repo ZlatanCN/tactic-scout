@@ -191,16 +191,21 @@ export function requestedCapabilityEvidenceAreas(userMessages: readonly string[]
 
 /** Resolve requested evidence from the normalized brief, without reinterpreting conversation history. */
 export function requestedCapabilityEvidenceAreasFromBrief(
-  brief: Pick<RecruitmentBrief, "priorities" | "positions">,
+  brief: Pick<RecruitmentBrief, "criteria">,
   position?: Position | null,
   includeAbilityProfiles = false,
 ): Array<{ name: string; metricKeys: readonly CapabilityMetricKey[] }> {
-  const explicitPriorities = brief.priorities.filter((priority) => priority.basis === "explicit");
+  const explicitPriorities = brief.criteria.filter((criterion) => criterion.field === "capability"
+    && criterion.basis === "explicit" && criterion.strength !== "excluded")
+    .flatMap(criterion => typeof criterion.value === "string" ? [{ value: criterion.value }] : []);
   const requested = requestedCapabilityEvidenceMappings.flatMap(({ name, pattern, metricKeys }) => (
     explicitPriorities.some(({ value }) => pattern.test(value)) ? [{ name, metricKeys }] : []
   ));
+  const criterionRequestsGoalkeeper = brief.criteria.some(criterion => criterion.field === "position"
+    && criterion.operator === "in"
+    && (Array.isArray(criterion.value) ? criterion.value.includes("GK") : criterion.value === "GK"));
   const isGoalkeeperRequest = position === "GK"
-    || brief.positions.includes("GK")
+    || criterionRequestsGoalkeeper
     || explicitPriorities.some(({ value }) => /\bGK\b|goalkeeper|门将|守门员/i.test(value));
   if (isGoalkeeperRequest) requested.push({ name: "门将专项能力", metricKeys: [] });
   const explicitlyRequestsCarryingProgression = requested.some(({ name }) => name === "带球推进");

@@ -10,19 +10,25 @@ import {
   FinishActionSchema,
   SearchCandidatesActionSchema,
   RecruitmentActionSchema,
+  MAX_RECOMMENDATIONS_PER_REPORT,
   type RecruitmentPlannerAction,
   type ParsedRecruitmentAction,
 } from "./recruitment-actions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import type { EvaluatedCandidate } from "./recruitment-evidence-evaluator.js";
 import type { CandidateIdentityGroupReference } from "../players/identity/candidate-groups.js";
-import type { RecruitmentBrief } from "../domain/recruitment-brief.js";
+import { FmSearchCriterionSchema, type FmSearchCriterion, type RecruitmentBrief } from "../domain/recruitment-brief.js";
+import { compileRecruitmentCriteria } from "./criterion-compiler.js";
+
+export const MIN_EVIDENCED_LEADS_BEFORE_EXPANSION = 3;
 
 export interface RecruitmentDecisionConstraints {
   targetTeam: string | null;
+  agePreference?: "younger" | "older" | null;
   evaluatedCandidates: Array<{
     playerId: string;
     evidenceKeys: CapabilityMetricKey[];
+    age?: number | null;
     footballManager?: { currentAbility: number | null; potentialAbility: number | null; snapshotDate: string };
   }>;
   reportObservations: Array<{ playerId: string; documentId: string; evidenceKeys: CapabilityMetricKey[] }>;
@@ -37,6 +43,9 @@ export interface RecruitmentExpansionConstraints {
   position: Position | null;
   playerName: string | null;
   maxAge: number | null;
+  minAge?: number | null;
+  agePreference?: "younger" | "older" | null;
+  fmCriteria?: readonly FmSearchCriterion[];
   minimumMinutes: number;
   competition: string | null;
   season: string | null;
@@ -57,10 +66,11 @@ export function summarizeRequestedCapabilityCoverage(input: {
   brief?: RecruitmentBrief | null;
   evaluatedPlayers: EvaluatedCandidate[];
   candidateIdentityGroups?: readonly CandidateIdentityGroupReference[];
+  includeAbilityProfiles?: boolean;
 }): RequestedCapabilityCoverage[] {
   const eligibleAreas = resolveRequestedEvidenceAreas(input,
     input.evaluatedPlayers.length > 0 && input.evaluatedPlayers.every(candidate => candidate.player.position === "GK") ? "GK" : undefined,
-    input.evaluatedPlayers.some(candidate => candidate.player.abilityProfile !== undefined));
+    input.includeAbilityProfiles ?? input.evaluatedPlayers.some(candidate => candidate.player.abilityProfile !== undefined));
   const identityGroupByPlayerId = new Map(input.candidateIdentityGroups?.flatMap((group) => (
     group.recordPlayerIds.map((playerId) => [playerId, group.identityKey] as const)
   )) ?? []);
@@ -103,13 +113,28 @@ export function createConstrainedConclusionSchema(
     candidate.evidenceKeys.some((key) => requestedMetricKeys.has(key))
   );
   const requireEvidenceBackedLead = constraints.evaluatedCandidates.some(candidateHasRequestedEvidence);
-  const recommendationCandidates = constraints.evaluatedCandidates.filter((candidate) => {
+  const eligibleRecommendationCandidates = constraints.evaluatedCandidates.filter((candidate) => {
     if (requireEvidenceBackedLead) return candidateHasRequestedEvidence(candidate);
     if (requestedCapabilitiesExist) return false;
     return candidate.evidenceKeys.length > 0;
   });
-  const recommendationPlayerIds = recommendationCandidates.map(({ playerId }) => playerId);
-  const recommendationEvidenceKeys = [...new Set(recommendationCandidates.flatMap(({ evidenceKeys }) => (
+  const recommendationCandidates = independentCandidates(eligibleRecommendationCandidates, constraints.candidateIdentityGroups)
+    .map((candidate, index) => ({ candidate, index }))
+    .sort((left, right) => {
+      const preference = constraints.agePreference;
+      if (!preference) return left.index - right.index;
+      const leftAge = left.candidate.age;
+      const rightAge = right.candidate.age;
+      if (leftAge == null && rightAge != null) return 1;
+      if (leftAge != null && rightAge == null) return -1;
+      if (leftAge == null || rightAge == null) return left.index - right.index;
+      return (preference === "younger" ? leftAge - rightAge : rightAge - leftAge) || left.index - right.index;
+    })
+    .map(({ candidate }) => candidate);
+  const recommendationLimit = Math.min(options.maxRecommendations ?? MAX_RECOMMENDATIONS_PER_REPORT, recommendationCandidates.length);
+  const selectedRecommendationCandidates = recommendationCandidates.slice(0, recommendationLimit);
+  const recommendationPlayerIds = selectedRecommendationCandidates.map(({ playerId }) => playerId);
+  const recommendationEvidenceKeys = [...new Set(selectedRecommendationCandidates.flatMap(({ evidenceKeys }) => (
     requireEvidenceBackedLead
       ? evidenceKeys.filter((key) => requestedMetricKeys.has(key))
       : evidenceKeys
@@ -147,8 +172,8 @@ export function createConstrainedConclusionSchema(
     needSummary: z.string().trim().min(1).max(500),
     capabilityProfile: z.array(z.string().trim().min(1).max(160)).max(8),
     recommendations: z.array(recommendationItemSchema)
-      .min(recommendationPlayerIds.length ? 1 : 0)
-      .max(recommendationPlayerIds.length ? options.maxRecommendations ?? 5 : 0)
+      .min(recommendationLimit)
+      .max(recommendationLimit)
       .describe(requireEvidenceBackedLead
         ? "给出有用户所述能力直接指标支持的后续考察线索；候选人和指标需经复核。"
         : "需求能力没有可测量项时，可依据已有统计给出待核实的考察线索；必须明确能力尚未核实，不能声称这些统计证明战术适配。没有任何表现证据时才为空。"),
@@ -200,7 +225,7 @@ export function createConstrainedExpansionSchema(
   const conciseFinishActionSchema = finishSchema.extend({
     needSummary: z.string().trim().min(1).max(280),
     capabilityProfile: z.array(z.string().trim().min(1).max(120)).max(5),
-    recommendations: finishSchema.shape.recommendations.max(3),
+    recommendations: finishSchema.shape.recommendations.max(MAX_RECOMMENDATIONS_PER_REPORT),
   });
   const exactNullable = <T extends string | number>(value: T | null) => value === null ? z.null() : z.literal(value);
   const candidateSearchSchema = SearchCandidatesActionSchema.extend({
@@ -208,6 +233,11 @@ export function createConstrainedExpansionSchema(
     position: exactNullable(expansionConstraints.position),
     playerName: exactNullable(expansionConstraints.playerName),
     maxAge: exactNullable(expansionConstraints.maxAge),
+    ...(expansionConstraints.minAge == null ? {} : { minAge: z.literal(expansionConstraints.minAge) }),
+    agePreference: expansionConstraints.agePreference == null ? z.null().optional() : z.literal(expansionConstraints.agePreference),
+    ...(expansionConstraints.fmCriteria?.length ? {
+      fmCriteria: z.array(FmSearchCriterionSchema).refine(value => JSON.stringify(value) === JSON.stringify(expansionConstraints.fmCriteria)),
+    } : {}),
     minimumMinutes: z.literal(expansionConstraints.minimumMinutes),
     competition: exactNullable(expansionConstraints.competition),
     season: exactNullable(expansionConstraints.season),
@@ -234,7 +264,7 @@ export function expansionPlannerFallback(input: {
   const independentCompleteLeads = independentCandidates(completeLeads, decisionConstraints.candidateIdentityGroups);
   const preserveLeads = input.preserveExistingEvidence !== false
     && measurableAreas.length > 0
-    && independentCompleteLeads.length >= 3;
+    && independentCompleteLeads.length >= MIN_EVIDENCED_LEADS_BEFORE_EXPANSION;
   const hasMeasurableCoverageGap = coverage.some((area) => (
     area.requestedMetricKeys.length > 0 && area.status !== "observed"
   ));
@@ -246,6 +276,9 @@ export function expansionPlannerFallback(input: {
       ...(expansionConstraints.positions ? { positions: expansionConstraints.positions } : {}),
       playerName: expansionConstraints.playerName,
       maxAge: expansionConstraints.maxAge,
+      ...(expansionConstraints.minAge == null ? {} : { minAge: expansionConstraints.minAge }),
+      agePreference: expansionConstraints.agePreference ?? null,
+      ...(expansionConstraints.fmCriteria?.length ? { fmCriteria: [...expansionConstraints.fmCriteria] } : {}),
       minimumMinutes: expansionConstraints.minimumMinutes,
       competition: expansionConstraints.competition,
       season: expansionConstraints.season,
@@ -272,7 +305,7 @@ export function expansionPlannerFallback(input: {
   });
 }
 
-/** Three independently evidenced leads can satisfy the user's measurable request without model-directed page expansion. */
+/** A small verified set makes additional page expansion optional; final reports can still show up to five. */
 export function expansionEvidenceIsSufficient(
   decisionConstraints: RecruitmentDecisionConstraints,
 ): boolean {
@@ -283,7 +316,7 @@ export function expansionEvidenceIsSufficient(
   const completeCandidates = decisionConstraints.evaluatedCandidates.filter(candidate => measurableAreas.every(area => (
     area.requestedMetricKeys.some(key => candidate.evidenceKeys.includes(key))
   )));
-  return independentCandidates(completeCandidates, decisionConstraints.candidateIdentityGroups).length >= 3;
+  return independentCandidates(completeCandidates, decisionConstraints.candidateIdentityGroups).length >= MIN_EVIDENCED_LEADS_BEFORE_EXPANSION;
 }
 
 function independentCandidates<T extends { playerId: string }>(
@@ -333,17 +366,30 @@ function fallbackNeedSummary(constraints: RecruitmentDecisionConstraints, outcom
 
 function recommendationsFromRequestedEvidence(constraints: RecruitmentDecisionConstraints) {
   const requestedMetricKeys = new Set(constraints.requestedCapabilityCoverage.flatMap((area) => area.requestedMetricKeys));
-  if (requestedMetricKeys.size === 0) return constraints.evaluatedCandidates
-    .filter((candidate) => candidate.evidenceKeys.length > 0)
-    .slice(0, 3)
+  const candidates = independentCandidates(constraints.evaluatedCandidates.filter(candidate => requestedMetricKeys.size
+    ? candidate.evidenceKeys.some(key => requestedMetricKeys.has(key))
+    : candidate.evidenceKeys.length > 0), constraints.candidateIdentityGroups);
+  const ordered = candidates.map((candidate, index) => ({ candidate, index }))
+    .sort((left, right) => {
+      if (!constraints.agePreference) return left.index - right.index;
+      const leftAge = left.candidate.age;
+      const rightAge = right.candidate.age;
+      if (leftAge == null && rightAge != null) return 1;
+      if (leftAge != null && rightAge == null) return -1;
+      if (leftAge == null || rightAge == null) return left.index - right.index;
+      return (constraints.agePreference === "younger" ? leftAge - rightAge : rightAge - leftAge) || left.index - right.index;
+    })
+    .map(({ candidate }) => candidate);
+  if (requestedMetricKeys.size === 0) return ordered
+    .slice(0, MAX_RECOMMENDATIONS_PER_REPORT)
     .map(({ playerId, evidenceKeys }) => ({ playerId, evidenceKeys }));
-  return constraints.evaluatedCandidates
+  return ordered
     .map((candidate) => ({
       playerId: candidate.playerId,
       evidenceKeys: candidate.evidenceKeys.filter((key) => requestedMetricKeys.has(key)),
     }))
     .filter((candidate) => candidate.evidenceKeys.length > 0)
-    .slice(0, 3);
+    .slice(0, MAX_RECOMMENDATIONS_PER_REPORT);
 }
 
 function coverageStatusLabel(status: RequestedCapabilityCoverage["status"]): string {
@@ -393,6 +439,7 @@ function reportMatchesCandidate(
 export function buildDecisionConstraints(input: {
   targetTeam: string | null;
   brief?: RecruitmentBrief | null;
+  includeAbilityProfiles?: boolean;
   confirmedPosition?: Position | null;
   confirmedPositions?: readonly Position[];
   userMessages?: readonly string[];
@@ -403,14 +450,17 @@ export function buildDecisionConstraints(input: {
   const eligiblePlayers = input.evaluatedPlayers.filter(({ player }) =>
     !shouldExcludeForTargetTeam(player, input.targetTeam) && matchesConfirmedPosition(player, input),
   );
+  const agePreference = compileRecruitmentCriteria(input.brief).agePreference;
   const playerReportDocuments = input.retrievedKnowledge.filter((document) =>
     document.corpus === "player_report" && document.displayAllowed,
   );
   return {
     targetTeam: input.targetTeam,
+    agePreference,
     evaluatedCandidates: eligiblePlayers.map(({ player, evidence }) => ({
       playerId: player.playerId,
       evidenceKeys: evidence.map((item) => item.key),
+      age: player.age,
       ...(player.abilityProfile && (player.abilityProfile.currentAbility !== null || player.abilityProfile.potentialAbility !== null)
         ? { footballManager: {
           currentAbility: player.abilityProfile.currentAbility,
@@ -430,6 +480,7 @@ export function buildDecisionConstraints(input: {
       ...(input.brief !== undefined ? { brief: input.brief } : {}),
       userMessages: input.userMessages ?? [],
       evaluatedPlayers: eligiblePlayers,
+      includeAbilityProfiles: input.includeAbilityProfiles,
       ...(input.candidateIdentityGroups ? { candidateIdentityGroups: input.candidateIdentityGroups } : {}),
     }),
     ...(input.candidateIdentityGroups ? { candidateIdentityGroups: [...input.candidateIdentityGroups] } : {}),

@@ -7,12 +7,14 @@ import { replacementTargetMention } from "../domain/replacement-reference.js";
 import { resolveCandidateSearchIntent } from "../recruitment/candidate-search-intent.js";
 import { competitionNamesMatch } from "../domain/competition-names.js";
 import { RecruitmentBriefSchema, RecruitmentBriefValidationError, type RecruitmentBrief, type VisibleRecruitmentCandidate } from "../recruitment/brief.js";
+import { compileRecruitmentCriteria } from "../recruitment/criterion-compiler.js";
+import type { Position } from "../domain/position-contracts.js";
 
 interface Scenario {
   message: string;
   task: RecruitmentBrief["task"];
   reference: string | null;
-  positions?: RecruitmentBrief["positions"];
+  positions?: Position[];
   maxAge?: number | null;
   excludedCompetitions?: string[];
   previous?: RecruitmentBrief;
@@ -39,7 +41,7 @@ const heldout: Scenario[] = [
   { message: "Can you suggest a successor to Manuel Neuer for Bayern?", task: "replacement", reference: "Manuel Neuer" },
   { message: "找一个类似 Rayan Cherki 的，但别考虑英超", task: "similarity", reference: "Rayan Cherki", excludedCompetitions: ["EPL"] },
 ];
-const previous = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, positions: [], priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] });
+const previous = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, criteria: [], unresolved: [] });
 const followup: Scenario[] = [
   { message: "再年轻一点", task: "similarity", reference: "切尔基", previous, recentMessages: ["推荐类似切尔基的球员"] },
   { message: "只看25岁以下", task: "similarity", reference: "切尔基", previous, recentMessages: ["推荐类似切尔基的球员"], maxAge: 25 },
@@ -82,15 +84,16 @@ try {
     catch (failure) { error = failure instanceof Error ? failure.name : "unknown"; validationFailure = failure instanceof RecruitmentBriefValidationError ? failure.message : undefined; }
     const tokens = (key: "inputTokens" | "outputTokens" | "totalTokens") => usage.length && usage.every(value => value[key] !== undefined) ? usage.reduce((sum, value) => sum + value[key]!, 0) : null;
     const basicCorrect = brief?.task === scenario.task && (brief?.referencePlayer?.value ?? null) === scenario.reference;
-    const conditionsCorrect = Boolean(brief) && (!scenario.positions || JSON.stringify(brief!.positions.slice().sort()) === JSON.stringify(scenario.positions.slice().sort()))
-      && brief!.filters.maxAge === (scenario.maxAge ?? null) && (!scenario.excludedCompetitions || (brief!.filters.excludedCompetitions.length === scenario.excludedCompetitions.length
-        && scenario.excludedCompetitions.every(expected => brief!.filters.excludedCompetitions.some(actual => competitionNamesMatch(actual, expected)))))
+    const compiledBrief = brief ? compileRecruitmentCriteria(brief) : null;
+    const conditionsCorrect = Boolean(brief) && (!scenario.positions || JSON.stringify(compiledBrief!.positions.slice().sort()) === JSON.stringify(scenario.positions.slice().sort()))
+      && compiledBrief!.maxAge === (scenario.maxAge ?? null) && (!scenario.excludedCompetitions || (compiledBrief!.excludedCompetitions.length === scenario.excludedCompetitions.length
+        && scenario.excludedCompetitions.every(expected => compiledBrief!.excludedCompetitions.some(actual => competitionNamesMatch(actual, expected)))))
       && (!scenario.selectedCandidateId || brief!.selectedCandidateId === scenario.selectedCandidateId);
     runs.push({ ...scenario, baseline: { task: baselineTask, reference, basicCorrect: baselineBasicCorrect, conditionsCorrect: baselineConditionsCorrect, correct: baselineBasicCorrect && baselineConditionsCorrect },
       model: { brief, error, validationFailure, elapsedMs: performance.now() - startedAt, modelCalls: usage.length,
         inputTokens: tokens("inputTokens"), outputTokens: tokens("outputTokens"), totalTokens: tokens("totalTokens"),
         basicCorrect, conditionsCorrect, correct: basicCorrect && conditionsCorrect,
-        unexpectedNumericFilter: brief ? brief.filters.maxAge !== (scenario.maxAge ?? null) || brief.filters.minimumMinutes > 0 : null } });
+        unexpectedNumericFilter: compiledBrief ? compiledBrief.maxAge !== (scenario.maxAge ?? null) || compiledBrief.minimumMinutes > 0 : null } });
     await persist();
     process.stdout.write(`Completed ${runs.length}/${scenarios.length}\n`);
   }

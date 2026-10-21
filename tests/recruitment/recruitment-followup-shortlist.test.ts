@@ -20,11 +20,10 @@ test("shortlist context ablation: a comparison follow-up retains the prior visib
     targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" },
     referencePlayer: null,
     selectedCandidateId: null,
-    positions: ["CB"],
-    allowsAnyPosition: false,
-    priorities: [{ value: "关键传球", basis: "explicit", quote: latest.includes("关键传球") ? "关键传球" : "" }],
-    constraints: [],
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    criteria: [
+      { field: "position", operator: "in", value: ["CB"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "中卫" },
+      { field: "capability", operator: "match", value: "关键传球", unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: "关键传球" },
+    ],
     unresolved: [],
   });
 
@@ -102,8 +101,9 @@ test("shortlist context ablation: a comparison follow-up retains the prior visib
   assert.deepEqual(control.visibleCandidates.map(({ playerId }) => playerId), expectedIds);
   assert.deepEqual(continuity.second.report?.recommendations.map(({ player }) => player.playerId), expectedComparisonOrder,
     "the comparison set is ordered only by the shared requested key-pass metric");
-  assert.deepEqual(contextOnly.second.report?.recommendations.map(({ player }) => player.playerId), [candidates[2]!.playerId],
-    "Planner context alone does not guarantee the full comparison set");
+  assert.deepEqual(contextOnly.second.report?.recommendations.map(({ player }) => player.playerId), [
+    candidates[2]!.playerId, candidates[0]!.playerId, candidates[1]!.playerId,
+  ], "the report completes the user-referenced comparison set from the same evidence pool");
   assert.deepEqual(control.second.report?.recommendations, [], "without prior shortlist context, this fixed planner cannot resolve ‘these three candidates’");
   assert.ok(continuityFollowUpInput.history.some((entry) => entry.role === "tool" && entry.toolName === "previous_shortlist"));
   assert.ok(!controlFollowUpInput.history.some((entry) => entry.role === "tool" && entry.toolName === "previous_shortlist"));
@@ -129,11 +129,10 @@ test("same-scope report follow-ups reuse the validated brief and preserve the or
     targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" },
     referencePlayer: null,
     selectedCandidateId: null,
-    positions: ["CB"],
-    allowsAnyPosition: false,
-    priorities: [{ value: "关键传球", basis: "explicit", quote: "重点看关键传球" }],
-    constraints: [],
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+    criteria: [
+      { field: "position", operator: "in", value: ["CB"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "中卫" },
+      { field: "capability", operator: "match", value: "关键传球", unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: "重点看关键传球" },
+    ],
     unresolved: [],
   };
   let briefInterpretations = 0;
@@ -188,7 +187,7 @@ test("same-scope report follow-ups reuse the validated brief and preserve the or
   const threadId = "same-scope-report-followup";
   const first = await conversation.turn({ threadId, message: "为拜仁找中卫，重点看关键传球" });
   assert.equal(first.status, "completed", first.message);
-  assert.equal(first.report?.recommendations.length, 3);
+  assert.equal(first.report?.recommendations.length, 4, "the report completes the default shortlist from four evidence-qualified candidates");
 
   const followUp = await conversation.turn({
     threadId,
@@ -213,7 +212,7 @@ test("same-scope report follow-ups reuse the validated brief and preserve the or
   });
 
   assert.equal(explicitRerank.status, "completed", explicitRerank.message);
-  assert.equal(explicitRerank.report?.recommendations.length, 1, "an explicit rerank request should allow the Planner to produce a new shortlist");
+  assert.equal(explicitRerank.report?.recommendations.length, 4, "a rerank keeps up to five evidence-qualified candidates even if the Planner names fewer");
   assert.equal(briefInterpretations, 2, "an explicit rerank request should be parsed instead of treated as a read-only report follow-up");
 
   const moreCandidates = await conversation.turn({
@@ -227,6 +226,63 @@ test("same-scope report follow-ups reuse the validated brief and preserve the or
     "an explicit request to find more candidates should allow the shortlist to expand");
   assert.equal(briefInterpretations, 3,
     "candidate expansion should be parsed as a new investigation request, not a read-only report follow-up");
+});
+
+test("a soft younger preference changes the final five candidates even when the Planner picks older players", async () => {
+  const ages = [35, 34, 33, 23, 22, 21, 20, 19];
+  const candidates = ages.map((age, index) => {
+    const player = roleConstraintPlayer(`age-ranked-${index}`, `Age Ranked Candidate ${age}`, "CB");
+    return { ...player, age, stats: { ...player.stats, keyPasses: index + 2 }, availableStats: ["keyPasses"] };
+  });
+  const brief: RecruitmentBrief = {
+    task: "reinforcement",
+    targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" },
+    referencePlayer: null,
+    selectedCandidateId: null,
+    criteria: [
+      { field: "position", operator: "in", value: ["CB"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "中卫" },
+      { field: "age", operator: "prefer_low", value: null, unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: "年轻" },
+      { field: "capability", operator: "match", value: "关键传球", unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: "关键传球" },
+    ],
+    unresolved: [],
+  };
+  const conversation = createRecruitmentConversation({
+    briefInterpreter: { async interpret() { return brief; } },
+    repository: {
+      mode: "demo",
+      sourceName: "Fixture",
+      async loadPlayers() { return candidates; },
+      async searchCandidates(query) {
+        return { players: candidates, totalRecords: candidates.length, nextOffset: null, offset: query.offset, appliedFilters: ["position"] };
+      },
+    },
+    planner: { async decide(input) {
+      const progress = input.caseProgress as { currentTurnCandidatePages?: unknown[] };
+      if (!progress.currentTurnCandidatePages?.length) {
+        return { action: "search_candidates", targetTeam: "拜仁", position: "CB", minimumMinutes: 0, limit: 20 };
+      }
+      const pending = input.decisionSnapshot.candidates.eligiblePlayerIds.filter(playerId => (
+        !input.decisionSnapshot.candidates.evaluatedPlayerIds.includes(playerId)
+      ));
+      if (pending.length) return { action: "evaluate_candidates", playerIds: pending };
+      return {
+        action: "finish",
+        targetTeam: "拜仁",
+        needSummary: "按当前中卫需求整理关键传球证据。",
+        capabilityProfile: ["关键传球"],
+        recommendations: candidates.slice(0, 3).map(({ playerId }) => ({ playerId, evidenceKeys: ["keyPasses" as const] })),
+        limitationKeys: [],
+      };
+    } },
+    knowledgeBase: { async search() { return []; } },
+    experimentalReviewerMode: "bypassed",
+  });
+
+  const result = await conversation.turn({ threadId: "age-preference-final-list", message: "为拜仁找一名年轻中卫，重点看关键传球" });
+  assert.equal(result.status, "completed", result.message);
+  assert.deepEqual(result.report?.recommendations.map(({ player }) => player.age), [19, 20, 21, 22, 23]);
+  assert.match(result.message, /年龄偏好排列/);
+  assert.equal(result.report?.searchScopes.some(scope => scope.agePreference === "younger"), true);
 });
 
 test("shortlist continuation explains candidates without direct evidence for the requested comparison", async () => {
@@ -251,11 +307,10 @@ test("shortlist continuation explains candidates without direct evidence for the
         targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" },
         referencePlayer: null,
         selectedCandidateId: null,
-        positions: ["CB"],
-        allowsAnyPosition: false,
-        priorities: [{ value: keyPassFocus ? "关键传球" : "进球产出", basis: "explicit", quote: keyPassFocus ? "关键传球" : "进球产出" }],
-        constraints: [],
-        filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
+        criteria: [
+          { field: "position", operator: "in", value: ["CB"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "中卫" },
+          { field: "capability", operator: "match", value: keyPassFocus ? "关键传球" : "进球产出", unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: keyPassFocus ? "关键传球" : "进球产出" },
+        ],
         unresolved: [],
       };
     } },

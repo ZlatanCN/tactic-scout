@@ -40,7 +40,7 @@ test("the full graph safely pauses on unresolved role ambiguity when the ask pol
       mode: "statsbomb",
       sourceName: "StatsBomb Open Data",
       async searchCandidates(query) {
-        return { players: [player], totalRecords: 1, offset: query.offset, nextOffset: null, appliedFilters: [] };
+        return { players: [player], totalRecords: 1, offset: query.offset, nextOffset: null, appliedFilters: query.position ? ["position"] : [] };
       },
     },
     planner: { async decide() { const action = actions.shift(); assert.ok(action); return action; } },
@@ -139,7 +139,7 @@ test("the full graph suppresses a Planner ask action without exposing its genera
       mode: "statsbomb",
       sourceName: "StatsBomb Open Data",
       async searchCandidates(query) {
-        return { players: [player], totalRecords: 1, offset: query.offset, nextOffset: null, appliedFilters: [] };
+        return { players: [player], totalRecords: 1, offset: query.offset, nextOffset: null, appliedFilters: query.position ? ["position"] : [] };
       },
     },
     planner: { async decide() { const action = actions.shift(); assert.ok(action); return action; } },
@@ -360,6 +360,7 @@ test("a recruitment case investigates, pauses for a material choice, resumes, an
     assert.ok(observedTools.indexOf("search_methodology") < observedTools.indexOf("search_candidates"));
     assert.ok(observedTools.indexOf("evaluate_candidates") < observedTools.indexOf("search_player_reports"));
     assert.deepEqual(body.report.searchScopes, [{
+      excludedTargetTeam: "拜仁",
       position: "ST",
       maxAge: null,
       minimumMinutes: 0,

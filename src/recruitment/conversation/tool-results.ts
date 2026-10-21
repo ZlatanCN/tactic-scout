@@ -319,6 +319,15 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
       filters = {
         position: request.position,
         maxAge: request.maxAge,
+        ...(request.minAge == null ? {} : { minAge: request.minAge }),
+        ...(request.agePreference ? { agePreference: request.agePreference } : {}),
+        ...(request.fmCriteria?.length ? { fmCriteria: request.fmCriteria.map(item => `${item.field}:${item.operator}:${item.value ?? ""}:${item.strength}`) } : {}),
+        ...(result.fmCriterionCoverage?.length ? { fmCriteriaCoverageSummary: result.fmCriterionCoverage
+          .map(item => `${item.field}:${item.knownRecords}/${item.eligibleRecords} 有数据，${item.satisfiedRecords} 满足`)
+          .join("；") } : {}),
+        ...(result.agePreferenceCoverage ? {
+          agePreferenceCoverageSummary: `${result.agePreferenceCoverage.knownRecords}/${result.agePreferenceCoverage.eligibleRecords} 条候选有年龄数据`,
+        } : {}),
         minimumMinutes: request.minimumMinutes,
         competition: request.competition,
         season: request.season,
@@ -395,6 +404,11 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         ...(request.positions?.length ? { positions: request.positions } : {}),
         position: request.position,
         maxAge: request.maxAge,
+        ...(request.minAge == null ? {} : { minAge: request.minAge }),
+        ...(request.agePreference ? { agePreference: request.agePreference } : {}),
+        ...(result.agePreferenceCoverage ? { agePreferenceCoverage: result.agePreferenceCoverage } : {}),
+        ...(request.fmCriteria?.length ? { fmCriteria: request.fmCriteria } : {}),
+        ...(result.fmCriterionCoverage?.length ? { fmCriterionCoverage: result.fmCriterionCoverage } : {}),
         minimumMinutes: request.minimumMinutes,
         competition: request.competition,
         season: request.season,
@@ -412,6 +426,8 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         actualOffset: result.offset,
         nextOffset: result.nextOffset,
         matchingRecordCount: result.totalRecords,
+        ...(result.fmCriterionCoverage?.length ? { fmCriterionCoverage: result.fmCriterionCoverage } : {}),
+        ...(result.agePreferenceCoverage ? { agePreferenceCoverage: result.agePreferenceCoverage } : {}),
         discoveredSourceRecordIds: result.players.map(sourcePlayerKey),
         reportScope,
       };
@@ -440,6 +456,7 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
               matchingRecords: result.totalRecords,
               matchingRecordCountKnown: result.totalRecords !== null,
               appliedFilters: result.appliedFilters,
+              ...(result.fmCriterionCoverage?.length ? { fmCriterionCoverage: result.fmCriterionCoverage } : {}),
               ...(targetPosition ? {
                 positionEvidenceNote: repository.supportsAbilityProfiles
                   ? `能力画像中熟练度足够的${targetPosition}位置可用于职责筛选；比赛位置标签用于补充近期实战背景。没有画像或明确比赛位置的宽位置记录仍只是待核实线索。`

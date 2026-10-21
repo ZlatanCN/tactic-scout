@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { RecruitmentBriefValidationError, validateRecruitmentBrief, type RecruitmentBrief } from "../../src/recruitment/brief.js";
 import { candidateMatchesSearchIntent, resolveCandidateSearchIntent } from "../../src/recruitment/candidate-search-intent.js";
+import { compileRecruitmentCriteria } from "../../src/recruitment/criterion-compiler.js";
 import { searchPlayerPage } from "../../src/players/repository.js";
 import type { PlayerSearchQuery } from "../../src/players/search.js";
 import { createRecruitmentConversation } from "../../src/recruitment/conversation.js";
@@ -9,8 +10,11 @@ import { installRecruitmentConversationTestEnvironment, roleConstraintPlayer } f
 
 after(installRecruitmentConversationTestEnvironment());
 const makeBrief = (): RecruitmentBrief => ({ task: "similarity", targetTeam: null,
-  referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, selectedCandidateId: null, positions: [], allowsAnyPosition: false, priorities: [],
-  constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null }, unresolved: [] });
+  referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, selectedCandidateId: null, criteria: [], unresolved: [] });
+const positionCriterion = (positions: string[], quote: string) => ({
+  field: "position" as const, operator: "in" as const, value: positions, unit: null, attributeKey: null,
+  strength: "required" as const, basis: "explicit" as const, quote,
+});
 
 test("similarity intent inherits an observed reference position without requiring a team", () => {
   const intent = resolveCandidateSearchIntent({ brief: makeBrief(), userMessages: ["推荐类似切尔基的球员"], confirmedPosition: null, replacementReferencePosition: "AM" });
@@ -19,33 +23,20 @@ test("similarity intent inherits an observed reference position without requirin
   assert.ok(intent.replacementTargetNames.includes("切尔基"));
 });
 
-test("brief validation grounds an explicit numeric age filter in the user's exact quote", () => {
-  const candidate = { ...makeBrief(), filters: { ...makeBrief().filters, maxAge: 23 } };
-
-  const brief = validateRecruitmentBrief(candidate, ["推荐类似切尔基的球员，23 岁以下"]);
-
-  assert.deepEqual(brief.constraints, [{
-    kind: "age",
-    strength: "required",
-    requirement: { value: "23 岁以下", basis: "explicit", quote: "23 岁以下" },
-  }]);
-});
-
-test("brief validation normalizes an explicit age ceiling to the value parsed from the user's words", () => {
-  const candidate = {
+test("brief keeps strict and inclusive age boundaries as distinct meanings", () => {
+  const strict = validateRecruitmentBrief({
     ...makeBrief(),
-    filters: { ...makeBrief().filters, maxAge: 22 },
-    constraints: [{
-      kind: "age" as const,
-      strength: "required" as const,
-      requirement: { value: "23 岁以下", basis: "explicit" as const, quote: "23 岁以下" },
-    }],
-  };
+    criteria: [{ field: "age", operator: "lt", value: 25, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "低于25岁的" }],
+  }, ["推荐类似切尔基的球员，我想要年轻人，低于25岁的"]);
+  const inclusive = validateRecruitmentBrief({
+    ...makeBrief(),
+    criteria: [{ field: "age", operator: "lte", value: 25, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "25岁及以下" }],
+  }, ["推荐类似切尔基的25岁及以下"]);
 
-  const brief = validateRecruitmentBrief(candidate, ["推荐类似切尔基的球员，23 岁以下"]);
-
-  assert.equal(brief.filters.maxAge, 23);
-  assert.equal(brief.constraints[0]?.requirement.quote, "23 岁以下");
+  assert.deepEqual(strict.criteria[0], { field: "age", operator: "lt", value: 25, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "低于25岁的" });
+  assert.deepEqual(inclusive.criteria[0], { field: "age", operator: "lte", value: 25, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "25岁及以下" });
+  assert.equal(resolveCandidateSearchIntent({ brief: strict, userMessages: ["我想要年轻人，低于25岁的"], confirmedPosition: null }).maxAge, 24);
+  assert.equal(resolveCandidateSearchIntent({ brief: inclusive, userMessages: ["25岁及以下"], confirmedPosition: null }).maxAge, 25);
 });
 
 test("brief validation replaces an older age constraint when the user changes the ceiling", () => {
@@ -54,24 +45,19 @@ test("brief validation replaces an older age constraint when the user changes th
     task: "reinforcement",
     targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" },
     referencePlayer: null,
-    filters: { ...makeBrief().filters, maxAge: 23 },
-  }, ["为巴萨找中卫，23 岁以下"]);
+    criteria: [{ field: "age", operator: "lte", value: 23, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "23 岁及以下" }],
+  }, ["为巴萨找中卫，23 岁及以下"]);
   const modelOutput = {
     ...prior,
-    filters: { ...prior.filters, maxAge: 24 },
+    criteria: [{ field: "age", operator: "lt", value: 24, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "低于24岁" }],
   };
 
   const brief = validateRecruitmentBrief(modelOutput, [
-    "为巴萨找中卫，23 岁以下",
-    "把年龄上限改为24 岁以下，继续找巴萨中卫。",
+    "为巴萨找中卫，23 岁及以下",
+    "把年龄上限改为低于24岁，继续找巴萨中卫。",
   ], [], prior);
 
-  assert.equal(brief.filters.maxAge, 24);
-  assert.deepEqual(brief.constraints.filter(item => item.kind === "age"), [{
-    kind: "age",
-    strength: "required",
-    requirement: { value: "24 岁以下", basis: "explicit", quote: "24 岁以下" },
-  }]);
+  assert.deepEqual(brief.criteria, [{ field: "age", operator: "lt", value: 24, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "低于24岁" }]);
 });
 
 test("brief validation removes a prior age constraint when the user makes age unrestricted", () => {
@@ -80,35 +66,34 @@ test("brief validation removes a prior age constraint when the user makes age un
     task: "reinforcement",
     targetTeam: { value: "巴萨", basis: "explicit", quote: "巴萨" },
     referencePlayer: null,
-    filters: { ...makeBrief().filters, maxAge: 23 },
-  }, ["为巴萨找中卫，23 岁以下"]);
-  const modelOutput = { ...prior };
+    criteria: [{ field: "age", operator: "lte", value: 23, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "23 岁及以下" }],
+  }, ["为巴萨找中卫，23 岁及以下"]);
+  const modelOutput = { ...prior, criteria: [] };
 
   const brief = validateRecruitmentBrief(modelOutput, [
-    "为巴萨找中卫，23 岁以下",
+    "为巴萨找中卫，23 岁及以下",
     "年龄不限，继续找巴萨中卫。",
   ], [], prior);
 
-  assert.equal(brief.filters.maxAge, null);
-  assert.deepEqual(brief.constraints.filter(item => item.kind === "age"), []);
+  assert.equal(brief.criteria.length, 0);
 });
 
-test("brief validation preserves every explicit capability omitted by the model summary", () => {
-  const candidate = { ...makeBrief(), priorities: [
-    { value: "前场压迫", basis: "explicit" as const, quote: "前场压迫" },
+test("brief validation uses the structured model priorities without a second text parser", () => {
+  const candidate = { ...makeBrief(), criteria: [
+    { field: "capability" as const, operator: "match" as const, value: "前场压迫", unit: null, attributeKey: null, strength: "required" as const, basis: "explicit" as const, quote: "前场压迫" },
   ] };
 
   const brief = validateRecruitmentBrief(candidate, ["推荐类似切尔基的球员，重点看推进和前场压迫"]);
   const intent = resolveCandidateSearchIntent({ brief, userMessages: ["推荐类似切尔基的球员，重点看推进和前场压迫"], confirmedPosition: null });
 
-  assert.ok(brief.priorities.some(({ value, basis }) => value === "推进" && basis === "explicit"));
-  assert.ok(intent.discoveryMetricGroups.some((group) => group.includes("wyscoutProgressivePassesPer90")));
+  assert.equal(brief.criteria.length, 1);
+  assert.ok(!intent.discoveryMetricGroups.some((group) => group.includes("wyscoutProgressivePassesPer90")));
 });
 
 test("a structured brief is the source of requested capability discovery groups", () => {
-  const brief = { ...makeBrief(), priorities: [
-    { value: "创造机会", basis: "explicit" as const, quote: "给队友喂饼" },
-    { value: "进球产出", basis: "inferred" as const, quote: "" },
+  const brief = { ...makeBrief(), criteria: [
+    { field: "capability" as const, operator: "match" as const, value: "创造机会", unit: null, attributeKey: null, strength: "required" as const, basis: "explicit" as const, quote: "给队友喂饼" },
+    { field: "capability" as const, operator: "match" as const, value: "进球产出", unit: null, attributeKey: null, strength: "preferred" as const, basis: "inferred" as const, quote: "" },
   ] };
   const validatedBrief = validateRecruitmentBrief(brief, ["推荐类似切尔基的球员，给队友喂饼"]);
 
@@ -134,13 +119,19 @@ test("capability discovery falls back to the original request before a brief exi
   assert.ok(intent.discoveryMetricGroups.some((group) => group.includes("shotAssists")));
 });
 
-test("an explicit fine position cannot be broadened by model output", () => {
-  const brief = { ...makeBrief(), task: "reinforcement", referencePlayer: null, positions: ["MID"] };
-  assert.deepEqual(validateRecruitmentBrief(brief, ["找一个能拿球推进的中前卫"]).positions, ["CM"]);
-  assert.deepEqual(validateRecruitmentBrief({ ...brief, positions: ["FB"] }, ["找一位左后卫"]).positions, ["LB"]);
-  assert.deepEqual(validateRecruitmentBrief({ ...brief, positions: ["WG"] }, ["找一位右边锋"]).positions, ["RW"]);
-  const accepted = validateRecruitmentBrief({ ...brief, positions: ["CM", "DM"] }, ["中前卫或后腰都可以"]);
-  assert.deepEqual(accepted.positions, ["CM", "DM"]);
+test("canonical position criteria determine the candidate search scope", () => {
+  const makePositionBrief = (positions: string[], quote: string) => ({
+    ...makeBrief(), task: "reinforcement" as const, referencePlayer: null,
+    criteria: [positionCriterion(positions, quote)],
+  });
+  const midfield = validateRecruitmentBrief(makePositionBrief(["CM"], "中前卫"), ["找一个能拿球推进的中前卫"]);
+  const leftBack = validateRecruitmentBrief(makePositionBrief(["LB"], "左后卫"), ["找一位左后卫"]);
+  const rightWinger = validateRecruitmentBrief(makePositionBrief(["RW"], "右边锋"), ["找一位右边锋"]);
+  const alternatives = validateRecruitmentBrief(makePositionBrief(["CM", "DM"], "中前卫或后腰都可以"), ["中前卫或后腰都可以"]);
+  assert.deepEqual(compileRecruitmentCriteria(midfield).positions, ["CM"]);
+  assert.deepEqual(compileRecruitmentCriteria(leftBack).positions, ["LB"]);
+  assert.deepEqual(compileRecruitmentCriteria(rightWinger).positions, ["RW"]);
+  assert.deepEqual(compileRecruitmentCriteria(alternatives).positions, ["CM", "DM"]);
 });
 
 test("unrestricted midfield subpositions stay within the midfield group even if the model says any position", () => {
@@ -150,27 +141,33 @@ test("unrestricted midfield subpositions stay within the midfield group even if 
     task: "reinforcement" as const,
     targetTeam: { value: "巴萨", basis: "explicit" as const, quote: "巴萨" },
     referencePlayer: null,
-    positions: [],
-    allowsAnyPosition: true,
+    criteria: [
+      { field: "age", operator: "lt", value: 24, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "23 岁以下" },
+      positionCriterion(["CM", "DM", "AM"], "CM、DM、AM 等子位置都可以"),
+      { field: "capability", operator: "match", value: "推进", unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: "重点看推进" },
+    ],
   };
 
   const brief = validateRecruitmentBrief(modelBrief, [message]);
   const intent = resolveCandidateSearchIntent({ brief, userMessages: [message], confirmedPosition: null });
 
-  assert.deepEqual(brief.positions, ["MID"]);
-  assert.equal(brief.allowsAnyPosition, false);
-  assert.equal(intent.position, "MID");
+  assert.deepEqual(compileRecruitmentCriteria(brief).positions, ["CM", "DM", "AM"]);
+  assert.equal(intent.position, "CM");
+  assert.deepEqual(intent.positions, ["CM", "DM", "AM"]);
   assert.equal(intent.allowsAnyPosition, false);
 });
 
-test("grounding rejects fabricated explicit quotes, inferred hard constraints and ungrounded filters", () => {
+test("grounding rejects fabricated quotes and inferred hard criteria", () => {
   const brief = makeBrief();
   assert.deepEqual(validateRecruitmentBrief(brief, ["推荐类似切尔基的球员"]), brief);
   assert.throws(() => validateRecruitmentBrief(brief, ["推荐球员"]));
-  assert.throws(() => validateRecruitmentBrief({ ...brief, filters: { ...brief.filters, maxAge: 23 } }, ["推荐类似切尔基的球员"]));
-  assert.throws(() => validateRecruitmentBrief({ ...brief, constraints: [{ kind: "budget", strength: "required", requirement: { value: "2000万", basis: "inferred", quote: "" } }] }, ["便宜版切尔基"]));
+  assert.throws(() => validateRecruitmentBrief({ ...brief, criteria: [
+    { field: "age", operator: "lte", value: 23, unit: "years", attributeKey: null, strength: "required", basis: "inferred", quote: "" },
+  ] }, ["便宜版切尔基"]));
+  assert.throws(() => validateRecruitmentBrief({ ...brief, criteria: [
+    { field: "age", operator: "lte", value: 23, unit: "years", attributeKey: null, strength: "required", basis: "explicit", quote: "23岁以下" },
+  ] }, ["推荐类似切尔基的球员"]));
   assert.throws(() => validateRecruitmentBrief({ ...brief, referencePlayer: { value: "Rayan Cherki", basis: "explicit", quote: "切尔基" } }, ["切尔基"]));
-  assert.throws(() => validateRecruitmentBrief({ ...brief, filters: { ...brief.filters, maxAge: 55 }, constraints: [{ kind: "age", strength: "required", requirement: { value: "55岁以下", basis: "explicit", quote: "23岁以下" } }] }, ["切尔基 23岁以下"]));
 });
 
 test("ungrounded reference clues are discarded and target clubs cannot leak into player identity", () => {
@@ -192,12 +189,15 @@ test("ungrounded reference clues are discarded and target clubs cannot leak into
 test("positions inferred from a famous reference do not become user constraints", () => {
   const rodri = { ...makeBrief(), task: "replacement" as const,
     targetTeam: { value: "拜仁", basis: "explicit" as const, quote: "拜仁" },
-    referencePlayer: { value: "罗德里", basis: "explicit" as const, quote: "罗德里" }, positions: ["CM" as const, "DM" as const] };
+    referencePlayer: { value: "罗德里", basis: "explicit" as const, quote: "罗德里" } };
   const parsed = validateRecruitmentBrief(rodri, ["为拜仁找罗德里的替代者"]);
-  assert.deepEqual(parsed.positions, []);
-  assert.equal(validateRecruitmentBrief({ ...makeBrief(), allowsAnyPosition: true }, ["推荐类似切尔基的球员"]).allowsAnyPosition, false);
-  const explicit = validateRecruitmentBrief({ ...rodri, positions: [] }, ["为拜仁找罗德里的替代者，要中前卫或后腰"]);
-  assert.deepEqual(explicit.positions, ["CM", "DM"]);
+  assert.deepEqual(compileRecruitmentCriteria(parsed).positions, []);
+  assert.equal(compileRecruitmentCriteria(validateRecruitmentBrief({
+    ...makeBrief(), criteria: [{ field: "position", operator: "any", value: null, unit: null, attributeKey: null,
+      strength: "required", basis: "explicit", quote: "位置不限" }],
+  }, ["推荐类似切尔基的球员，位置不限"])).allowsAnyPosition, true);
+  const explicit = validateRecruitmentBrief({ ...rodri, criteria: [positionCriterion(["CM", "DM"], "中前卫或后腰")] }, ["为拜仁找罗德里的替代者，要中前卫或后腰"]);
+  assert.deepEqual(compileRecruitmentCriteria(explicit).positions, ["CM", "DM"]);
 });
 
 test("an identity ambiguity uses verified options and resumes the same graph without requiring a club", async () => {
@@ -277,7 +277,7 @@ test("structured removal overrides an older explicit age limit", () => {
 });
 
 test("a new reinforcement task clears an earlier reference and an earlier any-position instruction", () => {
-  const brief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null, positions: ["CB" as const] };
+  const brief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null, criteria: [positionCriterion(["CB"], "中卫")] };
   const intent = resolveCandidateSearchIntent({ brief, userMessages: ["找凯恩的替代者，位置不限", "换个任务，找中卫"], confirmedPosition: null });
   assert.equal(intent.replacementRequest, false);
   assert.equal(intent.allowsAnyPosition, false);
@@ -286,20 +286,24 @@ test("a new reinforcement task clears an earlier reference and an earlier any-po
 });
 
 test("explicit any-position preference overrides automatic reference position recall", () => {
-  const brief = { ...makeBrief(), allowsAnyPosition: true };
+  const brief = { ...makeBrief(), criteria: [{
+    field: "position" as const, operator: "any" as const, value: null, unit: null, attributeKey: null,
+    strength: "required" as const, basis: "explicit" as const, quote: "位置不限",
+  }] };
   const intent = resolveCandidateSearchIntent({ brief, userMessages: ["位置不限"], referencePositions: ["AM", "RW"], confirmedPosition: null });
   assert.equal(intent.position, null);
   assert.ok(!intent.positions?.length);
 });
 
 test("a generic defender request is not silently narrowed to centre back", () => {
-  const brief = { ...makeBrief(), task: "reinforcement", referencePlayer: null, positions: ["CB"] };
-  assert.deepEqual(validateRecruitmentBrief(brief, ["我想为巴萨找一个新的后卫"]).positions, ["DEF"]);
+  const brief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null, criteria: [positionCriterion(["DEF"], "后卫")] };
+  assert.deepEqual(compileRecruitmentCriteria(validateRecruitmentBrief(brief, ["我想为巴萨找一个新的后卫"])).positions, ["DEF"]);
 });
 
-test("the full graph keeps an explicit English fine position when the model omits it", async () => {
+test("the full graph searches the canonical English fine-position criterion", async () => {
   const candidate = roleConstraintPlayer("english-left-back", "Left Back Candidate", "LB");
-  const modelBrief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null, positions: [] };
+  const modelBrief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null,
+    criteria: [positionCriterion(["LB"], "left-back")] };
   const searches: PlayerSearchQuery[] = [];
   const conversation = createRecruitmentConversation({
     briefInterpreter: { async interpret(input) {
@@ -325,7 +329,7 @@ test("the full graph keeps an explicit English fine position when the model omit
 
   const response = await conversation.turn({ threadId: "english-left-back", message: "Please find a left-back." });
 
-  assert.deepEqual(response.brief?.positions, ["LB"]);
+  assert.deepEqual(compileRecruitmentCriteria(response.brief).positions, ["LB"]);
   assert.ok(searches.length > 0, "the graph must actually run candidate search");
   assert.ok(searches.every(query => query.position === "LB" || query.positions?.length === 1 && query.positions[0] === "LB"),
     `every search must stay scoped to left-back; got ${JSON.stringify(searches.map(({ position, positions }) => ({ position, positions })))}`);
@@ -340,8 +344,11 @@ test("the full graph uses normalized capability intent for search, review, and r
   const modelBrief = { ...makeBrief(), task: "reinforcement" as const,
     targetTeam: { value: "拜仁", basis: "explicit" as const, quote: "拜仁" },
     referencePlayer: null,
-    positions: ["ST" as const],
-    priorities: [{ value: "创造机会", basis: "explicit" as const, quote: "给队友喂饼" }],
+    criteria: [
+      positionCriterion(["ST"], "中锋"),
+      { field: "capability" as const, operator: "match" as const, value: "创造机会", unit: null, attributeKey: null,
+        strength: "required" as const, basis: "explicit" as const, quote: "给队友喂饼" },
+    ],
   };
   const conversation = createRecruitmentConversation({
     briefInterpreter: { async interpret(input) {
@@ -382,17 +389,22 @@ test("the full graph uses normalized capability intent for search, review, and r
 });
 
 test("an undecided position is not converted into unrestricted acceptance", () => {
-  const brief = { ...makeBrief(), task: "reinforcement", referencePlayer: null, positions: [], allowsAnyPosition: true };
+  const brief = { ...makeBrief(), task: "reinforcement" as const, referencePlayer: null,
+    unresolved: [{ topic: "position" as const, question: "你想补强哪个位置？", impact: "位置会改变候选范围" }] };
   const result = validateRecruitmentBrief(brief, ["想找一位新球员补强，但还没确定补强哪个位置。"]);
-  assert.equal(result.allowsAnyPosition, false);
   assert.equal(result.unresolved[0]?.topic, "position");
-  assert.equal(validateRecruitmentBrief(brief, ["任何位置都可以"]).allowsAnyPosition, true);
+  const anyPosition = validateRecruitmentBrief({ ...brief, unresolved: [], criteria: [{
+    field: "position", operator: "any", value: null, unit: null, attributeKey: null,
+    strength: "required", basis: "explicit", quote: "任何位置都可以",
+  }] }, ["任何位置都可以"]);
+  assert.equal(compileRecruitmentCriteria(anyPosition).allowsAnyPosition, true);
 });
 
 test("league exclusion recognizes provider names before pagination and leaves unknown affiliations out", async () => {
-  const brief = makeBrief();
-  brief.filters.excludedCompetitions = ["EPL"];
-  brief.constraints = [{ kind: "competition", strength: "required", requirement: { value: "排除英超", basis: "explicit", quote: "不要英超的" } }];
+  const brief = { ...makeBrief(), criteria: [{
+    field: "competition" as const, operator: "not_in" as const, value: ["EPL"], unit: null, attributeKey: null,
+    strength: "excluded" as const, basis: "explicit" as const, quote: "不要英超的",
+  }] };
   validateRecruitmentBrief(brief, ["推荐类似切尔基的球员，不要英超的"]);
   const players = [
     { ...roleConstraintPlayer("english", "English", "AM"), competition: "英超" },
@@ -400,7 +412,7 @@ test("league exclusion recognizes provider names before pagination and leaves un
     { ...roleConstraintPlayer("unknown", "Unknown", "AM"), competition: "" },
   ];
   const page = await searchPlayerPage({ mode: "demo", sourceName: "Fixture", async loadPlayers() { return players; } }, {
-    position: "AM", playerName: null, maxAge: null, minimumMinutes: 0, competition: null, season: null, excludedCompetitions: ["EPL"], offset: 0, limit: 1,
+    position: "AM", playerName: null, maxAge: null, minimumMinutes: 0, competition: null, season: null, excludedCompetitions: compileRecruitmentCriteria(brief).excludedCompetitions, offset: 0, limit: 1,
   });
   assert.deepEqual(page.players.map(player => player.playerId), ["german"]);
   assert.equal(page.totalRecords, 1);

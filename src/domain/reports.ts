@@ -9,6 +9,7 @@ import { PlayerProfileSchema } from "./players.js";
 import { PositionSchema, SelectablePositionSchema } from "./position-contracts.js";
 import { UnderstatMatchResearchSchema, UnderstatPlayerResearchSchema, UnderstatTeamResearchSchema } from "./understat-evidence.js";
 import { CandidateRoleFitSchema } from "./player-abilities.js";
+import { FmSearchCriterionSchema } from "./recruitment-brief.js";
 
 export const PlayerRecommendationSchema = z.object({
   referenceSimilarity: ReferenceSimilaritySchema.optional(),
@@ -119,7 +120,22 @@ export const RecruitmentSearchScopeSchema = z.object({
   excludedCompetitions: z.array(z.string()).optional(),
   positions: z.array(PositionSchema).optional(),
   position: PositionSchema.nullable(),
-  maxAge: z.number().int().min(15).max(45).nullable(),
+  maxAge: z.number().int().min(0).max(45).nullable(),
+  minAge: z.number().int().min(0).max(45).nullable().optional(),
+  agePreference: z.enum(["younger", "older"]).nullable().optional(),
+  agePreferenceCoverage: z.object({
+    eligibleRecords: z.number().int().nonnegative(),
+    knownRecords: z.number().int().nonnegative(),
+  }).optional(),
+  fmCriteria: z.array(FmSearchCriterionSchema).optional(),
+  fmCriterionCoverage: z.array(z.object({
+    key: z.string().min(1),
+    field: FmSearchCriterionSchema.shape.field,
+    strength: FmSearchCriterionSchema.shape.strength,
+    eligibleRecords: z.number().int().nonnegative(),
+    knownRecords: z.number().int().nonnegative(),
+    satisfiedRecords: z.number().int().nonnegative(),
+  })).optional(),
   minimumMinutes: z.number().int().nonnegative(),
   competition: z.string().nullable(),
   season: z.string().nullable(),

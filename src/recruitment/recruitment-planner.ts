@@ -3,6 +3,8 @@ export { normalizeModelTokenUsage, type NormalizedModelTokenUsage } from "./mode
 import { AIMessage } from "@langchain/core/messages";
 import {
   createChatModel,
+  createModelAttemptBudget,
+  invokeWithModelAttemptBudget,
   isChatModelTimeout,
   openAIExpansionMaxOutputTokens,
   openAIPlannerMaxOutputTokens,
@@ -47,6 +49,7 @@ export interface RecruitmentPlannerInput {
   omittedHistoryEventIds?: readonly string[];
   onTokenUsage?: (usage: RecruitmentPlannerUsageObservation) => void;
   onContextCompaction?: (status: "started" | "completed") => void;
+  onModelRetry?: (notice: import("./chat-model.js").ModelRetryNotice) => void;
 }
 
 export interface RecruitmentPlanner {
@@ -199,7 +202,7 @@ function agentInstructions(dataMode: DatasetMode): string {
     ...(dataMode === "curated" ? ["若数据模式为 TactiScout 自建数据集（curated），当前快照是由 Wyscout 2017/18 历史比赛事件按固定规则集构建的历史统计样本，不是现役球员池。不得将历史球队、年龄或表现描述成当前事实，也不得推断当前效力、转会可行性或未来能力。只引用 evaluate_candidates 返回的指标；明确区分来源原生事件计数与 TactiScout 派生估算，并保留样本赛季、指标定义、缺失状态及 CC BY 4.0 来源署名。渐进传球是根据坐标和固定场地长度假设计算的估算；地面防守对抗胜出占比包含中性结果作为分母的一部分，不得称为标准对抗胜率。估算出场分钟不含补时，也未校正红牌等特殊情况。"] : []),
     "search_candidates 是向当前数据源发起的发现查询，不按能力排序。默认保留所有出场样本；不要静默设置最低分钟数，除非用户明确提出样本门槛。每页尽量读取 20 条。每批只读取 1 页，然后必须评估已发现且尚未评估的候选样本（最多 10 人）；拿到能力证据后，再判断是否值得继续扩大样本，不能为追求翻完整个大市场而盲目分页。若继续翻页，必须使用来源返回的 nextOffset，不能重复或跳过页面。如果 matchingRecords 为 null，表示来源未提供精确匹配总数，不能解释成零命中或完整市场；只能依据 nextOffset 判断是否还有下一页。报告要区分来源匹配总数、已发现样本和已评估人数。",
     "替代者任务中的参考球员不可推荐；只比较有共同来源、位置、赛事、赛季和指标口径的数值，缺失数据不推断。",
-    "缺少接应、终结技术等直接能力指标不等于球员不符合要求。若已有符合用户硬约束的球员及表现证据，可提供多名待考察候选并逐项列出未核实能力；不要因缺少录像或不可测量项而淘汰所有人，也不要将进球或 xG 描述成已证实终结技术。候选较多时优先给出 3 名有依据且各有取舍的线索；不为凑数编造球员或证据。",
+    "缺少接应、终结技术等直接能力指标不等于球员不符合要求。若已有符合用户硬约束的球员及表现证据，可提供最多 5 名待考察候选并逐项列出未核实能力；有 5 名合格且有证据的候选时应完整给出 5 名，少于 5 名时按实际数量，不为凑数编造球员或证据。不要因缺少录像或不可测量项而淘汰所有人，也不要将进球或 xG 描述成已证实终结技术。用户提出年龄等软偏好时，最终候选集合和顺序都必须体现该偏好；不能只把它用于搜索。",
     "如果候选搜索工具返回错误或提示某个明确条件未被来源应用，不能把错误当成空名单，也不能推荐不满足该条件的球员；应说明数据源无法核实/执行该条件，再判断是否有其他可用查询或需要用户调整需求。",
     "FBref 返回 errorCode=blocked 或 rate_limit 时，本轮停止 FBref 查询，不重复尝试、不把错误解释成没有符合条件的球员；明确告诉用户来源拒绝了请求，当前无法用该来源生成候选名单。",
     "位置类追问必须提供 positionSelection={highlight:相关大类或null}，前端会展示足球场供用户选择；其他问题不设置此字段。confirmedPositions 非空代表用户已明确选择多个任一匹配位置，搜索必须保留完整 positions 列表并设置 position=null；不能只查其中一个、重复确认位置或解释成必须全部兼任。",
@@ -337,7 +340,7 @@ function sourceScopeInstructions(dataMode: DatasetMode, phase: "investigation" |
   }
   if (dataMode === "understat") {
     if (phase === "conclusion") return [
-      "Understat 是五大联赛当前赛季页面中的表现样本，不是完整阵容或全球转会市场。Understat 自身不提供出生日期；若候选有精确验证的 FM 桥接，年龄按 FM 出生日期计算，否则年龄未知且不满足年龄硬条件。不得静默放宽要求。来源也无身价、合同、预算、伤病或可签约性；能力画像另按其已核实字段解释。",
+      "Understat 是五大联赛当前赛季页面中的表现样本，不是完整阵容或全球转会市场。Understat 自身不提供出生日期；若候选有精确验证的 FM 桥接，年龄按 FM 出生日期计算，否则来源没有年龄记录、属于未知年龄，且不满足年龄硬条件。不得静默放宽要求。来源也无身价、合同、预算、伤病或可签约性；能力画像另按其已核实字段解释。",
       "位置大类仅供发现。最终沿用已核实的赛季位置证据，区分直接、相邻、未观察到、不可用与待核实；相邻不能充当目标位置命中或参加同位置比较，Sub不作位置证据。位置专属指标只用直接标签对应行，不拼接相邻位置。缺少详情不表示球员不会踢，也不要求用户放宽位置。history是赛季记录，recent是逐场记录，均保留来源时间范围。",
       "只引用工具实际返回的指标和样本。xG/npxG是机会估计，不是终结技术；xA、xGChain、xGBuildup不是完整创造力或渐进传球。射门情境只解释样本构成，不自动计入排名；球队formation/gameState/timing/attackSpeed是环境背景，不表示因果、稳定职责或适配分。minMaxPlayerStats参照群体和单位未核实，不作排名或百分位；百分位只在同赛事、同赛季、同位置组比较。",
       "来源使用未文档化官网JSON路由，可能变化或限流。本机快照的抓取时间不代表来源更新SLA，球队表现样本不是完整名单。",
@@ -533,6 +536,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
   }
 
   async decide(input: Parameters<RecruitmentPlanner["decide"]>[0]): Promise<RecruitmentPlannerOutput> {
+    const modelAttemptBudget = createModelAttemptBudget({ signal: input.signal, onRetry: input.onModelRetry });
     const snapshot = input.decisionSnapshot;
     const stage = snapshot.caps.stage;
     const constraints = snapshot.constraints ?? undefined;
@@ -608,7 +612,7 @@ class OpenAIRecruitmentPlanner implements RecruitmentPlanner {
         }
         let output: unknown;
         try {
-          output = await actionModel.invoke(request.messages, input.signal ? { signal: input.signal } : undefined);
+          output = await invokeWithModelAttemptBudget(modelAttemptBudget, () => actionModel.invoke(request.messages, input.signal ? { signal: input.signal } : undefined));
         } catch (error) {
           input.onTokenUsage?.({
             callPhase: stage,

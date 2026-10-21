@@ -131,6 +131,8 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
       && (report.recommendations.length === 0 || report.recommendations.some((item) =>
         !item.evidence.some((evidence) => area.requestedMetricKeys.includes(evidence.key)))))
     .map((area) => area.name);
+  const capabilityEvidenceNotEvaluated = report.evidenceCoverage.evaluatedCandidateCount === 0
+    && unverifiedCapabilities.length > 0;
   const missingCapabilityDescription = backgroundPosition === "门将" && unverifiedCapabilities.includes("门将专项能力")
     ? "扑救、出击或出球等门将专项表现数据"
     : `${unverifiedCapabilities.join("、") || "目标能力"}相关的表现统计`;
@@ -168,7 +170,9 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
       </div>
       {report.referenceNameSource?.resolvedName && <p className="m-0 rounded-xl border border-border/80 bg-muted/50 px-3.5 py-3 text-xs leading-5 text-muted-foreground">参考对象：<strong className="text-foreground"><bdi>{report.referenceNameSource.resolvedName}</bdi></strong>{report.referenceNameSource.mention ? `（你提到“${report.referenceNameSource.mention}”）` : ""} · 已从候选中排除{report.referenceNameSource.url && <> · <a className="text-primary underline underline-offset-4" href={report.referenceNameSource.url} target="_blank" rel="noreferrer">核对身份</a></>}</p>}
       {reportBusy && <p role="status" className="m-0 rounded-lg border border-primary/15 bg-secondary/50 px-3.5 py-2.5 text-sm text-foreground">{isWaiting ? "回答对话中的问题后继续；这份报告会保留。" : "调查仍在继续，完成后会更新这份报告。"}</p>}
-      {unverifiedCapabilities.length > 0 && !backgroundOnly && <p className="m-0 text-sm leading-6 text-muted-foreground"><span className="font-semibold text-foreground">仍待核实：</span>{unverifiedCapabilities.join("、")}缺少直接数据。</p>}
+      {unverifiedCapabilities.length > 0 && !backgroundOnly && <p className="m-0 text-sm leading-6 text-muted-foreground"><span className="font-semibold text-foreground">仍待核实：</span>{capabilityEvidenceNotEvaluated
+        ? `候选表现尚未评估，暂时无法判断${unverifiedCapabilities.join("、")}的数据覆盖。`
+        : `${unverifiedCapabilities.join("、")}缺少直接数据。`}</p>}
     </CardHeader>
     <CardContent className="space-y-5 px-0">
       {comparisonAvailable && selectedIds.length > 0 && <div className="rounded-xl border bg-card p-4 shadow-sm">

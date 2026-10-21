@@ -64,7 +64,7 @@ export function buildRecruitmentDecisionContext(input: {
     snapshot.case.brief?.targetTeam?.quote,
     snapshot.case.brief?.referencePlayer?.quote,
     ...(snapshot.case.brief?.referenceClues?.map(clue => clue.quote) ?? []),
-    ...(snapshot.case.brief?.constraints.map(constraint => constraint.requirement.quote) ?? []),
+    ...(snapshot.case.brief?.criteria.map(criterion => criterion.quote) ?? []),
   ].filter((quote): quote is string => Boolean(quote));
   const caseId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "";
   const plannerHistory = (decisionMode === "expand" || decisionMode === "expand_recovery"

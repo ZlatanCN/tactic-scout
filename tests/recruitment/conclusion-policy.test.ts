@@ -228,6 +228,44 @@ test("conclusion schema permits only evaluated players, measured metrics, and re
   }));
 });
 
+test("a soft younger preference constrains the default five recommendations without inventing an age cutoff", () => {
+  const ages = [35, 34, 33, 23, 22, 21, 20, 19];
+  const constraints = {
+    targetTeam: "Barcelona",
+    agePreference: "younger" as const,
+    evaluatedCandidates: ages.map((age, index) => ({ playerId: `age-${age}-${index}`, age, evidenceKeys: ["goals" as const] })),
+    reportObservations: [],
+    requestedCapabilityCoverage: [{
+      name: "进球产出",
+      requestedMetricKeys: ["goals" as const],
+      observedMetricKeys: ["goals" as const],
+      evaluatedCandidateCount: ages.length,
+      candidatesWithEvidenceCount: ages.length,
+      status: "observed" as const,
+    }],
+  };
+  const schema = createConstrainedConclusionSchema(constraints);
+  const expectedIds = ["age-19-7", "age-20-6", "age-21-5", "age-22-4", "age-23-3"];
+  assert.doesNotThrow(() => schema.parse({
+    ...validFinish(),
+    targetTeam: "Barcelona",
+    reportObservations: [],
+    recommendations: expectedIds.map(playerId => ({ playerId, evidenceKeys: ["goals"] })),
+  }));
+  assert.throws(() => schema.parse({
+    ...validFinish(),
+    targetTeam: "Barcelona",
+    reportObservations: [],
+    recommendations: ["age-35-0", "age-34-1", "age-33-2", "age-23-3", "age-22-4"].map(playerId => ({ playerId, evidenceKeys: ["goals"] })),
+  }), "the model cannot choose older candidates over five younger evidence-qualified candidates");
+  assert.throws(() => schema.parse({
+    ...validFinish(),
+    targetTeam: "Barcelona",
+    reportObservations: [],
+    recommendations: expectedIds.slice(0, 3).map(playerId => ({ playerId, evidenceKeys: ["goals"] })),
+  }), "when five qualified candidates exist, the model must return all five");
+});
+
 test("a batched conclusion schema cannot stop the remaining candidate batches with a question", () => {
   const constraints = buildDecisionConstraints({
     targetTeam: "Barcelona",
@@ -345,7 +383,10 @@ test("conclusion schema stays compact as evaluated candidates grow", () => {
   assert.doesNotThrow(() => schema.parse({
     ...validFinish(),
     targetTeam: "Bayern",
-    recommendations: [{ playerId: "candidate-29", evidenceKeys: ["goals", "fplExpectedAssistsPer90"] }],
+    recommendations: Array.from({ length: 5 }, (_, index) => ({
+      playerId: `candidate-${index}`,
+      evidenceKeys: ["goals" as const, "fplExpectedAssistsPer90" as const],
+    })),
     reportObservations: [],
   }));
   assert.throws(() => schema.parse({
@@ -560,6 +601,7 @@ test("expansion fallback follows the exact next page only for measurable coverag
     position: "ST",
     playerName: null,
     maxAge: 25,
+    agePreference: null,
     minimumMinutes: 600,
     competition: "La Liga",
     season: "2025/26",
@@ -851,7 +893,7 @@ test("recovery fallback counts and recommends each verified candidate identity o
     },
     expansionConstraints,
   });
-  assert.equal(threeRecordLeads.action, "search_candidates", "three records do not establish three independent candidates");
+  assert.equal(threeRecordLeads.action, "search_candidates", "three records with a resolved duplicate do not establish three independent candidates");
 
   const recovered = expansionPlannerFallback({ decisionConstraints, expansionConstraints });
   assert.equal(recovered.action, "finish");

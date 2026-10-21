@@ -3,6 +3,8 @@ import { inflateRawSync } from "node:zlib";
 import { normalizeFmName, parseFmPlayer, type FmPlayerProfile, type FmPositionKey, type FmSnapshotManifest } from "./profile.js";
 import { throwIfAborted } from "../../domain/abort.js";
 import { FmRoleTemplates, type FmRoleId } from "./role-fit.js";
+import type { FmSearchCriterion } from "../../domain/recruitment-brief.js";
+import { fmCriterionKey, type AgePreferenceCoverage, type FmCriterionCoverage } from "../../players/search.js";
 
 function decodeProfile(payload: unknown): FmPlayerProfile {
   if (!(payload instanceof Uint8Array)) throw new Error("Invalid FM profile payload.");
@@ -12,6 +14,12 @@ function decodeProfile(payload: unknown): FmPlayerProfile {
 
 export class FmProfileRepository {
   private readonly database: DatabaseSync;
+  private readonly criteriaSearchCache = new Map<string, {
+    players: FmPlayerProfile[];
+    total: number;
+    fmCriterionCoverage: FmCriterionCoverage[];
+    agePreferenceCoverage?: AgePreferenceCoverage;
+  }>();
   readonly manifest: FmSnapshotManifest;
 
   constructor(databasePath: string) {
@@ -46,8 +54,16 @@ export class FmProfileRepository {
   searchCatalog(query: {
     referenceRoles?: Record<string, number>;
     positions?: readonly FmPositionKey[]; roles?: readonly FmRoleId[]; playerName?: string | null;
-    bornAfter?: string; excludeRecordIds?: readonly string[]; offset: number; limit: number;
-  }, signal?: AbortSignal): { players: FmPlayerProfile[]; total: number; nextOffset: number | null } {
+    bornAfter?: string; bornBefore?: string; fmCriteria?: readonly FmSearchCriterion[];
+    agePreference?: "younger" | "older";
+    excludeRecordIds?: readonly string[]; offset: number; limit: number;
+  }, signal?: AbortSignal): {
+    players: FmPlayerProfile[];
+    total: number;
+    nextOffset: number | null;
+    fmCriterionCoverage?: FmCriterionCoverage[];
+    agePreferenceCoverage?: AgePreferenceCoverage;
+  } {
     throwIfAborted(signal);
     if (!Number.isInteger(query.offset) || query.offset < 0 || !Number.isInteger(query.limit) || query.limit < 1 || query.limit > 200) throw new Error("Invalid FM catalog pagination.");
     if (query.roles?.some((role) => !Object.hasOwn(FmRoleTemplates, role))) throw new Error("Unknown FM role.");
@@ -62,6 +78,7 @@ export class FmProfileRepository {
       values.push(normalizeFmName(query.playerName));
     }
     if (query.bornAfter) { conditions.push("p.birth_date>?"); values.push(query.bornAfter); }
+    if (query.bornBefore) { conditions.push("p.birth_date<=?"); values.push(query.bornBefore); }
     if (query.excludeRecordIds?.length) {
       conditions.push(`p.record_id NOT IN (${placeholders(query.excludeRecordIds)})`); values.push(...query.excludeRecordIds);
     }
@@ -73,11 +90,74 @@ export class FmProfileRepository {
       : roles.length
       ? `(SELECT (COALESCE(SUM(r.priority),0)+50*(${roles.length}-COUNT(*)))/${roles.length} FROM role_scores r WHERE r.record_id=p.record_id AND r.role IN (${placeholders(roles)}))`
       : "(SELECT MAX(r.priority) FROM role_scores r WHERE r.record_id=p.record_id)";
+    if (query.fmCriteria?.length) {
+      const cacheKey = JSON.stringify({ ...query, offset: 0, limit: 0 });
+      let cached = this.criteriaSearchCache.get(cacheKey);
+      if (!cached) {
+        const rows = this.database.prepare(`SELECT p.payload FROM players p ${where} ORDER BY ${priority} DESC, p.record_id`)
+          .all(...values, ...(referenceRoles.length ? referenceRoles.flatMap(([role, value]) => [value, role]) : roles));
+        const ordered = rows.map((row) => decodeProfile(row.payload));
+        const fmCriterionCoverage = query.fmCriteria.map(criterion => {
+          const known = ordered.flatMap(player => {
+            const value = fmCriterionValue(player, criterion);
+            return value === null ? [] : [{ player, value }];
+          });
+          const satisfiedRecords = known.filter(({ value }) => {
+            if (criterion.strength === "preferred" && criterion.value === null) return true;
+            const matched = fmCriterionMatches(value, criterion);
+            return criterion.strength === "excluded" ? !matched : matched;
+          }).length;
+          return { key: fmCriterionKey(criterion), field: criterion.field, strength: criterion.strength,
+            eligibleRecords: ordered.length, knownRecords: known.length, satisfiedRecords };
+        });
+        const filtered = ordered.filter(player => query.fmCriteria!.every(criterion => {
+          if (criterion.strength === "preferred") return true;
+          const actual = fmCriterionValue(player, criterion);
+          if (actual === null || criterion.value === null) return criterion.strength === "excluded";
+          const matched = fmCriterionMatches(actual, criterion);
+          return criterion.strength === "excluded" ? !matched : matched;
+        }));
+        const agePreferenceCoverage = query.agePreference ? {
+          eligibleRecords: filtered.length,
+          knownRecords: filtered.filter(player => player.birthDate !== null).length,
+        } : undefined;
+        const preferences = query.fmCriteria.filter(criterion => criterion.strength === "preferred");
+        const preferenceLanes = preferences.map(criterion => filtered.flatMap(player => {
+          const value = fmCriterionValue(player, criterion);
+          return value === null ? [] : [{ player, value }];
+        }).sort((left, right) => (fmPreferenceDirection(criterion) === "high" ? right.value - left.value : left.value - right.value)
+          || left.player.recordId.localeCompare(right.player.recordId)).map(({ player }) => player));
+        const ageLane = query.agePreference ? filtered.filter(player => player.birthDate !== null)
+          .sort((left, right) => (query.agePreference === "younger"
+            ? right.birthDate!.localeCompare(left.birthDate!)
+            : left.birthDate!.localeCompare(right.birthDate!))
+            || left.recordId.localeCompare(right.recordId)) : [];
+        const lanes = [...(ageLane.length ? [ageLane] : []), filtered, ...preferenceLanes];
+        const ranked = lanes.length > 1 ? interleaveFmProfiles(lanes) : filtered;
+        cached = { players: ranked, total: ranked.length, fmCriterionCoverage,
+          ...(agePreferenceCoverage ? { agePreferenceCoverage } : {}) };
+        this.criteriaSearchCache.set(cacheKey, cached);
+        if (this.criteriaSearchCache.size > 4) this.criteriaSearchCache.delete(this.criteriaSearchCache.keys().next().value!);
+      }
+      const players = cached.players.slice(query.offset, query.offset + query.limit);
+      return { players, total: cached.total, nextOffset: query.offset + players.length < cached.total ? query.offset + players.length : null,
+        fmCriterionCoverage: cached.fmCriterionCoverage,
+        ...(cached.agePreferenceCoverage ? { agePreferenceCoverage: cached.agePreferenceCoverage } : {}) };
+    }
     const total = Number(this.database.prepare(`SELECT COUNT(*) AS count FROM players p ${where}`).get(...values)!.count);
-    const rows = this.database.prepare(`SELECT p.payload FROM players p ${where} ORDER BY ${priority} DESC, p.record_id LIMIT ? OFFSET ?`)
+    const agePreferenceCoverage = query.agePreference ? {
+      eligibleRecords: total,
+      knownRecords: Number(this.database.prepare(`SELECT COUNT(*) AS count FROM players p ${where} ${where ? "AND" : "WHERE"} p.birth_date IS NOT NULL`).get(...values)!.count),
+    } : undefined;
+    const ageOrder = query.agePreference === "younger" ? "p.birth_date DESC" : "p.birth_date ASC";
+    const order = query.agePreference
+      ? `(p.birth_date IS NULL), ${ageOrder}, ${priority} DESC, p.record_id`
+      : `${priority} DESC, p.record_id`;
+    const rows = this.database.prepare(`SELECT p.payload FROM players p ${where} ORDER BY ${order} LIMIT ? OFFSET ?`)
       .all(...values, ...(referenceRoles.length ? referenceRoles.flatMap(([role, value]) => [value, role]) : roles), query.limit, query.offset);
     const players = rows.map((row) => decodeProfile(row.payload));
-    return { players, total, nextOffset: query.offset + players.length < total ? query.offset + players.length : null };
+    return { players, total, nextOffset: query.offset + players.length < total ? query.offset + players.length : null,
+      ...(agePreferenceCoverage ? { agePreferenceCoverage } : {}) };
   }
 
   search(query: { position: FmPositionKey; minimumRating?: number; offset?: number; limit?: number }, signal?: AbortSignal): { players: FmPlayerProfile[]; total: number; nextOffset: number | null } {
@@ -92,5 +172,52 @@ export class FmProfileRepository {
     return { players, total, nextOffset: offset + players.length < total ? offset + players.length : null };
   }
 
-  close(): void { this.database.close(); }
+  close(): void { this.criteriaSearchCache.clear(); this.database.close(); }
+}
+
+function fmCriterionValue(player: FmPlayerProfile, criterion: FmSearchCriterion): number | null {
+  switch (criterion.field) {
+    case "heightCm": return player.heightCm;
+    case "potentialAbility": return numberOrNull(player.retainedFields.ability_potential);
+    case "currentAbility": return numberOrNull(player.retainedFields.ability_current);
+    case "fmAttribute": {
+      const key = criterion.attributeKey;
+      if (!key) return null;
+      const attribute = player.attributes[key as keyof FmPlayerProfile["attributes"]];
+      return attribute?.raw ?? (attribute?.display === null || attribute?.display === undefined ? null : attribute.display * 5);
+    }
+  }
+}
+
+function numberOrNull(value: string | null): number | null {
+  if (value === null || value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function fmCriterionMatches(actual: number, criterion: FmSearchCriterion): boolean {
+  if (criterion.value === null) return false;
+  switch (criterion.operator) {
+    case "lt": return actual < criterion.value;
+    case "lte": return actual <= criterion.value;
+    case "gt": return actual > criterion.value;
+    case "gte": return actual >= criterion.value;
+    case "prefer_high":
+    case "prefer_low": return true;
+  }
+}
+
+function fmPreferenceDirection(criterion: FmSearchCriterion): "high" | "low" {
+  return criterion.operator === "prefer_low" || criterion.operator === "lt" || criterion.operator === "lte" ? "low" : "high";
+}
+
+function interleaveFmProfiles(lanes: readonly (readonly FmPlayerProfile[])[]): FmPlayerProfile[] {
+  const seen = new Set<string>(), ordered: FmPlayerProfile[] = [];
+  for (let index = 0; lanes.some(lane => index < lane.length); index++) {
+    for (const lane of lanes) {
+      const player = lane[index];
+      if (player && !seen.has(player.recordId)) { seen.add(player.recordId); ordered.push(player); }
+    }
+  }
+  return ordered;
 }

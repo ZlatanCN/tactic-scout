@@ -17,6 +17,8 @@ import { identityRecordKey } from "../../players/identity/player-identity-resolv
 import type { PlayerProfile } from "../../domain/players.js";
 import { resolvedCandidateSearchIntent, sameCandidateSearchScope } from "./candidate-context.js";
 import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
+import { compileRecruitmentCriteria } from "../criterion-compiler.js";
+import { ModelAttemptBudgetExceededError } from "../chat-model.js";
 
 function safeFailureMetadata(error: unknown): { failureCode?: string; failureStatus?: number } {
   let current = error;
@@ -47,7 +49,7 @@ export function createUnderstandingNode(input: {
       state.brief?.targetTeam?.quote,
       state.brief?.referencePlayer?.quote,
       ...(state.brief?.referenceClues?.map(clue => clue.quote) ?? []),
-      ...(state.brief?.constraints.map(constraint => constraint.requirement.quote) ?? []),
+      ...(state.brief?.criteria.map(criterion => criterion.quote) ?? []),
     ].filter((quote): quote is string => Boolean(quote));
     const historyProjection = projectRecruitmentHistory(state.history, {
       caseId,
@@ -112,6 +114,10 @@ export function createUnderstandingNode(input: {
           ...(clarificationQuestionEventId ? { clarificationQuestionEventId } : {}),
           ...(state.briefQuestionContext ? { clarificationQuestion: state.briefQuestionContext } : {}), signal: config.signal,
           onUsage: usage => context.observer?.({ phase: "brief_usage", outcome: usage.outcome ?? "response", elapsedMs: performance.now() - startedAt, ...usage }),
+          onModelRetry: ({ attempt, maxRetries, reason }) => {
+            const cause = reason === "rate_limit" ? "模型服务正在限流" : reason === "request_timeout" ? "模型服务响应超时" : reason === "server_error" ? "模型服务暂时异常" : "模型连接中断";
+            emitProgress(config, { stage: "understanding", status: "notice", message: `${cause}，系统自动重试（${attempt}/${maxRetries}）`, completedSteps: 0 });
+          },
           onContextCompaction: status => emitProgress(config, {
             stage: "context_compaction",
             status,
@@ -121,16 +127,23 @@ export function createUnderstandingNode(input: {
         emitProgress(config, { stage: "understanding", status: "completed", message: brief.task === "similarity" ? "已理解：以参考球员的特点寻找相似人选" : brief.task === "replacement" ? "已理解：寻找能承担参考职责的替代者" : "已理解：按位置与能力特点寻找人选", completedSteps: 0 });
       } catch (error) {
         throwIfTurnCancelled(config.signal);
+        const issuePaths = error instanceof z.ZodError
+          ? [...new Set(error.issues.map(issue => issue.path.length ? issue.path.join(".") : "root"))].slice(0, 5)
+          : [];
+        const issueSummary = issuePaths.length ? `（字段：${issuePaths.join("、")}）` : "";
         context.observer?.({ phase: "brief_failure", failureKind: error instanceof Error ? error.name : "unknown",
           ...safeFailureMetadata(error),
           ...(error instanceof RecruitmentBriefOutputLimitError ? { outputLimitTokens: error.maxOutputTokens } : {}),
           ...(error instanceof RecruitmentBriefValidationError ? { validationCode: error.validationCode } : {}),
-          ...(error instanceof z.ZodError ? { issuePaths: error.issues.map(issue => issue.path.join(".")) } : {}),
+          ...(issuePaths.length ? { issuePaths } : {}),
         });
-        return { briefFailure: error instanceof RecruitmentBriefOutputLimitError
+        const failureMessage = error instanceof RecruitmentBriefOutputLimitError
           ? `模型在 ${error.maxOutputTokens} 个输出 token 的预算内未能完成需求解析，调查尚未开始。原始输入已保留，可以重试。`
+          : error instanceof ModelAttemptBudgetExceededError ? "需求理解达到本轮模型请求上限，自动重试已停止；调查尚未开始。原始输入已保留，可以稍后重试。"
           : error instanceof RecruitmentContextCapacityError ? error.message
-            : "这次没能完成需求理解，调查尚未开始。原始输入已保留，可以直接重试。",
+            : `这次没能完成需求理解${issueSummary}，调查尚未开始。原始输入已保留，可以直接重试。`;
+        emitProgress(config, { stage: "understanding", status: "failed", message: `需求理解未完成${issueSummary}，原始输入已保留，可以重试`, completedSteps: 0 });
+        return { briefFailure: failureMessage,
           briefFailureKind: error instanceof Error ? error.name : "unknown", briefInterpretedThrough: messages.length };
       }
     }
@@ -139,7 +152,22 @@ export function createUnderstandingNode(input: {
     if (state.briefAnswerKind === "identity_reject") {
       brief = { ...brief, referenceRecheck: { quote: latest, reject: true }, selectedCandidateId: null };
     }
-    if (state.briefAnswerKind === "positions") brief = { ...brief, positions: [...state.confirmedPositions], unresolved: brief.unresolved.filter(item => item.topic !== "position") };
+    if (state.briefAnswerKind === "positions") {
+      const positionCriterion = state.confirmedPositions.length ? [{
+        field: "position" as const,
+        operator: "in" as const,
+        value: [...state.confirmedPositions],
+        unit: null,
+        attributeKey: null,
+        strength: "required" as const,
+        basis: "explicit" as const,
+        quote: latest,
+      }] : [];
+      brief = { ...brief,
+        criteria: [...brief.criteria.filter(item => item.field !== "position"), ...positionCriterion],
+        unresolved: brief.unresolved.filter(item => item.topic !== "position"),
+      };
+    }
     const mention = brief.referencePlayer?.value;
     const recheck = brief.referenceRecheck;
     if (recheck) brief = { ...brief, referenceRecheck: undefined, selectedCandidateId: null };
@@ -155,13 +183,14 @@ export function createUnderstandingNode(input: {
       resolvedCandidateSearchIntent(state),
       resolvedCandidateSearchIntent({ ...state, brief }),
     );
+    const compiledCriteria = compileRecruitmentCriteria(brief, { abilityProfilesEnabled: context.repository.supportsAbilityProfiles ?? false });
     const update: Partial<State> = {
       brief, briefFailure: null, briefFailureKind: null, briefAnswerKind: null, briefInterpretedThrough: messages.length,
       rejectedReferenceIds: excludedIds, rejectedReferenceRecordIds: excludedRecordIds,
       referenceCandidatesBeforeAnswer: [],
       targetTeam: brief.targetTeam?.value ?? null,
-      confirmedPosition: brief.positions[0] ?? null,
-      confirmedPositions: brief.positions.flatMap(position => { const parsed = SelectablePositionSchema.safeParse(position); return parsed.success ? [parsed.data] : []; }),
+      confirmedPosition: compiledCriteria.positions[0] ?? null,
+      confirmedPositions: compiledCriteria.positions.flatMap(position => { const parsed = SelectablePositionSchema.safeParse(position); return parsed.success ? [parsed.data] : []; }),
       ...(scopeChanged ? { candidateSearchScopeChanged: true, confirmedPositionSearchObservationIndex: null } : {}),
       ...(changed || identityCluesChanged || recheck ? { referenceNameResolution: null, referenceProfiles: [], replacementReferencePosition: null,
         inspectedReferenceMention: null, referenceResolutionQuery: null,

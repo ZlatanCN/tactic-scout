@@ -16,6 +16,8 @@ import {
   openAIExpansionRequestTimeoutMs,
   openAIMaxOutputTokens,
   isProviderContextOverflow,
+  createModelAttemptBudget,
+  invokeWithModelAttemptBudget,
   structuredOutputMethod,
 } from "../../src/recruitment/chat-model.js";
 
@@ -159,6 +161,101 @@ test("the model client retries only transient rate-limit responses", async () =>
     const response = await model.invoke("ping");
     assert.equal(requestUrls.length, 2);
     assert.equal(response.content, "ok");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
+  }
+});
+
+test("transient network and server errors share one retry across an entire model operation", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  const notices: string[] = [];
+  const requests: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    requests.push(String(input));
+    if (requests.length === 1) return new Response("temporarily unavailable", { status: 503 });
+    if (requests.length === 2) return Response.json({
+      id: "chatcmpl-recovered", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+    });
+    return new Response("rate limited", { status: 429, headers: { "retry-after": "0" } });
+  }) as typeof fetch;
+
+  try {
+    const model = createChatModel("fixture", "fixture");
+    const budget = createModelAttemptBudget({ onRetry: notice => notices.push(notice.reason) });
+    await invokeWithModelAttemptBudget(budget, async () => {
+      assert.equal((await model.invoke("first request")).content, "ok");
+      await assert.rejects(model.invoke("second request"));
+    });
+    assert.equal(requests.length, 3, "a retry used by the first request must not be reset for a later request in the same operation");
+    assert.deepEqual(notices, ["server_error"]);
+    assert.equal(budget.attempts, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
+  }
+});
+
+test("transient connection failures retry once and ordinary client errors do not retry", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  let requests = 0;
+  globalThis.fetch = (async () => {
+    requests += 1;
+    if (requests === 1) throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
+    return new Response("bad request", { status: 400 });
+  }) as typeof fetch;
+
+  try {
+    const model = createChatModel("fixture", "fixture");
+    await assert.rejects(model.invoke("ping"));
+    assert.equal(requests, 2, "the connection reset is retried once, while the final HTTP 400 is not retried");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
+  }
+});
+
+test("a model timeout retries once within the shared budget, but caller cancellation never retries", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
+  process.env.OPENAI_BASE_URL = "http://127.0.0.1:11434/v1";
+  const reasons: string[] = [];
+  let requests = 0;
+  globalThis.fetch = (async () => {
+    requests += 1;
+    if (requests === 1) throw new Error("request timed out");
+    return Response.json({
+      id: "chatcmpl-after-timeout", object: "chat.completion", created: 1, model: "fixture",
+      choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+    });
+  }) as typeof fetch;
+
+  try {
+    const model = createChatModel("fixture", "fixture");
+    const budget = createModelAttemptBudget({ onRetry: notice => reasons.push(notice.reason) });
+    const response = await invokeWithModelAttemptBudget(budget, () => model.invoke("ping"));
+    assert.equal(response.content, "ok");
+    assert.equal(requests, 2);
+    assert.deepEqual(reasons, ["request_timeout"]);
+
+    const controller = new AbortController();
+    controller.abort(new Error("user stopped this turn"));
+    const cancelledBudget = createModelAttemptBudget({ signal: controller.signal, onRetry: notice => reasons.push(notice.reason) });
+    let calls = 0;
+    await assert.rejects(invokeWithModelAttemptBudget(cancelledBudget, async () => {
+      calls += 1;
+      throw new Error("request timed out");
+    }));
+    assert.equal(calls, 1, "an aborted turn does not start another model request");
+    assert.deepEqual(reasons, ["request_timeout"]);
   } finally {
     globalThis.fetch = originalFetch;
     if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;

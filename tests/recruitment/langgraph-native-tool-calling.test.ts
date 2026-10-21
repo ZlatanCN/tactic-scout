@@ -22,11 +22,10 @@ const brief: RecruitmentBrief = {
   referenceClues: [],
   referenceRecheck: null,
   selectedCandidateId: null,
-  positions: ["ATT"],
-  allowsAnyPosition: false,
-  filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
-  priorities: [{ value: "进球", basis: "explicit", quote: "重点看进球" }],
-  constraints: [],
+  criteria: [
+    { field: "position", operator: "in", value: ["ATT"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "前锋" },
+    { field: "capability", operator: "match", value: "进球", unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "重点看进球" },
+  ],
   unresolved: [],
 };
 
@@ -44,12 +43,12 @@ function finishCall(id = "finish") {
 test("native tool protocol diagnostics expose only invalid argument paths", () => {
   assert.throws(() => parseRecruitmentPlannerOutput(call("search_candidates", {
     position: "MID",
-    maxAge: 13,
+    maxAge: 46,
   }, "invalid-search")), (error: unknown) => {
     assert.ok(error instanceof RecruitmentToolProtocolError);
     assert.equal(error.failure, "invalid_arguments");
     assert.deepEqual(error.issuePaths, ["maxAge"]);
-    assert.deepEqual(error.issueCodes, ["maxAge:too_small"]);
+    assert.deepEqual(error.issueCodes, ["maxAge:too_big:max=45"]);
     return true;
   });
 });
@@ -213,7 +212,10 @@ test("the full graph still searches player reports when candidate club or season
   } as unknown as RecruitmentPlanner;
   const reportBrief = {
     ...brief,
-    priorities: [{ value: "高位压迫适配", basis: "explicit" as const, quote: "高位压迫适配" }],
+    criteria: [
+      ...brief.criteria.filter(criterion => criterion.field !== "capability"),
+      { field: "capability" as const, operator: "match" as const, value: "高位压迫适配", unit: null, attributeKey: null, strength: "preferred" as const, basis: "explicit" as const, quote: "高位压迫适配" },
+    ],
   };
   const conversation = createRecruitmentConversation({
     briefInterpreter: { async interpret(input) { return validateRecruitmentBrief(reportBrief, [...input.recentMessages, input.message]); } },

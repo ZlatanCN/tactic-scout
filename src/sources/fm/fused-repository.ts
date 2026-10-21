@@ -19,6 +19,7 @@ export class FusedPlayerRepository implements PlayerRepository {
   readonly mode;
   readonly sourceName;
   readonly supportsAbilityProfiles;
+  readonly supportsVerifiedAbilityProfileLinks;
   readonly getDatasetStatus?: PlayerRepository["getDatasetStatus"];
   readonly inspectPlayer?: PlayerRepository["inspectPlayer"];
   readonly inspectCandidateGroup?: PlayerRepository["inspectCandidateGroup"];
@@ -30,6 +31,7 @@ export class FusedPlayerRepository implements PlayerRepository {
     private readonly today: () => string = () => new Date().toISOString().slice(0, 10)) {
     this.mode = base.mode;
     this.supportsAbilityProfiles = evidenceMode !== "performance_only";
+    this.supportsVerifiedAbilityProfileLinks = evidenceMode === "combined" && registry !== undefined;
     this.sourceName = evidenceMode === "performance_only" ? base.sourceName : `${base.sourceName} · 球员能力画像`;
     if (base.getDatasetStatus) this.getDatasetStatus = base.getDatasetStatus.bind(base);
     if (evidenceMode !== "ability_only") {
@@ -64,7 +66,7 @@ export class FusedPlayerRepository implements PlayerRepository {
     });
     const result = {
       ...player, abilityProfile,
-      ...(player.age === null && profile.birthDate ? { age: ageAtDate(profile.birthDate, this.today()), ageSource: "birth_date", ageVerifiedAt: this.today() } : {}),
+      ...(profile.birthDate ? { age: ageAtDate(profile.birthDate, this.today()), ageSource: "birth_date", ageVerifiedAt: this.today() } : {}),
       ...(profile.birthDate ? { birthDate: profile.birthDate } : {}),
     };
     this.enriched.set(player, result);
@@ -116,14 +118,23 @@ export class FusedPlayerRepository implements PlayerRepository {
     const roles = requestedRoles.filter((role) => !fmPositions.length || FmRoleTemplates[role].positions.some((position) => fmPositions.includes(position)));
     const after = new Date(`${this.today()}T00:00:00Z`);
     if (query.maxAge !== null) after.setUTCFullYear(after.getUTCFullYear() - query.maxAge - 1);
+    const before = query.minAge == null ? null : new Date(`${this.today()}T00:00:00Z`);
+    if (before && query.minAge != null) before.setUTCFullYear(before.getUTCFullYear() - query.minAge);
     const fmQuery = {
       ...(fmPositions.length ? { positions: fmPositions } : {}), roles,
       ...(query.referenceRoles && query.referenceRoles.snapshotId === this.profiles.manifest.sha256 ? { referenceRoles: query.referenceRoles.values } : {}),
       playerName: query.playerName, ...(query.maxAge !== null ? { bornAfter: after.toISOString().slice(0, 10) } : {}),
-      excludeRecordIds: [...new Set(performance.flatMap((player) => player.abilityProfile ? [player.abilityProfile.recordId] : []))],
+      ...(before ? { bornBefore: before.toISOString().slice(0, 10) } : {}),
+      ...(query.agePreference ? { agePreference: query.agePreference } : {}),
+      ...(query.fmCriteria?.length ? { fmCriteria: query.fmCriteria } : {}),
+      // Exclude only profiles represented in the qualifying performance lane.
+      // A linked record that fails this scope must not shadow an otherwise
+      // eligible standalone FM profile when no performance context is required.
+      excludeRecordIds: [...new Set(basePage.players.flatMap((player) => player.abilityProfile ? [player.abilityProfile.recordId] : []))],
       offset: 0, limit: 1,
     };
-    const profileTotal = profileAllowed ? this.profiles.searchCatalog(fmQuery, signal).total : 0;
+    const profileSearch = profileAllowed ? this.profiles.searchCatalog(fmQuery, signal) : null;
+    const profileTotal = profileSearch?.total ?? 0;
     const baseTotal = basePage.players.length;
     const total = baseTotal + profileTotal;
     // Round-robin the two recall lanes, then continue the remaining lane. Offsets address the full union.
@@ -141,7 +152,11 @@ export class FusedPlayerRepository implements PlayerRepository {
     const discoveryKeys = [...new Set([...(basePage.discovery?.metricKeys ?? []),
       ...(profileTotal > 0 ? AbilityMetricDefinitions.filter((definition) => roles.includes(definition.role)).map((definition) => definition.key) : [])])];
     throwIfAborted(signal);
+    const fmCriterionCoverage = mergeFmCriterionCoverage(basePage.fmCriterionCoverage, profileSearch?.fmCriterionCoverage);
+    const agePreferenceCoverage = mergeAgePreferenceCoverage(basePage.agePreferenceCoverage, profileSearch?.agePreferenceCoverage);
     return { players, totalRecords: total, offset: query.offset, nextOffset: query.offset + players.length < total ? query.offset + players.length : null,
+      ...(fmCriterionCoverage?.length ? { fmCriterionCoverage } : {}),
+      ...(agePreferenceCoverage ? { agePreferenceCoverage } : {}),
       appliedFilters: basePage.appliedFilters, ...(basePage.discovery ? { discovery: { ...basePage.discovery,
         strategy: discoveryKeys.length ? "metric_cohort_round_robin" : "cohort_sample", metricKeys: discoveryKeys, populationRecords: total } } : {}) };
   }
@@ -184,4 +199,32 @@ export class FusedPlayerRepository implements PlayerRepository {
   }
 
   close(): void { this.profiles.close(); this.registry?.close(); this.base.close?.(); }
+}
+
+function mergeAgePreferenceCoverage(
+  performance?: PlayerSearchPage["agePreferenceCoverage"],
+  profiles?: PlayerSearchPage["agePreferenceCoverage"],
+): PlayerSearchPage["agePreferenceCoverage"] {
+  if (!performance && !profiles) return undefined;
+  return {
+    eligibleRecords: (performance?.eligibleRecords ?? 0) + (profiles?.eligibleRecords ?? 0),
+    knownRecords: (performance?.knownRecords ?? 0) + (profiles?.knownRecords ?? 0),
+  };
+}
+
+function mergeFmCriterionCoverage(
+  performance?: PlayerSearchPage["fmCriterionCoverage"],
+  profiles?: PlayerSearchPage["fmCriterionCoverage"],
+): PlayerSearchPage["fmCriterionCoverage"] {
+  const byKey = new Map<string, NonNullable<PlayerSearchPage["fmCriterionCoverage"]>[number]>();
+  for (const item of [...(performance ?? []), ...(profiles ?? [])]) {
+    const prior = byKey.get(item.key);
+    byKey.set(item.key, prior ? {
+      ...item,
+      eligibleRecords: prior.eligibleRecords + item.eligibleRecords,
+      knownRecords: prior.knownRecords + item.knownRecords,
+      satisfiedRecords: prior.satisfiedRecords + item.satisfiedRecords,
+    } : item);
+  }
+  return byKey.size ? [...byKey.values()] : undefined;
 }

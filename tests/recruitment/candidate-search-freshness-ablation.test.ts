@@ -171,5 +171,5 @@ test("fresh-scope observation requires a new query and evaluates its current res
     refreshedPremierLeagueRecord.playerId,
   ]);
   assert.deepEqual(bypassed.third.report?.recommendations, [], "the ablated arm cannot turn its stale proposal into a recommendation");
-  assert.ok(bypassed.third.report?.limitations.some((limitation) => limitation.includes("重复提出")));
+  assert.ok(bypassed.third.report?.limitations.some((limitation) => limitation.includes("没有沿用旧名单")));
 });

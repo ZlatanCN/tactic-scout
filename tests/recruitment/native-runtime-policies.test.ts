@@ -36,7 +36,7 @@ test("LangGraph retries only the typed idempotent read and records a redacted un
   try {
     await assert.rejects(
       conversation.turn({ threadId: "native-read-retry", message: "为巴萨找一名中场" }),
-      error => error instanceof RecruitmentGraphNodeFailureError && /运行时故障/.test(error.message)
+      error => error instanceof RecruitmentGraphNodeFailureError && /有限自动重试已结束/.test(error.message)
         && !error.message.includes("PRIVATE_PROVIDER_DETAIL"),
     );
     assert.equal(candidateReadAttempts, 2, "the graph should make the original read plus one bounded retry");

@@ -159,7 +159,7 @@ async function runArm(policyMode?: "enabled" | "bypassed") {
   return { response, candidateQueries, repositoryReads, evaluatedIds, plannerActions, reviewEvents };
 }
 
-test("candidate action policy ablation allows an unsafe first query but the intent guard recovers the shortlist", async () => {
+test("candidate action policy ablation cannot bypass hard search scope", async () => {
   const enabled = await runArm();
   const bypassed = await runArm("bypassed");
 
@@ -171,22 +171,8 @@ test("candidate action policy ablation allows an unsafe first query but the inte
     competition: "英超",
     season: "2024/25",
   }]);
-  assert.deepEqual(bypassed.candidateQueries, [
-    {
-      position: "ST",
-      maxAge: 45,
-      minimumMinutes: 0,
-      competition: "西甲",
-      season: "2025/26",
-    },
-    {
-      position: "ST",
-      maxAge: 23,
-      minimumMinutes: 900,
-      competition: "英超",
-      season: "2024/25",
-    },
-  ]);
+  assert.deepEqual(bypassed.candidateQueries, enabled.candidateQueries,
+    "the source query layer enforces current user conditions even when an experimental candidate policy is bypassed");
 
   assert.equal(enabled.response.status, "completed");
   assert.equal(bypassed.response.status, "completed");

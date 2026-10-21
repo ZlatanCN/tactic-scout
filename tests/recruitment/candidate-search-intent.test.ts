@@ -12,11 +12,11 @@ test("candidate search scope ignores presentation-only brief changes but tracks 
     referenceClues: [],
     referenceRecheck: null,
     selectedCandidateId: null,
-    positions: ["MID"],
-    allowsAnyPosition: false,
-    filters: { maxAge: 23, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
-    priorities: [{ value: "推进", basis: "explicit", quote: "推进" }],
-    constraints: [],
+    criteria: [
+      { field: "position", operator: "in", value: ["MID"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "中场" },
+      { field: "age", operator: "lte", value: 23, unit: "岁", attributeKey: null, strength: "required", basis: "explicit", quote: "23岁及以下" },
+      { field: "capability", operator: "match", value: "推进", unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "推进" },
+    ],
     unresolved: [],
   };
   const intent = (value: RecruitmentBrief) => resolveCandidateSearchIntent({
@@ -30,10 +30,10 @@ test("candidate search scope ignores presentation-only brief changes but tracks 
     targetTeam: { value: "FC Barcelona", basis: "explicit", quote: "巴萨" },
     unresolved: [{ topic: "preference", question: "是否有预算上限？", impact: "可能影响取舍。" }],
   });
-  const changedAge = intent({ ...brief, filters: { ...brief.filters, maxAge: 22 } });
+  const changedAge = intent({ ...brief, criteria: brief.criteria.map(criterion => criterion.field === "age" ? { ...criterion, value: 22, quote: "22岁及以下" } : criterion) });
   const changedPriority = intent({
     ...brief,
-    priorities: [{ value: "终结", basis: "explicit", quote: "终结" }],
+    criteria: brief.criteria.map(criterion => criterion.field === "capability" ? { ...criterion, value: "终结", quote: "终结" } : criterion),
   });
 
   assert.equal(sameCandidateSearchScope(first, presentationOnly), true);

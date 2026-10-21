@@ -6,6 +6,7 @@ import {
 } from "@langchain/langgraph";
 import { openAIRequestTimeoutMs } from "../chat-model.js";
 import type { State } from "./state.js";
+import { isTransientModelFailure } from "../chat-model.js";
 
 export type RecruitmentFailureCategory = "timeout" | "unavailable" | "internal";
 export type RecruitmentFailureNode = "understand_request" | "plan_decision" | "execute_tool" | "review_recommendation";
@@ -30,8 +31,9 @@ export class TransientRecruitmentReadError extends Error {
 export function recruitmentFailureCategory(error: unknown): RecruitmentFailureCategory {
   if (error instanceof TransientRecruitmentReadError) return "unavailable";
   if (isNodeTimeoutError(error)) return "timeout";
+  if (isTransientModelFailure(error)) return "unavailable";
   if (error instanceof Error && /timeout/i.test(error.name)) return "timeout";
-  if (error instanceof Error && /unavailable|network|fetch/i.test(error.name)) return "unavailable";
+  if (error instanceof Error && /unavailable|network|fetch|rate.?limit|servererror/i.test(error.name)) return "unavailable";
   return "internal";
 }
 
@@ -59,13 +61,13 @@ const modelDeadline = openAIRequestTimeoutMs() + 15_000;
 /** One reviewable table for graph-level recovery; transport retries stay in adapters. */
 export const recruitmentNodePolicies = {
   understand_request: {
-    timeout: modelDeadline,
+    timeout: modelDeadline * 3,
     cachePolicy: false,
     errorHandler: safeFailureHandler("understand_request"),
   },
   plan_decision: {
-    // A decision may preflight once and then make one model request.
-    timeout: modelDeadline * 2,
+    // A decision may compact once, repair a structured response, and use one bounded transport retry.
+    timeout: modelDeadline * 3,
     cachePolicy: false,
     errorHandler: safeFailureHandler("plan_decision"),
   },

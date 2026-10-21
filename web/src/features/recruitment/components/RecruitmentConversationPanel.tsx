@@ -20,7 +20,7 @@ export interface RecruitmentConversationView {
   activePlanId: string | null;
   messages: ConversationMessage[];
   report: RecruitmentReport | null;
-  status: "ready" | "needs_input" | "completed";
+  status: "ready" | "needs_input" | "completed" | "failed";
   isFreshCase: boolean;
   isActive: boolean;
   waitingForAnswer: boolean;
@@ -109,7 +109,7 @@ export function RecruitmentConversationPanel({ view, actions }: {
     </CardHeader>}
 
     <CardContent className="space-y-4 p-0">
-      {currentBrief && <RecruitmentBriefSummary brief={currentBrief} disabled={view.turnUnresolved} onEdit={() => { composerRef.current?.focus(); composerRef.current?.scrollIntoView({ block: "nearest" }); }} />}
+      {currentBrief && <RecruitmentBriefSummary brief={currentBrief} report={view.report} disabled={view.turnUnresolved} onEdit={() => { composerRef.current?.focus(); composerRef.current?.scrollIntoView({ block: "nearest" }); }} />}
       {!view.isFreshCase && <div
         className="max-h-[56dvh] min-h-56 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 sm:py-5 xl:max-h-[34dvh]"
         ref={conversationThreadRef}

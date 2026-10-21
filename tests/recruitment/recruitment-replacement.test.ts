@@ -701,8 +701,10 @@ test("broadening an empty striker search to other forward positions keeps the po
   assert.ok(lastPageIds.every(id => !firstPageIds.includes(id)));
   assert.ok(lastPageIds.every(id => evaluationEvents.at(-1)?.filters.evaluatedPlayerIds?.includes(id)));
   assert.deepEqual(new Set([...firstPageIds, ...lastPageIds]), new Set(attackers.map(player => player.playerId)));
-  assert.deepEqual(broadenedTurn.report?.recommendations.map(({ player }) => player.playerId), [attackers[0]!.playerId]);
-  assert.ok(broadenedTurn.report?.recommendations.every(({ player }) => player.position === "RW"));
+  const recommendations = broadenedTurn.report?.recommendations ?? [];
+  assert.equal(recommendations.length, 5, "the report fills the supported shortlist up to the five-player product cap");
+  assert.ok(recommendations.some(({ player }) => player.playerId === attackers[0]!.playerId));
+  assert.ok(recommendations.every(({ player }) => attackers.some(({ playerId }) => playerId === player.playerId) && player.position === "RW"));
   assert.ok(approvedBroadeningPlannerCalls.length > 0, "the Planner receives the user's confirmed position expansion");
   assert.equal(decisionEvents.some(({ action, policyBlocked }) => action === "ask_user" && policyBlocked), false);
   assert.ok(decisionEvents.some(({ action, proposedAction, decisionSource, policyBlocked }) => (
@@ -744,7 +746,7 @@ test("Understat age limitations ask once and preserve the user's keep or remove 
     const resumed = await conversation.turn({ threadId, message: keepAge ? "保留年龄要求，结束本轮" : "取消年龄限制" });
     assert.equal(resumed.status, "completed");
     assert.deepEqual(resumed.report?.recommendations, []);
-    assert.equal(searches, keepAge ? 1 : 2);
+    assert.equal(searches, keepAge ? 1 : 2, JSON.stringify({ keepAge, message: resumed.message, report: resumed.report?.needSummary, calls, history: actions.length }));
     if (keepAge) {
       assert.equal(calls, 2);
       assert.match(resumed.report?.needSummary ?? "", /保留.*23.*年龄/);

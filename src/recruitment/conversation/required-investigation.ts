@@ -15,6 +15,7 @@ import { broadRoleQuestion, emptyPositionQuestion, playerIdentityClarification, 
 import { maxDecisionsPerTurn, type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
 import type { PendingQuestion, UnderstatResearchMode } from "./contracts.js";
+import { compileRecruitmentCriteria } from "../criterion-compiler.js";
 
 export interface InvestigationDirective {
   action: ParsedRecruitmentAction;
@@ -47,6 +48,7 @@ function reportLookup(state: State, playerNames: string[]) {
     brief: state.brief,
     userMessages: messages,
     evaluatedPlayers: candidates,
+    includeAbilityProfiles: state.abilityProfilesEnabled,
     candidateIdentityGroups: state.candidateIdentityGroups,
   });
   const gaps = coverage
@@ -97,16 +99,45 @@ export function nextRequiredInvestigation(
     message,
     update: { responseMessage, pendingQuestion: null },
   });
-  if (state.briefFailure) return terminal("需求尚未可靠理解。", state.briefFailure, "需求理解未完成，可重试或补充描述");
-  const unsupportedRequired = state.brief?.constraints.filter(item => item.strength === "required" && (item.kind === "budget" || item.kind === "other"));
+  if (state.briefFailure) return terminal(
+    "需求尚未可靠理解。",
+    state.briefFailure,
+    "需求理解未完成，可重试或补充描述",
+  );
+  const compiledCriteria = compileRecruitmentCriteria(state.brief, {
+    abilityProfilesEnabled: source.supportsAbilityProfiles ?? false,
+    verifiedProfileLinksAvailable: source.supportsVerifiedAbilityProfileLinks ?? false,
+    targetTeam: state.targetTeam,
+  });
+  const unsupportedRequired = compiledCriteria.unsupportedRequired;
   if (unsupportedRequired?.length) {
-    const requirement = unsupportedRequired.map(item => item.requirement.value).join("；");
-    const questionKey = JSON.stringify(unsupportedRequired.map(item => item.requirement.value).sort());
+    const requirement = unsupportedRequired.map(item => item.quote).join("；");
+    const fmOnly = unsupportedRequired.every(item => ["heightCm", "potentialAbility", "currentAbility", "fmAttribute"].includes(item.field));
+    const fields = new Set(unsupportedRequired.map(item => item.field));
+    const unsupportedReason = fmOnly
+      ? !source.supportsAbilityProfiles
+        ? "当前数据源没有可用的 FM 球员画像。"
+        : state.targetTeam && !source.supportsVerifiedAbilityProfileLinks
+          ? "FM 独立画像没有当前俱乐部信息，且当前没有可用的精确身份桥接到带现役球队的表现记录。"
+          : "当前范围没有可验证的 FM 字段覆盖。"
+      : fields.size === 1 && fields.has("position") && unsupportedRequired.length > 1
+        ? "多项岗位条件要求同时成立，但当前检索只能核验一组可选位置。"
+        : fields.size === 1 && fields.has("position")
+          ? "当前检索不能可靠执行这项位置条件。"
+          : fields.size === 1 && fields.has("capability")
+            ? "这类定性能力没有统一的硬筛阈值；当前只能按可观测比赛证据比较，不能保证逐人判定达标。"
+            : fields.size === 1 && fields.has("competition") && unsupportedRequired.length > 1
+              ? "当前查询无法同时核验这几项赛事条件。"
+      : "这项条件当前没有可验证的筛选或核验字段。";
+    const questionKey = JSON.stringify(unsupportedRequired.map(item => [item.field, item.operator, item.value, item.unit, item.quote]).sort());
+    const nextStep = fmOnly
+      ? "你可以把它改为偏好，只在有对应 FM 画像的球员中排序；也可以保留硬要求并暂停推荐。"
+      : "你可以移除这项硬条件后继续筛选其他可核验要求；也可以保留硬要求并暂停推荐。";
     if (state.unsupportedConstraintQuestionKey === questionKey) return terminal("必要条件尚无法核验。",
-      `目前无法核验“${requirement}”，因此没有把任何球员作为满足这些硬要求的推荐。你可以将它改为待核实条件，或取消该条件后继续。`, "保留暂不可核验的硬要求，本轮已暂停推荐");
+      `${unsupportedReason}目前无法核验“${requirement}”，因此没有把任何球员作为满足这些硬要求的推荐。${nextStep}`, "保留暂不可核验的硬要求，本轮已暂停推荐");
     return { action: { action: "ask_user", targetTeam: state.targetTeam,
-      question: `“${requirement}”目前还不能由现有资料可靠筛选。你愿意改为待核实条件，先按位置和能力推荐，还是保留硬要求？`,
-      reason: "这项条件会改变候选资格，不能在未核验时声称推荐已满足。" }, message: "需要确认如何处理暂时无法核验的硬要求",
+      question: `${unsupportedReason}“${requirement}”会改变候选资格。${nextStep}`,
+      reason: "硬条件只有在逐个候选取得对应数据时才能判定满足。" }, message: "需要确认如何处理暂时无法核验的硬要求",
       update: { unsupportedConstraintQuestionKey: questionKey } };
   }
   if (state.brief?.unresolved[0]) {
@@ -137,10 +168,9 @@ export function nextRequiredInvestigation(
         suppressedMessage: "对照组已关闭追问，年龄条件无法核验，已安全暂停",
       };
     }
-    if (source.mode === "fpl" || source.mode === "premier_league"
-      || ((source.mode === "understat" || source.mode === "mosaic") && state.candidateSearchFailure.code !== "unsupported_scope")) return terminal(
+    return terminal(
         `${source.sourceName} 候选查询未成功，当前无法确认匹配结果。`,
-        `${source.sourceName} 候选查询失败，当前无法确认是否有符合条件的球员；这不代表没有匹配球员。请稍后重新分析。`,
+      `${source.sourceName} 候选查询最近一次失败，当前无法确认是否有符合条件的球员；这不代表没有匹配球员。请稍后重试。`,
         "候选来源查询未成功，正在明确说明匹配情况未知",
       );
   }
@@ -164,6 +194,30 @@ export function nextRequiredInvestigation(
     };
   }
   const replacementDiscoveryRecoveryActive = state.policyBlocked && state.policyBlockedRepeatCount >= 2;
+  if (state.policyBlocked && state.action?.action === "ask_user"
+    && intent.replacementRequest && intent.position !== null
+    && state.candidateSearchObservations.length === 0 && !state.candidateSearchFailure) {
+    const action = RecruitmentActionSchema.parse({
+      action: "search_candidates",
+      targetTeam: state.targetTeam,
+      ...positionSearchForIntent(intent),
+      playerName: null,
+      maxAge: intent.maxAge,
+      ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+      agePreference: intent.agePreference ?? null,
+      ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
+      minimumMinutes: intent.minimumMinutes,
+      competition: intent.competition,
+      season: intent.season,
+      offset: 0,
+      limit: 20,
+    });
+    return {
+      action,
+      message: `参考位置已确认，按${positionLabels[intent.position]}范围继续寻找候选`,
+      history: policyHistory(action, "Planner 提出的角色追问与已核实参考位置重复；继续按来源位置执行候选检索，不再重复询问。"),
+    };
+  }
   if (replacementDiscoveryRecoveryActive && intent.replacementRequest && state.targetTeam
     && intent.position === null && state.confirmedPosition === null
     && state.candidateSearchObservations.length === 0 && !state.candidateSearchFailure
@@ -308,6 +362,8 @@ export function nextRequiredInvestigation(
   if (options.deterministicSearchEnabled && (!needsMethodology || state.hasSearchedMethodology) && intent.position && state.candidateSearchObservations.length === 0) {
     const action = RecruitmentActionSchema.parse({ action: "search_candidates", targetTeam: state.targetTeam,
       ...positionSearchForIntent(intent), playerName: null, maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes,
+      ...(intent.minAge == null ? {} : { minAge: intent.minAge }), ...(intent.fmCriteria?.length ? { fmCriteria: intent.fmCriteria } : {}),
+      ...(intent.agePreference ? { agePreference: intent.agePreference } : {}),
       competition: intent.competition, season: intent.season, offset: 0, limit: options.understatResearchMode ? 12 : 20 });
     return { action, message: "需求已有明确位置与可观察指标，直接读取首批候选", history: policyHistory(action, "没有角色解释缺口，跳过固定方法检索与冗余搜索规划；保留后续扩围和追问决策。") };
   }
@@ -356,6 +412,7 @@ export function nextRequiredInvestigation(
       const action = conclusionPlannerOutputFallback(buildDecisionConstraints({
         targetTeam: state.targetTeam,
         brief: state.brief,
+        includeAbilityProfiles: state.abilityProfilesEnabled,
         confirmedPosition: state.confirmedPosition ?? understatFinePosition,
         userMessages: userMessages(state.history),
         evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),

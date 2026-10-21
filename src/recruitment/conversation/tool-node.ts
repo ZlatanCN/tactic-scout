@@ -17,7 +17,7 @@ import { RecruitmentActionSchema, type ToolActionName } from "../recruitment-act
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
 import { type RecruitmentToolExecutionRequest, executeRecruitmentToolAction } from "../recruitment-tool-executor.js";
 import { RecruitmentTurnCancelledError, throwIfTurnCancelled } from "../turn-cancellation.js";
-import { discoveredPlayersForConstraint, evaluatedPlayersForConstraint, userMessages } from "./candidate-context.js";
+import { constrainSearchActionToIntent, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
 import { type RecruitmentTraceObserver } from "./contracts.js";
 import { type ProgressUpdate, emitCandidatePreviews, emitProgress } from "./progress.js";
 import { type State } from "./state.js";
@@ -195,6 +195,7 @@ async function executeRecruitmentStateAction(
       brief: state.brief,
       userMessages: currentUserMessages,
       evaluatedPlayers: currentEvaluations,
+      includeAbilityProfiles: state.abilityProfilesEnabled,
       candidateIdentityGroups: state.candidateIdentityGroups,
     });
     const reportCapabilityGaps = action.action === "search_player_reports"
@@ -212,6 +213,7 @@ async function executeRecruitmentStateAction(
       : [];
     const similarityReference = state.brief?.task === "similarity"
       ? state.referenceProfiles.find(profile => profile.abilitySnapshotId && profile.abilityRolePriorities) : undefined;
+    const searchIntent = resolvedCandidateSearchIntent(state);
     const toolRequest: RecruitmentToolExecutionRequest = action.action === "search_player_reports"
       ? {
         ...action,
@@ -231,7 +233,9 @@ async function executeRecruitmentStateAction(
             : {}),
         }
         : action.action === "search_candidates"
-          ? { ...action, ...(state.brief?.filters.excludedCompetitions.length ? { excludedCompetitions: state.brief.filters.excludedCompetitions } : {}), ...(similarityReference ? { referenceRoles: { snapshotId: similarityReference.abilitySnapshotId!, values: similarityReference.abilityRolePriorities! } } : {}), discoveryMetricGroups: requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, undefined, state.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
+      ? { ...constrainSearchActionToIntent(action, searchIntent),
+        ...(similarityReference ? { referenceRoles: { snapshotId: similarityReference.abilitySnapshotId!, values: similarityReference.abilityRolePriorities! } } : {}),
+        discoveryMetricGroups: requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, undefined, state.abilityProfilesEnabled).filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]) }
           : action.action === "inspect_team"
             ? {
               ...action,

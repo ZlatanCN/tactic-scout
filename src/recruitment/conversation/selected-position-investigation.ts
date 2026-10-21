@@ -19,6 +19,8 @@ export function nextSelectedPositionInvestigation(state: State, source: PlayerRe
     return {
       action: RecruitmentActionSchema.parse({ action: "search_candidates", targetTeam: state.targetTeam,
         position: null, positions, playerName: null, maxAge: intent.maxAge, minimumMinutes: intent.minimumMinutes,
+        ...(intent.minAge == null ? {} : { minAge: intent.minAge }), ...(intent.agePreference ? { agePreference: intent.agePreference } : {}),
+        ...(intent.fmCriteria?.length ? { fmCriteria: intent.fmCriteria } : {}),
         competition: intent.competition, season: intent.season, offset: 0, limit: 12 }),
       message: `正在共同调查${positionSelectionLabel(positions)}，保留其他筛选条件`,
     };

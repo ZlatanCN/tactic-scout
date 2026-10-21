@@ -7,7 +7,7 @@ import { createRecruitmentConversation } from "../../src/recruitment/conversatio
 import { roleConstraintPlayer } from "./fixtures/recruitment-conversation.js";
 
 test("real structured model adapter works directly and inside the streamed LangGraph", async () => {
-  const brief = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, referenceClues: [], referenceRecheck: null, positions: [], priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] });
+  const brief = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null, referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, referenceClues: [], referenceRecheck: null, criteria: [], unresolved: [] });
   const requests: Array<{ stream: boolean }> = [];
   const originalFetch = globalThis.fetch;
   const keys = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_STRUCTURED_OUTPUT_METHOD"] as const;
@@ -52,8 +52,7 @@ test("real structured model adapter works directly and inside the streamed LangG
 test("context compaction from requirement understanding reaches the live graph progress stream", async () => {
   const brief = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null,
     referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, referenceClues: [], referenceRecheck: null,
-    positions: [], priorities: [], constraints: [],
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] });
+    criteria: [], unresolved: [] });
   const reference = roleConstraintPlayer("reference", "Rayan Cherki", "AM");
   const candidate = roleConstraintPlayer("candidate", "Candidate", "AM");
   const progress: Array<{ stage: string; status: string }> = [];
@@ -109,11 +108,7 @@ test("a truncated brief honors the configured budget and same-case retry re-runs
     referenceClues: [],
     referenceRecheck: null,
     selectedCandidateId: null,
-    positions: [],
-    allowsAnyPosition: false,
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, excludedCompetitions: [], season: null },
-    priorities: [],
-    constraints: [],
+    criteria: [],
     unresolved: [],
   };
   const requests: Array<{ max_tokens?: number; reasoning_effort?: string }> = [];
@@ -158,7 +153,7 @@ test("a truncated brief honors the configured budget and same-case retry re-runs
     });
     const message = "我想给拜仁补强阵容，但位置还没定，先帮我明确需要的信息。";
     const first = await conversation.turn({ threadId: "brief-output-limit-retry", message });
-    assert.equal(first.status, "completed");
+    assert.equal(first.status, "failed");
     assert.equal(first.retryMessage, message);
     assert.match(first.message, /8192 个输出 token.*未能完成需求解析/);
     assert.equal(playerReads, 0, "an incomplete brief must stop before reading candidate data");
@@ -201,8 +196,7 @@ test("brief understanding retries a provider context overflow after compacting o
   process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
   const brief = RecruitmentBriefSchema.parse({ task: "similarity", targetTeam: null,
     referencePlayer: { value: "切尔基", quote: "切尔基", basis: "explicit" }, referenceClues: [], referenceRecheck: null,
-    positions: [], priorities: [], constraints: [],
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] });
+    criteria: [], unresolved: [] });
   const bodies: Array<Record<string, unknown>> = [];
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -248,11 +242,13 @@ test("brief understanding retries a provider context overflow after compacting o
   }
 });
 
-test("the runtime model contract requires explicit empty identity-control fields while persisted briefs stay backward-compatible", () => {
-  const legacyBrief = { task: "reinforcement", targetTeam: null, referencePlayer: null, positions: [], priorities: [], constraints: [],
-    filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] };
-  assert.equal(RecruitmentBriefSchema.safeParse(legacyBrief).success, true);
-  assert.equal(RecruitmentBriefModelSchema.safeParse(legacyBrief).success, false);
-  assert.equal(RecruitmentBriefModelSchema.safeParse({ ...legacyBrief, referenceClues: [], referenceRecheck: null }).success, true);
-  assert.equal(RecruitmentBriefModelSchema.safeParse({ ...legacyBrief, referenceClues: [], referenceRecheck: { quote: "请重新核实" } }).success, false);
+test("the semantic brief requires criteria while the model contract requires identity-control fields", () => {
+  const brief = { task: "reinforcement", targetTeam: null, referencePlayer: null, criteria: [], unresolved: [] };
+  const preLedgerShape = { task: "reinforcement", targetTeam: null, referencePlayer: null, positions: [], priorities: [], constraints: [],
+    filters: { ageLimit: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] };
+  assert.equal(RecruitmentBriefSchema.safeParse(brief).success, true);
+  assert.equal(RecruitmentBriefSchema.safeParse(preLedgerShape).success, false);
+  assert.equal(RecruitmentBriefModelSchema.safeParse(brief).success, false);
+  assert.equal(RecruitmentBriefModelSchema.safeParse({ ...brief, referenceClues: [], referenceRecheck: null }).success, true);
+  assert.equal(RecruitmentBriefModelSchema.safeParse({ ...brief, referenceClues: [], referenceRecheck: { quote: "请重新核实" } }).success, false);
 });

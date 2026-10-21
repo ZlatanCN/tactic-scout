@@ -234,27 +234,34 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
 
  test("configured production conversation uses on-demand retrieval and deterministic first search", async () => {
   let calls = 0;
+  const plannerStages: string[] = [];
   const searchedCorpora: string[] = [];
   const conversation = configuredRecruitmentConversation({
-    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, positions: ["ST"], priorities: [{ value: "进球产出", basis: "explicit", quote: "进球产出" }], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] }); } },
+    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, criteria: [
+      { field: "position", operator: "in", value: ["ST"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "前锋" },
+      { field: "capability", operator: "match", value: "进球产出", unit: null, attributeKey: null, strength: "preferred", basis: "explicit", quote: "进球产出" },
+    ], unresolved: [] }); } },
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
     knowledgeBase: { search: async input => { searchedCorpora.push(input.corpus); return []; } },
     plannerFactory: () => ({ async decide(input) {
       calls++;
+      plannerStages.push(`${input.decisionSnapshot.caps.stage}:${input.history.at(-1)?.toolName ?? input.history.at(-1)?.role ?? "none"}`);
       assert.notEqual(input.decisionSnapshot.caps.stage, "investigate");
       return { action: "finish", targetTeam: "拜仁", needSummary: "依据产出比较", capabilityProfile: ["进球产出"], recommendations: [{ playerId: "a", evidenceKeys: ["goals"] }], limitationKeys: [] };
     } }),
   });
   const result = await conversation.turn({ threadId: "production-default-policy", message: "为拜仁找中锋，重点看进球产出" });
   assert.equal(result.status, "completed");
-  assert.equal(calls, 1);
+  assert.equal(calls, 1, JSON.stringify({ plannerStages, searchedCorpora, recommendations: result.report?.recommendations.map(item => item.player.playerId) }));
   assert.deepEqual(searchedCorpora, []);
-  assert.equal(result.report?.recommendations.length, 1);
+  const recommendationIds = result.report?.recommendations.map(item => item.player.playerId) ?? [];
+  assert.equal(recommendationIds.length, candidates.length, "return each evidence-supported lead when fewer than the five-player cap are available");
+  assert.deepEqual(new Set(recommendationIds), new Set(candidates.map(({ playerId }) => playerId)));
 });
 
 test("report projection does not expose a model placeholder as the need summary", async () => {
   const conversation = configuredRecruitmentConversation({
-    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, positions: ["ST"], priorities: [], constraints: [], filters: { maxAge: null, minimumMinutes: 0, competition: null, season: null }, unresolved: [] }); } },
+    briefInterpreter: { async interpret() { return RecruitmentBriefSchema.parse({ task: "reinforcement", referencePlayer: null, targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" }, criteria: [{ field: "position", operator: "in", value: ["ST"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "中锋" }], unresolved: [] }); } },
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
     plannerFactory: () => ({ async decide() {
       return { action: "finish", targetTeam: "拜仁", needSummary: "false", capabilityProfile: ["进球产出"], recommendations: [{ playerId: "a", evidenceKeys: ["goals"] }], limitationKeys: [] };

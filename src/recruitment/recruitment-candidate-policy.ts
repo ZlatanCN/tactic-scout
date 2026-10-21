@@ -96,6 +96,9 @@ function constrainCandidateSearchToUserIntent(
       ? action.playerName
       : null,
     maxAge: intent.maxAge,
+    ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+    agePreference: intent.agePreference ?? null,
+    ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
     minimumMinutes: intent.minimumMinutes,
     competition: intent.competition,
     season: intent.season,
@@ -114,6 +117,9 @@ function enforceUserConstraints(
       positions: intent.positions && intent.positions.length > 1 ? [...intent.positions] : undefined,
       ...(intent.positions && intent.positions.length > 1 ? { position: null } : intent.position ? { position: intent.position } : {}),
       maxAge: intent.maxAge,
+      ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+      agePreference: intent.agePreference ?? null,
+      ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
     });
   }
   if (action.action === "evaluate_candidates") {
@@ -134,6 +140,9 @@ function enforceUserConstraints(
       position: intent.position,
       playerName: null,
       maxAge: intent.maxAge,
+      ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+      agePreference: intent.agePreference ?? null,
+      ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
       minimumMinutes: intent.minimumMinutes,
       competition: intent.competition,
       season: intent.season,

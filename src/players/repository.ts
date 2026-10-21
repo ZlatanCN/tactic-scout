@@ -12,6 +12,7 @@ export interface PlayerRepository {
   readonly mode: DatasetMode;
   readonly sourceName: string;
   readonly supportsAbilityProfiles?: boolean;
+  readonly supportsVerifiedAbilityProfileLinks?: boolean;
   readonly supportsCompetitionExclusions?: boolean;
   findPlayersByNames?(names: readonly string[], signal?: AbortSignal): Promise<PlayerProfile[]>;
   /** Must not fetch a remote catalog. Used before external identity lookup. */
@@ -44,6 +45,7 @@ export function withLocalQueries(repository: PlayerRepository): PlayerRepository
     mode: repository.mode,
     sourceName: repository.sourceName,
     supportsAbilityProfiles: repository.supportsAbilityProfiles,
+    supportsVerifiedAbilityProfileLinks: repository.supportsVerifiedAbilityProfileLinks,
     supportsCompetitionExclusions: repository.supportsCompetitionExclusions,
     ...(repository.findPlayersByNames ? { findPlayersByNames: (names: readonly string[], signal?: AbortSignal) => repository.findPlayersByNames!(names, signal) } : {}),
     ...(repository.findLocalPlayersByNames ? { findLocalPlayersByNames: (names: readonly string[], signal?: AbortSignal) => repository.findLocalPlayersByNames!(names, signal) } : {}),
@@ -114,7 +116,9 @@ export async function searchPlayerPage(repository: PlayerRepository, query: Play
   if (query.playerName) requiredFilters.push("playerName");
   if (query.position || query.positions?.length) requiredFilters.push("position");
   if (query.maxAge !== null) requiredFilters.push("maxAge");
+  if (query.minAge != null) requiredFilters.push("minAge");
   if (query.minimumMinutes > 0) requiredFilters.push("minimumMinutes");
+  if (query.fmCriteria?.some(criterion => criterion.strength !== "preferred")) requiredFilters.push("fmCriteria");
   if (query.competition) requiredFilters.push("competition");
   if (query.season) requiredFilters.push("season");
   const unapplied = requiredFilters.filter((filter) => !(filter === "position" && effectiveQuery.positionMatchMode === "family"

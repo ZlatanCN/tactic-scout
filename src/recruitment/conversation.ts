@@ -165,7 +165,10 @@ export function createRecruitmentConversation(input: {
     })
     .addEdge(START, "record_user_turn")
     .addEdge("record_user_turn", "understand_request")
-    .addEdge("understand_request", "prepare_decision_snapshot")
+    .addConditionalEdges("understand_request", (state: State) => state.briefFailure ? "deliver_recommendation" : "prepare_decision_snapshot", {
+      deliver_recommendation: "deliver_recommendation",
+      prepare_decision_snapshot: "prepare_decision_snapshot",
+    })
     .addEdge("prepare_decision_snapshot", "policy_gate")
     .addEdge("execute_tool", "prepare_decision_snapshot")
     .addConditionalEdges("review_recommendation", (state: State) => {

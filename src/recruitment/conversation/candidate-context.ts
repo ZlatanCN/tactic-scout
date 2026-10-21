@@ -15,8 +15,12 @@ export function candidateSearchScopeKey(action: CandidateSearchAction, discovery
     ...(action.positions?.length ? { positions: [...action.positions].sort() } : {}),
     playerName: action.playerName ? normalizeSearchText(action.playerName) : null,
     maxAge: action.maxAge,
+    minAge: action.minAge ?? null,
+    agePreference: action.agePreference ?? null,
+    fmCriteria: action.fmCriteria ?? [],
     minimumMinutes: action.minimumMinutes,
     competition: action.competition ? normalizeSearchText(action.competition) : null,
+    excludedCompetitions: (action.excludedCompetitions ?? []).map(normalizeSearchText).sort(),
     season: action.season ? normalizeSearchText(action.season) : null,
     discoveryMetricGroups: discoveryMetricGroups.map(keys => [...keys].sort()).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
   });
@@ -33,11 +37,42 @@ function candidateSearchActionForIntent(intent: CandidateSearchIntent): Candidat
     ...positionSearchForIntent(intent),
     playerName: null,
     maxAge: intent.maxAge,
+    ...(intent.minAge == null ? {} : { minAge: intent.minAge }),
+    ...(intent.agePreference ? { agePreference: intent.agePreference } : {}),
+    ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : {}),
     minimumMinutes: intent.minimumMinutes,
     competition: intent.competition,
+    ...(intent.excludedCompetitions?.length ? { excludedCompetitions: [...intent.excludedCompetitions] } : {}),
     season: intent.season,
     offset: 0,
     limit: 20,
+  };
+}
+
+/** Normalize planner search proposals before routing cursors or invoking a source. */
+export function constrainSearchActionToIntent(action: CandidateSearchAction, intent: CandidateSearchIntent): CandidateSearchAction {
+  const allowedPositions = intent.positions ?? (intent.position ? [intent.position] : []);
+  const requestedPositions = action.positions?.length ? action.positions : action.position ? [action.position] : [];
+  // A planner may resolve an otherwise unspecified role for a replacement
+  // target. For ordinary reinforcement requests, keep an unspecified position
+  // broad until the user or source evidence resolves it.
+  const mayNarrowPosition = intent.allowsAnyPosition
+    || (intent.replacementRequest && allowedPositions.length === 0 && requestedPositions.length > 0)
+    || (requestedPositions.length > 0 && requestedPositions.every(position => allowedPositions.includes(position)));
+  return {
+    ...action,
+    targetTeam: intent.targetTeam,
+    ...(mayNarrowPosition
+      ? { position: action.position, ...(action.positions?.length ? { positions: [...action.positions] } : { positions: undefined }) }
+      : positionSearchForIntent(intent)),
+    maxAge: intent.maxAge,
+    ...(intent.minAge == null ? { minAge: undefined } : { minAge: intent.minAge }),
+    agePreference: intent.agePreference ?? null,
+    ...(intent.fmCriteria?.length ? { fmCriteria: [...intent.fmCriteria] } : { fmCriteria: undefined }),
+    minimumMinutes: intent.minimumMinutes,
+    competition: intent.competition,
+    ...(intent.excludedCompetitions?.length ? { excludedCompetitions: [...intent.excludedCompetitions] } : { excludedCompetitions: undefined }),
+    season: intent.season,
   };
 }
 
@@ -131,7 +166,14 @@ export function routeCandidateSearch(
   };
 }
 
-type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles" | "targetTeam"> & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions" | "abilityProfilesEnabled" | "brief">>;
+type CandidateConstraintState = Pick<State, "confirmedPosition" | "replacementReferencePosition" | "history" | "referenceProfiles" | "targetTeam">
+  & Partial<Pick<State, "referenceNameResolution" | "confirmedPositions" | "abilityProfilesEnabled" | "brief" | "candidateSearchScopeChanged" | "candidateSearchTurnStartIndex" | "candidateSearchObservations">>;
+
+function currentScopeRecordKeys(state: CandidateConstraintState): Set<string> | null {
+  if (!state.candidateSearchScopeChanged || !state.candidateSearchObservations) return null;
+  const start = state.candidateSearchTurnStartIndex ?? state.candidateSearchObservations.length;
+  return new Set(state.candidateSearchObservations.slice(start).flatMap(observation => observation.discoveredSourceRecordIds));
+}
 
 export function resolvedCandidateSearchIntent(state: CandidateConstraintState, latestMessage?: string): CandidateSearchIntent {
   const messages = userMessages(state.history);
@@ -195,7 +237,9 @@ export function discoveredPlayersForConstraint(
   state: CandidateConstraintState & Pick<State, "discoveredPlayers">,
   intent = resolvedCandidateSearchIntent(state),
 ): PlayerProfile[] {
+  const currentRecordKeys = currentScopeRecordKeys(state);
   return Object.values(state.discoveredPlayers).filter((player) => !shouldExcludeForTargetTeam(player, state.targetTeam)
+    && (currentRecordKeys === null || currentRecordKeys.has(sourcePlayerKey(player)))
     && candidateMatchesSearchIntent(player, intent));
 }
 
@@ -203,8 +247,10 @@ export function evaluatedPlayersForConstraint(
   state: CandidateConstraintState & Pick<State, "evaluatedPlayers"> & Partial<Pick<State, "discoveredPlayers">>,
   intent = resolvedCandidateSearchIntent(state),
 ): Record<string, EvaluatedPlayer> {
+  const currentRecordKeys = currentScopeRecordKeys(state);
   return Object.fromEntries(Object.entries(state.evaluatedPlayers).filter(([, evaluated]) =>
     !shouldExcludeForTargetTeam(evaluated.player, state.targetTeam)
+      && (currentRecordKeys === null || currentRecordKeys.has(sourcePlayerKey(evaluated.player)))
       && candidateMatchesSearchIntent(evaluated.player, intent)
       && positionEvaluationIsCurrent(state.discoveredPlayers?.[evaluated.player.playerId] ?? evaluated.player, evaluated),
   ));

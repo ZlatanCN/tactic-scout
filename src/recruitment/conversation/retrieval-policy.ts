@@ -18,7 +18,8 @@ export function recruitmentRetrievalNeeds(state: State, mode: RecruitmentRetriev
   const interpretiveGap = areas.length === 0 || areas.some(area => area.metricKeys.length === 0);
   const explicitReports = messages.some(message => /球探报告|比赛录像|定性|scouting report|video/i.test(message));
   const candidates = Object.values(evaluatedPlayersForConstraint(state));
-  const missingEvidence = candidates.length > 0 && summarizeRequestedCapabilityCoverage({ brief: state.brief, userMessages: messages, evaluatedPlayers: candidates, candidateIdentityGroups: state.candidateIdentityGroups })
+  const missingEvidence = candidates.length > 0 && summarizeRequestedCapabilityCoverage({ brief: state.brief, userMessages: messages, evaluatedPlayers: candidates,
+    includeAbilityProfiles: state.abilityProfilesEnabled, candidateIdentityGroups: state.candidateIdentityGroups })
     .some(area => area.status !== "observed");
   return {
     methodology: interpretiveGap,

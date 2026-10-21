@@ -75,8 +75,12 @@ function snapshotState(userMessage: string, competition: string | null = null): 
     userMessage,
     history: [{ role: "user", content: userMessage }],
     brief: competition ? {
-      task: "recruitment", targetTeam: "Arsenal", referencePlayer: null, referenceClues: [], desiredPositions: ["CM"], explicitPositions: ["CM"], constraints: [],
-      filters: { excludedCompetitions: [], competition, season: null, maxAge: null, budget: null, minimumMinutes: null, excludedPlayers: [], excludedTeams: [] },
+      task: "reinforcement", targetTeam: { value: "Arsenal", basis: "explicit", quote: "Arsenal" }, referencePlayer: null, referenceClues: [],
+      criteria: [
+        { field: "position", operator: "in", value: ["CM"], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: "midfielder" },
+        { field: "competition", operator: "in", value: [competition], unit: null, attributeKey: null, strength: "required", basis: "explicit", quote: competition },
+      ],
+      unresolved: [],
     } : null,
     targetTeam: "Arsenal", confirmedPosition: "CM", confirmedPositions: ["CM"], positionBroadeningApproved: false,
     confirmedPositionSearchObservationIndex: null, pendingQuestion: null, discoveredPlayers: {}, evaluatedPlayers: {},

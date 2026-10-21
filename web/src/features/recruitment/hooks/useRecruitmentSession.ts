@@ -47,7 +47,7 @@ export function useRecruitmentSession() {
   const [report, setReport] = useState<RecruitmentReport | null>(restoredSession?.report ?? null);
   const [teamRosterContext, setTeamRosterContext] = useState<TeamRosterContext | null>(null);
   const [reportAt, setReportAt] = useState<string | null>(restoredSession?.reportAt ?? null);
-  const [status, setStatus] = useState<"ready" | "needs_input" | "completed">(restoredSession?.status ?? "ready");
+  const [status, setStatus] = useState<"ready" | "needs_input" | "completed" | "failed">(restoredSession?.status ?? "ready");
   const [draft, setDraft] = useState("");
   const [workspaceView, setWorkspaceView] = useState<"conversation" | "report">("conversation");
   const [teamContext, setTeamContext] = useState("");

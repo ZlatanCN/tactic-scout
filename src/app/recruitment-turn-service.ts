@@ -231,9 +231,9 @@ export class RecruitmentTurnService {
           }
           const latestProgress = this.dependencies.recruitmentProgressByCase.get(caseId);
           const terminalStage = result.status === "needs_input" ? "asking_user"
-            : result.status === "cancelled" ? "cancelled" : "completed";
+            : result.status === "cancelled" ? "cancelled" : result.status === "failed" ? "failed" : "completed";
           const terminalStatus = result.status === "needs_input" ? "waiting_for_user"
-            : result.status === "cancelled" ? "cancelled" : "completed";
+            : result.status === "cancelled" ? "cancelled" : result.status === "failed" ? "failed" : "completed";
           if (latestProgress?.stage !== terminalStage || latestProgress.active) updateProgress({
             stage: terminalStage,
             status: terminalStatus,

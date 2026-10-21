@@ -6,7 +6,10 @@ import { type CapabilityMetricKey } from "../domain/capabilities.js";
 import { type PlayerProfile } from "../domain/players.js";
 import { type Position } from "../domain/position-contracts.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
+import { matchesFmSearchCriteria } from "../players/search.js";
 import { shouldExcludeForTargetTeam } from "../domain/team-names.js";
+import type { FmSearchCriterion } from "../domain/recruitment-brief.js";
+import { compileRecruitmentCriteria } from "./criterion-compiler.js";
 import { understatCatalogPositionGroupsFor } from "../sources/understat/position-evidence.js";
 import { sourcePlayerIdentityKey } from "../players/identity/source-player-key.js";
 
@@ -21,6 +24,9 @@ export interface CandidateSearchIntent {
   positions?: readonly Position[];
   positionBasis: "user" | "reference" | null;
   maxAge: number | null;
+  minAge?: number | null;
+  agePreference?: "younger" | "older" | null;
+  fmCriteria?: readonly FmSearchCriterion[];
   minimumMinutes: number;
   competition: string | null;
   excludedCompetitions?: readonly string[];
@@ -286,20 +292,26 @@ export function resolveCandidateSearchIntent(input: {
 }): CandidateSearchIntent {
   const { userMessages, confirmedPosition, replacementReferencePosition = null, latestMessage } = input;
   const originalRequest = userMessages[0] ?? "";
+  const compiledBrief = input.brief ? compileRecruitmentCriteria(input.brief, {
+    abilityProfilesEnabled: input.abilityProfilesEnabled,
+    targetTeam: input.targetTeam ?? input.brief.targetTeam?.value ?? null,
+  }) : null;
   const replacementRequest = input.brief ? input.brief.task !== "reinforcement" && Boolean(input.brief.referencePlayer)
     : Boolean(replacementTargetMention(userMessages)) || /替代者|替代|接班人|接班|替补|replacement|successor|backup/i.test(originalRequest);
   const currentPosition = confirmedPosition ?? (replacementRequest ? replacementReferencePosition : null);
-  const latestPositionChange = latestMessage === undefined
+  const latestPositionChange = input.brief || latestMessage === undefined
     ? { changed: false } as const
     : positionConstraintChange(latestMessage, currentPosition);
   const effectiveConfirmedPosition = latestPositionChange.changed ? latestPositionChange.position : confirmedPosition;
   const positionMessages = activeReferenceMessages(userMessages);
-  const explicitPosition = input.brief ? input.brief.positions[0] ?? null : explicitPositionState(positionMessages).positions[0] ?? null;
-  const allowsAnyPosition = input.brief ? input.brief.allowsAnyPosition : positionMessages.some((message) => broadAnyPositionPattern.test(message)
+  const explicitPosition = input.brief ? compiledBrief!.positions[0] ?? null : explicitPositionState(positionMessages).positions[0] ?? null;
+  const allowsAnyPosition = input.brief ? compiledBrief!.allowsAnyPosition : positionMessages.some((message) => broadAnyPositionPattern.test(message)
     || (broadenPositionPattern.test(message) && !subpositionFreedomPattern.test(message) && !broadenAttackingPositionsPattern.test(message)
       && !declinePositionBroadeningPattern.test(message)));
-  const selectedPositions = input.brief?.allowsAnyPosition ? [] : latestPositionChange.changed ? [] : input.confirmedPositions?.length ? input.confirmedPositions
-    : input.brief?.positions.length ? input.brief.positions : input.brief?.referencePlayer ? input.referencePositions ?? [] : [];
+  const selectedPositions = input.brief
+    ? compiledBrief!.allowsAnyPosition ? [] : compiledBrief!.positions.length ? compiledBrief!.positions
+      : input.brief.referencePlayer ? input.referencePositions ?? [] : []
+    : latestPositionChange.changed ? [] : input.confirmedPositions?.length ? input.confirmedPositions : [];
   const position = selectedPositions.length ? selectedPositions[0]! : allowsAnyPosition ? null : effectiveConfirmedPosition ?? explicitPosition
     ?? (replacementRequest ? replacementReferencePosition : null);
   const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: input.brief, userMessages }, undefined, input.abilityProfilesEnabled);
@@ -309,11 +321,14 @@ export function resolveCandidateSearchIntent(input: {
     ...(selectedPositions.length ? { positions: selectedPositions } : {}),
     discoveryMetricGroups: requestedEvidenceAreas.filter(area => area.metricKeys.length > 0).map(area => [...area.metricKeys]),
     positionBasis: position === null ? null : effectiveConfirmedPosition !== null || explicitPosition !== null ? "user" : "reference",
-    maxAge: input.brief ? input.brief.filters.maxAge : explicitMaxAge(userMessages),
-    minimumMinutes: input.brief ? input.brief.filters.minimumMinutes : explicitMinimumMinutes(userMessages),
-    competition: input.brief ? input.brief.filters.competition : explicitCompetition(userMessages),
-    ...(input.brief?.filters.excludedCompetitions.length ? { excludedCompetitions: input.brief.filters.excludedCompetitions } : {}),
-    season: input.brief ? input.brief.filters.season : explicitSeason(userMessages),
+    maxAge: input.brief ? compiledBrief!.maxAge : explicitMaxAge(userMessages),
+    ...(input.brief ? { minAge: compiledBrief!.minAge } : {}),
+    ...(input.brief ? { agePreference: compiledBrief!.agePreference } : {}),
+    ...(compiledBrief?.fmCriteria.length ? { fmCriteria: compiledBrief.fmCriteria } : {}),
+    minimumMinutes: input.brief ? compiledBrief!.minimumMinutes : explicitMinimumMinutes(userMessages),
+    competition: input.brief ? compiledBrief!.competition : explicitCompetition(userMessages),
+    ...(compiledBrief?.excludedCompetitions.length ? { excludedCompetitions: compiledBrief.excludedCompetitions } : {}),
+    season: input.brief ? compiledBrief!.season : explicitSeason(userMessages),
     allowsAnyPosition,
     replacementRequest,
     replacementTargetNames: [...new Set([...(input.brief ? input.brief.referencePlayer ? [normalizeSearchText(input.brief.referencePlayer.value)] : [] : replacementTargetNames(userMessages)), ...(input.referenceNames ?? []).map(normalizeSearchText)])],
@@ -325,11 +340,16 @@ export function resolveCandidateSearchIntent(input: {
 }
 
 function matchesNonPositionIntent(player: PlayerProfile, intent: CandidateSearchIntent): boolean {
+  // Standalone FM profiles have no verified current club. They cannot be kept as
+  // candidates in a club-specific search just because their club is unknown.
+  if (intent.targetTeam && player.sourceIdentity?.provider === "fm") return false;
   if (intent.referenceIdentityResolved
     ? intent.referenceSourceIdentityKeys?.includes(sourcePlayerIdentityKey(player))
     : isReplacementTarget(player.name, intent.replacementTargetNames)) return false;
   if (intent.maxAge !== null && (player.age === null || player.age > intent.maxAge)) return false;
+  if (intent.minAge != null && (player.age === null || player.age < intent.minAge)) return false;
   if (player.minutes < intent.minimumMinutes) return false;
+  if (!matchesFmSearchCriteria(player, intent.fmCriteria)) return false;
   if (intent.competition && !competitionNamesMatch(player.competition, intent.competition)) return false;
   if (intent.excludedCompetitions?.length && (!player.competition || intent.excludedCompetitions.some(competition => competitionNamesMatch(player.competition, competition)))) return false;
   if (intent.season && !normalizeSearchText(player.season).includes(normalizeSearchText(intent.season))) return false;

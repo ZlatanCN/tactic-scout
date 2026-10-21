@@ -35,6 +35,8 @@ export interface CandidateSearchObservation {
   actualOffset: number;
   nextOffset: number | null;
   matchingRecordCount: number | null;
+  fmCriterionCoverage?: NonNullable<PlayerSearchPage["fmCriterionCoverage"]>;
+  agePreferenceCoverage?: NonNullable<PlayerSearchPage["agePreferenceCoverage"]>;
   discoveredSourceRecordIds: string[];
   reportScope: z.infer<typeof RecruitmentSearchScopeSchema>;
 }

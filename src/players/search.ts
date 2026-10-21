@@ -7,6 +7,7 @@ import { observableMetricValue } from "../domain/performance-metrics.js";
 import { playerPositionMatches, positionMatches, positionMatchesRetrieval } from "../domain/positions.js";
 import { normalizeSearchText } from "../domain/text-matching.js";
 import { shouldExcludeForTargetTeam } from "../domain/team-names.js";
+import type { FmSearchCriterion } from "../domain/recruitment-brief.js";
 
 export interface PlayerSearchQuery {
   targetTeam?: string | null;
@@ -15,7 +16,10 @@ export interface PlayerSearchQuery {
   position: Position | null;
   positions?: readonly Position[];
   maxAge: number | null;
+  minAge?: number | null;
+  agePreference?: "younger" | "older" | null;
   minimumMinutes: number;
+  fmCriteria?: readonly FmSearchCriterion[];
   competition: string | null;
   excludedCompetitions?: readonly string[];
   season: string | null;
@@ -33,10 +37,75 @@ export interface PlayerSearchPage {
   offset: number;
   nextOffset: number | null;
   appliedFilters: PlayerSearchFilter[];
+  fmCriterionCoverage?: FmCriterionCoverage[];
+  agePreferenceCoverage?: AgePreferenceCoverage;
   discovery?: { strategy: "metric_cohort_round_robin" | "cohort_sample"; metricKeys: CapabilityMetricKey[]; populationRecords: number };
 }
 
-export type PlayerSearchFilter = "playerName" | "targetTeam" | "position" | "positionFamily" | "maxAge" | "minimumMinutes" | "competition" | "excludedCompetitions" | "season";
+export interface AgePreferenceCoverage {
+  eligibleRecords: number;
+  knownRecords: number;
+}
+
+export interface FmCriterionCoverage {
+  key: string;
+  field: FmSearchCriterion["field"];
+  strength: FmSearchCriterion["strength"];
+  eligibleRecords: number;
+  knownRecords: number;
+  satisfiedRecords: number;
+}
+
+export function fmCriterionKey(criterion: FmSearchCriterion): string {
+  return JSON.stringify([criterion.field, criterion.attributeKey ?? null, criterion.operator, criterion.value, criterion.unit ?? null, criterion.strength]);
+}
+
+export type PlayerSearchFilter = "playerName" | "targetTeam" | "position" | "positionFamily" | "maxAge" | "minAge" | "minimumMinutes" | "competition" | "excludedCompetitions" | "season" | "fmCriteria";
+
+function fmCriterionValue(player: PlayerProfile, criterion: FmSearchCriterion): number | null {
+  const profile = player.abilityProfile;
+  if (!profile) return null;
+  switch (criterion.field) {
+    case "heightCm": return profile.heightCm;
+    case "potentialAbility": return profile.potentialAbility;
+    case "currentAbility": return profile.currentAbility;
+    case "fmAttribute": {
+      const attribute = criterion.attributeKey ? profile.attributes[criterion.attributeKey] : undefined;
+      return attribute?.raw ?? (attribute?.display === null || attribute?.display === undefined ? null : attribute.display * 5);
+    }
+  }
+}
+
+function criterionValueMatches(actual: number, criterion: FmSearchCriterion): boolean {
+  if (criterion.value === null) return false;
+  switch (criterion.operator) {
+    case "lt": return actual < criterion.value;
+    case "lte": return actual <= criterion.value;
+    case "gt": return actual > criterion.value;
+    case "gte": return actual >= criterion.value;
+    case "prefer_high":
+    case "prefer_low": return true;
+  }
+}
+
+/** Missing FM data neither satisfies a hard rule nor triggers an exclusion. */
+export function matchesFmSearchCriteria(player: PlayerProfile, criteria: readonly FmSearchCriterion[] = []): boolean {
+  for (const criterion of criteria) {
+    if (criterion.strength === "preferred") continue;
+    const actual = fmCriterionValue(player, criterion);
+    if (actual === null) {
+      if (criterion.strength === "excluded") continue;
+      return false;
+    }
+    const matches = criterionValueMatches(actual, criterion);
+    if (criterion.strength === "excluded" ? matches : !matches) return false;
+  }
+  return true;
+}
+
+function fmPreferenceDirection(criterion: FmSearchCriterion): "high" | "low" {
+  return criterion.operator === "prefer_low" || criterion.operator === "lt" || criterion.operator === "lte" ? "low" : "high";
+}
 
 export function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQuery): boolean {
   if (shouldExcludeForTargetTeam(player, query.targetTeam)) return false;
@@ -52,6 +121,8 @@ export function matchesPlayerSearch(player: PlayerProfile, query: PlayerSearchQu
     : matchesPositionFromCatalog(player.position, query.position, player.sourceIdentity?.positionGroups))) return false;
   if (player.minutes < query.minimumMinutes) return false;
   if (query.maxAge !== null && (player.age === null || player.age > query.maxAge)) return false;
+  if (query.minAge != null && (player.age === null || player.age < query.minAge)) return false;
+  if (!matchesFmSearchCriteria(player, query.fmCriteria)) return false;
   if (query.competition && !competitionNamesMatch(player.competition, query.competition)) return false;
   if (query.excludedCompetitions?.length && (!player.competition || query.excludedCompetitions.some(competition => competitionNamesMatch(player.competition, competition)))) return false;
   if (query.season && !normalizeSearchText(player.season).includes(normalizeSearchText(query.season))) return false;
@@ -64,17 +135,44 @@ function matchesPositionFromCatalog(actual: PlayerPosition, requested: Position,
 }
 
 export function searchLoadedPlayers(players: readonly PlayerProfile[], query: PlayerSearchQuery): PlayerSearchPage {
+  const fmEligible = query.fmCriteria?.length ? players.filter(player => matchesPlayerSearch(player, { ...query, fmCriteria: undefined })) : [];
   const matching = players.filter((player) => matchesPlayerSearch(player, query));
+  const fmCriterionCoverage = query.fmCriteria?.length ? query.fmCriteria.map(criterion => {
+    const known = fmEligible.flatMap(player => {
+      const value = fmCriterionValue(player, criterion);
+      return value === null ? [] : [{ player, value }];
+    });
+    const satisfiedRecords = known.filter(({ value }) => {
+      if (criterion.strength === "preferred" && criterion.value === null) return true;
+      const matches = criterionValueMatches(value, criterion);
+      return criterion.strength === "excluded" ? !matches : matches;
+    }).length;
+    return { key: fmCriterionKey(criterion), field: criterion.field, strength: criterion.strength,
+      eligibleRecords: fmEligible.length, knownRecords: known.length, satisfiedRecords };
+  }) : undefined;
+  const agePreferenceCoverage = query.agePreference ? {
+    eligibleRecords: matching.length,
+    knownRecords: matching.filter(player => player.age !== null).length,
+  } : undefined;
   const metricKeys = [...new Set((query.discoveryMetricGroups ?? []).flat())].sort()
     .filter(key => matching.some(player => observableMetricValue(player, key) !== undefined));
-  const ordered = query.discoveryMetricGroups !== undefined || query.positions?.length ? orderDiscoveryCandidates(matching, query.discoveryMetricGroups ?? []) : matching;
+  const hasFmPreferences = query.fmCriteria?.some(criterion => criterion.strength === "preferred") ?? false;
+  const shouldOrderDiscovery = query.discoveryMetricGroups !== undefined || query.positions?.length || hasFmPreferences || query.agePreference;
+  const ordered = !shouldOrderDiscovery ? matching : query.agePreference
+    ? [
+      ...orderDiscoveryCandidates(matching.filter(player => player.age !== null), query.discoveryMetricGroups ?? [], query.fmCriteria ?? [], query.agePreference),
+      ...orderDiscoveryCandidates(matching.filter(player => player.age === null), query.discoveryMetricGroups ?? [], query.fmCriteria ?? []),
+    ]
+    : orderDiscoveryCandidates(matching, query.discoveryMetricGroups ?? [], query.fmCriteria ?? []);
   const page = ordered.slice(query.offset, query.offset + query.limit);
   const appliedFilters: PlayerSearchFilter[] = [];
   if (query.playerName) appliedFilters.push("playerName");
   if (query.targetTeam) appliedFilters.push("targetTeam");
   if (query.position || query.positions?.length) appliedFilters.push(query.positionMatchMode === "family" ? "positionFamily" : "position");
   if (query.maxAge !== null) appliedFilters.push("maxAge");
+  if (query.minAge != null) appliedFilters.push("minAge");
   if (query.minimumMinutes > 0) appliedFilters.push("minimumMinutes");
+  if (query.fmCriteria?.some(criterion => criterion.strength !== "preferred")) appliedFilters.push("fmCriteria");
   if (query.competition) appliedFilters.push("competition");
   if (query.excludedCompetitions?.length) appliedFilters.push("excludedCompetitions");
   if (query.season) appliedFilters.push("season");
@@ -84,12 +182,19 @@ export function searchLoadedPlayers(players: readonly PlayerProfile[], query: Pl
     offset: query.offset,
     nextOffset: query.offset + page.length < matching.length ? query.offset + page.length : null,
     appliedFilters,
+    ...(fmCriterionCoverage ? { fmCriterionCoverage } : {}),
+    ...(agePreferenceCoverage ? { agePreferenceCoverage } : {}),
     ...(query.discoveryMetricGroups !== undefined ? { discovery: { strategy: metricKeys.length ? "metric_cohort_round_robin" as const : "cohort_sample" as const, metricKeys, populationRecords: matching.length } } : {}),
   };
 }
 
 /** Per-metric discovery lanes, never a weighted ability score or cross-league rank. */
-function orderDiscoveryCandidates(players: readonly PlayerProfile[], metricGroups: readonly (readonly CapabilityMetricKey[])[]): PlayerProfile[] {
+function orderDiscoveryCandidates(
+  players: readonly PlayerProfile[],
+  metricGroups: readonly (readonly CapabilityMetricKey[])[],
+  fmCriteria: readonly FmSearchCriterion[] = [],
+  agePreference?: "younger" | "older" | null,
+): PlayerProfile[] {
   const cohorts = new Map<string, PlayerProfile[]>();
   const stableId = (player: PlayerProfile) => `${player.sourceIdentity?.provider ?? player.source}\u0000${player.playerId}`;
   for (const player of players) {
@@ -111,7 +216,16 @@ function orderDiscoveryCandidates(players: readonly PlayerProfile[], metricGroup
       return value === undefined || !Number.isFinite(value) ? [] : [{ player, value, support }];
     }).sort((a, b) => b.support - a.support || b.value - a.value || b.player.minutes - a.player.minutes || stableId(a.player).localeCompare(stableId(b.player)))
       .map(({ player }) => player))));
-    const supported = interleave(capabilityLanes);
+    const fmPreferenceLanes = fmCriteria.filter(criterion => criterion.strength === "preferred")
+      .map(criterion => cohort.flatMap(player => {
+        const value = fmCriterionValue(player, criterion);
+        return value === null ? [] : [{ player, value }];
+      }).sort((left, right) => (fmPreferenceDirection(criterion) === "high" ? right.value - left.value : left.value - right.value)
+        || stableId(left.player).localeCompare(stableId(right.player))).map(({ player }) => player));
+    const agePreferenceLanes = agePreference ? [cohort.filter(player => player.age !== null)
+      .sort((left, right) => (agePreference === "younger" ? left.age! - right.age! : right.age! - left.age!)
+        || stableId(left).localeCompare(stableId(right)))] : [];
+    const supported = interleave([...agePreferenceLanes, ...capabilityLanes, ...fmPreferenceLanes]);
     const included = new Set(supported.map(player => player.playerId));
     return [...supported, ...cohort.filter(player => !included.has(player.playerId))
       .sort((a, b) => b.minutes - a.minutes || stableId(a).localeCompare(stableId(b)))];

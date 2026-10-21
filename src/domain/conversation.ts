@@ -122,7 +122,7 @@ export type RecruitmentProgressEvent = z.infer<typeof RecruitmentProgressEventSc
 
 export const ConversationTurnResponseSchema = z.object({
   threadId: z.string().min(1),
-  status: z.enum(["needs_input", "completed", "cancelled"]),
+  status: z.enum(["needs_input", "completed", "failed", "cancelled"]),
   message: z.string().min(1),
   question: z.object({ reason: z.string().min(1), input: z.union([PositionSelectionQuestionSchema, PlayerIdentityQuestionSchema]).optional() }).nullable(),
   report: RecruitmentReportSchema.nullable(),

@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import { PositionSchema } from "./position-contracts.js";
 
 export const RecruitmentBriefReferenceClueSchema = z.object({
   kind: z.enum(["team", "nationality", "position", "era"]),
@@ -18,7 +17,36 @@ const groundedText = z.object({
   quote: z.string().max(300),
 });
 
-/** User requirements only. Identity and observed player facts have separate owners. */
+export const RecruitmentCriterionFieldSchema = z.enum([
+  "position", "age", "minimumMinutes", "competition", "season", "budget",
+  "heightCm", "potentialAbility", "currentAbility", "fmAttribute",
+  "nationality", "club", "capability", "other",
+]);
+
+export const RecruitmentCriterionOperatorSchema = z.enum([
+  "lt", "lte", "gt", "gte", "eq", "in", "not_in", "any", "prefer_high", "prefer_low", "match",
+]);
+
+export const RecruitmentCriterionSchema = z.object({
+  field: RecruitmentCriterionFieldSchema,
+  operator: RecruitmentCriterionOperatorSchema,
+  value: z.union([z.number(), z.string(), z.array(z.string())]).nullable(),
+  unit: z.string().max(40).nullable().optional(),
+  attributeKey: z.string().max(80).nullable().optional(),
+  strength: z.enum(["required", "preferred", "excluded"]),
+  basis: z.enum(["explicit", "inferred"]),
+  quote: z.string().max(300).describe("Shortest continuous verbatim user span that states this specific criterion, including its threshold and unit when present."),
+}).describe("One atomic user requirement. Preserve its field, operator, value/unit, hard/soft/exclusion intent, and source quote. Do not merge separate conditions into other text.");
+
+export const FmSearchCriterionSchema = RecruitmentCriterionSchema.extend({
+  field: z.enum(["heightCm", "potentialAbility", "currentAbility", "fmAttribute"]),
+  operator: z.enum(["lt", "lte", "gt", "gte", "prefer_high", "prefer_low"]),
+  value: z.number().nullable(),
+  unit: z.string().max(40).nullable().optional(),
+  attributeKey: z.string().max(80).nullable().optional(),
+});
+
+/** Canonical user request. Search filters and ranking actions are compiled from criteria. */
 export const RecruitmentBriefSchema = z.object({
   task: z.enum(["reinforcement", "similarity", "replacement"]).describe("没有提到具体参考人物就是 reinforcement；指定某人这种风格是 similarity；填补某人岗位才是 replacement。"),
   targetTeam: groundedText.nullable(),
@@ -27,21 +55,8 @@ export const RecruitmentBriefSchema = z.object({
     .describe("仅用户明确用于识别参考人物的线索及连续原文；招募目标球队不是参考球员球队。例如为拜仁找罗德里替代者，不能把拜仁当罗德里的球队。不确定留空。"),
   referenceRecheck: RecruitmentBriefReferenceRecheckSchema.nullable().optional().describe("仅本轮明确拒绝当前身份、说都不是或要求重新核实参考人物时填写原话；明确不是这些人时 reject=true，单纯重试不拒绝人选；其他情况必须为 null。不继承上一轮。"),
   selectedCandidateId: z.string().min(1).max(300).nullable().default(null).describe("指代上一份可见候选时填其 playerId；referencePlayer.value 使用候选姓名，quote 则引用用户本轮的指代原话。"),
-  positions: z.array(PositionSchema).max(12).describe("用户明确提及的位置代码，例如中前卫 CM、中卫 CB、后卫 DEF。禁止按模型记忆猜参考人物的位置。"),
-  allowsAnyPosition: z.boolean().default(false),
-  filters: z.object({
-    maxAge: z.number().int().min(15).max(45).nullable(),
-    minimumMinutes: z.number().int().min(0).max(5000),
-    competition: z.string().max(100).nullable(),
-    excludedCompetitions: z.array(z.string().min(1).max(100)).max(10).default([]),
-    season: z.string().max(20).nullable(),
-  }),
-  priorities: z.array(groundedText).max(12),
-  constraints: z.array(z.object({
-    kind: z.enum(["age", "budget", "competition", "season", "minutes", "other"]),
-    requirement: groundedText,
-    strength: z.enum(["required", "preferred"]),
-  })).max(12).describe("每个生效的 filter 都必须有同 kind、strength=required、requirement.basis=explicit 的条目，quote 引用用户原文。没有条件才为空数组；不能只填 filter 而漏掉依据。"),
+  criteria: z.array(RecruitmentCriterionSchema).max(32)
+    .describe("按用户表达拆成独立条件。heightCm/potentialAbility/currentAbility/fmAttribute 是可使用 FM 画像的字段；‘最好潜力高’应为 potentialAbility + prefer_high + preferred，不可变成硬门槛；‘至少190cm’应为 heightCm + gte + 190 + cm + required。位置也必须作为带原文依据的 criterion，不另猜一个 positions 数组。"),
   unresolved: z.array(z.object({
     topic: z.enum(["identity", "position", "preference"]),
     question: z.string().min(1).max(300),
@@ -50,3 +65,5 @@ export const RecruitmentBriefSchema = z.object({
 });
 
 export type RecruitmentBrief = z.infer<typeof RecruitmentBriefSchema>;
+export type RecruitmentCriterion = z.infer<typeof RecruitmentCriterionSchema>;
+export type FmSearchCriterion = z.infer<typeof FmSearchCriterionSchema>;

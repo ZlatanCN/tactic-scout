@@ -9,14 +9,17 @@ import { type PlayerProfile } from "../../domain/players.js";
 import { type Position } from "../../domain/position-contracts.js";
 import { RecruitmentReportSchema } from "../../domain/reports.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
-import { summarizeCandidateIdentityGroupReferences, type CandidateIdentityGroup } from "../../players/identity/candidate-groups.js";
+import { summarizeCandidateIdentityGroupReferences, type CandidateIdentityGroup, type CandidateIdentityGroupReference } from "../../players/identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../players/identity/source-player-key.js";
+import { fmCriterionKey } from "../../players/search.js";
+import type { FmSearchCriterion } from "../../domain/recruitment-brief.js";
 import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
+import { compileRecruitmentCriteria } from "../criterion-compiler.js";
 import { summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import { collectMethodologySourceReferences } from "../methodology-sources.js";
-import { emptyDecision, toolBudgets, type FinishRecruitmentAction } from "../recruitment-actions.js";
+import { emptyDecision, MAX_RECOMMENDATIONS_PER_REPORT, toolBudgets, type FinishRecruitmentAction } from "../recruitment-actions.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
-import { candidateIdentityGroupReferencesFor, candidateSearchScopeKey, constrainedPositionSearchObservation, confirmedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
+import { candidateIdentityGroupReferencesFor, candidateSearchObservationIndexForIntent, candidateSearchScopeKey, constrainedPositionSearchObservation, confirmedPositionSearchObservation, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { positionLabels } from "./interaction-policy.js";
 import { type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
@@ -164,6 +167,59 @@ function reportNeedSummary(value: string, history: State["history"], recommendat
   return `围绕“${requestExcerpt}${suffix}”${scope}；具体依据与数据缺口见下方。`;
 }
 
+function recommendationsForDelivery(input: {
+  selected: FinishRecruitmentAction["recommendations"];
+  evaluatedPlayers: Readonly<Record<string, EvaluatedPlayer>>;
+  requestedMetricKeys: ReadonlySet<string>;
+  agePreference: "younger" | "older" | null;
+  identityGroups: readonly CandidateIdentityGroupReference[];
+  preserveSelection: boolean;
+}): FinishRecruitmentAction["recommendations"] {
+  if (!input.selected.length) return [];
+  const entries = Object.values(input.evaluatedPlayers);
+  const hasRequestedEvidence = input.requestedMetricKeys.size > 0 && entries.some(({ evidence }) => (
+    evidence.some(item => input.requestedMetricKeys.has(item.key))
+  ));
+  const identityKeyFor = (playerId: string) => input.identityGroups
+    .find(group => group.status === "resolved" && group.recordPlayerIds.includes(playerId))?.identityKey
+    ?? `record:${playerId}`;
+  const plannerEvidenceByPlayerId = new Map(input.selected.map(item => [item.playerId, item.evidenceKeys]));
+  const seenIdentities = new Set<string>();
+  const candidates = entries.flatMap(({ player, evidence }) => {
+    const requestedEvidenceKeys = hasRequestedEvidence
+      ? evidence.filter(item => input.requestedMetricKeys.has(item.key)).map(item => item.key)
+      : input.requestedMetricKeys.size === 0 ? evidence.map(item => item.key) : [];
+    const evidenceKeys = plannerEvidenceByPlayerId.get(player.playerId) ?? requestedEvidenceKeys;
+    const identityKey = identityKeyFor(player.playerId);
+    if (!evidenceKeys.length || seenIdentities.has(identityKey)) return [];
+    seenIdentities.add(identityKey);
+    return [{ playerId: player.playerId, age: player.age, evidenceKeys }];
+  });
+  const ordered = input.agePreference
+    ? candidates.map((candidate, index) => ({ candidate, index })).sort((left, right) => {
+      const leftAge = left.candidate.age;
+      const rightAge = right.candidate.age;
+      if (leftAge === null && rightAge !== null) return 1;
+      if (leftAge !== null && rightAge === null) return -1;
+      if (leftAge === null || rightAge === null) return left.index - right.index;
+      return (input.agePreference === "younger" ? leftAge - rightAge : rightAge - leftAge) || left.index - right.index;
+    }).map(({ candidate }) => candidate)
+    : candidates;
+  if (input.preserveSelection) return input.selected.slice(0, MAX_RECOMMENDATIONS_PER_REPORT);
+  if (input.agePreference) return ordered.slice(0, MAX_RECOMMENDATIONS_PER_REPORT)
+    .map(({ playerId, evidenceKeys }) => ({ playerId, evidenceKeys }));
+
+  const byId = new Map(ordered.map(candidate => [candidate.playerId, candidate]));
+  const selected = input.selected.flatMap(item => {
+    const candidate = byId.get(item.playerId);
+    return candidate ? [candidate] : [];
+  });
+  const selectedIds = new Set(selected.map(candidate => candidate.playerId));
+  return [...selected, ...ordered.filter(candidate => !selectedIds.has(candidate.playerId))]
+    .slice(0, MAX_RECOMMENDATIONS_PER_REPORT)
+    .map(({ playerId, evidenceKeys }) => ({ playerId, evidenceKeys }));
+}
+
 function limitationsFor(
   state: State,
   repository: PlayerRepository,
@@ -171,8 +227,56 @@ function limitationsFor(
   evaluator: RecruitmentEvidenceEvaluator,
 ): string[] {
   const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
+  const eligibleEvaluatedPlayerIds = new Set(eligibleEvaluatedPlayers.map(({ player }) => player.playerId));
   const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, resolvedCandidateSearchIntent(state).position, state.abilityProfilesEnabled);
   const limitations = action.limitationKeys.map((key) => limitationDescriptions[key]);
+  const staleRecommendationCount = action.recommendations.filter(({ playerId }) => !eligibleEvaluatedPlayerIds.has(playerId)).length;
+  if (state.candidateSearchScopeChanged && staleRecommendationCount > 0) {
+    limitations.push(`有 ${staleRecommendationCount} 名上一轮候选不在本轮最新检索和评估结果中，已排除，没有沿用旧名单。`);
+  }
+  const compiledCriteria = compileRecruitmentCriteria(state.brief, {
+    abilityProfilesEnabled: repository.supportsAbilityProfiles ?? false,
+    verifiedProfileLinksAvailable: repository.supportsVerifiedAbilityProfileLinks ?? false,
+    targetTeam: state.targetTeam,
+  });
+  for (const criterion of compiledCriteria.unsupportedCriteria) {
+    if (["heightCm", "potentialAbility", "currentAbility", "fmAttribute"].includes(criterion.field)) continue;
+    const quote = criterion.quote || criterion.field;
+    limitations.push(criterion.strength === "preferred"
+      ? `已保留偏好“${quote}”，但当前来源没有可可靠比较的字段，本轮未用它排序。`
+      : `已保留条件“${quote}”，但当前来源无法按此条件筛选或核验；本轮没有据此声称候选满足。`);
+  }
+  const fmCriteria = state.brief?.criteria.filter(criterion => ["heightCm", "potentialAbility", "currentAbility", "fmAttribute"].includes(criterion.field)) ?? [];
+  const currentIntent = resolvedCandidateSearchIntent(state);
+  const currentSearchIndex = candidateSearchObservationIndexForIntent(currentIntent, state.candidateSearchObservations);
+  const latestSearch = currentSearchIndex === null ? undefined : state.candidateSearchObservations[currentSearchIndex];
+  if (currentIntent.agePreference) {
+    const coverage = latestSearch?.reportScope.agePreferenceCoverage;
+    const direction = currentIntent.agePreference === "younger" ? "偏年轻" : "偏资深";
+    if (!coverage) limitations.push(`用户偏好年龄${direction}，本轮没有取得候选年龄覆盖，未据此调整候选顺序。`);
+    else if (coverage.knownRecords === 0) limitations.push(`用户偏好年龄${direction}，但当前 ${coverage.eligibleRecords} 条候选都没有可用年龄数据，因此没有按年龄排序。`);
+    else if (coverage.knownRecords < coverage.eligibleRecords) limitations.push(`用户偏好年龄${direction}；${coverage.knownRecords}/${coverage.eligibleRecords} 条候选有年龄数据，排序只对有年龄记录生效，其余年龄未知。`);
+    else limitations.push(`用户偏好年龄${direction}；${coverage.knownRecords}/${coverage.eligibleRecords} 条候选均有年龄数据，已作为软偏好排序，未设年龄硬门槛。`);
+  }
+  for (const criterion of fmCriteria) {
+    const coverage = latestSearch?.fmCriterionCoverage?.find(item => item.key === fmCriterionKey(criterion as FmSearchCriterion));
+    const label = criterion.field === "heightCm" ? "身高"
+      : criterion.field === "potentialAbility" ? "FM PA 潜力参考"
+        : criterion.field === "currentAbility" ? "FM CA 当前能力" : `FM ${criterion.attributeKey ?? "属性"}`;
+    if (!coverage) {
+      limitations.push(`${label}条件本轮没有取得 FM 画像覆盖，未据此声称候选满足或优于该项。`);
+      continue;
+    }
+    if (criterion.strength === "preferred") {
+      if (coverage.knownRecords === 0) limitations.push(`用户偏好${label}，但 ${coverage.eligibleRecords} 条当前候选记录都没有该项 FM 数据，因此本轮没有按此偏好排序。`);
+      else if (coverage.knownRecords < coverage.eligibleRecords) limitations.push(`用户偏好${label}；${coverage.knownRecords}/${coverage.eligibleRecords} 条候选有可比较的 FM 数据，排序仅覆盖有数据的记录，其余保持未知。`);
+      else limitations.push(`用户偏好${label}；${coverage.knownRecords}/${coverage.eligibleRecords} 条候选有可比较的 FM 数据，已作为独立偏好排序维度，未与比赛表现合并成总分。`);
+    } else if (coverage.knownRecords < coverage.eligibleRecords) {
+      limitations.push(`${label}是硬条件；FM 数据覆盖 ${coverage.knownRecords}/${coverage.eligibleRecords} 条候选。未知记录未计为满足条件。`);
+    } else if (coverage.satisfiedRecords === 0) {
+      limitations.push(`${label}是硬条件；本轮有 FM 数据的 ${coverage.knownRecords} 条候选均未满足，没有用未知或不满足条件的候选替代。`);
+    }
+  }
   const identityCoverage = summarizeCandidateIdentityGroupReferences(state.candidateIdentityGroups);
   const identityStatusCount = (status: CandidateIdentityResolutionStatus) => (
     identityCoverage.resolutionStatusCounts.find((item) => item.status === status)?.count ?? 0
@@ -318,11 +422,19 @@ export function createReportProjection(input: {
     const discoveredForConstraint = discoveredPlayersForConstraint(state);
     const discoveredForConstraintIds = new Set(discoveredForConstraint.map(({ playerId }) => playerId));
     const evaluatedForConstraintById = new Map(Object.values(eligibleEvaluatedPlayers).map((candidate) => [candidate.player.playerId, candidate]));
-    const selectedRecommendations = state.reportFollowupContext?.recommendations ?? action.recommendations;
     const requestedPosition = state.confirmedPositions.length > 1 ? null : resolvedCandidateSearchIntent(state).position;
     const allPositionLeadRecords = positionLeadRecords(state);
     const positionLeads = allPositionLeadRecords.slice(0, 12);
     const requestedEvidenceAreas = requestedCapabilityEvidenceAreasForInput({ brief: state.brief, userMessages: userMessages(state.history) }, requestedPosition, state.abilityProfilesEnabled);
+    const agePreference = compileRecruitmentCriteria(state.brief, { abilityProfilesEnabled: state.abilityProfilesEnabled }).agePreference;
+    const selectedRecommendations = recommendationsForDelivery({
+      selected: state.reportFollowupContext?.recommendations ?? action.recommendations,
+      evaluatedPlayers: eligibleEvaluatedPlayers,
+      requestedMetricKeys: new Set(requestedEvidenceAreas.flatMap(area => area.metricKeys)),
+      agePreference,
+      identityGroups: candidateIdentityGroups,
+      preserveSelection: state.reportFollowupContext !== null || state.reviewResult === "exhausted",
+    });
     const backgroundOnly = !state.referenceProfiles.length && requestedEvidenceAreas.every(area => area.metricKeys.length === 0);
     const recommendedIds = new Set(selectedRecommendations.map(({ playerId }) => playerId));
     const adjacentPositionLeadItems = (repository.mode === "understat" || repository.mode === "mosaic") && (requestedPosition || state.confirmedPositions.length > 1)
@@ -332,7 +444,7 @@ export function createReportProjection(input: {
           && (player.positionEvidence.targetPosition === requestedPosition || state.confirmedPositions.includes(player.positionEvidence.targetPosition as typeof state.confirmedPositions[number]))
           && player.positionEvidence.status === "compatible"
           && !recommendedIds.has(player.playerId))
-        .slice(0, Math.max(0, 5 - selectedRecommendations.length))
+        .slice(0, Math.max(0, MAX_RECOMMENDATIONS_PER_REPORT - selectedRecommendations.length))
         .map(({ player, evidence }) => ({
           playerId: player.playerId,
           evidenceKeys: requestedEvidenceAreas.flatMap(({ metricKeys }) => metricKeys)
@@ -469,6 +581,7 @@ export function createReportProjection(input: {
       brief: state.brief,
       userMessages: userMessages(state.history),
       evaluatedPlayers: Object.values(eligibleEvaluatedPlayers),
+      includeAbilityProfiles: state.abilityProfilesEnabled,
       candidateIdentityGroups,
     });
     const evaluatedIdentityKeys = new Set(Object.values(eligibleEvaluatedPlayers).map(({ player }) => (
@@ -551,7 +664,9 @@ export function createReportProjection(input: {
       : state.candidateSearchFailure && !state.candidateSearchSucceededThisTurn
         ? `${repository.sourceName} 候选查询最近一次失败，当前无法确认是否有符合条件的球员；这不代表没有匹配球员。`
         : state.responseMessage || (recommendations.length
-          ? "已完成一轮调查。名单顺序表示 Agent 建议优先继续考察的顺序，不是经过验证的综合能力排名。"
+          ? agePreference
+            ? `已完成一轮调查，整理了 ${recommendations.length} 名有相关证据的候选。名单优先按年龄偏好排列，年龄未知者排在有年龄资料者之后；这不是综合能力排名。最多显示 ${MAX_RECOMMENDATIONS_PER_REPORT} 名，你可以要求继续扩展。`
+            : `已完成一轮调查，整理了 ${recommendations.length} 名有相关证据的候选。名单顺序表示建议优先继续考察的顺序，不是经过验证的综合能力排名。最多显示 ${MAX_RECOMMENDATIONS_PER_REPORT} 名，你可以要求继续扩展。`
           : positionLeads.length > 0
             ? `发现 ${allPositionLeadRecords.length} 条${positionLabels[requestedPosition!]}所在位置大类的来源线索，但当前来源没有足够的细分位置证据形成名单。`
             : "已完成一轮调查，但当前证据不足以支持具体候选推荐。");
