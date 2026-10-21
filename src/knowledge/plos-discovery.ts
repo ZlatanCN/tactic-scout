@@ -4,6 +4,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 import {
+  KnowledgeEvidenceDocumentInputSchema,
+  type KnowledgeEvidenceDocumentInput,
+} from "./evidence-schemas.js";
+import {
   KnowledgeDocumentInputSchema,
   KnowledgeSourceSchema,
   type KnowledgeDocumentInput,
@@ -34,6 +38,32 @@ export interface PlosArticleCandidate {
   license: string | null;
   articleUrl: string;
   registeredForIngestion: boolean;
+}
+
+interface PlosArticleParagraph {
+  heading: string | null;
+  text: string;
+}
+
+function articleParagraphs(value: string): PlosArticleParagraph[] {
+  const safeBody = removeExcludedArticleBlocks(value);
+  return [...safeBody.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p\s*>/gi)].flatMap((match) => {
+    const text = cleanArticleText(match[1] ?? "");
+    if (text.length < 20) return [];
+    const prefix = safeBody.slice(0, match.index);
+    const heading = [...prefix.matchAll(/<(?:title|h[1-6])\b[^>]*>([\s\S]*?)<\/(?:title|h[1-6])\s*>/gi)]
+      .map((candidate) => cleanArticleText(candidate[1] ?? ""))
+      .filter(Boolean)
+      .at(-1) ?? null;
+    return [{ heading, text }];
+  });
+}
+
+function isNamedLaLigaPlayeRankAnalysis(text: string): boolean {
+  return /\b(?:La Liga|LaLiga)\b/i.test(text)
+    && /\bPlayeRank\b/i.test(text)
+    && /\bCristiano Ronaldo\b/i.test(text)
+    && /\bLionel Messi\b/i.test(text);
 }
 
 function articleUrlForDoi(doi: string): string | null {
@@ -160,6 +190,92 @@ export class PlosDiscoveryProvider {
       acquisition: "authorized_fetch",
       content,
     });
+  }
+
+  async fetchRegisteredEvidenceDocuments(
+    doi: string,
+    options: { registryPath?: string } = {},
+  ): Promise<KnowledgeEvidenceDocumentInput[]> {
+    const sourceRecords = await this.readSources(options.registryPath);
+    const articleUrl = articleUrlForDoi(doi);
+    if (!articleUrl) throw new Error("PLOS DOI 暂不支持正文获取。");
+    const source = sourceRecords.find((candidate) => canAutomaticallyIngest(candidate, articleUrl));
+    if (!source) throw new Error("该 PLOS DOI 尚无允许自动抓取、保存和 AI/RAG 处理的来源登记；未发出正文请求。");
+    if (!source.allowedCorpora.includes("methodology") || !source.allowedCorpora.includes("player_report")) {
+      throw new Error("该 PLOS 来源尚未分别登记为方法资料与球员定性资料来源。");
+    }
+    const url = new URL("https://api.plos.org/search");
+    url.searchParams.set("q", "id:\"" + doi + "\"");
+    url.searchParams.set("fl", "id,title_display,author_display,publication_date,copyright,abstract,body");
+    url.searchParams.set("wt", "json");
+    url.searchParams.set("rows", "1");
+    const payload = await this.request(url);
+    const rawDocument = payload.response.docs.find((candidate) => candidate.id === doi);
+    if (!rawDocument) throw new Error("PLOS API 未返回请求文章。");
+    if (!/creative commons attribution|\bcc by\b/i.test(stringField(rawDocument.copyright))) {
+      throw new Error("PLOS API 未返回可核实的 CC BY 许可声明；文章未入库。");
+    }
+
+    const title = rawDocument.title_display ?? doi;
+    const authors = rawDocument.author_display ?? [];
+    const abstract = cleanArticleText(stringField(rawDocument.abstract));
+    const paragraphs = articleParagraphs(stringField(rawDocument.body));
+    const playerParagraphs = paragraphs.filter(({ text }) => isNamedLaLigaPlayeRankAnalysis(text));
+    if (!playerParagraphs.length) throw new Error("PLOS 正文没有包含指定的具名 La Liga PlayeRank 历史分析段落；没有生成球员定性资料。");
+    const playerText = new Set(playerParagraphs.map(({ text }) => text));
+    const methodologyParagraphs = paragraphs.filter(({ text }) => !playerText.has(text));
+    if (abstract) methodologyParagraphs.unshift({ heading: "Abstract", text: abstract });
+    const attribution = authors.join(", ") + ". " + title + ". DOI: " + doi + ". " + articleUrl
+      + ". CC BY 4.0. Data Provided by PLOS. Retrieved through the official PLOS Search API; figures, tables, references, acknowledgements and external links are excluded.";
+    const shared = {
+      sourceId: source.id,
+      url: articleUrl,
+      author: authors.join(", ") || "PLOS 作者",
+      publisher: source.publisher,
+      publishedAt: rawDocument.publication_date ?? null,
+      license: source.license,
+      attribution,
+      competition: null as string | null,
+      season: null as string | null,
+      observedFrom: null as string | null,
+      observedTo: null as string | null,
+      acquisition: "authorized_fetch" as const,
+    };
+    const methodContent = methodologyParagraphs.map(({ text }) => text).join("\n\n");
+    const methodology = KnowledgeEvidenceDocumentInputSchema.parse({
+      ...shared,
+      evidenceType: "methodology",
+      corpus: "methodology",
+      title,
+      content: methodContent,
+      sections: methodologyParagraphs.map((paragraph, index) => ({
+        id: "method-paragraph-" + String(index + 1),
+        heading: paragraph.heading,
+        kind: "paragraph" as const,
+        text: paragraph.text,
+        locator: "article-body/paragraph-" + String(index + 1),
+      })),
+    });
+    const playerReport = KnowledgeEvidenceDocumentInputSchema.parse({
+      ...shared,
+      evidenceType: "historical_player_analysis",
+      corpus: "player_report",
+      title: title + " — La Liga historical analysis",
+      content: playerParagraphs.map(({ text }) => text).join("\n\n"),
+      entityIds: ["Q11571", "Q615"],
+      entityNames: ["Cristiano Ronaldo", "Lionel Messi"],
+      competition: "La Liga",
+      season: "2017/18",
+      sampleSummary: "Authors discuss the role of Cristiano Ronaldo and Lionel Messi in La Liga PlayeRank results. The paper describes its underlying top-five-league event sample as the 2017/18 season, but does not identify each player's specific match dates in this passage.",
+      sections: playerParagraphs.map((paragraph, index) => ({
+        id: "player-analysis-paragraph-" + String(index + 1),
+        heading: paragraph.heading,
+        kind: "paragraph" as const,
+        text: paragraph.text,
+        locator: "article-body/player-analysis-paragraph-" + String(index + 1),
+      })),
+    });
+    return [methodology, playerReport];
   }
 
   private async readSources(registryPath?: string): Promise<KnowledgeSource[]> {

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { EvidenceRefSchema } from "../domain/evidence.js";
 
 export const KnowledgeCorpusSchema = z.enum(["methodology", "player_report"]);
 export type KnowledgeCorpus = z.infer<typeof KnowledgeCorpusSchema>;
@@ -48,6 +49,8 @@ export const KnowledgePlayerContextSchema = z.object({
   team: z.string().trim().min(1),
   competition: z.string().trim().min(1),
   season: z.string().trim().min(1),
+  /** Exact identifiers from the evaluated record; never inferred from a name. */
+  verifiedSubjectIds: z.array(z.string().trim().min(3)).max(12).optional(),
 });
 export type KnowledgePlayerContext = z.infer<typeof KnowledgePlayerContextSchema>;
 
@@ -67,6 +70,8 @@ export type KnowledgeSearchRequest = z.infer<typeof KnowledgeSearchRequestSchema
 export const KnowledgeSearchResultSchema = z.object({
   id: z.string().min(1),
   documentId: z.string().min(1),
+  /** Stable reference into an immutable SQLite document revision. */
+  evidenceRef: EvidenceRefSchema.optional(),
   corpus: KnowledgeCorpusSchema,
   text: z.string(),
   title: z.string(),
@@ -82,6 +87,11 @@ export const KnowledgeSearchResultSchema = z.object({
   entityNames: z.array(z.string()),
   competition: z.string().nullable(),
   season: z.string().nullable(),
+  sampleSummary: z.string().nullable().optional(),
+  observedFrom: z.iso.date().nullable().optional(),
+  observedTo: z.iso.date().nullable().optional(),
+  evidenceType: z.enum(["methodology", "external_report", "historical_player_analysis", "first_party_observation"]).optional(),
+  rankMode: z.enum(["hybrid", "gateway_reranked", "hybrid_degraded"]).optional(),
   matchedCapabilityGaps: z.array(z.string()).optional(),
   displayAllowed: z.boolean(),
 });

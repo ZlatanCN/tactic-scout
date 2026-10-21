@@ -227,8 +227,9 @@ test("on-demand RAG performs one bounded qualitative lookup for unobservable cap
   });
   const result = await conversation.turn({ threadId: "on-demand-unknown-capabilities", message: "为拜仁找前锋，重点看接应和终结" });
   assert.equal(result.status, "completed");
-  assert.deepEqual(corpora, ["methodology", "player_report"]);
+  assert.deepEqual(corpora, ["methodology"], "player reports are not searched by names without verified subject IDs");
   assert.equal(result.report?.knowledgeCoverage.playerReportSearchPerformed, true);
+  assert.equal(result.report?.knowledgeCoverage.playerReportOutcome, "not_covered");
   assert.ok(result.report?.recommendations[0]?.tradeoffs.some(item => item.includes("尚未") || item.includes("缺少")));
 });
 

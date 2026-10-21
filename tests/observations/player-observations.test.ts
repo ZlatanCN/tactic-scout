@@ -11,6 +11,10 @@ import {
 import { PlayerObservationInputSchema, PlayerObservationSchema } from "../../src/observations/schemas.js";
 import { knowledgeDocumentId } from "../../src/knowledge/document-id.js";
 import { createLocalKnowledgeBase } from "../../src/knowledge/index.js";
+import { createKnowledgeEvidence } from "../../src/knowledge/evidence.js";
+import type { EvidenceReranker } from "../../src/knowledge/evidence-models.js";
+import { createKnowledgeEvidenceObservationIndex } from "../../src/observations/knowledge-evidence-index.js";
+import { summarizePlayerObservationDataset } from "../../src/observations/dataset-summary.js";
 import { firstPartyObservationSourceId } from "../../src/knowledge/source-ids.js";
 import type { KnowledgeDocumentInput } from "../../src/knowledge/schemas.js";
 
@@ -248,6 +252,91 @@ test("first-party observation consent controls the real retrieval context", asyn
     assert.equal(revoked.indexStatus, "local_only");
     assert.deepEqual(await knowledgeBase.search(request), []);
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the new evidence catalog preserves opted-in first-party notes as local-only evidence", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tactiscout-evidence-observations-"));
+  const system = createKnowledgeEvidence({
+    catalogPath: path.join(root, "catalog.sqlite"),
+    indexPath: path.join(root, "index"),
+    reranker: {
+      async rerank({ candidates }) {
+        return { orderedIds: candidates.map(({ id }) => id), inputTokens: null, outputTokens: null };
+      },
+    } satisfies EvidenceReranker,
+    embedder: {
+      modelId: "observation-evidence-test",
+      async embedMany(texts) { return texts.map(() => [1, 0]); },
+    },
+  });
+  const index = createKnowledgeEvidenceObservationIndex(system);
+  const observationDocument = {
+    sourceId: firstPartyObservationSourceId,
+    corpus: "player_report" as const,
+    title: "Theo Example · local observation",
+    url: "https://tactiscout.local/player-observations/example?revision=2026-10-21",
+    author: "Alex Scout",
+    publisher: "TactiScout 自录观察",
+    publishedAt: "2026-10-21",
+    license: "用户自录观察；仅依照记录中的本地保存与模型处理授权使用",
+    attribution: "Alex Scout，观察日期 2026-10-21；作者自录观点，未独立核实。",
+    entityIds: ["sportmonks:sp-123"],
+    entityNames: ["Theo Example"],
+    competition: "Bundesliga",
+    season: "2025/26",
+    acquisition: "authored" as const,
+    content: "The observer noted that Theo Example checks his shoulder before receiving and turns into open space when the pressing defender closes.",
+  };
+  try {
+    const published = await index.ingest(observationDocument);
+    const local = await system.reader.retrieve({
+      kind: "player_report",
+      query: "receiving under pressure",
+      subjects: [{ subjectId: "sportmonks:sp-123", displayName: "Theo Example" }],
+    }, { turnId: "observation-evidence-local-01", purpose: "reporting", modelDestination: "local" });
+    assert.equal(local.status, "found");
+    assert.equal(local.evidence[0]?.source.sourceType, "first_party_observation");
+    const remote = await system.reader.retrieve({
+      kind: "player_report",
+      query: "receiving under pressure",
+      subjects: [{ subjectId: "sportmonks:sp-123", displayName: "Theo Example" }],
+    }, { turnId: "observation-evidence-remote-01", purpose: "reporting", modelDestination: "configured_chat_gateway" });
+    assert.equal(remote.status, "not_covered");
+    assert.equal(await index.removeDocument(published.documentId), 1);
+  } finally {
+    await system.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("first-party observations without an addressable player ID stay saved but are not marked indexed", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "tactiscout-evidence-unbound-observation-"));
+  const system = createKnowledgeEvidence({
+    catalogPath: path.join(root, "catalog.sqlite"),
+    indexPath: path.join(root, "index"),
+    embedder: {
+      modelId: "unbound-observation-test",
+      async embedMany(texts) { return texts.map(() => [1, 0]); },
+    },
+  });
+  const library = createPlayerObservationLibrary({
+    index: createKnowledgeEvidenceObservationIndex(system),
+    storagePath: path.join(root, "observations.json"),
+  });
+  try {
+    const saved = await library.save(null, {
+      ...observationInput,
+      playerIdentityProvider: null,
+      externalPlayerId: null,
+      allowAiProcessing: true,
+    });
+    assert.equal(saved.indexStatus, "identity_unavailable");
+    assert.equal((await system.admin.status()).activeDocuments, 0);
+    assert.equal(summarizePlayerObservationDataset([saved]).identityUnavailableRecords, 1);
+  } finally {
+    await system.close();
     await rm(root, { recursive: true, force: true });
   }
 });

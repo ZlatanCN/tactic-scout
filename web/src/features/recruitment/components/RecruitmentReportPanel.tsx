@@ -238,8 +238,9 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
           </div>
           {report.historicalArchiveCandidates.length > 0 && <HistoricalArchiveCandidateAppendix candidates={report.historicalArchiveCandidates} />}
           <EvidenceNote title="资料检索"><>
-            角色/方法片段 {report.knowledgeCoverage.methodologyChunksRetrieved} 条 · 可展示方法来源 {report.knowledgeCoverage.methodologySources.length} 个{report.knowledgeCoverage.methodologySearchFailed ? "（检索失败）" : ""} · 球员报告 {report.knowledgeCoverage.playerReportChunksRetrieved} 条{report.knowledgeCoverage.playerReportSearchFailed ? "（检索失败）" : report.knowledgeCoverage.playerReportSearchPerformed ? "（已在表现评估后检索）" : "（未检索）"}
-            <small className="mt-2 block">外部网页只补充可追溯的定性线索；缺失的统计指标继续显示为未知。未配置 Web Search 时只检索本机资料库。</small>
+            方法资料 {report.knowledgeCoverage.methodologyChunksRetrieved} 条 · {knowledgeOutcomeLabel(report.knowledgeCoverage.methodologyOutcome)} · 可展示来源 {report.knowledgeCoverage.methodologySources.length} 个
+            <small className="mt-2 block">球员报告 {report.knowledgeCoverage.playerReportChunksRetrieved} 条 · {knowledgeOutcomeLabel(report.knowledgeCoverage.playerReportOutcome)}。试点未覆盖、成功零命中与查询故障分别显示；都不能转成球员能力负面判断。</small>
+            <small className="mt-2 block">外部资料只补充可追溯的定性线索；缺失的比赛统计继续显示为未知。</small>
             {report.knowledgeCoverage.methodologyChunksRetrieved > 0 && report.knowledgeCoverage.methodologySources.length === 0 && <small className="mt-2 block">本轮检索到方法片段，但来源未获准在报告中展示。</small>}
             <MethodologyReferences sources={report.knowledgeCoverage.methodologySources} />
             <small className="mt-2 block">方法资料用于理解角色和评估方法，不是球员表现证据。球员报告只补充定性观察，不直接计入能力评分；关联比赛指标也不代表整条观察已证实。</small>
@@ -259,6 +260,16 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
 
 function EvidenceNote({ title, children }: { title: string; children: ReactNode }) {
   return <section className="min-w-0 rounded-lg border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground"><h3 className="mb-1 mt-0 text-sm font-semibold text-foreground">{title}</h3><div>{children}</div></section>;
+}
+
+function knowledgeOutcomeLabel(outcome: RecruitmentReport["knowledgeCoverage"]["methodologyOutcome"]): string {
+  switch (outcome) {
+    case "found": return "找到证据";
+    case "not_covered": return "试点未覆盖";
+    case "no_relevant_evidence": return "检索已完成，无匹配";
+    case "unavailable": return "检索不可用";
+    case "not_triggered": return "未触发";
+  }
 }
 
 function ReferenceProfilesPanel({ profiles }: { profiles: RecruitmentReport["referenceProfiles"] }) {

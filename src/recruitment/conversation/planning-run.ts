@@ -12,6 +12,8 @@ import {
   buildRecruitmentDecisionContext,
   type RecruitmentDecisionContext,
 } from "./planning-decision.js";
+import { knowledgeEvidenceAccessContext } from "./knowledge-evidence-context.js";
+import { knowledgeSearchResultFromEvidence } from "../../knowledge/evidence-adapter.js";
 
 /**
  * Per-run scratch space shared by adjacent LangGraph supersteps. This object is
@@ -45,6 +47,64 @@ export function clearPlanningRunState(run: PlanningRunState): void {
   delete run.policyAction;
   delete run.proposedAction;
   delete run.plannerFallback;
+}
+
+async function refreshKnowledgeEvidenceForModel(input: {
+  state: State;
+  context: RecruitmentRuntimeContext;
+  config: LangGraphRunnableConfig;
+}): Promise<{ state: State; update: Partial<State>; modelEvidenceHistory?: State["history"] }> {
+  const { state, context, config } = input;
+  const referencedKnowledge = Object.values(state.retrievedKnowledge).filter((document) => document.evidenceRef);
+  if (!context.knowledgeEvidence || !referencedKnowledge.length) return { state, update: {} };
+  const result = await context.knowledgeEvidence.reader.resolve(
+    referencedKnowledge.map((document) => document.evidenceRef!),
+    knowledgeEvidenceAccessContext(config, state, "recruitment"),
+    config.signal,
+  );
+  const resolvedResults = result.evidence.map(knowledgeSearchResultFromEvidence);
+  const nonReferenceDocuments = Object.fromEntries(Object.entries(state.retrievedKnowledge).filter(([, document]) => !document.evidenceRef));
+  const retrievedKnowledge = Object.fromEntries([
+    ...Object.entries(nonReferenceDocuments),
+    ...resolvedResults.map((document) => [document.id, { ...document, text: "" }] as const),
+  ]);
+  const unavailableMethodology = result.status === "unavailable" && referencedKnowledge.some(({ corpus }) => corpus === "methodology");
+  const unavailableReports = result.status === "unavailable" && referencedKnowledge.some(({ corpus }) => corpus === "player_report");
+  const updatedState: State = {
+    ...state,
+    retrievedKnowledge,
+    ...(unavailableMethodology ? { methodologySearchOutcome: "unavailable" as const, methodologySearchFailed: true } : {}),
+    ...(unavailableReports ? { playerReportSearchOutcome: "unavailable" as const, playerReportSearchFailed: true } : {}),
+  };
+  const statusNote = result.status === "unavailable"
+    ? `当前引用解析不可用（${result.failureCode ?? "unknown"}）；这些资料不会放入模型上下文。`
+    : result.evidence.length
+      ? `以下引用已按当前策略重新解析，正文对应不可变原文版本；只可在标明的资料类别、来源和样本范围内使用。排序模式：${result.rankingMode ?? "unknown"}。`
+      : "此前保存的证据引用当前无法解析；不得继续使用 checkpoint 中的旧正文。";
+  const modelEvidenceHistory: State["history"] = [{
+    role: "tool",
+    toolName: "resolved_knowledge_context",
+    content: JSON.stringify({
+      status: result.status,
+      failureCode: result.failureCode,
+      traceId: result.traceId,
+      generationId: result.generationId,
+      rankingMode: result.rankingMode,
+      budgetMsUsed: result.budgetMsUsed,
+      budgetMsRemaining: result.budgetMsRemaining,
+      note: statusNote,
+      results: resolvedResults,
+    }),
+  }];
+  return {
+    state: updatedState,
+    update: {
+      retrievedKnowledge,
+      ...(unavailableMethodology ? { methodologySearchOutcome: "unavailable" as const, methodologySearchFailed: true } : {}),
+      ...(unavailableReports ? { playerReportSearchOutcome: "unavailable" as const, playerReportSearchFailed: true } : {}),
+    },
+    modelEvidenceHistory,
+  };
 }
 
 export function preparePlanningRunState(input: {
@@ -108,8 +168,10 @@ export function createPreparePlanningNode(input: {
 }) {
   return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
     const context = requireRecruitmentRuntimeContext(runtime.context);
+    const config = runtime as LangGraphRunnableConfig;
+    const refreshed = await refreshKnowledgeEvidenceForModel({ state, context, config });
     const planningRun = preparePlanningRunState({
-      state,
+      state: refreshed.state,
       context,
       retrievalMode: input.retrievalMode,
       understatResearchMode: input.understatResearchMode,
@@ -118,15 +180,20 @@ export function createPreparePlanningNode(input: {
     if (!planningRun.snapshot) {
       throw new Error("Recruitment decision preparation did not produce a decision snapshot.");
     }
+    if (refreshed.modelEvidenceHistory) {
+      const historyWithoutStaleRagText = planningRun.snapshot.history.filter((entry) => entry.role !== "tool"
+        || !["search_methodology", "search_player_reports", "resolved_knowledge_context"].includes(entry.toolName ?? ""));
+      planningRun.snapshot.history = [...historyWithoutStaleRagText, ...refreshed.modelEvidenceHistory];
+    }
     planningRun.decisionContext = buildRecruitmentDecisionContext({
-      state,
+      state: refreshed.state,
       snapshot: planningRun.snapshot,
-      config: runtime as LangGraphRunnableConfig,
+      config,
       repository: context.repository,
       ...(context.observer ? { observer: context.observer } : {}),
       groupCandidateRecords: context.candidateIdentityGrouper,
       previousShortlistContextEnabled: input.previousShortlistContextEnabled,
     });
-    return {};
+    return refreshed.update;
   };
 }

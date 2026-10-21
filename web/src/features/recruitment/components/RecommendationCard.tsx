@@ -86,8 +86,11 @@ export function RecommendationCard({ recommendation, backgroundOnly, rank, selec
         const internalObservationUrl = firstParty && new URL(observation.source.url).hostname === "tactiscout.local";
         return <li className="space-y-1 text-xs leading-5" key={`${observation.source.sourceId}-${index}`}>
           <p className="m-0 text-sm">{observation.summary}</p>
+          {observation.excerpt && <blockquote className="m-0 border-l-2 pl-3 text-muted-foreground">{observation.excerpt}</blockquote>}
+          {(observation.competition || observation.season || observation.observedFrom || observation.observedTo || observation.sampleSummary) && <small className="block text-muted-foreground">{[observation.competition, observation.season, observation.observedFrom && observation.observedTo ? observation.observedFrom + "–" + observation.observedTo : null, observation.sampleSummary].filter(Boolean).join(" · ")}</small>}
           <small className="block text-muted-foreground">{observation.verificationStatus === "linked_to_match_data" ? `关联比赛数据：${observation.linkedMetricKeys.join("、")}；需人工核实完整语义。` : "当前比赛数据未核实，作为单一来源的定性观点。"}</small>
           {firstParty && <small className="block text-muted-foreground">TactiScout 自录观察 · 作者观点，未经独立核实</small>}
+          {observation.source.evidenceType === "historical_player_analysis" && <small className="block text-muted-foreground">历史球员分析观点 · 研究者解释，不是职业球探报告，也不代表当前能力</small>}
           {internalObservationUrl
             ? <small className="block text-muted-foreground">没有提供外部参考链接；此观察只保存在本机。</small>
             : <a className="text-primary underline underline-offset-4" href={observation.source.url} target="_blank" rel="noreferrer">{firstParty ? "打开观察者提供的参考链接" : `${observation.source.title} · ${observation.source.author} · ${observation.source.license}`}</a>}

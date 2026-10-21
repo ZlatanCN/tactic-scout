@@ -11,6 +11,7 @@ import { type PlayerProfile } from "../../domain/players.js";
 import { normalizeSearchText } from "../../domain/text-matching.js";
 import { type CandidateIdentityGroup } from "../../players/identity/candidate-groups.js";
 import { type KnowledgeRepository } from "../../knowledge/index.js";
+import { explicitEvidenceSampleScope, knowledgeEvidenceAccessContext } from "./knowledge-evidence-context.js";
 import { requestedCapabilityEvidenceAreasForInput } from "../../domain/recruitment-capabilities.js";
 import { summarizeRequestedCapabilityCoverage } from "../conclusion-policy.js";
 import { RecruitmentActionSchema, type ToolActionName } from "../recruitment-actions.js";
@@ -116,6 +117,7 @@ async function executeRecruitmentStateAction(
     const {
       repository,
       knowledgeBase,
+      knowledgeEvidence,
       evidenceEvaluator,
       observer,
       candidateIdentityGrouper: groupCandidateRecords,
@@ -208,21 +210,30 @@ async function executeRecruitmentStateAction(
         .map(({ player }) => player)
         .filter((player) => reportNames.includes(player.name))
         .slice(0, 10)
-        .map(({ name: playerName, team, competition, season }) => ({ playerName, team, competition, season }))
+        .map(({ name: playerName, team, competition, season, sourceIdentity }) => ({
+          playerName,
+          team,
+          competition,
+          season,
+          ...(sourceIdentity ? { verifiedSubjectIds: [`${sourceIdentity.provider.toLocaleLowerCase()}:${sourceIdentity.playerId}`] } : {}),
+        }))
         .filter(({ team, competition, season }) => [team, competition, season].every(value => typeof value === "string" && value.trim().length > 0))
       : [];
     const similarityReference = state.brief?.task === "similarity"
       ? state.referenceProfiles.find(profile => profile.abilitySnapshotId && profile.abilityRolePriorities) : undefined;
     const searchIntent = resolvedCandidateSearchIntent(state);
+    const { scopeUnavailable: sampleScopeUnavailable, ...sampleScope } = action.action === "search_player_reports"
+      ? explicitEvidenceSampleScope(state.userMessage)
+      : {};
     const toolRequest: RecruitmentToolExecutionRequest = action.action === "search_player_reports"
       ? {
         ...action,
         playerNames: reportNames,
         requestedPlayerCount: reportNames.length,
-        ...(reportCapabilityGaps.length && reportPlayerContexts.length ? {
-          capabilityGaps: reportCapabilityGaps,
-          playerContexts: reportPlayerContexts,
-        } : {}),
+        ...sampleScope,
+        ...(sampleScopeUnavailable ? { sampleScopeUnavailable: true } : {}),
+        ...(reportCapabilityGaps.length ? { capabilityGaps: reportCapabilityGaps } : {}),
+        ...(reportPlayerContexts.length ? { playerContexts: reportPlayerContexts } : {}),
       }
       : action.action === "evaluate_candidates"
         ? {
@@ -252,6 +263,15 @@ async function executeRecruitmentStateAction(
       const execution = await executeRecruitmentToolAction(toolRequest, {
         repository,
         knowledgeBase,
+        ...(knowledgeEvidence ? {
+          knowledgeEvidence,
+          knowledgeEvidenceContext: knowledgeEvidenceAccessContext(
+            config,
+            state,
+            action.action === "search_player_reports" ? "reporting" : "recruitment",
+          ),
+          identityResolutionScopeId: typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : undefined,
+        } : {}),
         evaluator: evidenceEvaluator,
         ...(teamRosterEnrichment ? { teamRosterEnrichment } : {}),
         ...(referenceNameResolver ? { referenceNameResolver } : {}),
@@ -302,8 +322,8 @@ async function executeRecruitmentStateAction(
         toolUses,
         hasInvestigated: true,
         ...(action.action === "inspect_team" ? { inspectedReferenceMention: normalizeSearchText(replacementTargetMention(currentUserMessages) ?? "") } : {}),
-        ...(action.action === "search_methodology" ? { hasSearchedMethodology: true, methodologySearchFailed: true } : {}),
-        ...(action.action === "search_player_reports" ? { hasSearchedPlayerReports: true, playerReportSearchFailed: true } : {}),
+        ...(action.action === "search_methodology" ? { hasSearchedMethodology: true, methodologySearchOutcome: "unavailable" as const, methodologySearchFailed: true } : {}),
+        ...(action.action === "search_player_reports" ? { hasSearchedPlayerReports: true, playerReportSearchOutcome: "unavailable" as const, playerReportSearchFailed: true } : {}),
         ...(action.action === "search_player_reports" ? { searchedReportPlayerNames: reportNames } : {}),
         ...(["fbref", "fpl", "premier_league", "asa", "understat", "mosaic"].includes(repository.mode) && (code === "blocked" || code === "rate_limit")
           ? { sourceAccessFailure: { code, message } }

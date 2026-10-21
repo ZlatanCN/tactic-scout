@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { unavailableRecruitmentConversation } from "../../src/recruitment/conversation.js";
 import { createApp } from "../../src/app.js";
+import { createPlayerObservationLibrary } from "../../src/observations/library.js";
 import type { KnowledgeDocumentInput } from "../../src/knowledge/schemas.js";
 
 const input = {
@@ -30,8 +31,20 @@ test("Fastify exposes an authorized local observation lifecycle and indexes only
   const root = await mkdtemp(path.join(os.tmpdir(), "tactiscout-observation-api-"));
   const indexed: KnowledgeDocumentInput[] = [];
   const removed: string[] = [];
+  const playerObservationLibrary = createPlayerObservationLibrary({
+    storagePath: path.join(root, "observations.json"),
+    index: {
+      documentId(input) { return `doc-${indexed.length + 1}-${input.url}`; },
+      canIndex(input) { return input.entityIds.length > 0; },
+      async ingest(document) {
+        indexed.push(document);
+        return { documentId: `doc-${indexed.length}`, chunkCount: 1 };
+      },
+      async removeDocument(documentId) { removed.push(documentId); return 1; },
+    },
+  });
   const app = createApp({
-    playerObservationsPath: path.join(root, "observations.json"),
+    playerObservationLibrary,
     knowledgeBase: {
       async search() { return []; },
       async ingest(document) {
@@ -101,10 +114,24 @@ test("Fastify exposes an authorized local observation lifecycle and indexes only
     assert.equal(savedLocalOnly.indexStatus, "local_only");
     assert.equal(indexed.length, 0);
 
-    const searchable = await app.inject({
+    const unbound = await app.inject({
       method: "POST",
       url: "/api/v1/player-observations",
       payload: { ...input, allowAiProcessing: true },
+    });
+    assert.equal(unbound.statusCode, 201);
+    assert.equal(unbound.json().indexStatus, "identity_unavailable");
+    assert.equal(indexed.length, 0);
+
+    const searchable = await app.inject({
+      method: "POST",
+      url: "/api/v1/player-observations",
+      payload: {
+        ...input,
+        playerIdentityProvider: "sportmonks",
+        externalPlayerId: "sp-123",
+        allowAiProcessing: true,
+      },
     });
     assert.equal(searchable.statusCode, 201);
     const savedSearchable = searchable.json();
@@ -116,14 +143,19 @@ test("Fastify exposes an authorized local observation lifecycle and indexes only
     const revoked = await app.inject({
       method: "PUT",
       url: `/api/v1/player-observations/${savedSearchable.id}`,
-      payload: { ...input, allowAiProcessing: false },
+      payload: {
+        ...input,
+        playerIdentityProvider: "sportmonks",
+        externalPlayerId: "sp-123",
+        allowAiProcessing: false,
+      },
     });
     assert.equal(revoked.statusCode, 200);
     assert.equal(revoked.json().indexStatus, "local_only");
     assert.deepEqual(removed, ["doc-1"]);
 
     const listed = await app.inject({ method: "GET", url: "/api/v1/player-observations" });
-    assert.equal(listed.json().length, 2);
+    assert.equal(listed.json().length, 3);
 
     const deletion = await app.inject({ method: "DELETE", url: `/api/v1/player-observations/${savedLocalOnly.id}` });
     assert.equal(deletion.statusCode, 204);

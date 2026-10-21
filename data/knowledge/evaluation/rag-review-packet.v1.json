@@ -1,0 +1,643 @@
+{
+  "packetId": "dual-rag-review-v1",
+  "status": "pending_human_review",
+  "createdAt": "2026-10-21",
+  "sourceSnapshot": [
+    {
+      "sourceId": "plos-xg-soccer-player-analysis-2023",
+      "doi": "10.1371/journal.pone.0282295",
+      "expectedArticleSampleSeason": "2017/18",
+      "humanReviewRequired": true
+    },
+    {
+      "sourceId": "plos-soccer-analysis-2024",
+      "humanReviewRequired": true
+    },
+    {
+      "sourceId": "plos-position-specific-physical-performance-2021",
+      "humanReviewRequired": true
+    }
+  ],
+  "questions": [
+    {
+      "id": "M01",
+      "corpus": "methodology",
+      "family": "core_definition",
+      "split": "calibration",
+      "query": "预期进球 xG 表示什么？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "一脚射门最终进球的概率"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M02",
+      "corpus": "methodology",
+      "family": "feature_scope",
+      "split": "calibration",
+      "query": "这篇 xG 研究使用哪个赛季、哪些联赛的数据？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "2017/18",
+        "英超、西甲、德甲、意甲、法甲"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M03",
+      "corpus": "methodology",
+      "family": "player_ability",
+      "split": "calibration",
+      "query": "论文用什么特征代理球员能力？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "球员身价",
+        "累计 PlayeRank"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M04",
+      "corpus": "methodology",
+      "family": "feature_scope",
+      "split": "calibration",
+      "query": "论文怎样计算每场比赛前的累计 PlayeRank？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "把该球员此前参加比赛的 PlayeRank 值相加"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M05",
+      "corpus": "methodology",
+      "family": "interpretation",
+      "split": "calibration",
+      "query": "研究者怎样解释 La Liga 的 PlayeRank 特征表现？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "该特征在西甲结果中的排名较高",
+        "作者将其归因于条目变异及具名球员表现",
+        "保留为作者解释"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M06",
+      "corpus": "methodology",
+      "family": "limitation",
+      "split": "calibration",
+      "query": "这篇 xG 论文是否完整测量了所有比赛可预测性？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "不是",
+        "作者指出没有显式建模预期射正"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M07",
+      "corpus": "methodology",
+      "family": "limitation",
+      "split": "calibration",
+      "query": "论文的球员表现结论可以直接推广到当前候选吗？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "不能",
+        "研究数据为 2017/18 历史赛季"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M08",
+      "corpus": "methodology",
+      "family": "core_definition",
+      "split": "calibration",
+      "query": "项目作者的方法摘要对球员角色和指标提出了什么提醒？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-soccer-analysis-2024"
+      ],
+      "answerOutline": [
+        "拆分为可观察行为",
+        "结合比赛语境",
+        "数据不能代替教练或球探判断"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M09",
+      "corpus": "methodology",
+      "family": "limitation",
+      "split": "validation",
+      "query": "位置会不会影响职业足球比赛中的跑动和高强度距离？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-position-specific-physical-performance-2021"
+      ],
+      "answerOutline": [
+        "研究观察到位置差异",
+        "仍需保留位置和个体语境"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M10",
+      "corpus": "methodology",
+      "family": "limitation",
+      "split": "validation",
+      "query": "没有记录到一项球员能力统计，能否据此评价球员很弱？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-soccer-analysis-2024"
+      ],
+      "answerOutline": [
+        "不能把资料缺失解释成能力负面证据"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M11",
+      "corpus": "methodology",
+      "family": "cross_language",
+      "split": "validation",
+      "query": "如何理解 performance analysis technology 对球员发展的作用？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-soccer-analysis-2024"
+      ],
+      "answerOutline": [
+        "技术和战术指标可用于反馈与发展",
+        "须保留可理解性和语境"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "M12",
+      "corpus": "methodology",
+      "family": "limitation",
+      "split": "validation",
+      "query": "论文引用的 Wyscout 比赛事件数据是否自动获准进入本项目索引？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "不自动准入",
+        "论文内容许可不扩展到上游数据集"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P01",
+      "corpus": "player_report",
+      "family": "historical_named_players",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        },
+        {
+          "subjectId": "Q615",
+          "displayName": "Lionel Messi"
+        }
+      ],
+      "query": "作者把哪些球员表现与西甲 PlayeRank 条目的较高变异联系起来？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "Cristiano Ronaldo",
+        "Lionel Messi",
+        "还提到 Suarez、Griezmann、Benzema"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P02",
+      "corpus": "player_report",
+      "family": "historical_named_players",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        }
+      ],
+      "query": "这段作者分析能说明 Ronaldo 在西甲哪类个人表现的统计细节？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "仅将其表现列为影响 PlayeRank 条目变异的例子",
+        "不包含个人技能或单场明细"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P03",
+      "corpus": "player_report",
+      "family": "historical_range",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q615",
+          "displayName": "Lionel Messi"
+        }
+      ],
+      "query": "Messi 在这个研究中的资料属于哪个赛季？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "研究的比赛数据为 2017/18 赛季",
+        "没有逐人标注具体比赛日期"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P04",
+      "corpus": "player_report",
+      "family": "historical_range",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        }
+      ],
+      "query": "这段文章指出 Ronaldo 的具体哪一场比赛表现？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "没有指出具体比赛"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P05",
+      "corpus": "player_report",
+      "family": "identity",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q615",
+          "displayName": "Lionel Messi"
+        }
+      ],
+      "query": "作者是否报告 Messi 在这段分析中的射门数或进球数？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "此段没有提供个人射门或进球统计"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P06",
+      "corpus": "player_report",
+      "family": "historical_named_players",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        },
+        {
+          "subjectId": "Q615",
+          "displayName": "Lionel Messi"
+        }
+      ],
+      "query": "作者的分析能证明两人在当前赛季仍然具备相同能力吗？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "不能",
+        "只讨论研究所用历史样本"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P07",
+      "corpus": "player_report",
+      "family": "identity",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        }
+      ],
+      "query": "文章有没有记录 Ronaldo 的观察者现场球探笔记？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "没有",
+        "这是研究者对模型结果的解释，不是现场球探笔记"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P08",
+      "corpus": "player_report",
+      "family": "historical_range",
+      "split": "calibration",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        }
+      ],
+      "query": "论文是否给出 Ronaldo 被提及那场比赛的年月日？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "没有给出逐人具体比赛日期"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P09",
+      "corpus": "player_report",
+      "family": "identity",
+      "split": "validation",
+      "subjects": [
+        {
+          "subjectId": "Q615",
+          "displayName": "Lionel Messi"
+        }
+      ],
+      "query": "作者是否比较了 Messi 与 Ronaldo 谁的 PlayeRank 更高？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "没有提供两人之间的个人分数比较"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P10",
+      "corpus": "player_report",
+      "family": "identity_mismatch",
+      "split": "validation",
+      "subjects": [
+        {
+          "subjectId": "Q28967995",
+          "displayName": "Erling Haaland"
+        }
+      ],
+      "query": "这篇 La Liga PlayeRank 讨论对 Haaland 有什么结论？",
+      "expectedDisposition": "not_covered",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "试点未覆盖该主体",
+        "不得借用其他球员的观点"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P11",
+      "corpus": "player_report",
+      "family": "scope_mismatch",
+      "split": "validation",
+      "subjects": [
+        {
+          "subjectId": "Q11571",
+          "displayName": "Cristiano Ronaldo"
+        }
+      ],
+      "sampleFrom": "2020-01-01",
+      "sampleTo": "2020-12-31",
+      "query": "2020 年 Ronaldo 的西甲 PlayeRank 表现如何？",
+      "expectedDisposition": "abstain",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "本来源是 2017/18 研究样本",
+        "不能回答 2020 表现"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    },
+    {
+      "id": "P12",
+      "corpus": "player_report",
+      "family": "provenance",
+      "split": "validation",
+      "subjects": [
+        {
+          "subjectId": "Q615",
+          "displayName": "Lionel Messi"
+        }
+      ],
+      "query": "这条球员资料的观点来自谁？",
+      "expectedDisposition": "answer",
+      "expectedSourceIds": [
+        "plos-xg-soccer-player-analysis-2023"
+      ],
+      "answerOutline": [
+        "Mead、O’Hare 与 McMenemy",
+        "作者的研究解释"
+      ],
+      "review": {
+        "answerSupported": null,
+        "citationAccurate": null,
+        "abstentionAppropriate": null,
+        "reviewerNotes": null,
+        "reviewedAt": null
+      }
+    }
+  ],
+  "review": {
+    "answerSupported": null,
+    "citationAccurate": null,
+    "abstentionAppropriate": null,
+    "reviewerNotes": null,
+    "reviewedAt": null
+  },
+  "summary": {
+    "questionCount": 24,
+    "methodologyQuestionCount": 12,
+    "playerReportQuestionCount": 12,
+    "humanReviewStatus": "pending",
+    "modelSelfScoreIsIndependentReview": false
+  }
+}

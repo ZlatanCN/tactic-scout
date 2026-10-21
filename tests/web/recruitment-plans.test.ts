@@ -34,7 +34,7 @@ const originalReport: RecruitmentReport = {
   historicalArchiveCoverage: { status: "not_run", disabledReason: null, checkedCandidates: 0, mappedCandidates: 0, matchedCandidates: 0, failedCandidates: 0 },
   historicalArchiveCandidates: [],
   understatMatchResearch: [],
-  knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologySearchFailed: false, methodologySources: [], playerReportSearchPerformed: false, playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
+  knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologyOutcome: "not_triggered", methodologySearchFailed: false, methodologySources: [], playerReportSearchPerformed: false, playerReportOutcome: "not_triggered", playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
   searchScopes: [],
   recommendations: [],
   limitations: ["历史数据不能核实当前阵容。"],

@@ -316,7 +316,7 @@ test("LangGraph evaluates every eligible player from the current page before ask
   assert.equal(response.report?.evidenceCoverage.evaluatedCandidateCount, 20);
 });
 
-test("the Planner gets an expansion choice after a completed report search when another candidate page remains", async () => {
+test("the Planner can expand after a name-only report request without searching the player corpus", async () => {
   const players = Array.from({ length: 21 }, (_, index) => (
     roleConstraintPlayer(`expand-player-${index}`, `Expand Player ${index}`, "CM")
   ));
@@ -402,10 +402,8 @@ test("the Planner gets an expansion choice after a completed report search when 
   const searches = events.filter((event) => event.phase === "tool" && event.toolName === "search_candidates");
   assert.deepEqual(searches.map((event) => event.phase === "tool" ? event.filters.offset : null), [0, 20]);
   assert.equal(events.filter((event) => event.phase === "tool" && event.toolName === "search_player_reports").length, 3);
-  assert.equal(searchedReportBatches.length, 3);
-  const firstReportNames = new Set(searchedReportBatches[0]?.map((name) => name.toLocaleLowerCase()));
-  assert.ok(searchedReportBatches[1]?.every((name) => !firstReportNames.has(name.toLocaleLowerCase())),
-    "later report retrieval searches only newly evaluated players");
+  assert.equal(searchedReportBatches.length, 0, "the legacy name-only report index is not called for candidates without verified IDs");
+  assert.equal(response.report?.knowledgeCoverage.playerReportOutcome, "not_covered");
   assert.equal(response.report?.evidenceCoverage.evaluatedCandidateCount, 21);
   assert.deepEqual(events.filter((event) => event.phase === "tool" && event.toolName === "evaluate_candidates")
     .map((event) => event.phase === "tool" ? event.resultCount : null), [10, 10, 1]);

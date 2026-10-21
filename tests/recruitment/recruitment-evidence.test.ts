@@ -829,7 +829,8 @@ test("policy report retrieval covers every evaluated candidate before Planner sy
   });
 
   assert.equal(response.status, "completed");
-  assert.deepEqual(new Set(actualReportNames), new Set(players.map((player) => player.name)));
+  assert.deepEqual(actualReportNames, [], "name-only player report search is blocked when candidates have no verified source identity");
+  assert.equal(response.report?.knowledgeCoverage.playerReportOutcome, "not_covered");
   assert.equal(decisionModes.at(-1), "reorient");
   const projectedCandidateEvidence = (reorientationCaseProgress as {
     candidateEvidence?: { candidateCount: number; candidates: Array<{ playerId: string; metrics: Array<{ key: string }> }> };

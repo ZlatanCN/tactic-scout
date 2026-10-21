@@ -156,7 +156,11 @@ test("Reviewer ablation repairs an unrelated citation without changing candidate
   assert.deepEqual(enabled.report.recommendations.map(({ player }) => player.playerId), bypassed.report.recommendations.map(({ player }) => player.playerId));
   assert.deepEqual(enabled.report.evidenceCoverage, bypassed.report.evidenceCoverage);
   const tools = (events: RecruitmentTraceEvent[]) => events.flatMap((event) => event.phase === "tool"
-    ? [{ toolName: event.toolName, filters: event.filters, resultCount: event.resultCount }]
+    ? [{
+      toolName: event.toolName,
+      filters: Object.fromEntries(Object.entries(event.filters).filter(([key]) => key !== "traceId")),
+      resultCount: event.resultCount,
+    }]
     : []);
   assert.deepEqual(tools(enabled.events), tools(bypassed.events));
   assert.deepEqual(enabled.report.recommendations[0]?.focusEvidenceKeys, [requestedMetricKey]);

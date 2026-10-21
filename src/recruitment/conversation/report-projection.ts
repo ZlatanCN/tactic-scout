@@ -23,8 +23,10 @@ import { candidateIdentityGroupReferencesFor, candidateSearchObservationIndexFor
 import { candidateMatchesSearchIntentForPositionRetrieval } from "../candidate-search-intent.js";
 import { positionLabels } from "./interaction-policy.js";
 import { type CandidateSearchObservation, type EvaluatedPlayer, type State } from "./state.js";
-import { type Runtime } from "@langchain/langgraph";
+import { type LangGraphRunnableConfig, type Runtime } from "@langchain/langgraph";
 import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
+import { knowledgeEvidenceAccessContext } from "./knowledge-evidence-context.js";
+import { knowledgeSearchResultFromEvidence } from "../../knowledge/evidence-adapter.js";
 
 const limitationDescriptions = {
   current_roster: "当前数据不能核实目标球队的完整现役阵容。",
@@ -398,11 +400,15 @@ function limitationsFor(
     limitations.push(`本轮球员报告检索预算已用尽；${unsearchedReportCount} 名已评估候选未完成报告检索，相关观察仍需人工补查。`);
   }
   if (state.hasSearchedPlayerReports && !Object.values(state.retrievedKnowledge).some((document) => document.corpus === "player_report")) {
-    limitations.push(state.playerReportSearchFailed
-      ? "本轮球员报告检索发生错误；未能取得报告层面的定性观察。"
-      : "本轮获准索引中没有检索到相关球员报告；报告层面的定性观察仍需人工补查。");
+    const outcome = state.playerReportSearchOutcome;
+    limitations.push(outcome === "unavailable" || state.playerReportSearchFailed
+      ? "本轮球员报告检索不可用；不能把工具故障或超时表述为候选人没有相关资料。"
+      : outcome === "not_covered"
+        ? "本轮球员报告试点未覆盖这些已核验主体；覆盖范围外不表示球员能力较弱。"
+        : "本轮球员报告检索已完成，但没有找到相关证据；零命中不能作为球员能力的负面判断。该线索仍可由人工补查。",
+    );
   }
-  if (state.methodologySearchFailed) limitations.push("角色/方法资料索引检索发生错误；能力画像只由对话和比赛数据形成。 ".trim());
+  if (state.methodologySearchFailed || state.methodologySearchOutcome === "unavailable") limitations.push("角色/方法资料检索不可用；能力画像只由对话和比赛数据形成，不能把工具故障当成没有方法资料。");
   return [...new Set(limitations)];
 }
 
@@ -410,8 +416,29 @@ export function createReportProjection(input: {
   candidateComparisonEnabled?: boolean;
   referenceProfileEnabled?: boolean;
 }) {
-  return (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Partial<State> => {
+  return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
     const context = requireRecruitmentRuntimeContext(runtime.context);
+    if (context.knowledgeEvidence) {
+      const referencedKnowledge = Object.values(state.retrievedKnowledge).filter((document) => document.evidenceRef);
+      if (referencedKnowledge.length) {
+        const resolved = await context.knowledgeEvidence.reader.resolve(
+          referencedKnowledge.map((document) => document.evidenceRef!),
+          knowledgeEvidenceAccessContext(runtime as LangGraphRunnableConfig, state, "reporting"),
+          runtime.signal,
+        );
+        const resolvedResults = resolved.evidence.map(knowledgeSearchResultFromEvidence);
+        const legacyKnowledge = Object.fromEntries(Object.entries(state.retrievedKnowledge).filter(([, document]) => !document.evidenceRef));
+        state = {
+          ...state,
+          retrievedKnowledge: Object.fromEntries([
+            ...Object.entries(legacyKnowledge),
+            ...resolvedResults.map((document) => [document.id, document] as const),
+          ]),
+          ...(resolved.status === "unavailable" && referencedKnowledge.some(({ corpus }) => corpus === "methodology") ? { methodologySearchOutcome: "unavailable", methodologySearchFailed: true } : {}),
+          ...(resolved.status === "unavailable" && referencedKnowledge.some(({ corpus }) => corpus === "player_report") ? { playerReportSearchOutcome: "unavailable", playerReportSearchFailed: true } : {}),
+        };
+      }
+    }
     const { repository, evidenceEvaluator, candidateIdentityGrouper: groupCandidateRecords } = context;
     if (state.briefFailure) return { report: null, responseMessage: state.briefFailure };
     const action = state.action?.action === "finish" ? state.action : emptyDecision(state.targetTeam);
@@ -555,6 +582,14 @@ export function createReportProjection(input: {
                 summary: observation.summary,
                 verificationStatus: observation.linkedMetricKeys.length ? "linked_to_match_data" as const : "unverified" as const,
                 linkedMetricKeys: observation.linkedMetricKeys,
+                documentId: document.documentId,
+                ...(document.evidenceRef ? { evidenceRef: document.evidenceRef } : {}),
+                ...(document.evidenceRef ? { excerpt: document.text.slice(0, 1_200) } : {}),
+                ...(document.sampleSummary === undefined ? {} : { sampleSummary: document.sampleSummary }),
+                ...(document.competition === undefined ? {} : { competition: document.competition }),
+                ...(document.season === undefined ? {} : { season: document.season }),
+                ...(document.observedFrom === undefined ? {} : { observedFrom: document.observedFrom }),
+                ...(document.observedTo === undefined ? {} : { observedTo: document.observedTo }),
                 source: {
                   sourceId: document.sourceId,
                   sourceName: document.sourceName,
@@ -565,6 +600,7 @@ export function createReportProjection(input: {
                   publishedAt: document.publishedAt,
                   license: document.license,
                   attribution: document.attribution,
+                  ...(document.evidenceType ? { evidenceType: document.evidenceType } : {}),
                 },
               }];
             }),
@@ -643,9 +679,11 @@ export function createReportProjection(input: {
       candidateIdentityCoverage,
       knowledgeCoverage: {
         methodologyChunksRetrieved: retrievedDocuments.filter((document) => document.corpus === "methodology").length,
+        methodologyOutcome: state.methodologySearchOutcome,
         methodologySearchFailed: state.methodologySearchFailed,
         methodologySources: collectMethodologySourceReferences(retrievedDocuments),
         playerReportSearchPerformed: state.hasSearchedPlayerReports,
+        playerReportOutcome: state.playerReportSearchOutcome,
         playerReportSearchFailed: state.playerReportSearchFailed,
         playerReportChunksRetrieved: retrievedDocuments.filter((document) => document.corpus === "player_report").length,
       },

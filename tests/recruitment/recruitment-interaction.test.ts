@@ -342,6 +342,7 @@ test("a recruitment case investigates, pauses for a material choice, resumes, an
     });
     assert.deepEqual(body.report.knowledgeCoverage, {
       methodologyChunksRetrieved: 1,
+      methodologyOutcome: "found",
       methodologySearchFailed: false,
       methodologySources: [{
         title: "表现分析方法摘要",
@@ -353,7 +354,8 @@ test("a recruitment case investigates, pauses for a material choice, resumes, an
         attribution: "TactiScout authored note",
       }],
       playerReportSearchPerformed: true,
-      playerReportSearchFailed: false,
+      playerReportOutcome: "unavailable",
+      playerReportSearchFailed: true,
       playerReportChunksRetrieved: 0,
     });
     const observedTools = graphEvents.filter((event) => event.phase === "tool" && event.ok).map((event) => event.toolName);

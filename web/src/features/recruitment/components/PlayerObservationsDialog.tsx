@@ -238,7 +238,10 @@ export function PlayerObservationsDialog({ onClose }: Props) {
         ? "观察已保存，并已加入 Agent 的球员报告检索。"
         : saved.indexStatus === "index_failed"
           ? "观察已保存在本机，但索引暂未完成；再次保存可重试。"
-          : "观察已保存在本机；只有你明确授权后才会加入 Agent 检索。 ");
+          : saved.indexStatus === "identity_unavailable"
+            ? "观察已保存在本机；补充可关联的数据源球员 ID 后，才能加入该球员的检索。"
+            : "观察已保存在本机；只有你明确授权后才会加入 Agent 检索。 ");
+
     } catch (caught) {
       setError(validationMessage(caught));
     } finally {
@@ -300,6 +303,7 @@ export function PlayerObservationsDialog({ onClose }: Props) {
                 <div className="rounded-md bg-muted p-2"><dd className="m-0 text-lg font-semibold tabular-nums">{datasetSummary.ratingEntries}</dd><dt className="text-muted-foreground">能力判断</dt></div>
                 <div className="rounded-md bg-muted p-2"><dd className="m-0 text-lg font-semibold tabular-nums">{datasetSummary.indexedRecords}</dd><dt className="text-muted-foreground">已授权检索</dt></div>
               </dl>
+              {datasetSummary.identityUnavailableRecords > 0 && <p className="m-0 text-xs leading-5 text-muted-foreground">另有 {datasetSummary.identityUnavailableRecords} 条观察已获模型处理授权，但没有可关联的球员 ID，暂不能进入球员检索。</p>}
               {datasetSummary.ratingEntries > 0 && <div className="flex flex-wrap gap-1.5" aria-label="各能力维度记录数">
                 {datasetSummary.dimensionCoverage.filter((item) => item.recordCount > 0).map((item) => <Badge variant="outline" key={item.dimension}>{item.label}<span className="ml-1 tabular-nums">{item.recordCount}</span></Badge>)}
               </div>}
@@ -314,7 +318,7 @@ export function PlayerObservationsDialog({ onClose }: Props) {
                   <strong className="block break-words text-sm">{record.playerName}</strong>
                   <span className="mt-1 block text-xs text-muted-foreground">{record.observedAt} · {record.competition ?? "赛事待补"}</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{record.viewingScope ? PlayerObservationViewingScopeDefinitions[record.viewingScope] : "观看范围未记录"}{record.viewedMinuteRanges ? ` · ${record.viewedMinuteRanges}` : ""}</span>
-                  <span className="mt-1 block text-[11px] text-muted-foreground">{record.ratings.length ? `${record.ratings.length} 项能力观察 · ` : ""}{record.indexStatus === "indexed" ? "已加入 Agent 检索" : record.indexStatus === "index_failed" ? "索引待重试" : "仅保存在本机"}</span>
+                  <span className="mt-1 block text-[11px] text-muted-foreground">{record.ratings.length ? `${record.ratings.length} 项能力观察 · ` : ""}{record.indexStatus === "indexed" ? "已加入 Agent 检索" : record.indexStatus === "index_failed" ? "索引待重试" : record.indexStatus === "identity_unavailable" ? "缺少可关联球员 ID" : "仅保存在本机"}</span>
                 </button>
               </li>)}
             </ul>}
@@ -323,6 +327,7 @@ export function PlayerObservationsDialog({ onClose }: Props) {
 
         <form className="min-w-0 space-y-5 p-4 sm:overflow-y-auto sm:p-6" onSubmit={(event) => void submit(event)}>
           {selectedRecord?.indexStatus === "index_failed" && <Alert className="border-warning/50 bg-warning/10 text-warning"><AlertCircle aria-hidden="true" /><AlertDescription>这条观察尚未进入检索索引。保留模型处理授权并重新保存可再次尝试。</AlertDescription></Alert>}
+          {selectedRecord?.indexStatus === "identity_unavailable" && <Alert className="border-warning/50 bg-warning/10 text-warning"><AlertCircle aria-hidden="true" /><AlertDescription>这条观察已保存在本机，但没有可关联的球员数据源 ID。补齐来源和 ID 后重新保存，才能按该球员身份检索。</AlertDescription></Alert>}
           <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
             <ObservationField label="球员姓名" required wide><Input autoFocus value={draft.playerName} onChange={(event) => updateDraft("playerName", event.target.value)} required maxLength={120} /></ObservationField>
             <ObservationField label="观察日期" required><Input type="date" value={draft.observedAt} onChange={(event) => updateDraft("observedAt", event.target.value)} required /></ObservationField>

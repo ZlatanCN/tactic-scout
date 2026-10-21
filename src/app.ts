@@ -14,8 +14,10 @@ import { createRecruitmentCheckpointStore } from "./recruitment/checkpoint-store
 import { createRepository } from "./sources/registry.js";
 import { configuredRecruitmentConversation, createRecruitmentConversation } from "./recruitment/conversation.js";
 import { createLocalKnowledgeBase } from "./knowledge/index.js";
+import { createKnowledgeEvidence } from "./knowledge/evidence.js";
 import { createWebSearchKnowledgeRepository } from "./knowledge/web-player-report-search.js";
 import { createPlayerObservationLibrary } from "./observations/library.js";
+import { createKnowledgeEvidenceObservationIndex } from "./observations/knowledge-evidence-index.js";
 import { RecruitmentTurnCoordinator } from "./recruitment/turn-coordinator.js";
 import { RecruitmentTurnService } from "./app/recruitment-turn-service.js";
 import { SQLiteBaseStore } from "./recruitment/preferences/sqlite-base-store.js";
@@ -25,9 +27,10 @@ export function createApp(options: CreateAppOptions = {}) {
   const app = Fastify({ logger: true });
   const playerRepository = options.playerRepository ?? createRepository();
   const knowledgeBase = options.knowledgeBase ?? createLocalKnowledgeBase();
+  const knowledgeEvidence = options.knowledgeEvidence ?? createKnowledgeEvidence();
   const recruitmentKnowledge = createWebSearchKnowledgeRepository(knowledgeBase);
   const playerObservationLibrary = options.playerObservationLibrary ?? createPlayerObservationLibrary({
-    index: knowledgeBase,
+    index: createKnowledgeEvidenceObservationIndex(knowledgeEvidence),
     storagePath: options.playerObservationsPath,
   });
   const checkpointStore = options.recruitmentConversation || options.checkpointer
@@ -49,6 +52,7 @@ export function createApp(options: CreateAppOptions = {}) {
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       planner: options.recruitmentPlanner,
       knowledgeBase: recruitmentKnowledge,
+      knowledgeEvidence,
       checkpointer,
       store: preferenceStore,
     })
@@ -56,6 +60,7 @@ export function createApp(options: CreateAppOptions = {}) {
       repository: playerRepository,
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       knowledgeBase: recruitmentKnowledge,
+      knowledgeEvidence,
       ...(checkpointer ? { checkpointer } : {}),
       store: preferenceStore,
     }));
@@ -79,6 +84,14 @@ export function createApp(options: CreateAppOptions = {}) {
       app.log.info({ activeTurns: drain.activeTurns }, "Recruitment service drained to durable graph boundaries");
     }
   });
+  app.addHook("onReady", async () => {
+    const status = await knowledgeEvidence.admin.status();
+    if (!status.generationId) return;
+    const prepared = await knowledgeEvidence.admin.prepareRuntime();
+    if (!prepared.ready) {
+      app.log.warn({ generationId: prepared.generationId, failureCode: prepared.failureCode }, "Knowledge evidence model or index did not pass runtime preflight; retrieval will report unavailable until it is prepared");
+    }
+  });
 
   const recruitmentRouteContext: RecruitmentRouteContext = {
     recruitmentConversation,
@@ -89,7 +102,7 @@ export function createApp(options: CreateAppOptions = {}) {
     teamRosterEnrichment,
     teamRosterEnrichmentConfigured: Boolean(options.teamRosterEnrichment),
   };
-  registerSystemRoutes(app, playerRepository, knowledgeBase);
+  registerSystemRoutes(app, playerRepository, knowledgeBase, knowledgeEvidence);
   registerRecruitmentPreferenceRoutes(app, recruitmentPreferences);
   registerPlayerObservationRoutes(app, playerObservationLibrary);
   registerRecruitmentProgressRoutes(app, recruitmentRouteContext);
@@ -98,6 +111,7 @@ export function createApp(options: CreateAppOptions = {}) {
 
   app.addHook("onClose", async () => {
     if (!safeToCloseStores) return;
+    await knowledgeEvidence.close();
     checkpointStore?.close();
     if (playerRepository.close) playerRepository.close();
     await preferenceStore.stop();

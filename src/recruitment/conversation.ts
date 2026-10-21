@@ -15,6 +15,7 @@ import { type PlayerProfile } from "../domain/players.js";
 import { type CandidateIdentityGroup, groupCandidatesByExactIdentity } from "../players/identity/candidate-groups.js";
 import { groupCandidatesWithConfiguredReepIndex } from "../players/identity/configured-candidate-grouper.js";
 import { type KnowledgeRepository, createLocalKnowledgeBase } from "../knowledge/index.js";
+import type { KnowledgeEvidence } from "../knowledge/evidence.js";
 import { createRecruitmentTurnRuntime, recruitmentProgressTransformer, type RecruitmentTurnGraphRun } from "./conversation-turn-runtime.js";
 import { assertRepositoryModelProcessingAllowed } from "./conversation/access.js";
 import { type RecruitmentAskUserMode, type RecruitmentCandidatePolicyMode, type RecruitmentConversation, type RecruitmentReviewerMode, type RecruitmentTraceObserver, type UnderstatResearchMode, RecruitmentCaseStateExpiredError } from "./conversation/contracts.js";
@@ -63,6 +64,7 @@ export function createRecruitmentConversation(input: {
   planner?: RecruitmentPlanner;
   candidateIdentityGrouper?: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
   knowledgeBase?: KnowledgeRepository;
+  knowledgeEvidence?: KnowledgeEvidence;
   observer?: RecruitmentTraceObserver;
   checkpointer?: BaseCheckpointSaver;
   store?: BaseStore;
@@ -121,6 +123,7 @@ export function createRecruitmentConversation(input: {
         : {}),
       candidateIdentityGrouper: groupCandidateRecords,
       knowledgeBase,
+      knowledgeEvidence: input.knowledgeEvidence ?? input.runtime?.knowledgeEvidence,
       ...(observer ?? input.runtime?.observer ? { observer: observer ?? input.runtime?.observer } : {}),
       evidenceEvaluator,
       userPreferences: input.runtime?.userPreferences ?? [],
@@ -225,7 +228,12 @@ export function createRecruitmentConversation(input: {
           ? { ...defaultRuntimeContext, ...context }
           : context ?? defaultRuntimeContext;
         const validRunContext = requireRecruitmentRuntimeContext(runContextBase);
-        const runContext = { ...validRunContext, userPreferences: validRunContext.userPreferences ?? [], planningRun: createPlanningRunState() } satisfies RecruitmentRuntimeContext;
+        const runContext = {
+          ...validRunContext,
+          knowledgeEvidence: validRunContext.knowledgeEvidence,
+          userPreferences: validRunContext.userPreferences ?? [],
+          planningRun: createPlanningRunState(),
+        } satisfies RecruitmentRuntimeContext;
         const streamOptions = {
           configurable: { thread_id: threadId },
           recursionLimit,
@@ -270,6 +278,7 @@ export interface ConfiguredRecruitmentConversationOptions {
   repository: PlayerRepository;
   teamRosterEnrichment?: TeamRosterEnrichmentProvider;
   knowledgeBase?: KnowledgeRepository;
+  knowledgeEvidence?: KnowledgeEvidence;
   observer?: RecruitmentTraceObserver;
   checkpointer?: BaseCheckpointSaver;
   store?: BaseStore;
@@ -317,6 +326,7 @@ export function configuredRecruitmentConversation(
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       candidateIdentityGrouper: groupCandidatesWithConfiguredReepIndex,
       knowledgeBase,
+      knowledgeEvidence: options.knowledgeEvidence,
       observer,
       checkpointer,
       store,

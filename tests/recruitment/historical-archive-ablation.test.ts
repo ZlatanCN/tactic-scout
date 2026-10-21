@@ -128,7 +128,12 @@ async function prepareArchive(root: string): Promise<{ archiveDirectory: string;
 function stableTrace(events: RecruitmentTraceEvent[]) {
   return events.flatMap((event) => {
     if (event.phase === "decision") return [{ phase: event.phase, action: event.action, decisionSource: event.decisionSource }];
-    if (event.phase === "tool") return [{ phase: event.phase, toolName: event.toolName, filters: event.filters, resultCount: event.resultCount }];
+    if (event.phase === "tool") return [{
+      phase: event.phase,
+      toolName: event.toolName,
+      filters: Object.fromEntries(Object.entries(event.filters).filter(([key]) => key !== "traceId")),
+      resultCount: event.resultCount,
+    }];
     return [];
   });
 }

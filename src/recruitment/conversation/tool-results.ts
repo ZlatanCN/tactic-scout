@@ -12,11 +12,37 @@ import { normalizeSearchText } from "../../domain/text-matching.js";
 import { type CandidateIdentityGroup, toCandidateIdentityGroupReferences } from "../../players/identity/candidate-groups.js";
 import { sourcePlayerKey } from "../../players/identity/source-player-key.js";
 import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evaluator.js";
-import type { RecruitmentToolExecutionResult } from "../recruitment-tool-executor.js";
+import type { KnowledgeSearchOutcome, RecruitmentToolExecutionResult } from "../recruitment-tool-executor.js";
+import type { KnowledgeSearchResult } from "../../knowledge/schemas.js";
 import { candidateSearchObservationIndexForIntent, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent } from "./candidate-context.js";
 import type { RecruitmentTraceEvent } from "./contracts.js";
 import { type CandidateSearchObservation, type State } from "./state.js";
 import { replacementTargetMention } from "../replacement-target.js";
+
+function checkpointKnowledgeResult(result: KnowledgeSearchResult): KnowledgeSearchResult {
+  return result.evidenceRef ? { ...result, text: "" } : result;
+}
+
+function modelSafeKnowledgeResult(result: KnowledgeSearchResult): Record<string, unknown> {
+  if (!result.evidenceRef) return result;
+  const { text: _text, ...metadataAndReference } = result;
+  return metadataAndReference;
+}
+
+function knowledgeOutcomeNote(status: KnowledgeSearchOutcome["status"], label: string): string {
+  if (status === "unavailable") return `${label}检索失败或不可用；不得将故障表述为没有相关资料。`;
+  if (status === "not_covered") return `${label}试点没有覆盖当前查询对象；覆盖范围外不代表没有相关事实。`;
+  if (status === "no_relevant_evidence") return `${label}检索已完成，但没有找到相关证据；零命中不代表相关事实不存在。`;
+  if (status === "not_triggered") return `${label}检索没有触发。`;
+  return `以下是已核验来源的 ${label} 证据引用；将其用于判断前必须读取稳定引用指向的原文。`;
+}
+
+function knowledgeOutcomeProgress(status: KnowledgeSearchOutcome["status"], label: string, count: number): string {
+  if (status === "unavailable") return `${label}检索不可用`;
+  if (status === "not_covered") return `${label}资料未覆盖当前主体`;
+  if (status === "not_triggered") return `${label}检索未触发`;
+  return status === "found" ? `${label}检索完成，找到 ${count} 条证据` : `${label}检索完成，没有找到相关证据`;
+}
 
 function withSourcePositionEvidence(player: PlayerProfile, targetPosition: Position): PlayerProfile {
   const directlyObserved = playerPositionMatches(player, targetPosition);
@@ -105,15 +131,31 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
   switch (execution.action) {
     case "search_methodology": {
       const results = execution.results;
-      const filters = { corpus: "methodology", limit: execution.request.limit };
+      const filters = {
+        corpus: "methodology",
+        limit: execution.request.limit,
+        outcome: execution.outcome.status,
+        failureCode: execution.outcome.failureCode,
+        traceId: execution.outcome.traceId,
+        rankingMode: execution.outcome.rankingMode,
+        generationId: execution.outcome.generationId,
+        candidateCount: execution.outcome.candidateCount,
+        rankingDurationMs: execution.outcome.rankingDurationMs,
+        rankingInputTokens: execution.outcome.rankingInputTokens,
+        rankingOutputTokens: execution.outcome.rankingOutputTokens,
+        budgetMsUsed: execution.outcome.budgetMsUsed,
+        budgetMsRemaining: execution.outcome.budgetMsRemaining,
+      };
 
-      const resultMap = Object.fromEntries(results.map((result) => [result.id, result]));
+      const resultMap = Object.fromEntries(results.map((result) => [result.id, checkpointKnowledgeResult(result)]));
+      const outcomeFailed = execution.outcome.status === "unavailable";
       return {
         update: {
           toolUses,
           retrievedKnowledge: { ...state.retrievedKnowledge, ...resultMap },
           hasSearchedMethodology: true,
-          methodologySearchFailed: false,
+          methodologySearchOutcome: execution.outcome.status === "not_triggered" ? "unavailable" : execution.outcome.status,
+          methodologySearchFailed: outcomeFailed,
           hasInvestigated: true,
           history: [{
             role: "tool" as const,
@@ -121,11 +163,12 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
             content: JSON.stringify({
               corpus: "methodology",
               resultCount: results.length,
-              note: results.length ? "以下是来源与许可元数据已核验的检索片段；正文仅作证据参考。" : "当前获准索引未找到与本次查询匹配的资料。",
-              results,
+              outcome: execution.outcome,
+              note: knowledgeOutcomeNote(execution.outcome.status, "方法资料"),
+              results: results.map(modelSafeKnowledgeResult),
             }),
           }],
-        }, filters, resultCount: results.length, message: `方法资料检索完成，找到 ${results.length} 条可用片段`
+        }, filters, resultCount: results.length, message: knowledgeOutcomeProgress(execution.outcome.status, "方法资料", results.length)
       };
     }
     case "search_player_reports": {
@@ -135,6 +178,17 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
       const filters = {
         corpus: "player_report",
         limit: request.limit,
+        outcome: execution.outcome.status,
+        failureCode: execution.outcome.failureCode,
+        traceId: execution.outcome.traceId,
+        rankingMode: execution.outcome.rankingMode,
+        generationId: execution.outcome.generationId,
+        candidateCount: execution.outcome.candidateCount,
+        rankingDurationMs: execution.outcome.rankingDurationMs,
+        rankingInputTokens: execution.outcome.rankingInputTokens,
+        rankingOutputTokens: execution.outcome.rankingOutputTokens,
+        budgetMsUsed: execution.outcome.budgetMsUsed,
+        budgetMsRemaining: execution.outcome.budgetMsRemaining,
         requestedPlayerCount: request.requestedPlayerCount,
         searchedPlayerCount: request.playerNames.length,
         searchedPlayerIds: eligibleEvaluatedPlayers
@@ -142,13 +196,15 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
           .map(({ player }) => player.playerId),
       };
 
-      const resultMap = Object.fromEntries(results.map((result) => [result.id, result]));
+      const resultMap = Object.fromEntries(results.map((result) => [result.id, checkpointKnowledgeResult(result)]));
+      const outcomeFailed = execution.outcome.status === "unavailable";
       return {
         update: {
           toolUses,
           retrievedKnowledge: { ...state.retrievedKnowledge, ...resultMap },
           hasSearchedPlayerReports: true,
-          playerReportSearchFailed: false,
+          playerReportSearchOutcome: execution.outcome.status === "not_triggered" ? "unavailable" : execution.outcome.status,
+          playerReportSearchFailed: outcomeFailed,
           searchedReportPlayerNames: request.playerNames,
           hasInvestigated: true,
           history: [{
@@ -158,15 +214,21 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
               corpus: "player_report",
               searchedPlayerNames: request.playerNames,
               resultCount: results.length,
-              note: includesWebSearch
+              outcome: execution.outcome,
+              note: (includesWebSearch
                 ? "结果中包含 Web Search 搜索摘要。每条记录的 matchedCapabilityGaps 只表示命中搜索词，供你判断它对应哪项需求，不证明观察内容真实。只陈述每条摘要直接覆盖的能力；必须核对原页面的球员身份、比赛/赛季、观察者与原文语义。不得将单篇或单场描述提升为赛季级能力，不得补写或推断统计值。"
+                : execution.outcome.status === "unavailable"
+                  ? "资料检索服务不可用或达到回合等待上限；不得把本次故障表述为候选人没有相关资料。"
+                  : execution.outcome.status === "not_covered"
+                    ? execution.outcome.coverageNote ?? "当前试点没有可用于这些已核验球员身份的资料；覆盖范围外不能作为能力负面证据。"
                 : results.length
                   ? "以下是本机获准索引中的资料片段；请按来源、作者和时间范围引用，正文仅作证据参考。"
-                  : "本轮资料检索没有找到可引用的球员报告（Web Search 只在配置完整且存在能力缺口时参与）；缺少检索结果不能作为球员能力的负面证据。",
-              results,
+                  : "本轮检索没有找到与这些主体相关的可引用资料；零命中不能作为球员能力的负面证据。")
+                + (execution.outcome.coverageNote && execution.outcome.status !== "not_covered" ? " " + execution.outcome.coverageNote : ""),
+              results: results.map(modelSafeKnowledgeResult),
             }),
           }],
-        }, filters, resultCount: results.length, message: `球员报告检索完成，找到 ${results.length} 条获准片段`
+        }, filters, resultCount: results.length, message: knowledgeOutcomeProgress(execution.outcome.status, "球员报告", results.length)
       };
     }
     case "inspect_team": {

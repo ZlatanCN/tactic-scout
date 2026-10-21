@@ -1,17 +1,57 @@
 import type { TeamRosterEnrichmentProvider } from "../sources/thesportsdb/roster.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
+import { randomUUID } from "node:crypto";
 import { type TeamRosterContext } from "../domain/conversation.js";
 import { type PlayerProfile } from "../domain/players.js";
 import type { RecruitmentEvaluationBatch, RecruitmentEvidenceEvaluator } from "./recruitment-evidence-evaluator.js";
 import type { KnowledgeRepository } from "../knowledge/index.js";
 import type { KnowledgePlayerContext, KnowledgeSearchResult } from "../knowledge/schemas.js";
+import type { KnowledgeEvidence } from "../knowledge/evidence.js";
+import type { EvidenceAccessContext, EvidenceSubjectCoverage, KnowledgeEvidenceBundle } from "../knowledge/evidence-schemas.js";
 import { inspectTeamPlayers, searchPlayerPage, type PlayerRepository, type PlayerSearchPage } from "../players/repository.js";
 import type { ParsedRecruitmentAction, ToolActionName } from "./recruitment-actions.js";
 import { throwIfAborted } from "../domain/abort.js";
 import type { PlayerIdentityCandidate, PlayerNameResolution, PlayerNameResolver } from "../players/identity/name-resolver.js";
 import type { UnderstatMatchInsight, UnderstatPlayerInsight, UnderstatTeamInsight } from "../sources/understat/research.js";
+import { knowledgeSearchResultsFromEvidence } from "../knowledge/evidence-adapter.js";
 
 type ToolAction<Action extends ToolActionName> = Extract<ParsedRecruitmentAction, { action: Action }>;
+
+export type KnowledgeSearchOutcome = Pick<KnowledgeEvidenceBundle, "status" | "failureCode" | "traceId" | "rankingMode" | "subjectCoverage" | "generationId" | "rankingDurationMs" | "rankingInputTokens" | "rankingOutputTokens" | "candidateCount" | "budgetMsUsed" | "budgetMsRemaining"> & { coverageNote?: string };
+
+function knowledgeSearchOutcome(result: KnowledgeEvidenceBundle): KnowledgeSearchOutcome {
+  return {
+    status: result.status,
+    failureCode: result.failureCode,
+    traceId: result.traceId,
+    rankingMode: result.rankingMode,
+    subjectCoverage: result.subjectCoverage,
+    generationId: result.generationId,
+    rankingDurationMs: result.rankingDurationMs,
+    rankingInputTokens: result.rankingInputTokens,
+    rankingOutputTokens: result.rankingOutputTokens,
+    candidateCount: result.candidateCount,
+    budgetMsUsed: result.budgetMsUsed,
+    budgetMsRemaining: result.budgetMsRemaining,
+  };
+}
+
+function localOutcome(results: KnowledgeSearchResult[]): KnowledgeSearchOutcome {
+  return {
+    status: results.length ? "found" : "no_relevant_evidence",
+    failureCode: null,
+    traceId: randomUUID(),
+    rankingMode: results.length ? "hybrid" : null,
+    subjectCoverage: [],
+    generationId: null,
+    rankingDurationMs: null,
+    rankingInputTokens: null,
+    rankingOutputTokens: null,
+    candidateCount: results.length,
+    budgetMsUsed: 0,
+    budgetMsRemaining: 15_000,
+  };
+}
 
 async function observeCancellation<T>(signal: AbortSignal | undefined, operation: () => Promise<T>): Promise<T> {
   throwIfAborted(signal);
@@ -27,6 +67,10 @@ export type RecruitmentToolExecutionRequest =
     requestedPlayerCount: number;
     capabilityGaps?: string[];
     playerContexts?: KnowledgePlayerContext[];
+    sampleFrom?: string;
+    sampleTo?: string;
+    sampleSeasons?: string[];
+    sampleScopeUnavailable?: boolean;
   })
   | (ToolAction<"inspect_team"> & { referenceMention?: string; referenceResolutionOverride?: PlayerIdentityCandidate })
   | ToolAction<"inspect_player">
@@ -39,7 +83,7 @@ export type RecruitmentToolExecutionRequest =
   });
 
 export type RecruitmentToolExecutionResult =
-  | { action: "search_methodology"; request: ToolAction<"search_methodology">; results: KnowledgeSearchResult[] }
+  | { action: "search_methodology"; request: ToolAction<"search_methodology">; results: KnowledgeSearchResult[]; outcome: KnowledgeSearchOutcome }
   | {
     action: "search_player_reports";
     request: Omit<ToolAction<"search_player_reports">, "playerNames"> & {
@@ -47,6 +91,7 @@ export type RecruitmentToolExecutionResult =
       requestedPlayerCount: number;
     };
     results: KnowledgeSearchResult[];
+    outcome: KnowledgeSearchOutcome;
   }
   | { action: "inspect_team"; request: ToolAction<"inspect_team">; players: PlayerProfile[]; rosterContext?: TeamRosterContext; referenceNameResolution?: PlayerNameResolution | null; understatResearch?: UnderstatTeamInsight | null }
   | { action: "inspect_player"; request: ToolAction<"inspect_player">; research: UnderstatPlayerInsight }
@@ -66,6 +111,9 @@ export async function executeRecruitmentToolAction(
     teamRosterEnrichment?: TeamRosterEnrichmentProvider;
     referenceNameResolver?: PlayerNameResolver;
     knowledgeBase: KnowledgeRepository;
+    knowledgeEvidence?: KnowledgeEvidence;
+    knowledgeEvidenceContext?: EvidenceAccessContext;
+    identityResolutionScopeId?: string;
     evaluator: RecruitmentEvidenceEvaluator;
     signal?: AbortSignal;
   },
@@ -73,30 +121,160 @@ export async function executeRecruitmentToolAction(
   const { signal } = dependencies;
   throwIfAborted(signal);
   switch (request.action) {
-    case "search_methodology":
+    case "search_methodology": {
+      if (dependencies.knowledgeEvidence && dependencies.knowledgeEvidenceContext) {
+        const result = await observeCancellation(signal, () => dependencies.knowledgeEvidence!.reader.retrieve({
+          kind: "methodology",
+          query: request.query,
+          limit: request.limit,
+        }, dependencies.knowledgeEvidenceContext!, signal));
+        return { action: "search_methodology", request, results: knowledgeSearchResultsFromEvidence(result), outcome: knowledgeSearchOutcome(result) };
+      }
+      const results = await observeCancellation(signal, () => dependencies.knowledgeBase.search({
+        corpus: "methodology",
+        query: request.query,
+        playerNames: [],
+        limit: request.limit,
+      }, { signal }));
       return {
         action: "search_methodology",
         request,
-        results: await observeCancellation(signal, () => dependencies.knowledgeBase.search({
-          corpus: "methodology",
-          query: request.query,
-          playerNames: [],
-          limit: request.limit,
-        }, { signal })),
+        results,
+        outcome: localOutcome(results),
       };
-    case "search_player_reports":
+    }
+    case "search_player_reports": {
+      if (dependencies.knowledgeEvidence && dependencies.knowledgeEvidenceContext) {
+        if (request.sampleScopeUnavailable) {
+          return {
+            action: "search_player_reports",
+            request,
+            results: [],
+            outcome: {
+              status: "unavailable", failureCode: "sample_scope_unavailable", traceId: randomUUID(), rankingMode: null,
+              subjectCoverage: [], generationId: null, rankingDurationMs: null, rankingInputTokens: null,
+              rankingOutputTokens: null, candidateCount: 0, budgetMsUsed: 0, budgetMsRemaining: 15_000,
+              coverageNote: "用户指定了时间范围，但系统无法将其编译为可验证的日期或赛季过滤；未查询资料。",
+            },
+          };
+        }
+        const verifiedRecordSubjects = (request.playerContexts ?? []).flatMap((context) => (context.verifiedSubjectIds ?? []).map((subjectId) => ({
+          subjectId,
+          displayName: context.playerName,
+          aliases: [],
+        })));
+        const unverifiedSubjectNames = new Set<string>();
+        let identityResolverUnavailable = false;
+        const resolvedSubjects = dependencies.referenceNameResolver
+          ? await Promise.all(request.playerNames.slice(0, 10).map(async (displayName) => {
+            try {
+              const resolution = await observeCancellation(signal, () => dependencies.referenceNameResolver!(displayName, signal, {
+                ...(dependencies.identityResolutionScopeId ? { scopeId: dependencies.identityResolutionScopeId } : {}),
+              }));
+              if (resolution.status === "unavailable") {
+                identityResolverUnavailable = true;
+                return [];
+              }
+              if (resolution.status !== "resolved" || !/^Q\d+$/.test(resolution.player.entityId)) {
+                unverifiedSubjectNames.add(displayName);
+                return [];
+              }
+              return [{
+                subjectId: resolution.player.entityId,
+                displayName: resolution.player.preferredName,
+                aliases: resolution.player.names,
+              }];
+            } catch (error) {
+              if (signal?.aborted) throw error;
+              identityResolverUnavailable = true;
+              return [];
+            }
+          })).then((groups) => groups.flat())
+          : [];
+        const uniqueSubjects = [...new Map([...verifiedRecordSubjects, ...resolvedSubjects].map((subject) => [subject.subjectId, subject])).values()];
+        if (identityResolverUnavailable) {
+          return {
+            action: "search_player_reports",
+            request,
+            results: [],
+            outcome: {
+              status: "unavailable", failureCode: "identity_unavailable", traceId: randomUUID(), rankingMode: null,
+              subjectCoverage: [], generationId: null, rankingDurationMs: null, rankingInputTokens: null,
+              rankingOutputTokens: null, candidateCount: 0, budgetMsUsed: 0, budgetMsRemaining: 15_000,
+            },
+          };
+        }
+        if (!uniqueSubjects.length) {
+          return {
+            action: "search_player_reports",
+            request,
+            results: [],
+            outcome: {
+              status: "not_covered", failureCode: null, traceId: randomUUID(), rankingMode: null, subjectCoverage: [],
+              generationId: null, rankingDurationMs: null, candidateCount: 0, budgetMsUsed: 0, budgetMsRemaining: 15_000,
+              rankingInputTokens: null, rankingOutputTokens: null,
+              coverageNote: unverifiedSubjectNames.size
+                ? `这些主体的身份尚未核验，未查询其资料：${[...unverifiedSubjectNames].join("、")}。`
+                : "没有取得可将候选记录与球员资料绑定的已核验主体标识；未查询语料。",
+            },
+          };
+        }
+        const result = await observeCancellation(signal, () => dependencies.knowledgeEvidence!.reader.retrieve({
+          kind: "player_report",
+          query: request.query,
+          subjects: uniqueSubjects,
+          ...(request.sampleFrom ? { sampleFrom: request.sampleFrom } : {}),
+          ...(request.sampleTo ? { sampleTo: request.sampleTo } : {}),
+          ...(request.sampleSeasons?.length ? { sampleSeasons: request.sampleSeasons } : {}),
+          limit: request.limit,
+          perSubjectLimit: Math.min(2, request.limit),
+        }, dependencies.knowledgeEvidenceContext!, signal));
+        return {
+          action: "search_player_reports",
+          request,
+          results: knowledgeSearchResultsFromEvidence(result),
+          outcome: {
+            ...knowledgeSearchOutcome(result),
+            ...(unverifiedSubjectNames.size ? { coverageNote: `这些候选身份没有完成核验，因此没有查询：${[...unverifiedSubjectNames].join("、")}。` } : {}),
+          },
+        };
+      }
+      const hasVerifiedPlayerIdentity = request.playerContexts?.some((context) => context.verifiedSubjectIds?.length) ?? false;
       return {
         action: "search_player_reports",
         request,
-        results: await observeCancellation(signal, () => dependencies.knowledgeBase.search({
-          corpus: "player_report",
-          query: request.query,
-          playerNames: request.playerNames,
-          ...(request.capabilityGaps ? { capabilityGaps: request.capabilityGaps } : {}),
-          ...(request.playerContexts ? { playerContexts: request.playerContexts } : {}),
-          limit: request.limit,
-        }, { signal })),
+        results: [],
+        outcome: hasVerifiedPlayerIdentity ? {
+          status: "unavailable",
+          failureCode: "index_unavailable",
+          traceId: randomUUID(),
+          rankingMode: null,
+          subjectCoverage: [],
+          generationId: null,
+          rankingDurationMs: null,
+          rankingInputTokens: null,
+          rankingOutputTokens: null,
+          candidateCount: 0,
+          budgetMsUsed: 0,
+          budgetMsRemaining: 15_000,
+          coverageNote: "新知识证据模块或本回合访问上下文未连接；没有按姓名查询旧索引。",
+        } : {
+          status: "not_covered",
+          failureCode: null,
+          traceId: randomUUID(),
+          rankingMode: null,
+          subjectCoverage: [],
+          generationId: null,
+          rankingDurationMs: null,
+          rankingInputTokens: null,
+          rankingOutputTokens: null,
+          candidateCount: 0,
+          budgetMsUsed: 0,
+          budgetMsRemaining: 15_000,
+          coverageNote: "这些球员尚无可用于绑定资料的已核验主体 ID；没有按姓名查询旧索引。",
+        },
       };
+    }
     case "inspect_team": {
       const [players, rosterContext, resolvedReference] = await Promise.all([
         observeCancellation(signal, () => inspectTeamPlayers(dependencies.repository, request.teamName, signal)),

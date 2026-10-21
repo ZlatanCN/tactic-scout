@@ -9,6 +9,7 @@
     "allowedUrlPrefixes": [
       "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0298346"
     ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
     "rights": {
       "automatedFetch": true,
       "persistentStorage": true,
@@ -28,6 +29,7 @@
     "allowedUrlPrefixes": [
       "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0256695"
     ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
     "rights": {
       "automatedFetch": true,
       "persistentStorage": true,
@@ -47,6 +49,7 @@
     "allowedUrlPrefixes": [
       "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2022.813206/full"
     ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
     "rights": {
       "automatedFetch": true,
       "persistentStorage": true,
@@ -64,6 +67,7 @@
     "license": "用户自录观察；仅依照记录中的本地保存与模型处理授权使用",
     "allowedCorpora": ["player_report"],
     "allowedUrlPrefixes": ["https://tactiscout.local/player-observations/"],
+    "allowedModelDestinations": ["local"],
     "rights": {
       "automatedFetch": false,
       "persistentStorage": true,
@@ -72,5 +76,25 @@
     },
     "rightsVerifiedAt": "2026-10-04",
     "rightsNote": "只索引用户在本机创建并明确同意持久化和 AI/RAG 处理的第一方观察。不会抓取外部 URL；观察者须确认有权保存并处理自己的笔记。该记录是主观观察，不是已验证的球员事实。"
+  },
+  {
+    "id": "plos-xg-soccer-player-analysis-2023",
+    "name": "PLOS ONE: Expected goals in football: Improving model performance and demonstrating value",
+    "publisher": "PLOS ONE",
+    "rightsUrl": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0282295",
+    "license": "CC BY 4.0",
+    "allowedCorpora": ["methodology", "player_report"],
+    "allowedUrlPrefixes": [
+      "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0282295"
+    ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
+    "rights": {
+      "automatedFetch": true,
+      "persistentStorage": true,
+      "aiProcessing": true,
+      "display": true
+    },
+    "rightsVerifiedAt": "2026-10-21",
+    "rightsNote": "PLOS 正文声明 CC BY 4.0，按 DOI 仅通过 PLOS 官方 Search API 获取。球员语料限于作者对 La Liga PlayeRank 结果中具名球员的原文分析段落，标成研究者历史分析观点而非职业球探观察；排除图表、参考文献及引用媒体全文。底层 Wyscout、Transfermarkt、Kaggle、FBref 与 ClubElo 数据不随文章入库或再分发。"
   }
 ]

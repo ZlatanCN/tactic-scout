@@ -13,6 +13,7 @@ import type { PlanningRunState } from "./planning-run.js";
 import type { ConfiguredPlayerEloClient } from "../../sources/playerelo/client.js";
 import type { HistoricalArchiveSetup } from "../../sources/reep/historical-archive-enrichment.js";
 import type { RecruitmentPreference } from "../preferences/schemas.js";
+import type { KnowledgeEvidence } from "../../knowledge/evidence.js";
 
 export type RecruitmentRuntimeContext = {
   repository: PlayerRepository;
@@ -22,6 +23,7 @@ export type RecruitmentRuntimeContext = {
   teamRosterEnrichment?: TeamRosterEnrichmentProvider;
   candidateIdentityGrouper: (records: readonly PlayerProfile[]) => CandidateIdentityGroup[];
   knowledgeBase: KnowledgeRepository;
+  knowledgeEvidence?: KnowledgeEvidence;
   observer?: RecruitmentTraceObserver;
   evidenceEvaluator: RecruitmentEvidenceEvaluator;
   playerEloSetup?: ConfiguredPlayerEloClient;
@@ -49,6 +51,7 @@ export const RecruitmentRuntimeContextSchema = Annotation.Root({
   planner: Annotation<RecruitmentPlanner>(),
   candidateIdentityGrouper: Annotation<(records: readonly PlayerProfile[]) => CandidateIdentityGroup[]>(),
   knowledgeBase: Annotation<KnowledgeRepository>(),
+  knowledgeEvidence: Annotation<KnowledgeEvidence | undefined>(),
   evidenceEvaluator: Annotation<RecruitmentEvidenceEvaluator>(),
   userPreferences: Annotation<RecruitmentPreference[]>(),
 });
@@ -70,6 +73,9 @@ export function requireRecruitmentRuntimeContext(
   }
   if (!context.knowledgeBase || typeof context.knowledgeBase.search !== "function") {
     throw new Error("Recruitment LangGraph runtime context is missing knowledgeBase.");
+  }
+  if (context.knowledgeEvidence && typeof context.knowledgeEvidence.reader?.retrieve !== "function") {
+    throw new Error("Recruitment LangGraph runtime context has an invalid knowledgeEvidence reader.");
   }
   if (!context.evidenceEvaluator || typeof context.evidenceEvaluator.evaluate !== "function") {
     throw new Error("Recruitment LangGraph runtime context is missing evidenceEvaluator.");

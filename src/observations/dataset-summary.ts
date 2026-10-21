@@ -38,6 +38,7 @@ export function summarizePlayerObservationDataset(
     indexedRecords: observations.filter((observation) => observation.indexStatus === "indexed").length,
     indexFailedRecords: observations.filter((observation) => observation.indexStatus === "index_failed").length,
     localOnlyRecords: observations.filter((observation) => observation.indexStatus === "local_only").length,
+    identityUnavailableRecords: observations.filter((observation) => observation.indexStatus === "identity_unavailable").length,
     competitionCoverage: coverageCounts(observations.map((observation) => observation.competition)),
     seasonCoverage: coverageCounts(observations.map((observation) => observation.season)),
     dimensionCoverage,

@@ -259,7 +259,7 @@ const contextOverflowMessage = /context[_ -]length[_ -]exceeded|maximum context(
 export function createChatModel(
   apiKey: string,
   modelName: string,
-  options: { maxOutputTokens?: number; timeoutMs?: number; onRetry?: (notice: ModelRetryNotice) => void } = {},
+  options: { maxOutputTokens?: number; timeoutMs?: number; onRetry?: (notice: ModelRetryNotice) => void; providerRetries?: boolean } = {},
 ): ChatOpenAI {
   const baseURL = process.env.OPENAI_BASE_URL?.trim();
   const reasoningEffort = process.env.OPENAI_REASONING_EFFORT?.trim();
@@ -276,7 +276,9 @@ export function createChatModel(
     maxRetries: 0,
     configuration: {
       ...(baseURL ? { baseURL } : {}),
-      fetch: (input, init) => fetchWithBoundedRetry(input, init, options.onRetry),
+      fetch: options.providerRetries === false
+        ? fetch
+        : (input, init) => fetchWithBoundedRetry(input, init, options.onRetry),
       ...(isLoopbackModelEndpoint(baseURL) ? { fetchOptions: { redirect: "manual" as const } } : {}),
     },
     ...(reasoningEffort ? { modelKwargs: { reasoning_effort: reasoningEffort } } : {}),

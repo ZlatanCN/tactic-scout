@@ -245,11 +245,9 @@ test("the full graph still searches player reports when candidate club or season
   const result = await conversation.turn({ threadId: "native-tool-context-gap", message: "为巴萨找一个前锋，重点看高位压迫适配" });
 
   assert.equal(result.status, "completed", result.message);
-  assert.equal(reportSearchRequests.length, 1, "the report search should still run by player name when optional context fields are unknown");
-  const request = KnowledgeSearchRequestSchema.parse(reportSearchRequests[0]);
-  assert.ok(request.playerNames.length > 0);
-  assert.equal(request.playerContexts, undefined);
+  assert.equal(reportSearchRequests.length, 0, "names without verified player identity must not query a player-report corpus");
   assert.ok(trace.some(event => event.phase === "tool" && event.toolName === "search_player_reports" && event.ok));
+  assert.equal(result.report?.knowledgeCoverage.playerReportOutcome, "not_covered");
 });
 
 test("createRecruitmentConversation routes native ask_user and finish calls as graph control flow", async () => {

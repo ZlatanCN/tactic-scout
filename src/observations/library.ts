@@ -27,6 +27,8 @@ const StoredPlayerObservationSchema = PlayerObservationSchema.extend({
 });
 
 export interface PlayerObservationIndex {
+  documentId?(input: KnowledgeDocumentInput): string;
+  canIndex?(input: KnowledgeDocumentInput): boolean;
   ingest(input: KnowledgeDocumentInput): Promise<{ documentId: string; chunkCount: number }>;
   removeDocument(documentId: string): Promise<number>;
 }
@@ -88,24 +90,37 @@ export class LocalPlayerObservationLibrary implements PlayerObservationLibrary {
 
       if (previous?.indexDocumentId) await this.index.removeDocument(previous.indexDocumentId);
 
-      const baseRecord: StoredPlayerObservation = {
+      const document = toKnowledgeDocument({
         ...input,
         id: nextId,
         createdAt: previous?.createdAt ?? now,
         updatedAt: now,
         indexStatus: input.allowAiProcessing ? "index_failed" : "local_only",
         indexDocumentId: null,
+      });
+      const canIndex = input.allowAiProcessing
+        && hasAddressablePlayerIdentity(document)
+        && (this.index.canIndex?.(document) ?? true);
+      const baseRecord: StoredPlayerObservation = {
+        ...input,
+        id: nextId,
+        createdAt: previous?.createdAt ?? now,
+        updatedAt: now,
+        indexStatus: !input.allowAiProcessing ? "local_only" : canIndex ? "index_failed" : "identity_unavailable",
+        indexDocumentId: null,
       };
       // Store the deterministic ID before ingest so revocation can remove a
       // document even if the process exits after LanceDB writes but before
       // the final observation status is persisted.
-      if (input.allowAiProcessing) baseRecord.indexDocumentId = knowledgeDocumentId(toKnowledgeDocument(baseRecord));
+      if (canIndex) {
+        baseRecord.indexDocumentId = this.index.documentId?.(document) ?? knowledgeDocumentId(document);
+      }
       const nextRecords = [...observations];
       if (previousIndex < 0) nextRecords.push(baseRecord);
       else nextRecords[previousIndex] = baseRecord;
       await this.writeStore(nextRecords);
 
-      if (!input.allowAiProcessing) return publicObservation(baseRecord);
+      if (!canIndex) return publicObservation(baseRecord);
 
       try {
         const indexed = await this.index.ingest(toKnowledgeDocument(baseRecord));
@@ -162,6 +177,14 @@ export class LocalPlayerObservationLibrary implements PlayerObservationLibrary {
 
 export function createPlayerObservationLibrary(options: ConstructorParameters<typeof LocalPlayerObservationLibrary>[0]): PlayerObservationLibrary {
   return new LocalPlayerObservationLibrary(options);
+}
+
+function hasAddressablePlayerIdentity(document: KnowledgeDocumentInput): boolean {
+  return document.entityIds.some((subjectId) => {
+    const separator = subjectId.indexOf(":");
+    return separator > 0 && separator < subjectId.length - 1
+      && subjectId.slice(0, separator).toLocaleLowerCase() !== "local";
+  });
 }
 
 function publicObservation(observation: StoredPlayerObservation): PlayerObservation {

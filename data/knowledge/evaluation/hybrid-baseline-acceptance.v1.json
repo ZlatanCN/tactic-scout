@@ -1,0 +1,22 @@
+{
+  "baselineId": "lancedb-icu-vector-rrf-v1",
+  "status": "pending_human_review",
+  "eligibleForProductionFallback": false,
+  "corpusPolicyVersion": "dual-evidence-v1",
+  "embeddingModelId": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+  "fullTextTokenizer": "icu",
+  "fusion": "reciprocal_rank_fusion_k60",
+  "candidateLimit": 12,
+  "questionPacketId": "dual-rag-review-v1",
+  "questionPacketSha256": "4a2fc4f688d3cb60fcf906bd5a694bdcd46d161318990c5f81437280655e4904",
+  "sourceRegistrySha256": "e5aa99db089af30ae7eee5709bcfb8edce129c31cec01d72ea7d28931cfa7e67",
+  "indexGenerationId": null,
+  "evidenceSnapshotHash": null,
+  "reviewedQuestions": 0,
+  "requiredQuestions": 24,
+  "acceptanceNotes": [
+    "A ready-for-agent implementation ticket is not a human retrieval-quality acceptance.",
+    "The baseline stays ineligible until the frozen human review packet has been completed and its source snapshot is recorded.",
+    "Model self-scores and deterministic test fixtures do not count as independent human review."
+  ]
+}

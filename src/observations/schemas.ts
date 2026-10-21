@@ -100,7 +100,7 @@ export const PlayerObservationSchema = PlayerObservationFieldsSchema.extend({
   id: z.string().uuid(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
-  indexStatus: z.enum(["indexed", "local_only", "index_failed"]),
+  indexStatus: z.enum(["indexed", "local_only", "identity_unavailable", "index_failed"]),
 });
 export type PlayerObservation = z.infer<typeof PlayerObservationSchema>;
 
@@ -121,6 +121,7 @@ export const PlayerObservationDatasetSummarySchema = z.object({
   indexedRecords: z.number().int().nonnegative(),
   indexFailedRecords: z.number().int().nonnegative(),
   localOnlyRecords: z.number().int().nonnegative(),
+  identityUnavailableRecords: z.number().int().nonnegative(),
   competitionCoverage: z.array(ObservationCoverageCountSchema),
   seasonCoverage: z.array(ObservationCoverageCountSchema),
   dimensionCoverage: z.array(z.object({

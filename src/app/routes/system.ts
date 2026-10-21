@@ -4,11 +4,13 @@ import { KnowledgeStatusSchema } from "../../knowledge/schemas.js";
 import type { PlayerRepository } from "../../players/repository.js";
 import type { AppKnowledgeBase } from "../types.js";
 import { contextCompactionRatio, contextSafetyMarginTokens, modelContextWindowTokens, openAIMaxOutputTokens } from "../../recruitment/chat-model.js";
+import type { KnowledgeEvidence } from "../../knowledge/evidence.js";
 
 export function registerSystemRoutes(
   app: FastifyInstance,
   playerRepository: PlayerRepository,
   knowledgeBase: AppKnowledgeBase,
+  knowledgeEvidence?: KnowledgeEvidence,
 ): void {
   app.get("/health", async () => ({ status: "ok", service: "tactiscout-api" }));
   app.get("/health/context", async () => ({
@@ -27,4 +29,5 @@ export function registerSystemRoutes(
     });
   });
   app.get("/api/v1/knowledge/status", async () => KnowledgeStatusSchema.parse(await knowledgeBase.status()));
+  if (knowledgeEvidence) app.get("/api/v1/knowledge/evidence/status", async () => knowledgeEvidence.admin.status());
 }

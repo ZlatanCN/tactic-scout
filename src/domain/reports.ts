@@ -1,4 +1,5 @@
 import { ReferenceSimilaritySchema } from "./reference-similarity.js";
+import { EvidenceRefSchema } from "./evidence.js";
 import { PlayerIdentityIdSchema, PlayerIdentitySourceUrlSchema } from "./player-identity.js";
 import { z } from "zod/v4";
 import { CapabilityEvidenceSchema, CapabilityMetricKeySchema, RequestedCapabilityCoverageSchema } from "./capabilities.js";
@@ -35,6 +36,14 @@ export const PlayerRecommendationSchema = z.object({
     summary: z.string(),
     verificationStatus: z.enum(["unverified", "linked_to_match_data"]),
     linkedMetricKeys: z.array(CapabilityMetricKeySchema),
+    documentId: z.string().optional(),
+    evidenceRef: EvidenceRefSchema.optional(),
+    excerpt: z.string().max(1_200).optional(),
+    sampleSummary: z.string().nullable().optional(),
+    competition: z.string().nullable().optional(),
+    season: z.string().nullable().optional(),
+    observedFrom: z.iso.date().nullable().optional(),
+    observedTo: z.iso.date().nullable().optional(),
     source: z.object({
       sourceId: z.string(),
       sourceName: z.string(),
@@ -45,6 +54,7 @@ export const PlayerRecommendationSchema = z.object({
       publishedAt: z.string().nullable(),
       license: z.string(),
       attribution: z.string(),
+      evidenceType: z.enum(["methodology", "external_report", "historical_player_analysis", "first_party_observation"]).optional(),
     }),
   })).default([]),
   understatResearch: UnderstatPlayerResearchSchema.optional(),
@@ -106,9 +116,11 @@ export type MethodologySourceReference = z.infer<typeof MethodologySourceReferen
 
 export const KnowledgeCoverageSchema = z.object({
   methodologyChunksRetrieved: z.number().int().nonnegative(),
+  methodologyOutcome: z.enum(["not_triggered", "found", "not_covered", "no_relevant_evidence", "unavailable"]).default("not_triggered"),
   methodologySearchFailed: z.boolean().default(false),
   methodologySources: z.array(MethodologySourceReferenceSchema).default([]),
   playerReportSearchPerformed: z.boolean(),
+  playerReportOutcome: z.enum(["not_triggered", "found", "not_covered", "no_relevant_evidence", "unavailable"]).default("not_triggered"),
   playerReportSearchFailed: z.boolean().default(false),
   playerReportChunksRetrieved: z.number().int().nonnegative(),
 });
@@ -193,9 +205,11 @@ export const RecruitmentReportSchema = z.object({
   positionLeadCount: z.number().int().nonnegative().optional(),
   knowledgeCoverage: KnowledgeCoverageSchema.default({
     methodologyChunksRetrieved: 0,
+    methodologyOutcome: "not_triggered",
     methodologySearchFailed: false,
     methodologySources: [],
     playerReportSearchPerformed: false,
+    playerReportOutcome: "not_triggered",
     playerReportSearchFailed: false,
     playerReportChunksRetrieved: 0,
   }),

@@ -225,7 +225,7 @@ test("Web Search never follows redirects or accepts results outside the explicit
   assert.equal(redirectMode, "error");
 });
 
-test("whole-graph ablation adds only a qualitative lead and leaves unknown metric coverage unchanged", async () => {
+test("whole graph does not use the legacy name-only Web Search report fallback", async () => {
   const player: PlayerProfile = {
     playerId: "milo-striker",
     name: "Milo Striker",
@@ -257,6 +257,7 @@ test("whole-graph ablation adds only a qualitative lead and leaves unknown metri
     content: article,
     published_date: "2025-12-01",
   }] });
+  let externalRequests = 0;
 
   async function runArm(webSearchEnabled: boolean) {
     const actions: RecruitmentAction[] = [
@@ -268,7 +269,7 @@ test("whole-graph ablation adds only a qualitative lead and leaves unknown metri
     const knowledgeBase = createWebSearchKnowledgeRepository({ async search() { return []; } }, {
       ...enabled,
       reportDisplayAllowed: webSearchEnabled,
-      fetcher: async () => response,
+      fetcher: async () => { externalRequests += 1; return response; },
     });
     const conversation = createRecruitmentConversation({
       repository: {
@@ -316,12 +317,12 @@ test("whole-graph ablation adds only a qualitative lead and leaves unknown metri
 
   assert.equal(control.status, "completed");
   assert.equal(enabledArm.status, "completed");
+  assert.equal(externalRequests, 0, "player reports must come from the new evidence module, not the legacy Web Search adapter");
   assert.deepEqual(control.report?.requestedCapabilityCoverage, enabledArm.report?.requestedCapabilityCoverage);
   assert.equal(enabledArm.report?.requestedCapabilityCoverage.find(({ name }) => name === "进攻接应")?.status, "missing");
   assert.deepEqual(control.report?.recommendations.map(({ player }) => player.playerId), [player.playerId]);
   assert.deepEqual(enabledArm.report?.recommendations.map(({ player }) => player.playerId), [player.playerId]);
   assert.equal(control.report?.recommendations[0]?.reportObservations.length, 0);
-  assert.equal(enabledArm.report?.recommendations[0]?.reportObservations.length, 1);
-  assert.equal(enabledArm.report?.recommendations[0]?.reportObservations[0]?.verificationStatus, "unverified");
+  assert.equal(enabledArm.report?.recommendations[0]?.reportObservations.length, 0);
   assert.match(enabledArm.report?.limitations.join(" ") ?? "", /进攻接应.*无法评估/);
 });
