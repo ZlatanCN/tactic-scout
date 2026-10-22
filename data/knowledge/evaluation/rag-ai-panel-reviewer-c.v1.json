@@ -1,0 +1,343 @@
+{
+  "reviewerId": "panel-c",
+  "initialReviews": [
+    {
+      "questionId": "M01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 supports interpreting xG as a shot goal-probability estimate and aggregating shot values by team."
+    },
+    {
+      "questionId": "M02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 mentions the top five leagues and combined data but gives neither the season nor the league names."
+    },
+    {
+      "questionId": "M03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 and E4 support the two proxies, their reported effects, and the earlier FIFA-rating examples."
+    },
+    {
+      "questionId": "M04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 directly describes summing prior PlayeRank scores before each match and the scoring-probability assumption."
+    },
+    {
+      "questionId": "M05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The cited passages support the La Liga ranking, the odds-ratio exception, and the limitations of cumulative scores."
+    },
+    {
+      "questionId": "M06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The passages describe specific prediction tasks and inputs; the answer appropriately avoids claiming coverage of every match or predictability aspect."
+    },
+    {
+      "questionId": "M07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 and E2 support the cautions about generalizing across teams and accounting for position and individual differences."
+    },
+    {
+      "questionId": "M08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 and E2 support the advice about observable behaviors, context, role differences, data gaps, and limits on inference."
+    },
+    {
+      "questionId": "M09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 says position affects running and high-intensity running measures and identifies the study's Bundesliga 2019/20 sample."
+    },
+    {
+      "questionId": "M10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 says data gaps should be marked and limited event statistics cannot establish potential or complete ability."
+    },
+    {
+      "questionId": "M11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 supports the development and feedback claims; E2 and E3 support the role and position caveats."
+    },
+    {
+      "questionId": "M12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E6 says the data were publicly released, but does not establish permission for this project's indexing."
+    },
+    {
+      "questionId": "P01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 names Ronaldo, Messi, Suarez, Griezmann, and Benzema in connection with La Liga PlayeRank variability."
+    },
+    {
+      "questionId": "P02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 connects their performances to PlayeRank variability but gives no Ronaldo-specific statistic or metric."
+    },
+    {
+      "questionId": "P03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The source metadata identifies the underlying sample as 2017/18; the answer distinguishes that from Messi-specific match dates."
+    },
+    {
+      "questionId": "P04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The cited passage discusses Ronaldo's influence generally, while the metadata identifies only a season-level sample."
+    },
+    {
+      "questionId": "P05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The provided passage mentions Messi's influence on PlayeRank results but gives no shot or goal counts."
+    },
+    {
+      "questionId": "P06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The evidence is historical, and neither passage nor metadata provides a current-season ability comparison."
+    },
+    {
+      "questionId": "P07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 mentions player performances and PlayeRank but nothing about observer field-scout notes."
+    },
+    {
+      "questionId": "P08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The source metadata gives a 2017/18 sample range, not a date for a particular Ronaldo match."
+    },
+    {
+      "questionId": "P09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 mentions both players but gives neither individual PlayeRank scores nor a ranking comparison."
+    },
+    {
+      "questionId": "P10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "No passage was retrieved, and the answer appropriately says it cannot determine a conclusion about Haaland."
+    },
+    {
+      "questionId": "P11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "No relevant evidence was retrieved, and the answer appropriately declines to characterize Ronaldo's 2020 performance."
+    },
+    {
+      "questionId": "P12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The source metadata provides the authors and paper title."
+    }
+  ],
+  "finalReviews": [
+    {
+      "questionId": "M01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 supports defining xG as a shot's goal probability and aggregating shot values by team."
+    },
+    {
+      "questionId": "M02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 gives no season or full league list. Other passages mention Serie A, but do not enumerate all five leagues."
+    },
+    {
+      "questionId": "M03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 and E4 support the proxies, their reported effects, and the earlier FIFA-rating examples."
+    },
+    {
+      "questionId": "M04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 directly describes summing a player's prior PlayeRank scores before each match and the associated assumption."
+    },
+    {
+      "questionId": "M05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The cited passages support the La Liga ranking, odds-ratio exception, and limitations of cumulative scores."
+    },
+    {
+      "questionId": "M06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The passages describe particular inputs and prediction tasks; the answer does not claim they cover every match or predictability aspect."
+    },
+    {
+      "questionId": "M07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 is explicitly a project-authored summary and supports its limited-generalization caution; E2 supports the position and individual-context caveat. The answer attributes these to the materials."
+    },
+    {
+      "questionId": "M08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 and E2 support the advice about observable behaviors, context, role differences, data gaps, and limits on inference."
+    },
+    {
+      "questionId": "M09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 says position affects running and high-intensity running measures and identifies the Bundesliga 2019/20 study sample."
+    },
+    {
+      "questionId": "M10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 says data gaps should be identified and limited event statistics cannot establish potential or complete ability."
+    },
+    {
+      "questionId": "M11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 supports the development and feedback claims; E2 and E3 support the position and role caveats."
+    },
+    {
+      "questionId": "M12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E6 describes a public release but does not establish permission for this project's indexing."
+    },
+    {
+      "questionId": "P01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 links Ronaldo, Messi, Suarez, Griezmann, and Benzema with La Liga PlayeRank variability."
+    },
+    {
+      "questionId": "P02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 links the players' performances to PlayeRank variability but gives no Ronaldo-specific statistic."
+    },
+    {
+      "questionId": "P03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The source metadata links Messi to the La Liga analysis and identifies the underlying sample as 2017/18; the answer does not claim a Messi-specific match date."
+    },
+    {
+      "questionId": "P04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E2 mentions Ronaldo's performance generally; the source metadata gives a sample season, not a specific match."
+    },
+    {
+      "questionId": "P05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E2 mentions Messi's influence on PlayeRank results but provides no shot or goal counts."
+    },
+    {
+      "questionId": "P06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The passage and source metadata are historical and provide no current-season ability comparison."
+    },
+    {
+      "questionId": "P07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 discusses player performances and PlayeRank but says nothing about observer field-scout notes."
+    },
+    {
+      "questionId": "P08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The passage mentions Ronaldo generally; the metadata's 2017/18 sample is not a date for a particular match."
+    },
+    {
+      "questionId": "P09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 mentions both players but gives neither individual scores nor a ranking comparison."
+    },
+    {
+      "questionId": "P10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "No passage was retrieved, and the answer appropriately says it cannot determine a conclusion about Haaland."
+    },
+    {
+      "questionId": "P11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "No relevant evidence was retrieved, and the answer appropriately declines to characterize Ronaldo's 2020 performance."
+    },
+    {
+      "questionId": "P12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "The cited source metadata provides the authors and paper title."
+    }
+  ]
+}

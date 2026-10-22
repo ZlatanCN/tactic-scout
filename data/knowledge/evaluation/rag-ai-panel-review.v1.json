@@ -1,0 +1,1396 @@
+{
+  "schemaVersion": "rag-ai-panel-review-v1",
+  "reviewMode": "blind_ai_panel",
+  "createdAt": "2026-10-22T03:48:35.590Z",
+  "reviewers": [
+    {
+      "id": "panel-a",
+      "kind": "ai_subagent",
+      "isolatedContext": true,
+      "initialRoundBlind": true,
+      "sawExpectedAnswerOutline": false,
+      "sawAnonymizedPeerRationalesInDiscussion": true
+    },
+    {
+      "id": "panel-b",
+      "kind": "ai_subagent",
+      "isolatedContext": true,
+      "initialRoundBlind": true,
+      "sawExpectedAnswerOutline": false,
+      "sawAnonymizedPeerRationalesInDiscussion": true
+    },
+    {
+      "id": "panel-c",
+      "kind": "ai_subagent",
+      "isolatedContext": true,
+      "initialRoundBlind": true,
+      "sawExpectedAnswerOutline": false,
+      "sawAnonymizedPeerRationalesInDiscussion": true
+    }
+  ],
+  "discussionRoundComplete": true,
+  "packet": {
+    "packetId": "dual-rag-review-v1",
+    "sha256": "359cd0eeed43a28cbc1d8baefceb01721f31714e0184e8d42d4f5583957d2917",
+    "questionSetSha256": "c23cc08eeea79f37756a033b4db359bd47212624e75ee08e952ea3517c28bd3d",
+    "questionCount": 24,
+    "completeQuestionSet": true
+  },
+  "sourceRegistrySha256": "4343ff2e56697dd951585af97370e121b3beb12fd65fcf59666cd143d7914732",
+  "evaluation": {
+    "runId": "f7dc708a-7613-4505-9c17-3b13d893bdf4",
+    "runSha256": "794dee1fd731b77173948ae9c5d845b453e7303511cf0735cce256832e971b75",
+    "rankingMode": "hybrid",
+    "generationId": "d3392b3c-549a-40e9-8516-2d46ac473632",
+    "evidenceSnapshotHash": "0cb62f9e1a59d0cc4dd7f582dab21373a24fde53f9920e8bb705d2f6683e948f",
+    "embeddingModelId": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX"
+  },
+  "questions": [
+    {
+      "questionId": "M01",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 says the model estimates a goal probability for each shot and assigns it to the corresponding match and team, supporting the definition given."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持每次射门的进球概率估计及球队 xG 汇总。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 supports interpreting xG as a shot goal-probability estimate and aggregating shot values by team."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 says the model estimates a goal probability for each shot and assigns it to the corresponding match and team."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持每次射门的进球概率估计及 xG 汇总到比赛和球队。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 supports defining xG as a shot's goal probability and aggregating shot values by team."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 says the model estimates a goal probability for each shot and assigns it to the corresponding match and team. | panel-b: E1 支持每次射门的进球概率估计及 xG 汇总到比赛和球队。 | panel-c: E1 supports defining xG as a shot's goal probability and aggregating shot values by team."
+      }
+    },
+    {
+      "questionId": "M02",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passage mentions the top five leagues and combined data but gives neither a season nor a complete league list; the answer appropriately notes those gaps."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引 xG 段落提到前五大联赛和合并数据，但未列出名称或具体赛季；回答据此谨慎说明无法确定。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 mentions the top five leagues and combined data but gives neither the season nor the league names."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The passages say “top five leagues”; another names Serie A, but none gives the complete league list or a sample season. E3 supports the stated limitation."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引 xG 段落提到前五大联赛及合并数据，但未列出名称或具体赛季；回答据此谨慎说明无法确定。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 gives no season or full league list. Other passages mention Serie A, but do not enumerate all five leagues."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: The passages say “top five leagues”; another names Serie A, but none gives the complete league list or a sample season. E3 supports the stated limitation. | panel-b: 所引 xG 段落提到前五大联赛及合并数据，但未列出名称或具体赛季；回答据此谨慎说明无法确定。 | panel-c: E3 gives no season or full league list. Other passages mention Serie A, but do not enumerate all five leagues."
+      }
+    },
+    {
+      "questionId": "M03",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 identifies player value and cumulative PlayeRank as proxies and compares their effects; E4 describes FIFA ratings for the shooter and goalkeeper as proxies in earlier research."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 支持球员身价和累计 PlayeRank 两种代理及其表现概述；E4 支持先前研究使用 FIFA 评分。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 and E4 support the two proxies, their reported effects, and the earlier FIFA-rating examples."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 identifies player value and cumulative PlayeRank as proxies and reports their effects; E4 describes FIFA ratings used as proxies in earlier research."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 支持身价和累计 PlayeRank 两种代理及其表现概述；E4 支持先前研究使用 FIFA 评分。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 and E4 support the proxies, their reported effects, and the earlier FIFA-rating examples."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E3 identifies player value and cumulative PlayeRank as proxies and reports their effects; E4 describes FIFA ratings used as proxies in earlier research. | panel-b: E3 支持身价和累计 PlayeRank 两种代理及其表现概述；E4 支持先前研究使用 FIFA 评分。 | panel-c: E3 and E4 support the proxies, their reported effects, and the earlier FIFA-rating examples."
+      }
+    },
+    {
+      "questionId": "M04",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 directly describes summing a player's PlayeRank values from all prior matches before each match and states the assumption behind the feature."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 明确说将球员此前参加的所有比赛的 PlayeRank 值相加，并说明该特征的用途和假设。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 directly describes summing prior PlayeRank scores before each match and the scoring-probability assumption."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 directly describes summing each player's PlayeRank values from all prior matches before each match."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 明确说将球员此前参加的所有比赛的 PlayeRank 值相加，并说明该特征的用途和假设。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3 directly describes summing a player's prior PlayeRank scores before each match and the associated assumption."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E3 directly describes summing each player's PlayeRank values from all prior matches before each match. | panel-b: E3 明确说将球员此前参加的所有比赛的 PlayeRank 值相加，并说明该特征的用途和假设。 | panel-c: E3 directly describes summing a player's prior PlayeRank scores before each match and the associated assumption."
+      }
+    },
+    {
+      "questionId": "M05",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3–E5 support the feature's rankings, its La Liga exception, the playing-time limitation, and the proposed gameweek contextualization."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3、E4、E5 支持对累计分数表现、La Liga 例外、上场时间缺失及按比赛周情境化的说明。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passages support the La Liga ranking, the odds-ratio exception, and the limitations of cumulative scores."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3–E5 support the feature rankings, La Liga exception, playing-time limitation, and proposed gameweek contextualization."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3、E4、E5 支持对累计分数总体表现、La Liga 例外、上场时间缺失及比赛周情境化的说明。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passages support the La Liga ranking, odds-ratio exception, and limitations of cumulative scores."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E3–E5 support the feature rankings, La Liga exception, playing-time limitation, and proposed gameweek contextualization. | panel-b: E3、E4、E5 支持对累计分数总体表现、La Liga 例外、上场时间缺失及比赛周情境化的说明。 | panel-c: The cited passages support the La Liga ranking, odds-ratio exception, and limitations of cumulative scores."
+      }
+    },
+    {
+      "questionId": "M06",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3, E4, and E6 describe specific prediction tasks, comparisons, and prior-match inputs; they do not establish coverage of every match or every aspect of predictability."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "证据描述了特定数据和预测任务，没有声称覆盖所有比赛或所有可预测性方面；回答对此作了适当限定。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The passages describe specific prediction tasks and inputs; the answer appropriately avoids claiming coverage of every match or predictability aspect."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E3, E4, and E6 describe specific prediction tasks, comparisons, and prior-match inputs; they do not establish coverage of every match or every aspect of predictability."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "证据描述的是特定数据和预测任务，没有声称覆盖所有比赛或所有可预测性方面；回答明确限定了结论范围。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The passages describe particular inputs and prediction tasks; the answer does not claim they cover every match or predictability aspect."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E3, E4, and E6 describe specific prediction tasks, comparisons, and prior-match inputs; they do not establish coverage of every match or every aspect of predictability. | panel-b: 证据描述的是特定数据和预测任务，没有声称覆盖所有比赛或所有可预测性方面；回答明确限定了结论范围。 | panel-c: The passages describe particular inputs and prediction tasks; the answer does not claim they cover every match or predictability aspect."
+      }
+    },
+    {
+      "questionId": "M07",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 warns against treating a single-academy study as a universal standard, and E2 says physical measures depend on position and individual differences. Neither validates conclusions for a particular current candidate."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持研究样本及推广限制；E2 支持位置与个体差异提醒。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 and E2 support the cautions about generalizing across teams and accounting for position and individual differences."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 explicitly labels itself a project-authored summary and says its single-academy conclusions should not be universalized; E2 supports position and individual context. The answer attributes these points to the materials."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 标明是项目作者撰写的摘要而非论文原文；回答称“材料指出”，并未把摘要内容说成论文原文结论。E2 支持位置和个体差异提醒。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 is explicitly a project-authored summary and supports its limited-generalization caution; E2 supports the position and individual-context caveat. The answer attributes these to the materials."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 explicitly labels itself a project-authored summary and says its single-academy conclusions should not be universalized; E2 supports position and individual context. The answer attributes these points to the materials. | panel-b: E1 标明是项目作者撰写的摘要而非论文原文；回答称“材料指出”，并未把摘要内容说成论文原文结论。E2 支持位置和个体差异提醒。 | panel-c: E1 is explicitly a project-authored summary and supports its limited-generalization caution; E2 supports the position and individual-context caveat. The answer attributes these to the materials."
+      }
+    },
+    {
+      "questionId": "M08",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 and E2 support the advice about observable role behaviors, context, position, understandable indicators, coaching judgment, and limits of inference from incomplete data. The answer identifies the summary as project-authored."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持结合情境解读、指标易懂、不能替代经验判断及明确数据缺口；E2 支持位置和个体差异提醒。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 and E2 support the advice about observable behaviors, context, role differences, data gaps, and limits on inference."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 and E2 support the points about observable behaviors, context, position, understandable indicators, coaching judgment, and limits of inference from incomplete data."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持结合情境、不能替代经验判断及标出数据缺口；E2 支持位置和个体差异提醒。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 and E2 support the advice about observable behaviors, context, role differences, data gaps, and limits on inference."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 and E2 support the points about observable behaviors, context, position, understandable indicators, coaching judgment, and limits of inference from incomplete data. | panel-b: E1 支持结合情境、不能替代经验判断及标出数据缺口；E2 支持位置和个体差异提醒。 | panel-c: E1 and E2 support the advice about observable behaviors, context, role differences, data gaps, and limits on inference."
+      }
+    },
+    {
+      "questionId": "M09",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1, the project-authored summary, says position affects total and high-intensity distance and notes individual variation. It identifies the study's Bundesliga 2019/20 data scope, not an individual match result."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 的项目作者摘要明确说明位置影响总跑动、高强度跑动等指标，也说明存在个体差异。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 says position affects running and high-intensity running measures and identifies the study's Bundesliga 2019/20 sample."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1, a project-authored summary, says position affects physical measures including total and high-intensity distance, and identifies the study's Bundesliga 2019/20 scope."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 的项目作者摘要明确说明位置影响总跑动、高强度跑动等指标，也提到个体差异。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 says position affects running and high-intensity running measures and identifies the Bundesliga 2019/20 study sample."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1, a project-authored summary, says position affects physical measures including total and high-intensity distance, and identifies the study's Bundesliga 2019/20 scope. | panel-b: E1 的项目作者摘要明确说明位置影响总跑动、高强度跑动等指标，也提到个体差异。 | panel-c: E1 says position affects running and high-intensity running measures and identifies the Bundesliga 2019/20 study sample."
+      }
+    },
+    {
+      "questionId": "M10",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 advises marking data gaps and not inferring full ability or potential from limited event statistics, supporting the answer that a missing statistic alone does not show weakness."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 提醒明确标出数据缺口，不应凭有限事件统计推断潜力或完整能力；回答没有把缺失记录当成球员弱的证据。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 says data gaps should be marked and limited event statistics cannot establish potential or complete ability."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 advises marking data gaps and not inferring full ability or potential from limited event statistics, supporting the answer that a missing statistic alone does not show weakness."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 提醒标出数据缺口，不能凭有限事件统计推断潜力或完整能力；回答没有把缺失记录当成球员弱的证据。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 says data gaps should be identified and limited event statistics cannot establish potential or complete ability."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 advises marking data gaps and not inferring full ability or potential from limited event statistics, supporting the answer that a missing statistic alone does not show weakness. | panel-b: E1 提醒标出数据缺口，不能凭有限事件统计推断潜力或完整能力；回答没有把缺失记录当成球员弱的证据。 | panel-c: E1 says data gaps should be identified and limited event statistics cannot establish potential or complete ability."
+      }
+    },
+    {
+      "questionId": "M11",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 supports the development and feedback role of indicators and cautions against replacing coaching judgment; E2–E3 support interpreting measures by position and role."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持技术指标用于发展和反馈、结合情境且不取代经验判断；E2、E3 分别支持位置差异和射门指标适用范围的补充。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 supports the development and feedback claims; E2 and E3 support the role and position caveats."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 supports the development and feedback role of indicators and cautions against replacing coaching judgment; E2–E3 support interpreting measures by position and role."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 支持技术指标用于发展和反馈、结合情境且不取代经验判断；E2、E3 支持位置差异和射门指标适用范围的补充。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 supports the development and feedback claims; E2 and E3 support the position and role caveats."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 supports the development and feedback role of indicators and cautions against replacing coaching judgment; E2–E3 support interpreting measures by position and role. | panel-b: E1 支持技术指标用于发展和反馈、结合情境且不取代经验判断；E2、E3 支持位置差异和射门指标适用范围的补充。 | panel-c: E1 supports the development and feedback claims; E2 and E3 support the position and role caveats."
+      }
+    },
+    {
+      "questionId": "M12",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E6 says the dataset was released publicly through the Soccer Data Challenge, but gives no terms establishing permission for this project's indexing. The answer does not infer such permission."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E6 说明数据经 Soccer Data Challenge 向公众提供，但没有说明许可是否涵盖本项目索引；回答谨慎地不据此推断许可。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E6 says the data were publicly released, but does not establish permission for this project's indexing."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E6 says the Wyscout data was publicly released but gives no indexing license terms; the answer appropriately says permission cannot be inferred."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E6 说明数据由 Wyscout 收集并经 Soccer Data Challenge 提供，但没有说明许可涵盖本项目索引；回答没有据此推断许可。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E6 describes a public release but does not establish permission for this project's indexing."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E6 says the Wyscout data was publicly released but gives no indexing license terms; the answer appropriately says permission cannot be inferred. | panel-b: E6 说明数据由 Wyscout 收集并经 Soccer Data Challenge 提供，但没有说明许可涵盖本项目索引；回答没有据此推断许可。 | panel-c: E6 describes a public release but does not establish permission for this project's indexing."
+      }
+    },
+    {
+      "questionId": "P01",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 links La Liga PlayeRank entry variability to Ronaldo and Messi and also mentions Suarez, Griezmann, and Benzema having standout seasons."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 将西甲 PlayeRank 条目较高变异与 Ronaldo、Messi 及其他球员的表现联系起来。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 names Ronaldo, Messi, Suarez, Griezmann, and Benzema in connection with La Liga PlayeRank variability."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 links La Liga PlayeRank variability to Ronaldo and Messi and mentions Suarez, Griezmann, and Benzema having standout seasons."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 将西甲 PlayeRank 条目的较高变异联系到 Ronaldo、Messi 及 Suarez、Griezmann、Benzema 等人的表现。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 links Ronaldo, Messi, Suarez, Griezmann, and Benzema with La Liga PlayeRank variability."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 links La Liga PlayeRank variability to Ronaldo and Messi and mentions Suarez, Griezmann, and Benzema having standout seasons. | panel-b: E1 将西甲 PlayeRank 条目的较高变异联系到 Ronaldo、Messi 及 Suarez、Griezmann、Benzema 等人的表现。 | panel-c: E1 links Ronaldo, Messi, Suarez, Griezmann, and Benzema with La Liga PlayeRank variability."
+      }
+    },
+    {
+      "questionId": "P02",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 discusses Ronaldo's contribution to La Liga PlayeRank variability but gives no Ronaldo-specific statistical detail."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引球员段落没有 Ronaldo 个人射门、进球或其他具体统计；回答没有把联赛层级的指标误说成他的个人数据。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 connects their performances to PlayeRank variability but gives no Ronaldo-specific statistic or metric."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 mentions Ronaldo's role in La Liga PlayeRank variability but provides no Ronaldo-specific statistics."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "球员段落没有 Ronaldo 个人射门、进球或其他具体统计；回答没有把联赛层级的数据误说成他的个人数据。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 links the players' performances to PlayeRank variability but gives no Ronaldo-specific statistic."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 mentions Ronaldo's role in La Liga PlayeRank variability but provides no Ronaldo-specific statistics. | panel-b: 球员段落没有 Ronaldo 个人射门、进球或其他具体统计；回答没有把联赛层级的数据误说成他的个人数据。 | panel-c: E1 links the players' performances to PlayeRank variability but gives no Ronaldo-specific statistic."
+      }
+    },
+    {
+      "questionId": "P03",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passage discusses Messi in the La Liga analysis, and its source metadata identifies the underlying sample as 2017/18. The answer correctly distinguishes that sample season from Messi's individual match or date."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "来源元数据标记样本赛季为 2017/18，并说明这是底层联赛事件样本范围，不是 Messi 的具体比赛或日期。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The source metadata identifies the underlying sample as 2017/18; the answer distinguishes that from Messi-specific match dates."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited La Liga passage discusses Messi, and its attached sampleSummary identifies the underlying event sample as 2017/18 while explicitly distinguishing it from individual match dates. The answer preserves that distinction."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "来源元数据将底层五大联赛事件样本标为 2017/18，并明确没有给出每名球员的具体比赛日期；回答清楚地区分了样本赛季与 Messi 的个人比赛。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The source metadata links Messi to the La Liga analysis and identifies the underlying sample as 2017/18; the answer does not claim a Messi-specific match date."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: The cited La Liga passage discusses Messi, and its attached sampleSummary identifies the underlying event sample as 2017/18 while explicitly distinguishing it from individual match dates. The answer preserves that distinction. | panel-b: 来源元数据将底层五大联赛事件样本标为 2017/18，并明确没有给出每名球员的具体比赛日期；回答清楚地区分了样本赛季与 Messi 的个人比赛。 | panel-c: The source metadata links Messi to the La Liga analysis and identifies the underlying sample as 2017/18; the answer does not claim a Messi-specific match date."
+      }
+    },
+    {
+      "questionId": "P04",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The passage mentions Ronaldo's role in La Liga results but no specific match. The answer correctly treats 2017/18 as source-level sample metadata, not a match date."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引段落没有指出 Ronaldo 的具体比赛；元数据中的 2017/18 是样本赛季范围，回答没有将其误作比赛日期。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passage discusses Ronaldo's influence generally, while the metadata identifies only a season-level sample."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passage discusses Ronaldo but names no specific match; its sampleSummary says individual match dates are not identified. The answer does not treat the season metadata as a match date."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "段落没有指出 Ronaldo 的具体比赛；元数据中的 2017/18 是样本赛季范围，不是 Ronaldo 某场比赛的日期，回答明确作了区分。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E2 mentions Ronaldo's performance generally; the source metadata gives a sample season, not a specific match."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: The cited passage discusses Ronaldo but names no specific match; its sampleSummary says individual match dates are not identified. The answer does not treat the season metadata as a match date. | panel-b: 段落没有指出 Ronaldo 的具体比赛；元数据中的 2017/18 是样本赛季范围，不是 Ronaldo 某场比赛的日期，回答明确作了区分。 | panel-c: E2 mentions Ronaldo's performance generally; the source metadata gives a sample season, not a specific match."
+      }
+    },
+    {
+      "questionId": "P05",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E2 mentions Messi's performance in connection with PlayeRank variability but reports no shot or goal count."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引段落仅将 Messi 的表现与西甲 PlayeRank 结果联系起来，没有报告他的射门数或进球数；回答适当说明无法确定。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The provided passage mentions Messi's influence on PlayeRank results but gives no shot or goal counts."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E2 mentions Messi in connection with PlayeRank variability but reports no shot or goal count."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "段落只将 Messi 的表现与西甲 PlayeRank 结果联系起来，没有报告他的射门数或进球数。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E2 mentions Messi's influence on PlayeRank results but provides no shot or goal counts."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E2 mentions Messi in connection with PlayeRank variability but reports no shot or goal count. | panel-b: 段落只将 Messi 的表现与西甲 PlayeRank 结果联系起来，没有报告他的射门数或进球数。 | panel-c: E2 mentions Messi's influence on PlayeRank results but provides no shot or goal counts."
+      }
+    },
+    {
+      "questionId": "P06",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 concerns historical La Liga PlayeRank results and provides no current-season ability comparison; the answer appropriately limits its conclusion."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "证据和元数据只涉及历史样本及两人对 PlayeRank 结果的影响，没有当前赛季的能力比较；回答没有作此推断。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The evidence is historical, and neither passage nor metadata provides a current-season ability comparison."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 concerns historical La Liga results and supplies no current-season comparison; the answer appropriately limits its conclusion."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "材料及元数据只涉及历史样本和两人对 PlayeRank 结果的影响，没有当前赛季的能力比较；回答没有作此推断。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The passage and source metadata are historical and provide no current-season ability comparison."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 concerns historical La Liga results and supplies no current-season comparison; the answer appropriately limits its conclusion. | panel-b: 材料及元数据只涉及历史样本和两人对 PlayeRank 结果的影响，没有当前赛季的能力比较；回答没有作此推断。 | panel-c: The passage and source metadata are historical and provide no current-season ability comparison."
+      }
+    },
+    {
+      "questionId": "P07",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 mentions player performances and PlayeRank variability but says nothing about observer field-scout notes."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引段落没有说明是否记录了 Ronaldo 的现场球探笔记；回答谨慎说明材料未交代此事。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 mentions player performances and PlayeRank but nothing about observer field-scout notes."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 mentions player performances and PlayeRank variability but says nothing about observer field-scout notes."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "所引段落没有说明是否记录了 Ronaldo 的现场球探笔记；回答只说明材料未交代此事。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 discusses player performances and PlayeRank but says nothing about observer field-scout notes."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 mentions player performances and PlayeRank variability but says nothing about observer field-scout notes. | panel-b: 所引段落没有说明是否记录了 Ronaldo 的现场球探笔记；回答只说明材料未交代此事。 | panel-c: E1 discusses player performances and PlayeRank but says nothing about observer field-scout notes."
+      }
+    },
+    {
+      "questionId": "P08",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited passage and its metadata provide a sample season but no date for a Ronaldo appearance; the answer preserves that distinction."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "元数据说明底层事件样本覆盖 2017/18 赛季，但没有 Ronaldo 某场比赛的具体日期；回答正确区分二者。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The source metadata gives a 2017/18 sample range, not a date for a particular Ronaldo match."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E2's attached sampleSummary identifies a 2017/18 sample and says player-specific match dates are absent. The answer correctly distinguishes sample scope from a calendar date."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "元数据说明底层事件样本覆盖 2017/18 赛季，并未给出 Ronaldo 某场比赛的年月日；回答明确没有把样本范围当成比赛日期。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The passage mentions Ronaldo generally; the metadata's 2017/18 sample is not a date for a particular match."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E2's attached sampleSummary identifies a 2017/18 sample and says player-specific match dates are absent. The answer correctly distinguishes sample scope from a calendar date. | panel-b: 元数据说明底层事件样本覆盖 2017/18 赛季，并未给出 Ronaldo 某场比赛的年月日；回答明确没有把样本范围当成比赛日期。 | panel-c: The passage mentions Ronaldo generally; the metadata's 2017/18 sample is not a date for a particular match."
+      }
+    },
+    {
+      "questionId": "P09",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 links both players to variability in La Liga PlayeRank results but gives no head-to-head score or rank comparison."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 提到两人的表现与西甲 PlayeRank 结果的变异有关，但未给出两人分数或谁更高的比较。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 mentions both players but gives neither individual PlayeRank scores nor a ranking comparison."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 links both players to La Liga PlayeRank variability but gives no head-to-head score or rank comparison."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 提到两人的表现与西甲 PlayeRank 条目变异有关，但未给出两人分数或谁更高的比较。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 mentions both players but gives neither individual scores nor a ranking comparison."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1 links both players to La Liga PlayeRank variability but gives no head-to-head score or rank comparison. | panel-b: E1 提到两人的表现与西甲 PlayeRank 条目变异有关，但未给出两人分数或谁更高的比较。 | panel-c: E1 mentions both players but gives neither individual scores nor a ranking comparison."
+      }
+    },
+    {
+      "questionId": "P10",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No passage was retrieved, and the answer only says the provided material does not establish a conclusion about Haaland."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "检索未返回 passage，回答只说明材料未包含相关讨论，无法判断 Haaland 的结论。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No passage was retrieved, and the answer appropriately says it cannot determine a conclusion about Haaland."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No passage was retrieved; the answer only says the provided material does not establish a conclusion about Haaland."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "检索没有返回 passage；回答只说材料未包含相关讨论，无法判断 Haaland 的结论。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No passage was retrieved, and the answer appropriately says it cannot determine a conclusion about Haaland."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: No passage was retrieved; the answer only says the provided material does not establish a conclusion about Haaland. | panel-b: 检索没有返回 passage；回答只说材料未包含相关讨论，无法判断 Haaland 的结论。 | panel-c: No passage was retrieved, and the answer appropriately says it cannot determine a conclusion about Haaland."
+      }
+    },
+    {
+      "questionId": "P11",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No passage was retrieved, and the answer appropriately declines to determine Ronaldo's 2020 La Liga PlayeRank performance."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "检索没有返回相关证据，回答没有对 Ronaldo 2020 年西甲表现作无依据断言。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No relevant evidence was retrieved, and the answer appropriately declines to characterize Ronaldo's 2020 performance."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No passage was retrieved; the answer appropriately declines to determine Ronaldo's 2020 La Liga PlayeRank performance."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "检索没有返回相关证据；回答没有对 Ronaldo 2020 年西甲表现作无依据断言。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "No relevant evidence was retrieved, and the answer appropriately declines to characterize Ronaldo's 2020 performance."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: No passage was retrieved; the answer appropriately declines to determine Ronaldo's 2020 La Liga PlayeRank performance. | panel-b: 检索没有返回相关证据；回答没有对 Ronaldo 2020 年西甲表现作无依据断言。 | panel-c: No relevant evidence was retrieved, and the answer appropriately declines to characterize Ronaldo's 2020 performance."
+      }
+    },
+    {
+      "questionId": "P12",
+      "initialReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 is attached to source metadata naming James Mead, Anthony O’Hare, Paul McMenemy, and the PLOS ONE paper title."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 附带的来源元数据给出三位作者、论文标题及 PLOS ONE 出版信息，与回答一致。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The source metadata provides the authors and paper title."
+        }
+      ],
+      "finalReviews": [
+        {
+          "reviewerId": "panel-a",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1's attached source metadata names James Mead, Anthony O’Hare, Paul McMenemy, and the PLOS ONE paper title."
+        },
+        {
+          "reviewerId": "panel-b",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "E1 附带的来源元数据给出三位作者、论文标题及 PLOS ONE 出版信息，与回答一致。"
+        },
+        {
+          "reviewerId": "panel-c",
+          "answerSupported": "yes",
+          "citationAccurate": "yes",
+          "abstentionAppropriate": "yes",
+          "rationale": "The cited source metadata provides the authors and paper title."
+        }
+      ],
+      "consensus": {
+        "answerSupported": "yes",
+        "citationAccurate": "yes",
+        "abstentionAppropriate": "yes",
+        "outcome": "pass",
+        "rationale": "After anonymized discussion, all three reviewers reaffirmed yes on the three criteria. Final rationales: panel-a: E1's attached source metadata names James Mead, Anthony O’Hare, Paul McMenemy, and the PLOS ONE paper title. | panel-b: E1 附带的来源元数据给出三位作者、论文标题及 PLOS ONE 出版信息，与回答一致。 | panel-c: The cited source metadata provides the authors and paper title."
+      }
+    }
+  ],
+  "panelDecision": "accepted",
+  "decisionRationale": "Three isolated AI subagents independently reviewed all 24 questions without expected answer outlines. After receiving anonymized summaries of the other initial rationales and being asked to challenge the shared assumptions, all three reaffirmed yes on answer support, citation accuracy, and abstention handling for every question. This is an AI panel decision, not human or external-expert review."
+}

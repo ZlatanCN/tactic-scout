@@ -1,0 +1,668 @@
+{
+  "datasetVersion": 15,
+  "model": "codex/gpt-6-luna",
+  "endpoint": "http://127.0.0.1:3425",
+  "apiKeyConfigured": true,
+  "repository": {
+    "mode": "curated",
+    "source": "TactiScout 自建球探数据集 · Wyscout 2017/18 · 球员能力画像"
+  },
+  "datasetSnapshotSha256": "6f9c45c889d5ae553d1b395d87dd3ad6d1bac8dcf21c3cdadbcb627d14e8be4f",
+  "repeatsPerScenario": 3,
+  "experiment": "langgraph-tool-protocol-ablation",
+  "scenarios": [
+    {
+      "id": "barcelona-under-23-midfielder",
+      "datasetSnapshotSha256": "6f9c45c889d5ae553d1b395d87dd3ad6d1bac8dcf21c3cdadbcb627d14e8be4f",
+      "preflightStatus": "ready",
+      "preflight": {
+        "finalStatus": null,
+        "plannerRequestAttempts": 3,
+        "toolCallCount": 5,
+        "modelUsage": {
+          "requestCount": 4,
+          "responseCount": 4,
+          "failedRequestCount": 0,
+          "inputTokens": {
+            "status": "complete",
+            "total": 35366,
+            "requestsWithUsage": 4,
+            "requestCount": 4
+          },
+          "outputTokens": {
+            "status": "complete",
+            "total": 455,
+            "requestsWithUsage": 4,
+            "requestCount": 4
+          },
+          "totalTokens": {
+            "status": "complete",
+            "total": 35821,
+            "requestsWithUsage": 4,
+            "requestCount": 4
+          }
+        },
+        "failedChecks": [
+          "conversationCompleted"
+        ],
+        "errors": [
+          {
+            "name": "RecruitmentPlannerOutputError",
+            "category": "other"
+          }
+        ],
+        "elapsedMs": 19582
+      },
+      "experimentInformative": true,
+      "comparison": {
+        "arms": [
+          {
+            "id": "legacy_action",
+            "change": "旧版 JSON action 结构化输出 + 按 action 手动分发；使用相同业务工具实现。"
+          },
+          {
+            "id": "native_tools",
+            "change": "模型 bindTools() 输出单个具名工具；控制动作由图路由；数据动作由 LangGraph ToolNode 执行。"
+          }
+        ],
+        "controls": [
+          "相同登记场景和固定补答",
+          "同一 curated 数据快照、知识库、模型、提示词约束、Reviewer 和工具预算",
+          "两臂都运行完整 LangGraph 案件状态与报告链路；禁用实时 Web Search",
+          "每组交错执行顺序，分别创建独立 thread"
+        ],
+        "changedFactor": "模型调用协议与数据动作分发机制整体切换；两个臂调用相同的领域动作处理函数。",
+        "order": "每组配对轮换 legacy-first 与 native-first 顺序。",
+        "caveat": "实验比较完整协议迁移组合的运行结果；模型适配层收到的格式不同，因此 provider token 与延迟反映端到端差异，不单独证明 ToolNode 或 bindTools 的因果贡献。Harness 检查不是球探推荐金标；少于三对或模型调用失败时不作优劣结论。"
+      },
+      "arms": [
+        {
+          "protocol": "legacy_action",
+          "summary": {
+            "runCount": 3,
+            "passedRunCount": 0,
+            "passRate": 0,
+            "failedRunsByCheck": {
+              "conversationCompleted": 3
+            },
+            "latencyMs": {
+              "p50": 13732,
+              "p95": 18484
+            },
+            "operationLatencyMs": [
+              {
+                "kind": "planner_action",
+                "operation": "search_candidates",
+                "sampleCount": 6,
+                "p50": 2398,
+                "p95": 6714
+              },
+              {
+                "kind": "planner_action",
+                "operation": "search_methodology",
+                "sampleCount": 1,
+                "p50": 2795,
+                "p95": 2795
+              },
+              {
+                "kind": "planner_action",
+                "operation": "unresolved",
+                "sampleCount": 3,
+                "p50": 5,
+                "p95": 2312
+              },
+              {
+                "kind": "tool",
+                "operation": "evaluate_candidates",
+                "sampleCount": 6,
+                "p50": 74,
+                "p95": 83
+              },
+              {
+                "kind": "tool",
+                "operation": "search_candidates",
+                "sampleCount": 4,
+                "p50": 622,
+                "p95": 1418
+              },
+              {
+                "kind": "tool",
+                "operation": "search_methodology",
+                "sampleCount": 3,
+                "p50": 65,
+                "p95": 88
+              },
+              {
+                "kind": "tool",
+                "operation": "search_player_reports",
+                "sampleCount": 2,
+                "p50": 0,
+                "p95": 0
+              }
+            ]
+          },
+          "meanPlannerRequestAttempts": 3.33,
+          "meanToolCallCount": 5,
+          "modelUsage": {
+            "requestCount": 13,
+            "responseCount": 11,
+            "failedRequestCount": 2,
+            "inputTokens": {
+              "status": "partial",
+              "total": null,
+              "requestsWithUsage": 11,
+              "requestCount": 13
+            },
+            "outputTokens": {
+              "status": "partial",
+              "total": null,
+              "requestsWithUsage": 11,
+              "requestCount": 13
+            },
+            "totalTokens": {
+              "status": "partial",
+              "total": null,
+              "requestsWithUsage": 11,
+              "requestCount": 13
+            }
+          },
+          "runs": [
+            {
+              "run": 1,
+              "protocol": "legacy_action",
+              "firstTurnStatus": null,
+              "finalStatus": null,
+              "allPassed": false,
+              "failedChecks": [
+                "conversationCompleted"
+              ],
+              "elapsedMs": 18484,
+              "plannerRequestAttempts": 4,
+              "modelUsage": {
+                "requestCount": 5,
+                "responseCount": 4,
+                "failedRequestCount": 1,
+                "inputTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                },
+                "outputTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                },
+                "totalTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                }
+              },
+              "toolCallCount": 7,
+              "recommendationCount": 0,
+              "evidenceReferenceCount": 0,
+              "reportGenerated": false,
+              "errors": [
+                {
+                  "name": "RecruitmentContextCapacityError",
+                  "category": "context_capacity",
+                  "code": null,
+                  "status": null,
+                  "stage": "conclude"
+                }
+              ]
+            },
+            {
+              "run": 2,
+              "protocol": "legacy_action",
+              "firstTurnStatus": null,
+              "finalStatus": null,
+              "allPassed": false,
+              "failedChecks": [
+                "conversationCompleted"
+              ],
+              "elapsedMs": 13732,
+              "plannerRequestAttempts": 4,
+              "modelUsage": {
+                "requestCount": 5,
+                "responseCount": 4,
+                "failedRequestCount": 1,
+                "inputTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                },
+                "outputTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                },
+                "totalTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                }
+              },
+              "toolCallCount": 7,
+              "recommendationCount": 0,
+              "evidenceReferenceCount": 0,
+              "reportGenerated": false,
+              "errors": [
+                {
+                  "name": "RecruitmentContextCapacityError",
+                  "category": "context_capacity",
+                  "code": null,
+                  "status": null,
+                  "stage": "conclude"
+                }
+              ]
+            },
+            {
+              "run": 3,
+              "protocol": "legacy_action",
+              "firstTurnStatus": null,
+              "finalStatus": null,
+              "allPassed": false,
+              "failedChecks": [
+                "conversationCompleted"
+              ],
+              "elapsedMs": 7597,
+              "plannerRequestAttempts": 2,
+              "modelUsage": {
+                "requestCount": 3,
+                "responseCount": 3,
+                "failedRequestCount": 0,
+                "inputTokens": {
+                  "status": "complete",
+                  "total": 28603,
+                  "requestsWithUsage": 3,
+                  "requestCount": 3
+                },
+                "outputTokens": {
+                  "status": "complete",
+                  "total": 386,
+                  "requestsWithUsage": 3,
+                  "requestCount": 3
+                },
+                "totalTokens": {
+                  "status": "complete",
+                  "total": 28989,
+                  "requestsWithUsage": 3,
+                  "requestCount": 3
+                }
+              },
+              "toolCallCount": 1,
+              "recommendationCount": 0,
+              "evidenceReferenceCount": 0,
+              "reportGenerated": false,
+              "errors": [
+                {
+                  "name": "RecruitmentPlannerOutputError",
+                  "category": "other",
+                  "code": null,
+                  "status": null,
+                  "stage": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "protocol": "native_tools",
+          "summary": {
+            "runCount": 3,
+            "passedRunCount": 0,
+            "passRate": 0,
+            "failedRunsByCheck": {
+              "conversationCompleted": 3,
+              "usedMultipleModelActions": 2,
+              "finalStatusMatchesReport": 2,
+              "targetTeamContextPreserved": 2,
+              "recommendationsAreEvidenceBacked": 2,
+              "historicalArchiveEvidenceIsConsistent": 2,
+              "percentilesRespectMetricSamples": 2,
+              "recommendationsWereEvaluated": 2,
+              "evaluatedOnlyAfterCandidateDiscovery": 2,
+              "candidateSearchOutcomeIsExplicit": 2,
+              "didNotHitDecisionOrPolicyLoopLimit": 2,
+              "didNotRepeatPolicyBlockedAction": 2,
+              "progressMatchesObservedToolsAndTurnState": 2,
+              "requestedCapabilityCoverageIsConsistent": 2,
+              "requestedCapabilityCoverageMatchesScenario": 3,
+              "requestedCapabilitiesAreGrounded": 2,
+              "requestedCapabilityGapsAreReported": 2,
+              "completedWithReport": 2,
+              "requiredInvestigationToolsInOrder": 2,
+              "noInferredCompetitionSeasonOrMinutesFilters": 2,
+              "appliedUserAgeLimit": 2,
+              "broadPositionWasNotNarrowed": 3,
+              "recommendationsRespectRequestedPosition": 3,
+              "requestedCapabilitiesGrounded": 2,
+              "candidateSearchDoesNotUseAnUnrequestedName": 2,
+              "candidatePagesFollowCursors": 2,
+              "searchedMethodologyCorpus": 2,
+              "evaluatedDiscoveredCandidates": 2,
+              "searchedReportsAfterEvaluatingEvidence": 3,
+              "didNotRecommendWithoutEvaluatedEvidence": 2,
+              "didNotAskForClearRequest": 2,
+              "methodologyCitationsOnlyUseReturnedSources": 2
+            },
+            "latencyMs": {
+              "p50": 12635,
+              "p95": 14080
+            },
+            "operationLatencyMs": [
+              {
+                "kind": "planner_action",
+                "operation": "finish",
+                "sampleCount": 1,
+                "p50": 4533,
+                "p95": 4533
+              },
+              {
+                "kind": "planner_action",
+                "operation": "search_candidates",
+                "sampleCount": 6,
+                "p50": 2653,
+                "p95": 3157
+              },
+              {
+                "kind": "planner_action",
+                "operation": "unresolved",
+                "sampleCount": 2,
+                "p50": 4,
+                "p95": 3047
+              },
+              {
+                "kind": "tool",
+                "operation": "evaluate_candidates",
+                "sampleCount": 5,
+                "p50": 71,
+                "p95": 85
+              },
+              {
+                "kind": "tool",
+                "operation": "search_candidates",
+                "sampleCount": 3,
+                "p50": 565,
+                "p95": 843
+              },
+              {
+                "kind": "tool",
+                "operation": "search_methodology",
+                "sampleCount": 3,
+                "p50": 62,
+                "p95": 80
+              },
+              {
+                "kind": "tool",
+                "operation": "search_player_reports",
+                "sampleCount": 2,
+                "p50": 0,
+                "p95": 0
+              }
+            ]
+          },
+          "meanPlannerRequestAttempts": 3,
+          "meanToolCallCount": 4.33,
+          "modelUsage": {
+            "requestCount": 12,
+            "responseCount": 11,
+            "failedRequestCount": 1,
+            "inputTokens": {
+              "status": "partial",
+              "total": null,
+              "requestsWithUsage": 11,
+              "requestCount": 12
+            },
+            "outputTokens": {
+              "status": "partial",
+              "total": null,
+              "requestsWithUsage": 11,
+              "requestCount": 12
+            },
+            "totalTokens": {
+              "status": "partial",
+              "total": null,
+              "requestsWithUsage": 11,
+              "requestCount": 12
+            }
+          },
+          "runs": [
+            {
+              "run": 1,
+              "protocol": "native_tools",
+              "firstTurnStatus": null,
+              "finalStatus": null,
+              "allPassed": false,
+              "failedChecks": [
+                "conversationCompleted"
+              ],
+              "elapsedMs": 9153,
+              "plannerRequestAttempts": 2,
+              "modelUsage": {
+                "requestCount": 3,
+                "responseCount": 3,
+                "failedRequestCount": 0,
+                "inputTokens": {
+                  "status": "complete",
+                  "total": 29013,
+                  "requestsWithUsage": 3,
+                  "requestCount": 3
+                },
+                "outputTokens": {
+                  "status": "complete",
+                  "total": 484,
+                  "requestsWithUsage": 3,
+                  "requestCount": 3
+                },
+                "totalTokens": {
+                  "status": "complete",
+                  "total": 29497,
+                  "requestsWithUsage": 3,
+                  "requestCount": 3
+                }
+              },
+              "toolCallCount": 1,
+              "recommendationCount": 0,
+              "evidenceReferenceCount": 0,
+              "reportGenerated": false,
+              "errors": [
+                {
+                  "name": "RecruitmentPlannerOutputError",
+                  "category": "other",
+                  "code": null,
+                  "status": null,
+                  "stage": null
+                }
+              ]
+            },
+            {
+              "run": 2,
+              "protocol": "native_tools",
+              "firstTurnStatus": "completed",
+              "finalStatus": "completed",
+              "allPassed": false,
+              "failedChecks": [
+                "requestedCapabilityCoverageMatchesScenario",
+                "broadPositionWasNotNarrowed",
+                "recommendationsRespectRequestedPosition",
+                "searchedReportsAfterEvaluatingEvidence"
+              ],
+              "elapsedMs": 14080,
+              "plannerRequestAttempts": 3,
+              "modelUsage": {
+                "requestCount": 4,
+                "responseCount": 4,
+                "failedRequestCount": 0,
+                "inputTokens": {
+                  "status": "complete",
+                  "total": 35874,
+                  "requestsWithUsage": 4,
+                  "requestCount": 4
+                },
+                "outputTokens": {
+                  "status": "complete",
+                  "total": 786,
+                  "requestsWithUsage": 4,
+                  "requestCount": 4
+                },
+                "totalTokens": {
+                  "status": "complete",
+                  "total": 36660,
+                  "requestsWithUsage": 4,
+                  "requestCount": 4
+                }
+              },
+              "toolCallCount": 5,
+              "recommendationCount": 3,
+              "evidenceReferenceCount": 8,
+              "reportGenerated": true,
+              "errors": []
+            },
+            {
+              "run": 3,
+              "protocol": "native_tools",
+              "firstTurnStatus": null,
+              "finalStatus": null,
+              "allPassed": false,
+              "failedChecks": [
+                "conversationCompleted"
+              ],
+              "elapsedMs": 12635,
+              "plannerRequestAttempts": 4,
+              "modelUsage": {
+                "requestCount": 5,
+                "responseCount": 4,
+                "failedRequestCount": 1,
+                "inputTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                },
+                "outputTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                },
+                "totalTokens": {
+                  "status": "partial",
+                  "total": null,
+                  "requestsWithUsage": 4,
+                  "requestCount": 5
+                }
+              },
+              "toolCallCount": 7,
+              "recommendationCount": 0,
+              "evidenceReferenceCount": 0,
+              "reportGenerated": false,
+              "errors": [
+                {
+                  "name": "RecruitmentContextCapacityError",
+                  "category": "context_capacity",
+                  "code": null,
+                  "status": null,
+                  "stage": "conclude"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "pairedRuns": [
+        {
+          "run": 1,
+          "legacyPassed": false,
+          "nativePassed": false,
+          "checksIdentical": true,
+          "firstTurnStatusSame": true,
+          "finalStatusSame": true,
+          "recommendationOrderSame": null,
+          "recommendationEvidenceSame": null,
+          "recommendationCount": {
+            "legacy": 0,
+            "native": 0
+          },
+          "plannerRequests": {
+            "legacy": 4,
+            "native": 2
+          },
+          "toolCalls": {
+            "legacy": 7,
+            "native": 1
+          },
+          "elapsedMs": {
+            "legacy": 18484,
+            "native": 9153
+          }
+        },
+        {
+          "run": 2,
+          "legacyPassed": false,
+          "nativePassed": false,
+          "checksIdentical": false,
+          "firstTurnStatusSame": false,
+          "finalStatusSame": false,
+          "recommendationOrderSame": null,
+          "recommendationEvidenceSame": null,
+          "recommendationCount": {
+            "legacy": 0,
+            "native": 3
+          },
+          "plannerRequests": {
+            "legacy": 4,
+            "native": 3
+          },
+          "toolCalls": {
+            "legacy": 7,
+            "native": 5
+          },
+          "elapsedMs": {
+            "legacy": 13732,
+            "native": 14080
+          }
+        },
+        {
+          "run": 3,
+          "legacyPassed": false,
+          "nativePassed": false,
+          "checksIdentical": true,
+          "firstTurnStatusSame": true,
+          "finalStatusSame": true,
+          "recommendationOrderSame": null,
+          "recommendationEvidenceSame": null,
+          "recommendationCount": {
+            "legacy": 0,
+            "native": 0
+          },
+          "plannerRequests": {
+            "legacy": 2,
+            "native": 4
+          },
+          "toolCalls": {
+            "legacy": 1,
+            "native": 7
+          },
+          "elapsedMs": {
+            "legacy": 7597,
+            "native": 12635
+          }
+        }
+      ]
+    }
+  ],
+  "claims": {
+    "recommendationRankingAccuracy": "not evaluated: no trusted scout ranking labels",
+    "ragRelevance": "separate author-labeled regressions are available: immutable v2 covers 34 fixed queries and two sources; v3 covers 10 fixed queries and three sources including role-aware methodology. Online-query generalization and answer faithfulness are not validated"
+  },
+  "allPassed": false,
+  "ablationAllPassed": false
+}

@@ -1,22 +1,63 @@
 {
   "baselineId": "lancedb-icu-vector-rrf-v1",
-  "status": "pending_human_review",
-  "eligibleForProductionFallback": false,
+  "status": "accepted",
+  "reviewMode": "ai_panel",
+  "eligibleForProductionFallback": true,
   "corpusPolicyVersion": "dual-evidence-v1",
   "embeddingModelId": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
   "fullTextTokenizer": "icu",
   "fusion": "reciprocal_rank_fusion_k60",
   "candidateLimit": 12,
   "questionPacketId": "dual-rag-review-v1",
-  "questionPacketSha256": "4a2fc4f688d3cb60fcf906bd5a694bdcd46d161318990c5f81437280655e4904",
+  "questionPacketSha256": "359cd0eeed43a28cbc1d8baefceb01721f31714e0184e8d42d4f5583957d2917",
   "sourceRegistrySha256": "4343ff2e56697dd951585af97370e121b3beb12fd65fcf59666cd143d7914732",
-  "indexGenerationId": null,
-  "evidenceSnapshotHash": null,
-  "reviewedQuestions": 0,
+  "indexGenerationId": "d3392b3c-549a-40e9-8516-2d46ac473632",
+  "evidenceSnapshotHash": "0cb62f9e1a59d0cc4dd7f582dab21373a24fde53f9920e8bb705d2f6683e948f",
+  "reviewedQuestions": 24,
   "requiredQuestions": 24,
   "acceptanceNotes": [
-    "A ready-for-agent implementation ticket is not a human retrieval-quality acceptance.",
-    "The baseline stays ineligible until the frozen human review packet has been completed and its source snapshot is recorded.",
-    "Model self-scores and deterministic test fixtures do not count as independent human review."
-  ]
+    "Accepted by the user-selected isolated AI panel on 2026-10-22; this is AI review, not human or external-expert review.",
+    "Three reviewers independently assessed the complete 24-question packet, then reconsidered anonymized peer rationales; all unanimously passed answer support, citation accuracy, and abstention handling on all 24 questions.",
+    "A prior human review of a different run remains recorded as historical context (17/24 supported, 23/24 citations accurate, 18/24 abstention decisions appropriate); it is not represented as the acceptance decision for this run.",
+    "The acceptance pins the hybrid run, question packet, source registry, generation, evidence snapshot, and embedding model. Expected-source hits are source-level only and do not establish passage relevance or answer correctness."
+  ],
+  "evaluationRunId": "f7dc708a-7613-4505-9c17-3b13d893bdf4",
+  "evaluationRunSha256": "794dee1fd731b77173948ae9c5d845b453e7303511cf0735cce256832e971b75",
+  "reviewedAt": "2026-10-22",
+  "measuredResults": {
+    "rankingMode": "hybrid",
+    "retrievalStatusCounts": {
+      "not_triggered": 0,
+      "found": 22,
+      "not_covered": 1,
+      "no_relevant_evidence": 1,
+      "unavailable": 0
+    },
+    "expectedSourceHits": 22,
+    "expectedSourceCount": 24,
+    "expectedSourceHitRate": 0.9166666666666666,
+    "expectedSourceHitInterpretation": "Source-level count only; it does not establish passage relevance or answer correctness.",
+    "p50RetrievalMs": 23,
+    "p95RetrievalMs": 30,
+    "latencyScope": "retrieval_only"
+  },
+  "aiPanelReviewFile": "data/knowledge/evaluation/rag-ai-panel-review.v1.json",
+  "aiPanelReviewSha256": "41e3539a4a4215329076f88b039a8f632357a78acb331210644cf8a0df38176a",
+  "historicalHumanReviewSummary": {
+    "answerSupported": 17,
+    "required": 24,
+    "citationAccurate": 23,
+    "abstentionAppropriate": 18,
+    "reviewer": "user"
+  },
+  "aiPanelReviewSummary": {
+    "reviewers": 3,
+    "rounds": 2,
+    "questions": 24,
+    "answerSupported": 24,
+    "citationAccurate": 24,
+    "abstentionAppropriate": 24,
+    "unanimousFinalVotes": true,
+    "reviewerKind": "ai_subagent"
+  }
 }

@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import { createKnowledgeEvidence } from "../../src/knowledge/evidence.js";
 import { KnowledgeEvidenceDocumentInputSchema, type KnowledgeEvidenceDocumentInput, type KnowledgeEvidenceSource } from "../../src/knowledge/evidence-schemas.js";
 import type { EvidenceReranker } from "../../src/knowledge/evidence-models.js";
+import { RagAiPanelReviewSchema } from "../../src/evaluation/rag-ai-panel-review.js";
+import { ragReviewQuestionSetSha256 } from "../../src/evaluation/rag-review-packet.js";
 
 const source: KnowledgeEvidenceSource = {
   id: "evidence-test-methods",
@@ -364,7 +366,7 @@ test("gateway failure falls back only when a matching human-reviewed baseline ac
     status: "review_complete",
     questions: reviewPacket.questions.map((question) => ({
       ...question,
-      review: { answerSupported: true, citationAccurate: true, abstentionAppropriate: true, reviewerNotes: null, reviewedAt: "2026-10-21" },
+      review: { answerSupported: true, citationAccurate: true, abstentionAppropriate: true, reviewerNotes: null, reviewedAt: "2026-10-21", evaluationRunId: "hybrid-baseline-run-001", evaluationRunSha256: "c".repeat(64), rankingMode: "hybrid" },
     })),
   }));
   const system = createKnowledgeEvidence({
@@ -382,6 +384,7 @@ test("gateway failure falls back only when a matching human-reviewed baseline ac
     const status = await system.admin.status();
     await writeFile(acceptancePath, JSON.stringify({
       status: "accepted",
+      reviewMode: "human",
       eligibleForProductionFallback: true,
       corpusPolicyVersion: "dual-evidence-v1",
       baselineId: "lancedb-icu-vector-rrf-v1",
@@ -396,6 +399,8 @@ test("gateway failure falls back only when a matching human-reviewed baseline ac
       reviewedQuestions: 24,
       requiredQuestions: 24,
       questionPacketId: "dual-rag-review-v1",
+      evaluationRunId: "hybrid-baseline-run-001",
+      evaluationRunSha256: "c".repeat(64),
     }));
     const result = await system.reader.retrieve({ kind: "methodology", query: "球员职责和比赛样本" }, {
       turnId: "evidence-baseline-gate-turn-01",
@@ -413,6 +418,155 @@ test("gateway failure falls back only when a matching human-reviewed baseline ac
     });
     assert.equal(staleAcceptance.status, "unavailable");
     assert.equal(staleAcceptance.failureCode, "model_unavailable");
+  } finally {
+    await system.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("an unaccepted hybrid baseline can run for evaluation but stays unavailable to production requests", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-evidence-hybrid-eval-"));
+  const system = createKnowledgeEvidence({
+    catalogPath: path.join(directory, "catalog.sqlite"),
+    indexPath: path.join(directory, "index"),
+    registryPath: path.join(directory, "missing-sources.json"),
+    baselineAcceptancePath: path.join(directory, "pending-acceptance.json"),
+    reviewPacketPath: path.join(directory, "pending-review.json"),
+    embedder: fakeEmbedding(),
+    reranker: null,
+    allowUnacceptedHybridEvaluation: true,
+  });
+  try {
+    await system.admin.registerSource(source);
+    await system.admin.publishDocument(document);
+    const evaluationResult = await system.reader.retrieve({ kind: "methodology", query: "球员职责和比赛样本" }, {
+      turnId: "evidence-hybrid-eval-turn-01",
+      purpose: "evaluation",
+      modelDestination: "configured_chat_gateway",
+    });
+    assert.equal(evaluationResult.status, "found");
+    assert.equal(evaluationResult.rankingMode, "hybrid");
+
+    const productionResult = await system.reader.retrieve({ kind: "methodology", query: "球员职责和比赛样本" }, {
+      turnId: "evidence-hybrid-prod-turn-01",
+      purpose: "recruitment",
+      modelDestination: "configured_chat_gateway",
+    });
+    assert.equal(productionResult.status, "unavailable");
+    assert.equal(productionResult.failureCode, "model_unavailable");
+  } finally {
+    await system.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("an accepted AI panel review can authorize hybrid fallback only when its run and corpus pins match", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-evidence-ai-panel-gate-"));
+  const acceptancePath = path.join(directory, "baseline-acceptance.json");
+  const panelPath = path.join(directory, "ai-panel-review.json");
+  const registryPath = path.join(directory, "sources.json");
+  const reviewPacketPath = fileURLToPath(new URL("../../data/knowledge/evaluation/rag-review-packet.v1.json", import.meta.url));
+  const packetText = await readFile(reviewPacketPath, "utf8");
+  const packet = JSON.parse(packetText) as { packetId: string; questions: Array<{ id: string }> };
+  const registryText = `${JSON.stringify([source])}\n`;
+  await writeFile(registryPath, registryText);
+  const system = createKnowledgeEvidence({
+    catalogPath: path.join(directory, "catalog.sqlite"),
+    indexPath: path.join(directory, "index"),
+    registryPath,
+    baselineAcceptancePath: acceptancePath,
+    reviewPacketPath,
+    aiPanelReviewPath: panelPath,
+    embedder: fakeEmbedding(),
+    reranker: { async rerank() { throw new Error("gateway offline"); } },
+  });
+  try {
+    await system.admin.registerSource(source);
+    await system.admin.publishDocument(document);
+    const status = await system.admin.status();
+    const reviewers = ["panel-a", "panel-b", "panel-c"].map((id) => ({
+      id,
+      kind: "ai_subagent" as const,
+      isolatedContext: true as const,
+      initialRoundBlind: true as const,
+      sawExpectedAnswerOutline: false as const,
+      sawAnonymizedPeerRationalesInDiscussion: true as const,
+    }));
+    const vote = (reviewerId: string) => ({
+      reviewerId,
+      answerSupported: "yes" as const,
+      citationAccurate: "yes" as const,
+      abstentionAppropriate: "yes" as const,
+      rationale: "Verified against the supplied passage and stable reference.",
+    });
+    const panel = RagAiPanelReviewSchema.parse({
+      schemaVersion: "rag-ai-panel-review-v1",
+      reviewMode: "blind_ai_panel",
+      createdAt: "2026-10-22T00:00:00.000Z",
+      reviewers,
+      discussionRoundComplete: true,
+      packet: {
+        packetId: packet.packetId,
+        sha256: createHash("sha256").update(packetText).digest("hex"),
+        questionSetSha256: ragReviewQuestionSetSha256(packet),
+        questionCount: packet.questions.length,
+        completeQuestionSet: true,
+      },
+      sourceRegistrySha256: createHash("sha256").update(registryText).digest("hex"),
+      evaluation: {
+        runId: "ai-panel-baseline-run-001",
+        runSha256: "d".repeat(64),
+        rankingMode: "hybrid",
+        generationId: status.generationId,
+        evidenceSnapshotHash: status.evidenceSnapshotHash,
+        embeddingModelId: "test-e5-revision-1",
+      },
+      questions: packet.questions.map(({ id }) => ({
+        questionId: id,
+        initialReviews: reviewers.map(({ id }) => vote(id)),
+        finalReviews: reviewers.map(({ id }) => vote(id)),
+        consensus: {
+          answerSupported: "yes",
+          citationAccurate: "yes",
+          abstentionAppropriate: "yes",
+          outcome: "pass",
+          rationale: "All three reviewers agreed after discussion.",
+        },
+      })),
+      panelDecision: "accepted",
+      decisionRationale: "All 24 questions passed all three criteria in the complete panel review.",
+    });
+    const panelText = `${JSON.stringify(panel, null, 2)}\n`;
+    await writeFile(panelPath, panelText);
+    await writeFile(acceptancePath, JSON.stringify({
+      status: "accepted",
+      reviewMode: "ai_panel",
+      eligibleForProductionFallback: true,
+      corpusPolicyVersion: "dual-evidence-v1",
+      baselineId: "lancedb-icu-vector-rrf-v1",
+      fullTextTokenizer: "icu",
+      fusion: "reciprocal_rank_fusion_k60",
+      candidateLimit: 12,
+      embeddingModelId: "test-e5-revision-1",
+      indexGenerationId: status.generationId,
+      evidenceSnapshotHash: status.evidenceSnapshotHash,
+      sourceRegistrySha256: createHash("sha256").update(registryText).digest("hex"),
+      questionPacketSha256: createHash("sha256").update(packetText).digest("hex"),
+      aiPanelReviewSha256: createHash("sha256").update(panelText).digest("hex"),
+      reviewedQuestions: 24,
+      requiredQuestions: 24,
+      questionPacketId: packet.packetId,
+      evaluationRunId: "ai-panel-baseline-run-001",
+      evaluationRunSha256: "d".repeat(64),
+    }));
+
+    const result = await system.reader.retrieve({ kind: "methodology", query: "球员职责和比赛样本" }, {
+      turnId: "evidence-ai-panel-gate-turn-01",
+      purpose: "recruitment",
+      modelDestination: "configured_chat_gateway",
+    });
+    assert.equal(result.status, "found");
+    assert.equal(result.rankingMode, "hybrid_degraded");
   } finally {
     await system.close();
     await rm(directory, { recursive: true, force: true });

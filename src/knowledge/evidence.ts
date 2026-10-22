@@ -24,12 +24,14 @@ import { createEvidenceGeneration, EvidenceIndexReader, type EvidenceCandidate, 
 import { ConfiguredGatewayEvidenceReranker, LocalE5EvidenceEmbedder, type EvidenceReranker } from "./evidence-models.js";
 import { throwIfAborted } from "../domain/abort.js";
 import { firstPartyObservationSourceId } from "./source-ids.js";
+import { isAcceptedRagAiPanelReview } from "../evaluation/rag-ai-panel-review.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultCatalogPath = path.join(projectRoot, ".data", "knowledge-evidence", "catalog.sqlite");
 const defaultIndexPath = path.join(projectRoot, ".data", "knowledge-evidence", "index");
 const defaultRegistryPath = path.join(projectRoot, "data", "knowledge", "sources.json");
 const defaultBaselineAcceptancePath = path.join(projectRoot, "data", "knowledge", "evaluation", "hybrid-baseline-acceptance.v1.json");
+const defaultAiPanelReviewPath = path.join(projectRoot, "data", "knowledge", "evaluation", "rag-ai-panel-review.v1.json");
 const turnBudgetMs = 15_000;
 const rerankCandidateLimit = 12;
 
@@ -57,9 +59,13 @@ export interface KnowledgeEvidenceOptions {
   registryPath?: string;
   baselineAcceptancePath?: string;
   embedder?: EvidenceEmbedder;
-  reranker?: EvidenceReranker;
+  /** Pass null only to deliberately disable gateway reranking (for example, a baseline evaluation). */
+  reranker?: EvidenceReranker | null;
+  /** Allows the unaccepted hybrid baseline only for requests whose purpose is evaluation. */
+  allowUnacceptedHybridEvaluation?: boolean;
   budgetMs?: number;
   reviewPacketPath?: string;
+  aiPanelReviewPath?: string;
 }
 
 function digest(value: string): string {
@@ -171,6 +177,8 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
   private readonly maxBudgetMs: number;
   private readonly baselineAcceptancePath: string;
   private readonly reviewPacketPath: string;
+  private readonly aiPanelReviewPath: string;
+  private readonly allowUnacceptedHybridEvaluation: boolean;
   private readonly initialized: Promise<void>;
   private activeReaderCount = 0;
   private indexMaintenance = false;
@@ -184,10 +192,12 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     this.indexPath = path.resolve(options.indexPath ?? process.env.TACTISCOUT_KNOWLEDGE_EVIDENCE_INDEX ?? defaultIndexPath);
     this.registryPath = path.resolve(options.registryPath ?? process.env.TACTISCOUT_KNOWLEDGE_SOURCES_FILE ?? defaultRegistryPath);
     this.embedder = options.embedder ?? new LocalE5EvidenceEmbedder();
-    this.reranker = options.reranker ?? ConfiguredGatewayEvidenceReranker.fromEnvironment();
+    this.reranker = options.reranker === null ? undefined : options.reranker ?? ConfiguredGatewayEvidenceReranker.fromEnvironment();
     this.maxBudgetMs = Math.min(turnBudgetMs, Math.max(1, Math.floor(options.budgetMs ?? turnBudgetMs)));
     this.baselineAcceptancePath = path.resolve(options.baselineAcceptancePath ?? defaultBaselineAcceptancePath);
     this.reviewPacketPath = path.resolve(options.reviewPacketPath ?? path.join(projectRoot, "data", "knowledge", "evaluation", "rag-review-packet.v1.json"));
+    this.aiPanelReviewPath = path.resolve(options.aiPanelReviewPath ?? defaultAiPanelReviewPath);
+    this.allowUnacceptedHybridEvaluation = options.allowUnacceptedHybridEvaluation ?? false;
     this.initialized = this.importMissingRegistrySources();
     this.reader = {
       retrieve: (request, context, signal) => this.retrieve(request, context, signal),
@@ -333,7 +343,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
           }
           rankingMode = "hybrid_degraded";
         }
-      } else if (this.canUseHybridBaseline()) {
+      } else if (this.canUseHybridBaseline() || context.purpose === "evaluation" && this.allowUnacceptedHybridEvaluation) {
         rankingMode = "hybrid";
       } else {
         return bundle({ status: "unavailable", failureCode: "model_unavailable", generationId: generation.generationId, candidateCount: candidates.length });
@@ -717,6 +727,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
       filePath: this.baselineAcceptancePath,
       sourceRegistryPath: this.registryPath,
       questionPacketPath: this.reviewPacketPath,
+      aiPanelReviewPath: this.aiPanelReviewPath,
       embeddingModelId: this.embedder.modelId,
       generationId,
       evidenceSnapshotHash: this.catalog.activeEvidenceSnapshotHash(),
@@ -767,6 +778,7 @@ function loadHybridBaselineAcceptance(input: {
   filePath: string;
   sourceRegistryPath: string;
   questionPacketPath: string;
+  aiPanelReviewPath: string;
   embeddingModelId: string;
   generationId: string;
   evidenceSnapshotHash: string;
@@ -779,18 +791,62 @@ function loadHybridBaselineAcceptance(input: {
       questions?: unknown;
     };
     const questions = Array.isArray(packet.questions) ? packet.questions : [];
+    const reviewRunIds = new Set<string>();
+    const reviewRunHashes = new Set<string>();
     const completeHumanReviewPacket = packet.packetId === "dual-rag-review-v1"
       && packet.status === "review_complete"
       && questions.length === 24
       && questions.every((question) => {
         if (!question || typeof question !== "object" || !("review" in question)) return false;
         const review = (question as { review?: unknown }).review;
-        return Boolean(review && typeof review === "object"
+        if (!review || typeof review !== "object") return false;
+        const evaluationRunId = (review as Record<string, unknown>).evaluationRunId;
+        const evaluationRunSha256 = (review as Record<string, unknown>).evaluationRunSha256;
+        const isCompleteHybridReview = typeof evaluationRunId === "string"
+          && evaluationRunId.length > 0
+          && typeof evaluationRunSha256 === "string"
+          && /^[a-f0-9]{64}$/u.test(evaluationRunSha256)
+          && (review as Record<string, unknown>).rankingMode === "hybrid"
           && typeof (review as Record<string, unknown>).answerSupported === "boolean"
           && typeof (review as Record<string, unknown>).citationAccurate === "boolean"
           && typeof (review as Record<string, unknown>).abstentionAppropriate === "boolean"
-          && isIsoCalendarDate((review as Record<string, unknown>).reviewedAt));
+          && isIsoCalendarDate((review as Record<string, unknown>).reviewedAt);
+        if (isCompleteHybridReview) {
+          reviewRunIds.add(evaluationRunId);
+          reviewRunHashes.add(evaluationRunSha256);
+        }
+        return isCompleteHybridReview;
       });
+    const humanReviewQualified = value.reviewMode === "human"
+      && completeHumanReviewPacket
+      && reviewRunIds.size === 1
+      && reviewRunHashes.size === 1
+      && value.evaluationRunId === [...reviewRunIds][0]
+      && value.evaluationRunSha256 === [...reviewRunHashes][0];
+
+    let aiPanelReviewQualified = false;
+    if (value.reviewMode === "ai_panel") {
+      const rawPanel = JSON.parse(readFileSync(input.aiPanelReviewPath, "utf8")) as unknown;
+      aiPanelReviewQualified = typeof value.aiPanelReviewSha256 === "string"
+        && value.aiPanelReviewSha256 === fileHash(input.aiPanelReviewPath)
+        && typeof packet.packetId === "string"
+        && typeof value.evaluationRunId === "string"
+        && typeof value.evaluationRunSha256 === "string"
+        && isAcceptedRagAiPanelReview({
+          unparsedReview: rawPanel,
+          packet,
+          expected: {
+            packetId: packet.packetId,
+            packetSha256: fileHash(input.questionPacketPath) ?? "",
+            sourceRegistrySha256: fileHash(input.sourceRegistryPath) ?? "",
+            runId: value.evaluationRunId,
+            runSha256: value.evaluationRunSha256,
+            generationId: input.generationId,
+            evidenceSnapshotHash: input.evidenceSnapshotHash,
+            embeddingModelId: input.embeddingModelId,
+          },
+        });
+    }
     return value.status === "accepted"
       && value.eligibleForProductionFallback === true
       && value.corpusPolicyVersion === "dual-evidence-v1"
@@ -805,7 +861,7 @@ function loadHybridBaselineAcceptance(input: {
       && value.questionPacketSha256 === fileHash(input.questionPacketPath)
       && value.reviewedQuestions === questions.length
       && value.requiredQuestions === questions.length
-      && completeHumanReviewPacket
+      && (humanReviewQualified || aiPanelReviewQualified)
       && typeof value.questionPacketId === "string"
       && value.questionPacketId === "dual-rag-review-v1";
   } catch {

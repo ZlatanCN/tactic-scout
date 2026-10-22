@@ -1,0 +1,343 @@
+{
+  "reviewerId": "panel-b",
+  "initialReviews": [
+    {
+      "questionId": "M01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持每次射门的进球概率估计及球队 xG 汇总。"
+    },
+    {
+      "questionId": "M02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引 xG 段落提到前五大联赛和合并数据，但未列出名称或具体赛季；回答据此谨慎说明无法确定。"
+    },
+    {
+      "questionId": "M03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 支持球员身价和累计 PlayeRank 两种代理及其表现概述；E4 支持先前研究使用 FIFA 评分。"
+    },
+    {
+      "questionId": "M04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 明确说将球员此前参加的所有比赛的 PlayeRank 值相加，并说明该特征的用途和假设。"
+    },
+    {
+      "questionId": "M05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3、E4、E5 支持对累计分数表现、La Liga 例外、上场时间缺失及按比赛周情境化的说明。"
+    },
+    {
+      "questionId": "M06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "证据描述了特定数据和预测任务，没有声称覆盖所有比赛或所有可预测性方面；回答对此作了适当限定。"
+    },
+    {
+      "questionId": "M07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持研究样本及推广限制；E2 支持位置与个体差异提醒。"
+    },
+    {
+      "questionId": "M08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持结合情境解读、指标易懂、不能替代经验判断及明确数据缺口；E2 支持位置和个体差异提醒。"
+    },
+    {
+      "questionId": "M09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 的项目作者摘要明确说明位置影响总跑动、高强度跑动等指标，也说明存在个体差异。"
+    },
+    {
+      "questionId": "M10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 提醒明确标出数据缺口，不应凭有限事件统计推断潜力或完整能力；回答没有把缺失记录当成球员弱的证据。"
+    },
+    {
+      "questionId": "M11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持技术指标用于发展和反馈、结合情境且不取代经验判断；E2、E3 分别支持位置差异和射门指标适用范围的补充。"
+    },
+    {
+      "questionId": "M12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E6 说明数据经 Soccer Data Challenge 向公众提供，但没有说明许可是否涵盖本项目索引；回答谨慎地不据此推断许可。"
+    },
+    {
+      "questionId": "P01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 将西甲 PlayeRank 条目较高变异与 Ronaldo、Messi 及其他球员的表现联系起来。"
+    },
+    {
+      "questionId": "P02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引球员段落没有 Ronaldo 个人射门、进球或其他具体统计；回答没有把联赛层级的指标误说成他的个人数据。"
+    },
+    {
+      "questionId": "P03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "来源元数据标记样本赛季为 2017/18，并说明这是底层联赛事件样本范围，不是 Messi 的具体比赛或日期。"
+    },
+    {
+      "questionId": "P04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引段落没有指出 Ronaldo 的具体比赛；元数据中的 2017/18 是样本赛季范围，回答没有将其误作比赛日期。"
+    },
+    {
+      "questionId": "P05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引段落仅将 Messi 的表现与西甲 PlayeRank 结果联系起来，没有报告他的射门数或进球数；回答适当说明无法确定。"
+    },
+    {
+      "questionId": "P06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "证据和元数据只涉及历史样本及两人对 PlayeRank 结果的影响，没有当前赛季的能力比较；回答没有作此推断。"
+    },
+    {
+      "questionId": "P07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引段落没有说明是否记录了 Ronaldo 的现场球探笔记；回答谨慎说明材料未交代此事。"
+    },
+    {
+      "questionId": "P08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "元数据说明底层事件样本覆盖 2017/18 赛季，但没有 Ronaldo 某场比赛的具体日期；回答正确区分二者。"
+    },
+    {
+      "questionId": "P09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 提到两人的表现与西甲 PlayeRank 结果的变异有关，但未给出两人分数或谁更高的比较。"
+    },
+    {
+      "questionId": "P10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "检索未返回 passage，回答只说明材料未包含相关讨论，无法判断 Haaland 的结论。"
+    },
+    {
+      "questionId": "P11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "检索没有返回相关证据，回答没有对 Ronaldo 2020 年西甲表现作无依据断言。"
+    },
+    {
+      "questionId": "P12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 附带的来源元数据给出三位作者、论文标题及 PLOS ONE 出版信息，与回答一致。"
+    }
+  ],
+  "finalReviews": [
+    {
+      "questionId": "M01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持每次射门的进球概率估计及 xG 汇总到比赛和球队。"
+    },
+    {
+      "questionId": "M02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引 xG 段落提到前五大联赛及合并数据，但未列出名称或具体赛季；回答据此谨慎说明无法确定。"
+    },
+    {
+      "questionId": "M03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 支持身价和累计 PlayeRank 两种代理及其表现概述；E4 支持先前研究使用 FIFA 评分。"
+    },
+    {
+      "questionId": "M04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3 明确说将球员此前参加的所有比赛的 PlayeRank 值相加，并说明该特征的用途和假设。"
+    },
+    {
+      "questionId": "M05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E3、E4、E5 支持对累计分数总体表现、La Liga 例外、上场时间缺失及比赛周情境化的说明。"
+    },
+    {
+      "questionId": "M06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "证据描述的是特定数据和预测任务，没有声称覆盖所有比赛或所有可预测性方面；回答明确限定了结论范围。"
+    },
+    {
+      "questionId": "M07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 标明是项目作者撰写的摘要而非论文原文；回答称“材料指出”，并未把摘要内容说成论文原文结论。E2 支持位置和个体差异提醒。"
+    },
+    {
+      "questionId": "M08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持结合情境、不能替代经验判断及标出数据缺口；E2 支持位置和个体差异提醒。"
+    },
+    {
+      "questionId": "M09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 的项目作者摘要明确说明位置影响总跑动、高强度跑动等指标，也提到个体差异。"
+    },
+    {
+      "questionId": "M10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 提醒标出数据缺口，不能凭有限事件统计推断潜力或完整能力；回答没有把缺失记录当成球员弱的证据。"
+    },
+    {
+      "questionId": "M11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 支持技术指标用于发展和反馈、结合情境且不取代经验判断；E2、E3 支持位置差异和射门指标适用范围的补充。"
+    },
+    {
+      "questionId": "M12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E6 说明数据由 Wyscout 收集并经 Soccer Data Challenge 提供，但没有说明许可涵盖本项目索引；回答没有据此推断许可。"
+    },
+    {
+      "questionId": "P01",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 将西甲 PlayeRank 条目的较高变异联系到 Ronaldo、Messi 及 Suarez、Griezmann、Benzema 等人的表现。"
+    },
+    {
+      "questionId": "P02",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "球员段落没有 Ronaldo 个人射门、进球或其他具体统计；回答没有把联赛层级的数据误说成他的个人数据。"
+    },
+    {
+      "questionId": "P03",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "来源元数据将底层五大联赛事件样本标为 2017/18，并明确没有给出每名球员的具体比赛日期；回答清楚地区分了样本赛季与 Messi 的个人比赛。"
+    },
+    {
+      "questionId": "P04",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "段落没有指出 Ronaldo 的具体比赛；元数据中的 2017/18 是样本赛季范围，不是 Ronaldo 某场比赛的日期，回答明确作了区分。"
+    },
+    {
+      "questionId": "P05",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "段落只将 Messi 的表现与西甲 PlayeRank 结果联系起来，没有报告他的射门数或进球数。"
+    },
+    {
+      "questionId": "P06",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "材料及元数据只涉及历史样本和两人对 PlayeRank 结果的影响，没有当前赛季的能力比较；回答没有作此推断。"
+    },
+    {
+      "questionId": "P07",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "所引段落没有说明是否记录了 Ronaldo 的现场球探笔记；回答只说明材料未交代此事。"
+    },
+    {
+      "questionId": "P08",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "元数据说明底层事件样本覆盖 2017/18 赛季，并未给出 Ronaldo 某场比赛的年月日；回答明确没有把样本范围当成比赛日期。"
+    },
+    {
+      "questionId": "P09",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 提到两人的表现与西甲 PlayeRank 条目变异有关，但未给出两人分数或谁更高的比较。"
+    },
+    {
+      "questionId": "P10",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "检索没有返回 passage；回答只说材料未包含相关讨论，无法判断 Haaland 的结论。"
+    },
+    {
+      "questionId": "P11",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "检索没有返回相关证据；回答没有对 Ronaldo 2020 年西甲表现作无依据断言。"
+    },
+    {
+      "questionId": "P12",
+      "answerSupported": "yes",
+      "citationAccurate": "yes",
+      "abstentionAppropriate": "yes",
+      "rationale": "E1 附带的来源元数据给出三位作者、论文标题及 PLOS ONE 出版信息，与回答一致。"
+    }
+  ]
+}

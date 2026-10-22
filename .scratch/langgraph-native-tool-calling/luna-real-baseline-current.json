@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-19T16:47:54.463Z",
+  "datasetVersion": 3,
+  "model": "codex/gpt-6-luna",
+  "dataMode": "curated",
+  "runCount": 1,
+  "allPassed": false,
+  "checks": {
+    "passed": 14,
+    "total": 31,
+    "failed": 17
+  },
+  "elapsedMs": {
+    "p50": 50,
+    "p95": 50
+  },
+  "planner": {
+    "requestAttempts": 0,
+    "modelRequests": 1,
+    "inputTokens": {
+      "status": "unavailable",
+      "total": null,
+      "requestsWithUsage": 0,
+      "requestCount": 1
+    },
+    "outputTokens": {
+      "status": "unavailable",
+      "total": null,
+      "requestsWithUsage": 0,
+      "requestCount": 1
+    },
+    "totalTokens": {
+      "status": "unavailable",
+      "total": null,
+      "requestsWithUsage": 0,
+      "requestCount": 1
+    }
+  },
+  "tools": {
+    "calls": 0,
+    "matchedRecordsAcrossToolCalls": 0,
+    "returnedResultsAcrossToolCalls": 0,
+    "progressEvents": 6
+  },
+  "reports": {
+    "completed": 0,
+    "evaluatedCandidateCountAcrossRuns": 0,
+    "availableMetricValuesAcrossRuns": 0,
+    "expectedMetricValuesAcrossRuns": 0,
+    "lowSampleCandidateCountAcrossRuns": 0,
+    "recommendationCountAcrossRuns": 0,
+    "methodologyChunkCountAcrossRuns": 0
+  }
+}

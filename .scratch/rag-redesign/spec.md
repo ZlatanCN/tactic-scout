@@ -131,9 +131,10 @@ Updated: 2026-10-21
 - **幂等与未知外呼状态。** 验证重复请求、图重试和重启恢复不重复已完成或已发出但完成未知的重排，并延续已用预算。通过外呼已记录、响应未提交的恢复场景验证这一点，不能只测试成功缓存命中。
 - **暂停、取消和关闭重开先例。** 复用 native-runtime-policies、service-drain、checkpoint-recovery、recruitment-cancellation 的公开案件/HTTP 范式，使用真实 SQLite 关闭重开。验证引用在恢复后重新授权，预算不加回，取消与超预算/服务排空保持不同终态。
 - **工具与报告先例。** 沿用 recruitment-tool-executor、recruitment-http、methodology-reuse-ablation 的适配与续案行为，以及现有 Web Search 整图用例中“定性线索不填补指标缺口”的不变量。历史试点可通过证据模块和报告投影验收，不以修改当前候选池为条件。
-- **试点质量评测。** 准备 20–30 个问题，起始建议合计 24 个、两路各 12 个；每题记录主体、样本时间、最小支持原文和可回答/无答案标签，按问题家族隔离校准与冻结验证。比较旧方案、原生混合基线和新增网关重排的候选/最终片段召回、排序、无答案误接受、人工引用支持、耗时及 token 用量。
-- **真实评测与自动回归分开。** 确定性 CI 不抓取外网、不下载模型、不访问真实网关；本地真实 embedding/已配置网关与获准语料的有界评测单独记录。人工判断在实际完成前保留待复核状态；独立评审是期望增强，不是用户已经承诺提供的先决条件。小样本和单篇/少数球员限制随结果报告，不使用模型自评分冒充人工证据。
-- **验收证据。** 自动回归与构建通过只证明行为合同；质量结论还需真实检索数据和约定的人工复核。降级基线必须单独校准并通过冻结验证，不能因重排路径通过而视为基线也通过；未被用户采用的通用百分比目标不列为既定通过率。
+- **试点质量评测。** 准备 20–30 个问题，起始建议合计 24 个、两路各 12 个；每题记录主体、样本时间、最小支持原文和可回答/无答案标签，按问题家族隔离校准与冻结验证。比较旧方案、原生混合基线和新增网关重排的候选/最终片段召回、排序、无答案误接受、答案支持、引用准确、拒答处理、耗时及 token 用量。
+- **评审模式。** 人工复核与隔离 AI 面板复核是不同模式，结果必须准确标注。用户明确选择用三名隔离 AI 子代理替代后续逐题人工评分：代理首轮在不看答案要点和同伴意见的条件下独立判断；主持者随后分享匿名初审理由，请代理挑战并给出最终判断；结论称为 AI panel review，不称作人工或外部专家评审。
+- **真实评测与自动回归分开。** 确定性 CI 不抓取外网、不下载模型、不访问真实网关；本地真实 embedding/已配置网关与获准语料的有界评测单独记录。AI 面板复核须绑定完整冻结题包、单一评测 run、来源登记和活动索引快照。小样本和单篇/少数球员限制随结果报告，不使用单模型自评分或测试 fixture 冒充 AI 面板结论。
+- **验收证据。** 自动回归与构建通过只证明行为合同；质量结论还需真实检索数据和所选复核模式的可追溯记录。按本项目本次用户授权的 AI 面板模式，只有三名隔离代理讨论后对全部 24 题的答案支持、引用准确和拒答处理均一致通过，才可将对应混合基线标记为已验收；任何失败、未决题或版本 pin 不匹配都保持 fallback 关闭。重排路径通过不代表混合基线通过；未采用的通用百分比目标不列为既定通过率。
 
 ## Out of Scope
 
@@ -147,13 +148,13 @@ Updated: 2026-10-21
 - 多租户权限平台、分布式锁、微服务、集群伸缩或通用文档管理平台。
 - 兼容旧向量索引、迁移旧 RAG 引用/全文 checkpoint，以及保证远程擦除浏览器历史报告或全部磁盘历史版本。
 - 未取得许可的批量抓取、自动联系发布方、采购付费语料或把未准入网页搜索摘要自动转成索引资料。
-- 本次规格发布不执行功能实现、真实模型调用、语料入库或人工评分；这些均属于后续实施与验收工作。
+- 本次规格发布不执行功能实现、真实模型调用、语料入库或复核评分；这些均属于后续实施与验收工作。
 
 ## Further Notes
 
 - 本规格由用户于 2026-10-21 显式调用 to-spec 后直接综合发布，不继续访谈；此前 Q1–Q9 的回答保留为决策依据，推荐工程默认值在本规格中明确化，不能被解读为已实现或已测得的成绩。
 - 领域术语以 [CONTEXT.md](../../CONTEXT.md) 为准，尤其是方法资料、报告观察、球探观察记录、球员定性观察、历史球员分析观点与报告检索覆盖。
-- 保留 [ADR-0001](../../docs/adr/0001-report-retrieval-as-qualitative-evidence.md)、[ADR-0002](../../docs/adr/0002-permission-gated-scouting-corpora.md) 和 [ADR-0004](../../docs/adr/0004-first-party-observation-ratings.md) 的证据与来源规则；[ADR-0015](../../docs/adr/0015-rag-dual-corpus-first-release.md) 固定双路/历史试点与人工复核范围，[ADR-0016](../../docs/adr/0016-rag-reuse-chat-gateway-with-local-embeddings.md) 固定网关、本地 embedding 和共享预算，[ADR-0017](../../docs/adr/0017-on-demand-rag-with-validated-ranking-fallback.md) 明确调整原有按评估批次固定报告检索的默认约定。
+- 保留 [ADR-0001](../../docs/adr/0001-report-retrieval-as-qualitative-evidence.md)、[ADR-0002](../../docs/adr/0002-permission-gated-scouting-corpora.md) 和 [ADR-0004](../../docs/adr/0004-first-party-observation-ratings.md) 的证据与来源规则；[ADR-0015](../../docs/adr/0015-rag-dual-corpus-first-release.md) 固定双路/历史试点范围，[ADR-0016](../../docs/adr/0016-rag-reuse-chat-gateway-with-local-embeddings.md) 固定网关、本地 embedding 和共享预算，[ADR-0017](../../docs/adr/0017-on-demand-rag-with-validated-ranking-fallback.md) 明确调整原有按评估批次固定报告检索的默认约定，[ADR-0019](../../docs/adr/0019-rag-ai-panel-review-substitutes-for-manual-pilot-review.md) 记录用户选择的 AI 面板复核模式。
 - 推荐工程取舍的定稿记录见 [ADR-0018](../../docs/adr/0018-canonical-rag-evidence-and-derived-indexes.md)。现有模块化单体布局继续遵守 [ADR-0014](../../docs/adr/0014-modular-monolith-module-layout.md)。
 - 首批候选来源是 Mead 等的 [PLOS 原文](https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0282295)，DOI 为 `10.1371/journal.pone.0282295`。官方 API 获取、按段落分流与许可验证由实施中的导入器执行；来源发现或网页搜索结果本身不等同已入库资料。球员观点只用于 2017/18 历史样本的检索、引用及范围识别，不表示现役引援效用已验证。
 - [来源调查记录](research/external-player-evidence.md)、[访谈归档](design-interview.md) 与 [实现补充说明](implementation-plan.md) 保留设计依据；发生表述差异时，本规格的范围和验收要求优先。
