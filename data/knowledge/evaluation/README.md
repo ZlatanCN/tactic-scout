@@ -6,7 +6,7 @@ The packet `rag-review-packet.v1.json` contains 24 frozen starter questions: 12 
 
 1. Import the reviewed source-policy declarations with `pnpm knowledge:evidence -- import-sources`.
 2. Build the two existing project-authored methodology summaries with `pnpm knowledge:evidence -- seed-methodology`.
-3. Inspect the PLOS source without persisting it: `pnpm knowledge:evidence -- preview-plos 10.1371/journal.pone.0282295`.
+3. Inspect the PLOS source without persisting it: `pnpm knowledge:evidence -- preview-plos 10.1371/journal.pone.0282295`. It verifies metadata and license through PLOS Search API, then reads structured JATS XML article text from the official PLOS article endpoint.
 4. After checking the preview, publish both separately classified documents with `pnpm knowledge:evidence -- crawl-plos 10.1371/journal.pone.0282295`.
 5. Prepare the model and current index before serving turns with `pnpm knowledge:evidence -- prepare-runtime`.
 

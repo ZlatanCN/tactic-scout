@@ -442,6 +442,7 @@ test("PLOS正文抓取只访问已登记DOI并保留文章署名和许可", asyn
   let requestCount = 0;
   const fetcher: typeof fetch = async () => {
     requestCount += 1;
+    if (requestCount > 1) return new Response(`<article><front><article-meta><article-id pub-id-type="doi">10.1371/journal.pone.0298346</article-id></article-meta></front><body><sec><title>Methods</title><p>Indicators need match context &amp; practitioner interpretation.</p></sec></body></article>`, { status: 200, headers: { "content-type": "application/xml" } });
     return new Response(JSON.stringify({ response: { docs: [{
       id: "10.1371/journal.pone.0298346",
       title_display: "Methods paper",
@@ -452,7 +453,7 @@ test("PLOS正文抓取只访问已登记DOI并保留文章署名和许可", asyn
       body: "<p>Indicators need match context &amp; practitioner interpretation.</p>",
     }] } }), { status: 200, headers: { "content-type": "application/json" } });
   };
-  const provider = new PlosDiscoveryProvider(fetcher);
+  const provider = new PlosDiscoveryProvider(fetcher, 0);
   const article = await provider.fetchRegisteredArticle("10.1371/journal.pone.0298346", {
     registryPath: fileURLToPath(new URL("../../data/knowledge/sources.json", import.meta.url)),
   });
@@ -461,12 +462,12 @@ test("PLOS正文抓取只访问已登记DOI并保留文章署名和许可", asyn
   assert.equal(article.corpus, "methodology");
   assert.match(article.content, /Indicators need match context & practitioner interpretation/);
   assert.match(article.attribution, /Davidson, Barrett/);
-  assert.equal(requestCount, 1);
+  assert.equal(requestCount, 2);
 
   await assert.rejects(provider.fetchRegisteredArticle("10.1371/journal.pone.0999999", {
     registryPath: fileURLToPath(new URL("../../data/knowledge/sources.json", import.meta.url)),
   }), /尚无允许自动抓取/);
-  assert.equal(requestCount, 1, "unregistered article should be rejected before requesting its body");
+  assert.equal(requestCount, 2, "unregistered article should be rejected before requesting its body");
 });
 
 test("registered PLOS fetch keeps attributed article prose and excludes figures, tables, supplements, references, and linked third-party material", async () => {
@@ -488,9 +489,12 @@ test("registered PLOS fetch keeps attributed article prose and excludes figures,
     };
     const registryPath = path.join(tempRoot, "sources.json");
     await writeFile(registryPath, JSON.stringify([profileSource]), "utf8");
-    let requestedUrl: URL | undefined;
+    const requestedUrls: URL[] = [];
+    const jatsDocument = `<article><front><article-meta><article-id pub-id-type="doi">${doi}</article-id></article-meta></front><body><sec><title>Results</title><p>Profile construction combines multiple offensive and defensive performance indicators to characterize player roles.</p><p>Observed activity volume must be interpreted separately from efficiency when comparing players.</p><fig><caption>FIGURE-ONLY diagram and label.</caption></fig><table-wrap><caption>TABLE-ONLY player values.</caption><table><tr><td>PRIVATE MATCH STATISTICS</td></tr></table></table-wrap><supplementary-material>SUPPLEMENT-ONLY file.</supplementary-material><ref-list><ref>REFERENCE-ONLY citation text.</ref></ref-list><p>Third-party extract: <ext-link xlink:href="https://example.org/licensed">THIRD-PARTY LICENSED TEXT</ext-link></p></sec></body></article>`;
     const fetcher: typeof fetch = async (input) => {
-      requestedUrl = new URL(input.toString());
+      const url = new URL(input.toString());
+      requestedUrls.push(url);
+      if (url.hostname !== "api.plos.org") return new Response(jatsDocument, { status: 200, headers: { "content-type": "application/xml" } });
       return new Response(JSON.stringify({ response: { docs: [{
         id: doi,
         title_display: "Optimizing football analytics: Dimensionality reduction meets machine learning for offensive and defensive player profiling",
@@ -502,10 +506,13 @@ test("registered PLOS fetch keeps attributed article prose and excludes figures,
       }] } }), { status: 200, headers: { "content-type": "application/json" } });
     };
 
-    const article = await new PlosDiscoveryProvider(fetcher).fetchRegisteredArticle(doi, { registryPath });
+    const article = await new PlosDiscoveryProvider(fetcher, 0).fetchRegisteredArticle(doi, { registryPath });
 
-    assert.equal(requestedUrl?.hostname, "api.plos.org");
-    assert.equal(requestedUrl?.searchParams.get("q"), `id:"${doi}"`);
+    assert.equal(requestedUrls.length, 2);
+    assert.equal(requestedUrls[0]?.hostname, "api.plos.org");
+    assert.equal(requestedUrls[0]?.searchParams.get("q"), `id:"${doi}"`);
+    assert.equal(requestedUrls[1]?.hostname, "journals.plos.org");
+    assert.equal(requestedUrls[1]?.pathname, "/plosone/article/file");
     assert.equal(article.sourceId, profileSource.id);
     assert.equal(article.url, articleUrl);
     assert.match(article.content, /Profile construction combines multiple offensive and defensive performance indicators/);

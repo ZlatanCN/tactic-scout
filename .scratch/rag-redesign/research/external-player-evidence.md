@@ -6,7 +6,7 @@
 
 - 来源：Mead、O'Hare 和 McMenemy，2023，*Expected goals in football: Improving model performance and demonstrating value*，DOI 10.1371/journal.pone.0282295。
 - 出版方原文在分析英超/西甲等模型结果时讨论 La Liga 中 Cristiano Ronaldo、Lionel Messi 的历史 PlayeRank 样本；论文的 Materials and methods 说明数据使用 2017/18 赛季，但该段没有逐人标出具体比赛日期。
-- 出版方声明文章为 CC BY，且该 DOI 已在项目登记范围中；正文通过 PLOS Search API 获取。球员定性试点仅纳入作者自己的历史分析段落，关联 Cristiano Ronaldo（Wikidata Q11571）和 Lionel Messi（Wikidata Q615）；不得表述为专业球探意见或现役能力判断。
+- 出版方声明文章为 CC BY，且该 DOI 已在项目登记范围中；使用 PLOS Search API 核验 DOI、元数据与许可，再从官方 JATS XML 文章端点读取结构化正文。球员定性试点仅纳入作者自己的历史分析段落，关联 Cristiano Ronaldo（Wikidata Q11571）和 Lionel Messi（Wikidata Q615）；不得表述为专业球探意见或现役能力判断。
 - 论文引用了 Wyscout、Transfermarkt/Kaggle、FBref、ClubElo 数据。这些上游数据不单独抓取或入库；只保存带完整出处的文章原文块。
 
 ## 不得作为本试点来源

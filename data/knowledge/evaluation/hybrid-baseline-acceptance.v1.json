@@ -9,7 +9,7 @@
   "candidateLimit": 12,
   "questionPacketId": "dual-rag-review-v1",
   "questionPacketSha256": "4a2fc4f688d3cb60fcf906bd5a694bdcd46d161318990c5f81437280655e4904",
-  "sourceRegistrySha256": "e5aa99db089af30ae7eee5709bcfb8edce129c31cec01d72ea7d28931cfa7e67",
+  "sourceRegistrySha256": "4343ff2e56697dd951585af97370e121b3beb12fd65fcf59666cd143d7914732",
   "indexGenerationId": null,
   "evidenceSnapshotHash": null,
   "reviewedQuestions": 0,

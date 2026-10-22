@@ -95,6 +95,6 @@
       "display": true
     },
     "rightsVerifiedAt": "2026-10-21",
-    "rightsNote": "PLOS 正文声明 CC BY 4.0，按 DOI 仅通过 PLOS 官方 Search API 获取。球员语料限于作者对 La Liga PlayeRank 结果中具名球员的原文分析段落，标成研究者历史分析观点而非职业球探观察；排除图表、参考文献及引用媒体全文。底层 Wyscout、Transfermarkt、Kaggle、FBref 与 ClubElo 数据不随文章入库或再分发。"
+    "rightsNote": "PLOS 正文声明 CC BY 4.0；使用官方 Search API 按 DOI 核验元数据和许可，再通过 PLOS 官方 JATS XML 文章端点取得结构化原文。球员语料限于作者对 La Liga PlayeRank 结果中具名球员的原文分析段落，标成研究者历史分析观点而非职业球探观察；排除图表、参考文献及引用媒体全文。底层 Wyscout、Transfermarkt、Kaggle、FBref 与 ClubElo 数据不随文章入库或再分发。"
   }
 ]

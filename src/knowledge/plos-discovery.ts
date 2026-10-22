@@ -62,8 +62,8 @@ function articleParagraphs(value: string): PlosArticleParagraph[] {
 function isNamedLaLigaPlayeRankAnalysis(text: string): boolean {
   return /\b(?:La Liga|LaLiga)\b/i.test(text)
     && /\bPlayeRank\b/i.test(text)
-    && /\bCristiano Ronaldo\b/i.test(text)
-    && /\bLionel Messi\b/i.test(text);
+    && /\bCristiano\s+Ronaldo\b/i.test(text)
+    && /\bLionel\s+Messi\b/i.test(text);
 }
 
 function articleUrlForDoi(doi: string): string | null {
@@ -85,6 +85,27 @@ function articleUrlForDoi(doi: string): string | null {
   return url.toString();
 }
 
+function jatsArticleUrlForDoi(doi: string): string | null {
+  const articleUrl = articleUrlForDoi(doi);
+  if (!articleUrl) return null;
+  const url = new URL(articleUrl);
+  url.pathname = url.pathname.replace(/\/article$/u, "/article/file");
+  url.searchParams.set("id", doi);
+  url.searchParams.set("type", "manuscript");
+  return url.toString();
+}
+
+function jatsBodyForDoi(xml: string, doi: string): string {
+  const doiMatch = /<article-id\b[^>]*pub-id-type=["']doi["'][^>]*>([\s\S]*?)<\/article-id\s*>/i.exec(xml);
+  const xmlDoi = doiMatch ? cleanArticleText(doiMatch[1] ?? "") : null;
+  if (!xmlDoi || xmlDoi.toLocaleLowerCase() !== doi.toLocaleLowerCase()) {
+    throw new Error("PLOS JATS XML DOI 不匹配（请求 " + doi + "，返回 " + (xmlDoi ?? "未提供") + "）；未生成资料。");
+  }
+  const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(xml)?.[1];
+  if (!body) throw new Error("PLOS JATS XML 未包含正文节点；" + doi + " 未生成资料。");
+  return body;
+}
+
 function stringField(value: string | string[] | undefined): string {
   if (typeof value === "string") return value;
   return value?.join("\n") ?? "";
@@ -100,6 +121,12 @@ function cleanArticleText(value: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lsquo;/gi, "‘")
+    .replace(/&rsquo;/gi, "’")
+    .replace(/&ldquo;/gi, "“")
+    .replace(/&rdquo;/gi, "”")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&mdash;/gi, "—")
     .replace(/&#(\d+);/g, (_match, decimal: string) => String.fromCodePoint(Number(decimal)))
     .replace(/&#x([\da-f]+);/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
     .replace(/\s+/g, " ")
@@ -127,7 +154,10 @@ function removeExcludedArticleBlocks(value: string): string {
 export class PlosDiscoveryProvider {
   private lastRequestAt = 0;
 
-  constructor(private readonly fetcher: typeof fetch = fetch) {}
+  constructor(
+    private readonly fetcher: typeof fetch = fetch,
+    private readonly minimumRequestIntervalMs = 6_000,
+  ) {}
 
   async discover(query: string, options: { limit?: number; registryPath?: string } = {}): Promise<PlosArticleCandidate[]> {
     const searchText = query.trim();
@@ -140,7 +170,7 @@ export class PlosDiscoveryProvider {
     url.searchParams.set("fl", "id,title_display,author_display,publication_date,copyright");
     url.searchParams.set("wt", "json");
     url.searchParams.set("rows", String(limit));
-    const payload = await this.request(url);
+    const payload = await this.requestJson(url);
     return payload.response.docs.map((document) => {
       const articleUrl = articleUrlForDoi(document.id);
       return {
@@ -163,17 +193,22 @@ export class PlosDiscoveryProvider {
     if (!source) throw new Error(`PLOS DOI ${doi} 尚无允许自动抓取、保存和 AI/RAG 处理的来源登记；未发出正文请求。`);
     const url = new URL("https://api.plos.org/search");
     url.searchParams.set("q", `id:"${doi}"`);
-    url.searchParams.set("fl", "id,title_display,author_display,publication_date,copyright,abstract,body");
+    url.searchParams.set("fl", "id,title_display,author_display,publication_date,copyright,abstract");
     url.searchParams.set("wt", "json");
     url.searchParams.set("rows", "1");
-    const payload = await this.request(url);
+    const payload = await this.requestJson(url);
     const document = payload.response.docs.find((candidate) => candidate.id === doi);
     if (!document) throw new Error(`PLOS API 未返回 DOI ${doi} 的文章正文。`);
     const copyright = stringField(document.copyright);
     if (!/creative commons attribution|\bcc by\b/i.test(copyright)) {
       throw new Error(`PLOS API 未返回可核实的 CC BY 许可声明；${doi} 未入库。`);
     }
-    const content = cleanArticleText(`${stringField(document.abstract)} ${stringField(document.body)}`);
+    const jatsUrl = jatsArticleUrlForDoi(doi);
+    if (!jatsUrl) throw new Error("该 PLOS DOI 暂无官方 JATS XML 文章端点。");
+    const jatsXml = await this.requestText(new URL(jatsUrl), "application/xml, text/xml");
+    const articleBody = jatsBodyForDoi(jatsXml, doi);
+    const articleText = articleParagraphs(articleBody).map(({ text }) => text).join("\n\n");
+    const content = cleanArticleText([stringField(document.abstract), articleText].filter(Boolean).join("\n\n"));
     if (content.length < 40 || content.length > 200_000) throw new Error(`PLOS 正文长度 ${content.length} 超出当前自动入库范围。`);
     const title = document.title_display ?? doi;
     const authors = document.author_display ?? [];
@@ -186,7 +221,7 @@ export class PlosDiscoveryProvider {
       publisher: source.publisher,
       publishedAt: document.publication_date ?? null,
       license: source.license,
-      attribution: `${authors.join(", ") || "PLOS 作者"}. ${title}. DOI: ${doi}. ${articleUrl}. ${source.license}. Modified: figures, tables, supplementary material, references, acknowledgements, boxed text, and linked external materials excluded. Data provided by PLOS API.`,
+      attribution: `${authors.join(", ") || "PLOS 作者"}. ${title}. DOI: ${doi}. ${articleUrl}. ${source.license}. Data Provided by PLOS. Metadata verified via Search API; text from official JATS XML; figures, tables, supplementary material, references, acknowledgements, boxed text, and linked external materials excluded.`,
       acquisition: "authorized_fetch",
       content,
     });
@@ -206,27 +241,31 @@ export class PlosDiscoveryProvider {
     }
     const url = new URL("https://api.plos.org/search");
     url.searchParams.set("q", "id:\"" + doi + "\"");
-    url.searchParams.set("fl", "id,title_display,author_display,publication_date,copyright,abstract,body");
+    url.searchParams.set("fl", "id,title_display,author_display,publication_date,copyright,abstract");
     url.searchParams.set("wt", "json");
     url.searchParams.set("rows", "1");
-    const payload = await this.request(url);
+    const payload = await this.requestJson(url);
     const rawDocument = payload.response.docs.find((candidate) => candidate.id === doi);
     if (!rawDocument) throw new Error("PLOS API 未返回请求文章。");
     if (!/creative commons attribution|\bcc by\b/i.test(stringField(rawDocument.copyright))) {
       throw new Error("PLOS API 未返回可核实的 CC BY 许可声明；文章未入库。");
     }
+    const jatsUrl = jatsArticleUrlForDoi(doi);
+    if (!jatsUrl) throw new Error("该 PLOS DOI 暂无官方 JATS XML 文章端点。");
+    const jatsXml = await this.requestText(new URL(jatsUrl), "application/xml, text/xml");
+    const articleBody = jatsBodyForDoi(jatsXml, doi);
 
     const title = rawDocument.title_display ?? doi;
     const authors = rawDocument.author_display ?? [];
     const abstract = cleanArticleText(stringField(rawDocument.abstract));
-    const paragraphs = articleParagraphs(stringField(rawDocument.body));
+    const paragraphs = articleParagraphs(articleBody);
     const playerParagraphs = paragraphs.filter(({ text }) => isNamedLaLigaPlayeRankAnalysis(text));
     if (!playerParagraphs.length) throw new Error("PLOS 正文没有包含指定的具名 La Liga PlayeRank 历史分析段落；没有生成球员定性资料。");
     const playerText = new Set(playerParagraphs.map(({ text }) => text));
     const methodologyParagraphs = paragraphs.filter(({ text }) => !playerText.has(text));
     if (abstract) methodologyParagraphs.unshift({ heading: "Abstract", text: abstract });
     const attribution = authors.join(", ") + ". " + title + ". DOI: " + doi + ". " + articleUrl
-      + ". CC BY 4.0. Data Provided by PLOS. Retrieved through the official PLOS Search API; figures, tables, references, acknowledgements and external links are excluded.";
+      + ". CC BY 4.0. Data Provided by PLOS. DOI and license verified with the official PLOS Search API; article text from the official PLOS JATS XML endpoint; figures, tables, references, acknowledgements and external links excluded.";
     const shared = {
       sourceId: source.id,
       url: articleUrl,
@@ -283,12 +322,23 @@ export class PlosDiscoveryProvider {
     return KnowledgeSourceSchema.array().parse(JSON.parse(await readFile(resolvedRegistryPath, "utf8")) as unknown);
   }
 
-  private async request(url: URL) {
-    const waitMs = Math.max(0, 6_000 - (Date.now() - this.lastRequestAt));
+  private async waitForRequestSlot(): Promise<void> {
+    const waitMs = Math.max(0, this.minimumRequestIntervalMs - (Date.now() - this.lastRequestAt));
     if (waitMs) await delay(waitMs);
     this.lastRequestAt = Date.now();
+  }
+
+  private async requestJson(url: URL) {
+    await this.waitForRequestSlot();
     const response = await this.fetcher(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) throw new Error(`PLOS API 请求失败（HTTP ${response.status}）。`);
+    if (!response.ok) throw new Error("PLOS API 请求失败（HTTP " + response.status + "）。");
     return PlosResponseSchema.parse(await response.json() as unknown);
+  }
+
+  private async requestText(url: URL, accept: string): Promise<string> {
+    await this.waitForRequestSlot();
+    const response = await this.fetcher(url, { headers: { accept }, signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error("PLOS JATS XML 请求失败（HTTP " + response.status + "）。");
+    return response.text();
   }
 }
