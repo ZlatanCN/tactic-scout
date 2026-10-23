@@ -5,3 +5,5 @@ dist/
 data/statsbomb-open-data/
 .data/
 *.tsbuildinfo
+.langgraph_api/
+.vitest/

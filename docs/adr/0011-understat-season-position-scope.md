@@ -1,3 +1,0 @@
-# Preserve Understat season-position scope
-
-Understat player position groups are keyed by season and source position code, while those rows do not report a competition dimension. Keep their per-player values and position labels as season-level evidence, disclose the missing competition scope, and do not use them for same-competition percentiles, candidate ranges, or reference-player comparisons. Apply the same rule when Understat is composed into mosaic; preserve other providers' position granularity and do not treat their coarse labels as Understat position evidence. Competition-scoped league-table metrics remain comparable only under their own provider/competition/season cohort.
