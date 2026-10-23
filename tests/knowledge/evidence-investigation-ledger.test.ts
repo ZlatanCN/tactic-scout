@@ -95,3 +95,20 @@ test("planner and reranker reservations share one four-call and thirty-second bu
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("the first snapshot after the investigation deadline reports an exhausted budget", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "rag-investigation-snapshot-expiry-"));
+  let clock = 1_000;
+  const ledger = new EvidenceInvestigationLedger(path.join(directory, "catalog.sqlite"), {
+    now: () => clock,
+    durationMs: 100,
+  });
+  try {
+    ledger.begin("stable-turn-id-0004");
+    clock += 101;
+    assert.equal(ledger.snapshot("stable-turn-id-0004")?.status, "budget_exhausted");
+  } finally {
+    ledger.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

@@ -9,6 +9,10 @@ test("clear source questions route to knowledge Q&A", () => {
   assert.equal(isKnowledgeQuestion("这份报告讲了什么？"), true);
   assert.equal(isKnowledgeQuestion("报告的核心结论是什么？"), true);
   assert.equal(isKnowledgeQuestion("What does the paper conclude about the sample?"), true);
+  assert.equal(isKnowledgeQuestion("What did the study find about cross-validation?"), true);
+  assert.equal(isKnowledgeQuestion("What design did the study use?"), true);
+  assert.equal(isKnowledgeQuestion("What does the paper recommend about validation?"), true);
+  assert.equal(isKnowledgeQuestion("Which players did the paper study?"), true);
 });
 
 test("recruitment requests remain on the recruitment path", () => {

@@ -56,7 +56,7 @@ On the different 12-question reranker sample, hybrid measured 1.00 coverage/MRR 
 
 To run the workflow for a new approved budget, first keep the frozen v5 packet and controls unchanged, create a new preflight that includes all previously charged calls, and require `withinCap: true` before dispatch. Compare artifacts from a completed earlier plan only by explicitly supplying that signed plan through `--comparison-preflight`. The acceptance command requires full validation coverage, matching source/control/plan pins, reliable controls, zero deterministic violations, and the fixed quality thresholds. A failed or incomplete run must not produce an acceptance record.
 
-The configured gateway model is read from `OPENAI_MODEL` and is currently set to `group/free` for local execution. Model routing is no longer inferred from a `codex/` prefix; structured output uses `OPENAI_STRUCTURED_OUTPUT_METHOD`, the configured endpoint, or the shared auto policy.
+The configured gateway model is read from `OPENAI_MODEL`; the local `.env` is currently set to `codex/gpt-6-luna`. Model routing is no longer inferred from a `codex/` prefix; structured output uses `OPENAI_STRUCTURED_OUTPUT_METHOD`, the configured endpoint, or the shared auto policy.
 
 ## Post-evaluation hardening
 
@@ -64,7 +64,7 @@ The shared model gateway transport now lives under `src/platform/`; recruitment 
 
 Knowledge Q&A has its own Planner action boundary: only `search_methodology` and `finish` are available, with an investigate-only decision mode. Its review and completion progress copy is knowledge-specific. Real `createApp` tests use the normal JSON and SSE case endpoints to cover a first retrieval plus one follow-up, a partial cross-source answer, a no-evidence abstention, and a final citation revoked after retrieval. A cancellation/resume case confirms the persistent investigation ledger blocks redispatch of a query whose completion is unknown and the Agent safely abstains. Request routing keeps explicit team/roster sample inspection and English candidate-performance questions on the recruitment path.
 
-These changes have deterministic code coverage. They have not been qualified as a new RAG quality run under `group/free`; the historical v5 acceptance remains `not_accepted`.
+These changes have deterministic code coverage. They have not been qualified in a new full RAG quality run; the historical v5 acceptance remains `not_accepted` and is not an acceptance result for the post-evaluation hardening.
 
 ## Development comparison snapshot
 

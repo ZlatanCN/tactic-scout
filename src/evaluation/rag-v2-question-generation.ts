@@ -6,7 +6,7 @@ import { z } from "zod/v4";
 import { isProjectAuthoredEvidenceDocument, type StoredEvidenceDocument } from "../knowledge/evidence-catalog.js";
 import type { KnowledgeEvidence } from "../knowledge/evidence.js";
 import { sourceAllowsUrl } from "../knowledge/permissions.js";
-import { createChatModel, openAIPlannerMaxOutputTokens, openAIRequestTimeoutMs, structuredOutputMethod } from "../recruitment/chat-model.js";
+import { createChatModel, openAIPlannerMaxOutputTokens, openAIRequestTimeoutMs, structuredOutputMethod } from "../platform/chat-model.js";
 import { assignRagV2FactGroups, estimateRagV2PipelineGatewayCalls, RagV2QuestionPackSchema, RagV2QuestionSchema, RAG_V2_TARGETS, validateRagV2QuestionPack, type RagV2PipelineCallBudget, type RagV2QuestionDraft, type RagV2QuestionPack } from "./rag-v2-evaluation.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");

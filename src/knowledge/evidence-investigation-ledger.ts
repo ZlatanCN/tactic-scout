@@ -207,16 +207,17 @@ export class EvidenceInvestigationLedger {
     const row = this.database.prepare("SELECT * FROM rag_investigations WHERE investigation_id = ?").get(investigationId) as InvestigationRow | undefined;
     if (!row) return null;
     this.expireIfNeeded(investigationId, row);
+    const current = this.read(investigationId);
     const now = this.now();
     return {
       investigationId,
-      elapsedMs: Math.max(0, now - row.started_at_ms),
-      remainingMs: Math.max(0, row.deadline_at_ms - now),
-      round: row.followup_started ? 2 as const : 1 as const,
-      initialQueryCount: row.initial_query_count,
-      followupQueryCount: row.followup_query_count,
-      gatewayAttempts: row.gateway_attempts,
-      status: row.status,
+      elapsedMs: Math.max(0, now - current.started_at_ms),
+      remainingMs: Math.max(0, current.deadline_at_ms - now),
+      round: current.followup_started ? 2 as const : 1 as const,
+      initialQueryCount: current.initial_query_count,
+      followupQueryCount: current.followup_query_count,
+      gatewayAttempts: current.gateway_attempts,
+      status: current.status,
     };
   }
 
