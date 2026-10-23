@@ -5,6 +5,8 @@ import type { PlayerRepository } from "../players/repository.js";
 import type { PlayerObservationLibrary } from "../observations/library.js";
 import type { TeamRosterEnrichmentProvider } from "../sources/thesportsdb/roster.js";
 import type { KnowledgeEvidence } from "../knowledge/evidence.js";
+import type { RecruitmentEvaluationEvidenceScope } from "../recruitment/conversation/contracts.js";
+import type { RecruitmentBriefInterpreter } from "../recruitment/brief.js";
 
 export type AppKnowledgeBase = KnowledgeRepository & Pick<KnowledgeBase, "status" | "ingest" | "removeDocument">;
 
@@ -12,6 +14,9 @@ export interface CreateAppOptions {
   playerRepository?: PlayerRepository;
   recruitmentConversation?: RecruitmentConversation;
   recruitmentPlanner?: RecruitmentPlanner;
+  briefInterpreter?: RecruitmentBriefInterpreter;
+  recruitmentObserver?: import("../recruitment/conversation/contracts.js").RecruitmentTraceObserver;
+  recruitmentEvaluationEvidenceScope?: () => RecruitmentEvaluationEvidenceScope | null;
   knowledgeBase?: AppKnowledgeBase;
   knowledgeEvidence?: KnowledgeEvidence;
   playerObservationLibrary?: PlayerObservationLibrary;

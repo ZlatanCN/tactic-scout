@@ -27,6 +27,9 @@ import { type LangGraphRunnableConfig, type Runtime } from "@langchain/langgraph
 import { type RecruitmentRuntimeContext, requireRecruitmentRuntimeContext } from "./runtime-context.js";
 import { knowledgeEvidenceAccessContext } from "./knowledge-evidence-context.js";
 import { knowledgeSearchResultFromEvidence } from "../../knowledge/evidence-adapter.js";
+import { projectMethodologyClaim, projectReportObservation } from "../report-observations.js";
+import { projectKnowledgeAnswer } from "./knowledge-answer.js";
+import { emitProgress } from "./progress.js";
 
 const limitationDescriptions = {
   current_roster: "当前数据不能核实目标球队的完整现役阵容。",
@@ -391,6 +394,7 @@ function limitationsFor(
     }
   }
   if (state.forcedLimitReached) limitations.push("本轮调查达到安全步数上限，未完成的方向需要用户补充后再继续。");
+  if (state.ragInvestigationBudgetExhausted) limitations.push("资料综合调查达到 30 秒或网关调用上限；以下只保留已取得并重新核验的资料，未覆盖事实仍是缺口。");
   if (state.policyLoopStopped) limitations.push("Agent 连续重复提出被调查策略拒绝的相同动作，系统已停止重复调用模型；报告只保留当前可验证证据。");
   if (state.reviewResult === "exhausted") limitations.push("复查后移除了未通过证据核验的内容；名单仅保留通过检查的候选。");
   const unsearchedReportCount = eligibleEvaluatedPlayers
@@ -418,12 +422,21 @@ export function createReportProjection(input: {
 }) {
   return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
     const context = requireRecruitmentRuntimeContext(runtime.context);
+    const reportProjectionStartedAt = performance.now();
+    const recordProjection = (citationCount: number, recommendationCount: number) => {
+      context.observer?.({
+        phase: "report_projection",
+        elapsedMs: Math.round(performance.now() - reportProjectionStartedAt),
+        citationCount,
+        recommendationCount,
+      });
+    };
     if (context.knowledgeEvidence) {
       const referencedKnowledge = Object.values(state.retrievedKnowledge).filter((document) => document.evidenceRef);
       if (referencedKnowledge.length) {
         const resolved = await context.knowledgeEvidence.reader.resolve(
           referencedKnowledge.map((document) => document.evidenceRef!),
-          knowledgeEvidenceAccessContext(runtime as LangGraphRunnableConfig, state, "reporting"),
+          knowledgeEvidenceAccessContext(runtime as LangGraphRunnableConfig, state, "reporting", { phase: "final_check" }),
           runtime.signal,
         );
         const resolvedResults = resolved.evidence.map(knowledgeSearchResultFromEvidence);
@@ -434,14 +447,50 @@ export function createReportProjection(input: {
             ...Object.entries(legacyKnowledge),
             ...resolvedResults.map((document) => [document.id, document] as const),
           ]),
-          ...(resolved.status === "unavailable" && referencedKnowledge.some(({ corpus }) => corpus === "methodology") ? { methodologySearchOutcome: "unavailable", methodologySearchFailed: true } : {}),
-          ...(resolved.status === "unavailable" && referencedKnowledge.some(({ corpus }) => corpus === "player_report") ? { playerReportSearchOutcome: "unavailable", playerReportSearchFailed: true } : {}),
+          ...(resolved.status !== "found" && referencedKnowledge.some(({ corpus }) => corpus === "methodology") ? { methodologySearchOutcome: "unavailable", methodologySearchFailed: true } : {}),
+          ...(resolved.status !== "found" && referencedKnowledge.some(({ corpus }) => corpus === "player_report") ? { playerReportSearchOutcome: "unavailable", playerReportSearchFailed: true } : {}),
         };
       }
     }
     const { repository, evidenceEvaluator, candidateIdentityGrouper: groupCandidateRecords } = context;
-    if (state.briefFailure) return { report: null, responseMessage: state.briefFailure };
+    if (state.briefFailure) {
+      recordProjection(0, 0);
+      return { report: null, responseMessage: state.briefFailure };
+    }
     const action = state.action?.action === "finish" ? state.action : emptyDecision(state.targetTeam);
+    if (state.evaluationKnowledgeQa) {
+      const knowledgeAnswer = projectKnowledgeAnswer({
+        action,
+        retrievedKnowledge: Object.values(state.retrievedKnowledge),
+        abstentionReason: state.methodologySearchOutcome === "not_covered"
+          ? "scope_not_covered"
+          : state.methodologySearchOutcome === "found"
+            ? "evidence_insufficient"
+            : "no_evidence",
+      });
+      const responseMessage = knowledgeAnswer.status === "answered"
+        ? "已依据当前可核验资料完成回答。"
+        : knowledgeAnswer.status === "partial"
+          ? "已依据当前可核验资料回答可支持的部分，并标出仍缺少的证据。"
+          : "当前可核验资料不足以支持回答；没有补写或猜测缺失事实。";
+      recordProjection(
+        knowledgeAnswer.claims.reduce((count, claim) => count + claim.citations.length, 0),
+        0,
+      );
+      emitProgress(runtime as LangGraphRunnableConfig, {
+        stage: "completed",
+        status: "completed",
+        message: "资料回答与原文引用核验完成",
+        completedSteps: state.decisionSteps,
+      });
+      return {
+        knowledgeAnswer,
+        report: null,
+        datasetScope: undefined,
+        responseMessage,
+        pendingQuestion: null,
+      };
+    }
     const eligibleEvaluatedPlayers = evaluatedPlayersForConstraint(state);
     const candidateIdentityGroups = candidateIdentityGroupReferencesFor(state, groupCandidateRecords);
     const candidateIdentityCoverage = summarizeCandidateIdentityGroupReferences(candidateIdentityGroups);
@@ -575,34 +624,10 @@ export function createReportProjection(input: {
           historicalArchiveSamples: state.historicalArchiveSamplesByPlayerId[item.playerId] ?? [],
           ...(state.understatPlayerResearch[item.playerId] ? { understatResearch: state.understatPlayerResearch[item.playerId] } : {}),
           reportObservations: action.reportObservations.filter((observation) => observation.playerId === item.playerId
-            && Object.hasOwn(eligibleEvaluatedPlayers, observation.playerId)).flatMap((observation) => {
-              const document = Object.values(state.retrievedKnowledge).find((candidate) => candidate.documentId === observation.documentId);
-              if (!document) return [];
-              return [{
-                summary: observation.summary,
-                verificationStatus: observation.linkedMetricKeys.length ? "linked_to_match_data" as const : "unverified" as const,
-                linkedMetricKeys: observation.linkedMetricKeys,
-                documentId: document.documentId,
-                ...(document.evidenceRef ? { evidenceRef: document.evidenceRef } : {}),
-                ...(document.evidenceRef ? { excerpt: document.text.slice(0, 1_200) } : {}),
-                ...(document.sampleSummary === undefined ? {} : { sampleSummary: document.sampleSummary }),
-                ...(document.competition === undefined ? {} : { competition: document.competition }),
-                ...(document.season === undefined ? {} : { season: document.season }),
-                ...(document.observedFrom === undefined ? {} : { observedFrom: document.observedFrom }),
-                ...(document.observedTo === undefined ? {} : { observedTo: document.observedTo }),
-                source: {
-                  sourceId: document.sourceId,
-                  sourceName: document.sourceName,
-                  title: document.title,
-                  url: document.url,
-                  author: document.author,
-                  publisher: document.publisher,
-                  publishedAt: document.publishedAt,
-                  license: document.license,
-                  attribution: document.attribution,
-                  ...(document.evidenceType ? { evidenceType: document.evidenceType } : {}),
-                },
-              }];
+            && Object.hasOwn(eligibleEvaluatedPlayers, observation.playerId))
+            .flatMap((observation) => {
+              const projected = projectReportObservation(observation, Object.values(state.retrievedKnowledge));
+              return projected ? [projected] : [];
             }),
         };
       });
@@ -613,6 +638,10 @@ export function createReportProjection(input: {
       return [{ player: evaluated.player, samples }];
     });
     const retrievedDocuments = Object.values(state.retrievedKnowledge);
+    const methodologyClaims = action.methodologyClaims.flatMap((claim) => {
+      const projected = projectMethodologyClaim(claim, retrievedDocuments);
+      return projected ? [projected] : [];
+    });
     const requestedCapabilityCoverage = summarizeRequestedCapabilityCoverage({
       brief: state.brief,
       userMessages: userMessages(state.history),
@@ -687,6 +716,7 @@ export function createReportProjection(input: {
         playerReportSearchFailed: state.playerReportSearchFailed,
         playerReportChunksRetrieved: retrievedDocuments.filter((document) => document.corpus === "player_report").length,
       },
+      methodologyClaims,
       recommendations,
       positionLeads,
       positionLeadCount: allPositionLeadRecords.length,
@@ -708,6 +738,18 @@ export function createReportProjection(input: {
           : positionLeads.length > 0
             ? `发现 ${allPositionLeadRecords.length} 条${positionLabels[requestedPosition!]}所在位置大类的来源线索，但当前来源没有足够的细分位置证据形成名单。`
             : "已完成一轮调查，但当前证据不足以支持具体候选推荐。");
+    emitProgress(runtime as LangGraphRunnableConfig, {
+      stage: "completed",
+      status: "completed",
+      message: "报告依据与引用核验完成",
+      completedSteps: state.decisionSteps,
+    });
+    recordProjection(
+      report.methodologyClaims.reduce((count, claim) => count + claim.citations.length, 0)
+        + report.recommendations.reduce((count, recommendation) => count
+          + recommendation.reportObservations.reduce((sum, observation) => sum + observation.citations.length, 0), 0),
+      recommendations.length,
+    );
     return { report, responseMessage, pendingQuestion: null };
   };
 }

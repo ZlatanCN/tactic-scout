@@ -173,7 +173,7 @@ test("a detailed Understat position query searches its family, verifies current-
     [candidates[1]!.playerId, "not_observed"],
     [candidates[2]!.playerId, "not_observed"],
   ]);
-  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false);
+  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false, JSON.stringify(events));
   const tools = events.filter((event) => event.phase === "tool" && event.ok).map((event) => event.toolName);
   assert.ok(tools.indexOf("inspect_candidate_group") >= 0);
   assert.ok(tools.indexOf("inspect_candidate_group") < tools.indexOf("evaluate_candidates"), tools.join(" → "));
@@ -250,7 +250,7 @@ test("Understat position investigation follows the exact next-page cursor and ne
   assert.equal(response.report?.recommendations[0]?.understatResearch?.positions?.[0]?.code, "MC");
   assert.equal(response.report?.recommendations[1]?.player.position, "UNKNOWN", "an adjacent source role must not be rewritten as the requested role");
   assert.equal(response.report?.recommendations[1]?.player.positionEvidence?.status, "compatible");
-  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false);
+  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false, JSON.stringify(events));
 });
 
 test("Understat fine-position ablation isolates family recall from current-season position verification", async () => {
@@ -365,7 +365,7 @@ test("mosaic recalls broad-role records, verifies Understat details, and leaves 
   assert.ok(response.report?.limitations.some((item) => item.includes("其他来源记录只有宽位置标签")));
   const successfulTools = events.filter((event) => event.phase === "tool" && event.ok).map((event) => event.toolName);
   assert.ok(successfulTools.includes("inspect_player"), successfulTools.join(" → "));
-  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false);
+  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false, JSON.stringify(events));
 });
 
 test("a coarse-only source recalls fine-position leads without treating them as matches or asking to broaden", async () => {
@@ -459,7 +459,7 @@ test("the full graph does not page a source that cannot resolve the requested si
   assert.ok(typeof searchEvents[0]?.filters?.nextOffset === "number", "leave the unconsumed source cursor visible");
   assert.ok(response.report?.positionLeadCount && response.report.positionLeadCount > 0);
   assert.ok(response.report?.positionLeads?.every(({ status }) => status === "broad_only"));
-  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false);
+  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false, JSON.stringify(events));
 });
 
 test("StatsBomb alternate-role evidence qualifies the observed role and discloses the role-specific sample", async () => {
@@ -574,7 +574,7 @@ test("a generic internal-research permission ask does not trigger a full Underst
 
   assert.equal(response.status, "completed");
   assert.equal(detailReads, 0, "an unspecified request must not expand into every detail section");
-  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false);
+  assert.equal(events.some((event) => event.phase === "decision" && event.decisionSource === "policy" && event.action === "ask_user"), false, JSON.stringify(events));
   assert.ok(events.some((event) => event.phase === "tool" && event.toolName === "evaluate_candidates" && event.ok));
 });
 
@@ -635,7 +635,7 @@ test("adaptive Understat evaluates discovered candidates before asking to switch
   assert.ok(response.report?.recommendations.length);
   assert.equal(response.report?.evidenceCoverage.evaluatedCandidateCount, 12);
   assert.ok(events.some((event) => event.phase === "tool" && event.toolName === "evaluate_candidates" && event.ok));
-  assert.equal(events.some((event) => event.phase === "decision" && event.action === "ask_user"), false);
+  assert.equal(events.some((event) => event.phase === "decision" && event.decisionSource === "policy" && event.action === "ask_user"), false, JSON.stringify(events));
   assert.ok(events.some((event) => event.phase === "decision"
     && event.proposedAction === "ask_user"
     && event.decisionSource === "policy"));

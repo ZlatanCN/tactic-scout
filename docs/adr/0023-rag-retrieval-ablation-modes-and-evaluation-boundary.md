@@ -1,0 +1,3 @@
+# RAG retrieval ablations remain evaluation-only
+
+RAG evaluation compares full-text, dense-vector and hybrid retrieval on the same frozen source-span questions, then measures gateway/local reranking as separate stages. Hybrid remains the retrieval baseline because the 57-question development comparison had the strongest interval/fact coverage (0.968); full-text was faster and had higher MRR (0.886 vs 0.857), while dense-vector coverage was lower (0.806). These development results do not qualify any mode for production fallback: all semantic quality labels remain AI automatic estimates, and production eligibility still requires the complete signed Agent validation gate.

@@ -28,6 +28,12 @@ export interface PlanningRunState {
   decisionContext?: RecruitmentDecisionContext;
   policyAction?: ParsedRecruitmentAction;
   proposedAction?: ParsedRecruitmentAction;
+  decisionSource?: "planner" | "policy";
+  decisionElapsedMs?: number;
+  decisionGatewayAttempts?: number;
+  decisionOk?: boolean;
+  reportGenerationStartedAt?: number;
+  recordReportGeneration?: (plannerFallback?: NonNullable<PlanningRunState["plannerFallback"]>) => void;
   plannerFallback?:
     | "expansion_timeout"
     | "expansion_output_limit"
@@ -46,6 +52,12 @@ export function clearPlanningRunState(run: PlanningRunState): void {
   delete run.decisionContext;
   delete run.policyAction;
   delete run.proposedAction;
+  delete run.decisionSource;
+  delete run.decisionElapsedMs;
+  delete run.decisionGatewayAttempts;
+  delete run.decisionOk;
+  delete run.reportGenerationStartedAt;
+  delete run.recordReportGeneration;
   delete run.plannerFallback;
 }
 
@@ -59,7 +71,7 @@ async function refreshKnowledgeEvidenceForModel(input: {
   if (!context.knowledgeEvidence || !referencedKnowledge.length) return { state, update: {} };
   const result = await context.knowledgeEvidence.reader.resolve(
     referencedKnowledge.map((document) => document.evidenceRef!),
-    knowledgeEvidenceAccessContext(config, state, "recruitment"),
+    knowledgeEvidenceAccessContext(config, state, "recruitment", { phase: "final_check" }),
     config.signal,
   );
   const resolvedResults = result.evidence.map(knowledgeSearchResultFromEvidence);
@@ -127,7 +139,7 @@ export function preparePlanningRunState(input: {
     deterministicSearchEnabled,
     understatResearchMode,
   });
-  const decision = chooseDecisionMode({ state, retrievalMode, understatResearchMode });
+  const decision = chooseDecisionMode({ state, retrievalMode, understatResearchMode, knowledgeQa: state.evaluationKnowledgeQa });
   const eligible = investigationCandidates(state);
   const run: PlanningRunState = {
     retrievalNeeds,

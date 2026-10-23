@@ -69,7 +69,7 @@ test("context estimates apply measured Luna stage corrections only to the observ
   };
 
   try {
-    process.env.OPENAI_MODEL = "codex/gpt-6-luna";
+    process.env.OPENAI_MODEL = "fixture-model";
     const understand = buildRecruitmentContext({ ...common, stage: "understand" });
     const expand = buildRecruitmentContext({ ...common, stage: "expand" });
     const investigate = buildRecruitmentContext({ ...common, stage: "investigate" });
@@ -81,10 +81,10 @@ test("context estimates apply measured Luna stage corrections only to the observ
     const expandBaseEstimate = estimateRecruitmentInputTokens(estimateWire(expand));
     const investigateBaseEstimate = estimateRecruitmentInputTokens(estimateWire(investigate));
 
-    assert.equal(understand.manifest.estimatedInputTokens, Math.ceil(baseEstimate * 1.5));
-    assert.equal(expand.manifest.estimatedInputTokens, Math.ceil(expandBaseEstimate * 1.6));
+    assert.equal(understand.manifest.estimatedInputTokens, baseEstimate);
+    assert.equal(expand.manifest.estimatedInputTokens, expandBaseEstimate);
     assert.equal(investigate.manifest.estimatedInputTokens, investigateBaseEstimate, "stages whose measured estimates were already conservative keep the generic estimate");
-    assert.equal(understand.manifest.estimateMethod, "codex-gpt-6-luna-stage-calibrated-v1");
+    assert.equal(understand.manifest.estimateMethod, "wire-utf8-bytes-divided-by-three-plus-15-percent");
 
     process.env.OPENAI_MODEL = "another-compatible-model";
     const otherModel = buildRecruitmentContext({ ...common, stage: "understand" });

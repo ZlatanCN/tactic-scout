@@ -18,7 +18,7 @@ import { type KnowledgeRepository, createLocalKnowledgeBase } from "../knowledge
 import type { KnowledgeEvidence } from "../knowledge/evidence.js";
 import { createRecruitmentTurnRuntime, recruitmentProgressTransformer, type RecruitmentTurnGraphRun } from "./conversation-turn-runtime.js";
 import { assertRepositoryModelProcessingAllowed } from "./conversation/access.js";
-import { type RecruitmentAskUserMode, type RecruitmentCandidatePolicyMode, type RecruitmentConversation, type RecruitmentReviewerMode, type RecruitmentTraceObserver, type UnderstatResearchMode, RecruitmentCaseStateExpiredError } from "./conversation/contracts.js";
+import { type RecruitmentAskUserMode, type RecruitmentCandidatePolicyMode, type RecruitmentConversation, type RecruitmentEvaluationEvidenceScope, type RecruitmentReviewerMode, type RecruitmentTraceObserver, type UnderstatResearchMode, RecruitmentCaseStateExpiredError } from "./conversation/contracts.js";
 import { createExternalSignalNode, createHistoricalArchiveNode, externalSignalFailureHandler, historicalArchiveFailureHandler } from "./conversation/enrichment-nodes.js";
 import { asksForSpecificMissingReplacementPosition } from "./conversation/interaction-policy.js";
 import { createPolicyGateNode } from "./conversation/policy-gate-node.js";
@@ -40,6 +40,7 @@ import { createPlanningRunState, createPreparePlanningNode } from "./conversatio
 import { recruitmentNodePolicies } from "./conversation/node-policies.js";
 import { emitProgress } from "./conversation/progress.js";
 import { projectCaseRunHistory } from "./conversation/case-run-inspection.js";
+import { isKnowledgeQuestion } from "./conversation/request-kind.js";
 
 export { RecruitmentCaseStateExpiredError } from "./conversation/contracts.js";
 export type { RecruitmentAskUserMode, RecruitmentCandidatePolicyMode, RecruitmentConversation, RecruitmentReviewerMode, RecruitmentTraceEvent, RecruitmentTraceObserver, UnderstatResearchMode } from "./conversation/contracts.js";
@@ -83,6 +84,7 @@ export function createRecruitmentConversation(input: {
   experimentalExpansionSufficiencyMode?: "enabled" | "bypassed";
   experimentalUnderstatResearchMode?: UnderstatResearchMode;
   evidenceEvaluator?: RecruitmentEvidenceEvaluator;
+  evaluationEvidenceScope?: () => RecruitmentEvaluationEvidenceScope | null;
   runtime?: Partial<RecruitmentRuntimeContext>;
 }): RecruitmentConversation {
   const constructionRepository = input.repository ?? input.runtime?.repository;
@@ -132,8 +134,16 @@ export function createRecruitmentConversation(input: {
     }
     : undefined;
   const workflow = new StateGraph(RecruitmentState, RecruitmentRuntimeContextSchema)
-    .addNode("record_user_turn", createRecordUserTurnNode({ disabledPlayerEloCoverage, historicalArchiveSetup }))
-    .addNode("understand_request", createUnderstandingNode({ referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed" }), recruitmentNodePolicies.understand_request)
+    .addNode("record_user_turn", createRecordUserTurnNode({
+      disabledPlayerEloCoverage,
+      historicalArchiveSetup,
+      evaluationKnowledgeQa: () => input.evaluationEvidenceScope?.()?.knowledgeQa === true,
+      knowledgeQuestionClassifier: isKnowledgeQuestion,
+    }))
+    .addNode("understand_request", createUnderstandingNode({
+      referenceComparisonEnabled: input.experimentalReferenceComparisonMode !== "bypassed",
+      knowledgeQa: (state) => state.evaluationKnowledgeQa,
+    }), recruitmentNodePolicies.understand_request)
     .addNode("prepare_decision_snapshot", createPreparePlanningNode({
       retrievalMode: input.experimentalRetrievalMode ?? "fixed",
       understatResearchMode: input.experimentalUnderstatResearchMode,
@@ -143,7 +153,10 @@ export function createRecruitmentConversation(input: {
     .addNode("policy_gate", createPolicyGateNode({ expansionSufficiencyEnabled: expansionSufficiencyMode === "enabled" }), { ends: ["plan_decision", "validate_decision"] })
     .addNode("plan_decision", createPlanDecisionNode(), { ...recruitmentNodePolicies.plan_decision, ends: ["validate_decision", "record_runtime_failure"] })
     .addNode("validate_decision", createValidateDecisionNode({ askUserMode, candidatePolicyMode, enforceCurrentTurnObservation, shortlistComparisonEnabled: input.experimentalShortlistComparisonMode !== "bypassed", understatResearchMode: input.experimentalUnderstatResearchMode }), { ends: ["execute_tool", "wait_for_user", "review_recommendation", "prepare_decision_snapshot"] })
-    .addNode("execute_tool", createToolNode({ methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed" }), { ...recruitmentNodePolicies.execute_tool, ends: ["record_runtime_failure"] })
+    .addNode("execute_tool", createToolNode({
+      methodologyReuseEnabled: input.experimentalMethodologyReuseMode !== "bypassed",
+      evaluationEvidenceScope: input.evaluationEvidenceScope,
+    }), { ...recruitmentNodePolicies.execute_tool, ends: ["record_runtime_failure"] })
     .addNode("wait_for_user", waitForUser)
     .addNode("review_recommendation", createReviewNode({ reviewerMode }), { ...recruitmentNodePolicies.review_recommendation, ends: ["record_runtime_failure"] })
     .addNode("enrich_external_signals", createExternalSignalNode(), {
@@ -215,6 +228,7 @@ export function createRecruitmentConversation(input: {
             pendingQuestion: state.pendingQuestion,
             responseMessage: state.responseMessage,
             report: state.report,
+            knowledgeAnswer: state.knowledgeAnswer,
             brief: state.brief,
             runtimeFailure: state.runtimeFailure,
             retryMessage: state.briefFailure ? state.history.filter(entry => entry.role === "user").at(-1)?.content : undefined,

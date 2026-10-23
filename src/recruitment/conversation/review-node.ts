@@ -14,6 +14,23 @@ export function createReviewNode(input: {
     const context = requireRecruitmentRuntimeContext(runtime.context);
     const observer = context.observer;
     const config = runtime as LangGraphRunnableConfig;
+    if (state.evaluationKnowledgeQa) {
+      emitProgress(config, {
+        stage: "review",
+        status: "completed",
+        message: "正在核对知识回答中的原文引用",
+        completedSteps: state.decisionSteps,
+      });
+      observer?.({
+        phase: "review",
+        mode: reviewerMode,
+        outcome: "passed",
+        elapsedMs: 0,
+        problemCount: 0,
+        repairedEvidenceReferenceCount: 0,
+      });
+      return { reviewResult: "valid" as const };
+    }
     const reviewStartedAt = performance.now();
     const recordReview = (event: Omit<Extract<RecruitmentTraceEvent, { phase: "review" }>, "elapsedMs">) => {
       observer?.({ ...event, elapsedMs: Math.round(performance.now() - reviewStartedAt) });

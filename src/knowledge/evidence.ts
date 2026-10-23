@@ -19,12 +19,14 @@ import {
   type KnowledgeEvidenceType,
 } from "./evidence-schemas.js";
 import { assertCanIngestDocument, sourceAllowsUrl } from "./permissions.js";
-import { EvidenceCatalog, type StoredEvidenceDocument, type StoredSection } from "./evidence-catalog.js";
+import { EvidenceCatalog, EvidenceGenerationChangedError, type StoredEvidenceDocument, type StoredSection } from "./evidence-catalog.js";
 import { createEvidenceGeneration, EvidenceIndexReader, type EvidenceCandidate, type EvidenceEmbedder } from "./evidence-index.js";
 import { ConfiguredGatewayEvidenceReranker, LocalE5EvidenceEmbedder, type EvidenceReranker } from "./evidence-models.js";
+import { parseMarkdownKnowledgeEvidence, type KnowledgeEvidenceMarkdownInput } from "./markdown-evidence.js";
 import { throwIfAborted } from "../domain/abort.js";
 import { firstPartyObservationSourceId } from "./source-ids.js";
 import { isAcceptedRagAiPanelReview } from "../evaluation/rag-ai-panel-review.js";
+import { EvidenceInvestigationLedger } from "./evidence-investigation-ledger.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const defaultCatalogPath = path.join(projectRoot, ".data", "knowledge-evidence", "catalog.sqlite");
@@ -33,22 +35,30 @@ const defaultRegistryPath = path.join(projectRoot, "data", "knowledge", "sources
 const defaultBaselineAcceptancePath = path.join(projectRoot, "data", "knowledge", "evaluation", "hybrid-baseline-acceptance.v1.json");
 const defaultAiPanelReviewPath = path.join(projectRoot, "data", "knowledge", "evaluation", "rag-ai-panel-review.v1.json");
 const turnBudgetMs = 15_000;
+const investigationBudgetMs = 30_000;
 const rerankCandidateLimit = 12;
+const indexGenerationLeaseMs = 120_000;
 
 export interface KnowledgeEvidence {
+  readonly investigations?: EvidenceInvestigationLedger;
   reader: {
     retrieve(request: EvidenceRetrievalRequest, context: EvidenceAccessContext, signal?: AbortSignal): Promise<KnowledgeEvidenceBundle>;
+    retrieveBatch(requests: EvidenceRetrievalRequest[], context: EvidenceAccessContext, signal?: AbortSignal, reusedResults?: Array<KnowledgeEvidenceBundle | null>): Promise<{ result: KnowledgeEvidenceBundle; queryResults: KnowledgeEvidenceBundle[] }>;
     resolve(refs: EvidenceRef[], context: EvidenceAccessContext, signal?: AbortSignal): Promise<KnowledgeEvidenceBundle>;
   };
   admin: {
     registerSource(source: KnowledgeEvidenceSource): Promise<void>;
     registerSources(sources: KnowledgeEvidenceSource[]): Promise<void>;
     publishDocument(document: KnowledgeEvidenceDocumentInput): Promise<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }>;
+    publishDocuments(documents: KnowledgeEvidenceDocumentInput[]): Promise<Array<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }>>;
+    publishMarkdownDocument(input: KnowledgeEvidenceMarkdownInput): Promise<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }>;
+    documentAcquisitionHistory(documentId: string): Promise<Array<{ revisionId: string; sourcePayloadSha256: string; normalizationVersion: string; acquiredAt: string }>>;
+    listActiveDocuments(): Promise<StoredEvidenceDocument[]>;
     removeDocument(documentId: string): Promise<number>;
     revokeSource(sourceId: string, options?: { eraseStoredContent?: boolean }): Promise<void>;
     sourceHistory(sourceId: string): Promise<Array<{ revision: number; status: "active" | "revoked"; source: KnowledgeEvidenceSource; changedAt: string }>>;
     prepareRuntime(): Promise<{ ready: boolean; generationId: string | null; failureCode: "index_unavailable" | "model_unavailable" | null }>;
-    status(): Promise<{ activeSources: number; activeDocuments: number; generationId: string | null; indexedChunks: number; runtimeReady: boolean; evidenceSnapshotHash: string }>;
+    status(): Promise<{ activeSources: number; activeDocuments: number; generationId: string | null; embeddingModelId: string; indexedChunks: number; runtimeReady: boolean; evidenceSnapshotHash: string }>;
   };
   close(): Promise<void>;
 }
@@ -77,7 +87,8 @@ export function knowledgeEvidenceDocumentId(document: Pick<KnowledgeEvidenceDocu
 }
 
 function documentRevisionId(document: KnowledgeEvidenceDocumentInput): string {
-  return digest(JSON.stringify({ parserVersion: "knowledge-evidence-v1", ...document }));
+  const { sourcePayloadSha256: _sourcePayloadSha256, ...normalizedDocument } = document;
+  return digest(JSON.stringify({ parserVersion: "knowledge-evidence-v1", ...normalizedDocument }));
 }
 
 function sourceCanProcess(source: KnowledgeEvidenceSource, destination: EvidenceAccessContext["modelDestination"]): boolean {
@@ -109,6 +120,12 @@ function bundle(input: Partial<KnowledgeEvidenceBundle> & Pick<KnowledgeEvidence
     rankingDurationMs: null,
     rankingInputTokens: null,
     rankingOutputTokens: null,
+    rankingGatewayAttempts: 0,
+    subqueryCount: 0,
+    unavailableSubqueryCount: 0,
+    zeroHitSubqueryCount: 0,
+    notCoveredSubqueryCount: 0,
+    blockedSubqueryCount: 0,
     candidateCount: 0,
     budgetMsUsed: 0,
     budgetMsRemaining: turnBudgetMs,
@@ -129,7 +146,7 @@ function makeItem(input: {
   text: string;
   ref: EvidenceRef;
   rank: number;
-  rankMode: "hybrid" | "gateway_reranked" | "hybrid_degraded";
+  rankMode: "hybrid" | "full_text" | "dense_vector" | "gateway_reranked" | "local_cross_encoder" | "hybrid_degraded";
 }): KnowledgeEvidenceItem {
   const { section, source } = input;
   return {
@@ -168,6 +185,7 @@ function makeItem(input: {
 class KnowledgeEvidenceSystem implements KnowledgeEvidence {
   readonly reader: KnowledgeEvidence["reader"];
   readonly admin: KnowledgeEvidence["admin"];
+  readonly investigations: EvidenceInvestigationLedger;
   private readonly catalog: EvidenceCatalog;
   private readonly indexReaders = new Map<string, EvidenceIndexReader>();
   private readonly embedder: EvidenceEmbedder;
@@ -182,13 +200,17 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
   private readonly initialized: Promise<void>;
   private activeReaderCount = 0;
   private indexMaintenance = false;
+  private maintenanceTail: Promise<void> = Promise.resolve();
   private readerDrain: (() => void) | undefined;
   private readonly waitingReaders: Array<() => void> = [];
+  private generationCleanupTimer: NodeJS.Timeout | undefined;
   private runtimeReady = false;
   private closed = false;
 
   constructor(options: KnowledgeEvidenceOptions = {}) {
-    this.catalog = new EvidenceCatalog(path.resolve(options.catalogPath ?? process.env.TACTISCOUT_KNOWLEDGE_EVIDENCE_DB ?? defaultCatalogPath));
+    const catalogPath = path.resolve(options.catalogPath ?? process.env.TACTISCOUT_KNOWLEDGE_EVIDENCE_DB ?? defaultCatalogPath);
+    this.catalog = new EvidenceCatalog(catalogPath);
+    this.investigations = new EvidenceInvestigationLedger(catalogPath);
     this.indexPath = path.resolve(options.indexPath ?? process.env.TACTISCOUT_KNOWLEDGE_EVIDENCE_INDEX ?? defaultIndexPath);
     this.registryPath = path.resolve(options.registryPath ?? process.env.TACTISCOUT_KNOWLEDGE_SOURCES_FILE ?? defaultRegistryPath);
     this.embedder = options.embedder ?? new LocalE5EvidenceEmbedder();
@@ -201,12 +223,17 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     this.initialized = this.importMissingRegistrySources();
     this.reader = {
       retrieve: (request, context, signal) => this.retrieve(request, context, signal),
+      retrieveBatch: (requests, context, signal, reusedResults) => this.retrieveBatch(requests, context, signal, reusedResults),
       resolve: (refs, context, signal) => this.resolve(refs, context, signal),
     };
     this.admin = {
       registerSource: (source) => this.registerSource(source),
       registerSources: (sources) => this.registerSources(sources),
       publishDocument: (document) => this.publishDocument(document),
+      publishDocuments: (documents) => this.publishDocuments(documents),
+      publishMarkdownDocument: async (input) => this.publishDocument(parseMarkdownKnowledgeEvidence(input)),
+      documentAcquisitionHistory: async (documentId) => { await this.initialized; this.assertOpen(); return this.catalog.documentAcquisitionHistory(documentId); },
+      listActiveDocuments: async () => { await this.initialized; this.assertOpen(); return this.catalog.activeDocuments(); },
       removeDocument: (documentId) => this.removeDocument(documentId),
       revokeSource: (sourceId, options) => this.revokeSource(sourceId, options?.eraseStoredContent ?? false),
       sourceHistory: async (sourceId) => { await this.initialized; this.assertOpen(); return this.catalog.sourcePolicyHistory(sourceId); },
@@ -218,18 +245,24 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    if (this.generationCleanupTimer) clearTimeout(this.generationCleanupTimer);
+    this.generationCleanupTimer = undefined;
     await this.initialized.catch(() => undefined);
     await Promise.all([...this.indexReaders.values()].map((reader) => reader.close()));
     this.indexReaders.clear();
     this.catalog.close();
+    this.investigations.close();
   }
 
-  private async retrieve(unparsedRequest: EvidenceRetrievalRequest, unparsedContext: EvidenceAccessContext, signal?: AbortSignal): Promise<KnowledgeEvidenceBundle> {
+  private async retrieve(unparsedRequest: EvidenceRetrievalRequest, unparsedContext: EvidenceAccessContext, signal?: AbortSignal, skipReranking = false): Promise<KnowledgeEvidenceBundle> {
     const request = EvidenceRetrievalRequestSchema.parse(unparsedRequest);
     const context = EvidenceAccessContextSchema.parse(unparsedContext);
+    const retrievalMode = context.retrievalMode ?? "hybrid";
     await this.initialized;
     this.assertOpen();
-    return this.withReadLease(() => this.withTurnBudget(context.turnId, signal, async (workSignal, turnBudget) => {
+    const budgetOwnerId = context.investigationId ?? context.turnId;
+    const sharedBudgetMs = context.investigationId ? investigationBudgetMs : this.maxBudgetMs;
+    return this.withReadLease(() => this.withTurnBudget(budgetOwnerId, signal, async (workSignal, turnBudget) => {
       const turnStartedAt = performance.now();
       throwIfAborted(workSignal);
       const eligibleSources = this.catalog.sources().filter((source) => source.allowedCorpora.includes(request.kind) && sourceCanProcess(source, context.modelDestination));
@@ -262,33 +295,60 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
         return bundle({ status, subjectCoverage: subjectCoverageForNoHit });
       }
       if (!generation) return bundle({ status: "unavailable", failureCode: "index_unavailable" });
-      if (generation.embeddingModel !== this.embedder.modelId) return bundle({ status: "unavailable", failureCode: "index_unavailable", generationId: generation.generationId });
-      if (!this.runtimeReady) return bundle({ status: "unavailable", failureCode: "model_unavailable", generationId: generation.generationId });
+      if (retrievalMode !== "full_text" && generation.embeddingModel !== this.embedder.modelId) {
+        return bundle({ status: "unavailable", failureCode: "index_unavailable", generationId: generation.generationId });
+      }
+      if (retrievalMode !== "full_text" && !this.runtimeReady) {
+        return bundle({ status: "unavailable", failureCode: "model_unavailable", generationId: generation.generationId });
+      }
 
-      const queryTexts = [request.query];
-      const [queryVector] = await this.embedder.embedMany(queryTexts, "query");
-      throwIfAborted(workSignal);
-      if (!queryVector) throw new Error("Embedding provider returned no query vector.");
-      const index = this.indexReader(generation.generationId, generation.indexPath);
-      let candidates = await index.search({ request, revisionIds, queryVector, corpus: request.kind, candidateLimit: rerankCandidateLimit });
+      let queryVector: number[] | undefined;
+      if (retrievalMode !== "full_text") {
+        let queryTokenCount: number;
+        try {
+          queryTokenCount = await this.embedder.countTokens(request.query, "query");
+        } catch {
+          return bundle({ status: "unavailable", failureCode: "model_unavailable", generationId: generation.generationId });
+        }
+        if (queryTokenCount > 512) return bundle({ status: "unavailable", failureCode: "query_too_long", generationId: generation.generationId });
+        [queryVector] = await this.embedder.embedMany([request.query], "query");
+        throwIfAborted(workSignal);
+        if (!queryVector) throw new Error("Embedding provider returned no query vector.");
+      }
+      const generationLeaseId = randomUUID();
+      if (!this.catalog.acquireIndexGenerationLease(
+        generation.generationId,
+        generationLeaseId,
+        new Date(Date.now() + indexGenerationLeaseMs).toISOString(),
+      )) return bundle({ status: "unavailable", failureCode: "index_unavailable", generationId: generation.generationId });
+      let candidates: EvidenceCandidate[];
+      try {
+        const index = this.indexReader(generation.generationId, generation.indexPath);
+        candidates = await index.search({ request, revisionIds, queryVector, mode: retrievalMode, corpus: request.kind, candidateLimit: rerankCandidateLimit });
+      } finally {
+        this.catalog.releaseIndexGenerationLease(generationLeaseId);
+        await this.collectRetiredIndexes();
+      }
       throwIfAborted(workSignal);
       candidates = candidates.filter((candidate) => this.verifyCandidate(candidate, eligibleSources));
       if (!candidates.length) {
         return bundle({ status: subjectCoverageForNoHit.length && subjectCoverageForNoHit.every((item) => item.status === "not_covered") ? "not_covered" : "no_relevant_evidence", subjectCoverage: subjectCoverageForNoHit, generationId: generation.generationId });
       }
 
-      let rankingMode: "hybrid" | "gateway_reranked" | "hybrid_degraded";
+      let rankingMode: "hybrid" | "full_text" | "dense_vector" | "gateway_reranked" | "local_cross_encoder" | "hybrid_degraded";
+      const rerankedMode = this.reranker?.kind === "local" ? "local_cross_encoder" as const : "gateway_reranked" as const;
       let rankingDurationMs: number | null = null;
       let rankingInputTokens: number | null = null;
       let rankingOutputTokens: number | null = null;
+      let rankingGatewayAttempts = 0;
       const retrievedCandidateCount = candidates.length;
-      if (this.reranker) {
+      if (this.reranker && !skipReranking && retrievalMode === "hybrid") {
         const requestHash = digest(JSON.stringify({ query: request.query, candidates: candidates.map(({ id }) => id).sort() }));
         const reservation = this.catalog.reserveRerank(context.turnId, requestHash);
         if (reservation.kind === "cached") {
           try {
             candidates = validateRerankOrder(candidates, reservation.response.orderedIds, reservation.response.lowRelevanceIds);
-            rankingMode = "gateway_reranked";
+            rankingMode = rerankedMode;
             rankingInputTokens = reservation.response.inputTokens;
             rankingOutputTokens = reservation.response.outputTokens;
           } catch {
@@ -304,7 +364,22 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
           }
           const started = performance.now();
           try {
-            const ranked = await this.reranker.rerank({ query: request.query, candidates, signal: workSignal, timeoutMs: Math.min(8_000, remaining) });
+            const investigationDispatch = this.reranker.kind !== "local"
+              ? this.investigations.reserveGatewayAttempt(context.investigationId ?? context.turnId, "reranker", requestHash)
+              : { kind: "reserved" as const };
+            if (investigationDispatch.kind === "blocked") {
+              this.catalog.finishRerank(context.turnId, { failureCode: "investigation_budget_exhausted", durationMs: 0 });
+              return bundle({ status: "unavailable", failureCode: "budget_exhausted", generationId: generation.generationId, candidateCount: retrievedCandidateCount });
+            }
+            if (this.reranker.kind !== "local") rankingGatewayAttempts = 1;
+            const investigationRemainingMs = this.investigations.snapshot(context.investigationId ?? context.turnId)?.remainingMs;
+            const dispatchRemainingMs = "remainingMs" in investigationDispatch ? investigationDispatch.remainingMs : investigationRemainingMs;
+            const rerankTimeoutMs = Math.min(8_000, remaining, dispatchRemainingMs ?? remaining);
+            if (rerankTimeoutMs <= 0) {
+              this.catalog.finishRerank(context.turnId, { failureCode: "investigation_budget_exhausted", durationMs: 0 });
+              return bundle({ status: "unavailable", failureCode: "budget_exhausted", generationId: generation.generationId, rankingGatewayAttempts, candidateCount: retrievedCandidateCount });
+            }
+            const ranked = await this.reranker.rerank({ query: request.query, candidates, signal: workSignal, timeoutMs: rerankTimeoutMs });
             throwIfAborted(workSignal);
             rankingInputTokens = ranked.inputTokens;
             rankingOutputTokens = ranked.outputTokens;
@@ -322,7 +397,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
               inputTokens: ranked.inputTokens,
               outputTokens: ranked.outputTokens,
             });
-            rankingMode = "gateway_reranked";
+            rankingMode = rerankedMode;
             if (!candidates.length) return bundle({ status: "no_relevant_evidence", subjectCoverage: subjectCoverageForNoHit, generationId: generation.generationId, rankingMode, rankingDurationMs, rankingInputTokens, rankingOutputTokens, candidateCount: retrievedCandidateCount });
           } catch (error) {
             rankingDurationMs = performance.now() - started;
@@ -333,7 +408,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
               outputTokens: rankingOutputTokens,
             });
             if (!this.canUseHybridBaseline()) {
-              return bundle({ status: "unavailable", failureCode: error instanceof Error && /budget|timeout|deadline/i.test(`${error.name} ${error.message}`) ? "budget_exhausted" : "model_unavailable", generationId: generation.generationId, rankingDurationMs, rankingInputTokens, rankingOutputTokens, candidateCount: candidates.length });
+              return bundle({ status: "unavailable", failureCode: error instanceof Error && /budget|timeout|deadline/i.test(`${error.name} ${error.message}`) ? "budget_exhausted" : "model_unavailable", generationId: generation.generationId, rankingDurationMs, rankingInputTokens, rankingOutputTokens, rankingGatewayAttempts, candidateCount: candidates.length });
             }
             rankingMode = "hybrid_degraded";
           }
@@ -343,7 +418,9 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
           }
           rankingMode = "hybrid_degraded";
         }
-      } else if (this.canUseHybridBaseline() || context.purpose === "evaluation" && this.allowUnacceptedHybridEvaluation) {
+      } else if (retrievalMode === "full_text" || retrievalMode === "dense_vector") {
+        rankingMode = retrievalMode;
+      } else if (skipReranking || this.canUseHybridBaseline() || context.purpose === "evaluation" && this.allowUnacceptedHybridEvaluation) {
         rankingMode = "hybrid";
       } else {
         return bundle({ status: "unavailable", failureCode: "model_unavailable", generationId: generation.generationId, candidateCount: candidates.length });
@@ -375,9 +452,262 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
         rankingDurationMs,
         rankingInputTokens,
         rankingOutputTokens,
+        rankingGatewayAttempts,
         candidateCount: candidates.length,
       });
-    }));
+    }, sharedBudgetMs));
+  }
+
+  private async retrieveBatch(
+    unparsedRequests: EvidenceRetrievalRequest[],
+    unparsedContext: EvidenceAccessContext,
+    signal?: AbortSignal,
+    reusedResults?: Array<KnowledgeEvidenceBundle | null>,
+  ): Promise<{ result: KnowledgeEvidenceBundle; queryResults: KnowledgeEvidenceBundle[] }> {
+    const requests = EvidenceRetrievalRequestSchema.array().min(1).max(3).parse(unparsedRequests);
+    const context = EvidenceAccessContextSchema.parse(unparsedContext);
+    if (reusedResults && reusedResults.length !== requests.length) throw new Error("批量检索复用结果数量与子查询不匹配。");
+    const scopeKey = (request: EvidenceRetrievalRequest) => {
+      const { query: _query, ...scope } = request;
+      return JSON.stringify(scope);
+    };
+    if (requests.some((request) => request.kind !== requests[0]!.kind || scopeKey(request) !== scopeKey(requests[0]!))) {
+      throw new Error("同一检索批次的子查询必须属于相同语料并共享相同主体、时间和过滤范围。");
+    }
+    await this.initialized;
+    this.assertOpen();
+    return this.withReadLease(async () => {
+      const queryResults: KnowledgeEvidenceBundle[] = [];
+      for (const [index, request] of requests.entries()) {
+        const reused = reusedResults?.[index];
+        if (reused) {
+          const parsedReused = KnowledgeEvidenceBundleSchema.safeParse(reused);
+          if (!parsedReused.success || parsedReused.data.status !== "found") {
+            queryResults.push(parsedReused.success && !parsedReused.data.evidence.length
+              ? parsedReused.data
+              : bundle({ status: "unavailable", failureCode: "reference_invalid", generationId: null }));
+            continue;
+          }
+          const reusedEvidence = parsedReused.data.evidence;
+          const uniqueRefs = new Set(reusedEvidence.map(({ ref }) => JSON.stringify(ref)));
+          if (!reusedEvidence.length || uniqueRefs.size !== reusedEvidence.length) {
+            queryResults.push(bundle({ status: "unavailable", failureCode: "reference_invalid", generationId: null }));
+            continue;
+          }
+          const resolved = await this.resolve(reusedEvidence.map(({ ref }) => ref), context, signal);
+          if (resolved.status !== "found" || resolved.evidence.length !== reusedEvidence.length
+            || resolved.evidence.some((item, reusedIndex) => item.source.sourceId !== reusedEvidence[reusedIndex]?.source.sourceId
+              || JSON.stringify(item.ref) !== JSON.stringify(reusedEvidence[reusedIndex]?.ref))) {
+            queryResults.push(bundle({ status: "unavailable", failureCode: resolved.failureCode ?? "reference_invalid", generationId: null }));
+            continue;
+          }
+          queryResults.push(KnowledgeEvidenceBundleSchema.parse({
+            ...parsedReused.data,
+            evidence: resolved.evidence.map((item, resolvedIndex) => ({ ...item, rank: reusedEvidence[resolvedIndex]!.rank })),
+            subjectCoverage: resolved.subjectCoverage,
+          }));
+          continue;
+        }
+        const childContext = {
+          ...context,
+          turnId: digest(context.turnId + "\nsubquery:" + index),
+        };
+        queryResults.push(await this.retrieve(request, childContext, signal, true));
+      }
+      const generationIds = new Set(queryResults.flatMap(({ generationId }) => generationId ? [generationId] : []));
+      const subquerySummary = {
+        subqueryCount: queryResults.length,
+        unavailableSubqueryCount: queryResults.filter(({ status }) => status === "unavailable").length,
+        zeroHitSubqueryCount: queryResults.filter(({ status }) => status === "no_relevant_evidence").length,
+        notCoveredSubqueryCount: queryResults.filter(({ status }) => status === "not_covered").length,
+        blockedSubqueryCount: queryResults.filter(({ failureCode }) => failureCode === "budget_exhausted" || failureCode === "investigation_unknown").length,
+      };
+      if (generationIds.size > 1) {
+        return {
+          queryResults,
+          result: bundle({ status: "unavailable", failureCode: "index_unavailable", generationId: null, ...subquerySummary }),
+        };
+      }
+      const generationId = [...generationIds][0] ?? null;
+      const byId = new Map<string, { candidate: EvidenceCandidate; item: KnowledgeEvidenceItem; retrievalRank: number }>();
+      for (const queryResult of queryResults) {
+        for (const item of [...queryResult.evidence].sort((left, right) => left.rank - right.rank)) {
+          const id = digest(JSON.stringify(item.ref));
+          if (byId.has(id)) continue;
+          const retrievalText = [item.source.title, ...item.source.sectionPath, item.text].filter(Boolean).join("\n");
+          byId.set(id, {
+            item,
+            retrievalRank: item.rank,
+            candidate: {
+              id,
+              revisionId: item.ref.documentRevisionId,
+              sectionId: item.ref.sectionId,
+              startOffset: item.ref.startOffset,
+              endOffset: item.ref.endOffset,
+              sourceId: item.source.sourceId,
+              corpus: item.source.corpus,
+              retrievalText,
+              embeddingText: retrievalText,
+              embeddingTokens: 0,
+              evidenceText: item.text,
+              vector: [],
+              fusedScore: 1 / item.rank,
+            },
+          });
+        }
+      }
+      const candidates: EvidenceCandidate[] = [];
+      const sortedPerQuery = queryResults.map(({ evidence }) => [...evidence].sort((left, right) => left.rank - right.rank));
+      for (let rank = 0; rank < Math.max(0, ...sortedPerQuery.map((items) => items.length)) && candidates.length < rerankCandidateLimit; rank += 1) {
+        for (const items of sortedPerQuery) {
+          const item = items[rank];
+          if (!item) continue;
+          const candidate = byId.get(digest(JSON.stringify(item.ref)))?.candidate;
+          if (candidate && !candidates.some(({ id }) => id === candidate.id)) candidates.push(candidate);
+          if (candidates.length >= rerankCandidateLimit) break;
+        }
+      }
+      if (!candidates.length) {
+        const statuses = queryResults.map(({ status }) => status);
+        const status = statuses.length && statuses.every((value) => value === "not_covered")
+          ? "not_covered" as const
+          : statuses.length && statuses.every((value) => value === "unavailable")
+            ? "unavailable" as const
+            : "no_relevant_evidence" as const;
+        const failed = queryResults.find(({ status: value }) => value === "unavailable");
+        const coverage = [...new Map(queryResults.flatMap(({ subjectCoverage }) => subjectCoverage).map((item) => [item.subjectId, item])).values()];
+        return {
+          queryResults,
+          result: bundle({ status, failureCode: status === "unavailable" ? failed?.failureCode ?? "index_unavailable" : null, subjectCoverage: coverage, generationId, ...subquerySummary }),
+        };
+      }
+      const successfulQueries = requests.filter((_request, index) => queryResults[index]?.status === "found").map(({ query }) => query);
+      const candidateQuery = successfulQueries.join("\n");
+      const requestHash = digest(JSON.stringify({
+        queries: successfulQueries.map((query) => query.normalize("NFKC").replace(/\s+/gu, " ").trim().toLocaleLowerCase()),
+        candidates: candidates.map(({ id }) => id).sort(),
+      }));
+      let rankingMode: KnowledgeEvidenceBundle["rankingMode"] = null;
+      let rankingDurationMs: number | null = null;
+      let rankingInputTokens: number | null = null;
+      let rankingOutputTokens: number | null = null;
+      let rankingGatewayAttempts = 0;
+      let orderedCandidates = candidates;
+      if (this.reranker) {
+        const reservation = this.catalog.reserveRerank(context.turnId, requestHash);
+        if (reservation.kind === "cached") {
+          try {
+            orderedCandidates = validateRerankOrder(candidates, reservation.response.orderedIds, reservation.response.lowRelevanceIds);
+            rankingMode = this.reranker.kind === "local" ? "local_cross_encoder" : "gateway_reranked";
+            rankingInputTokens = reservation.response.inputTokens;
+            rankingOutputTokens = reservation.response.outputTokens;
+          } catch {
+            rankingMode = this.canUseHybridBaseline() ? "hybrid_degraded" : null;
+          }
+        } else if (reservation.kind === "reserved") {
+          const ownerId = context.investigationId ?? context.turnId;
+          const rankedBox: { ordered?: EvidenceCandidate[] } = {};
+          const rerankResult = await this.withTurnBudget(ownerId, signal, async (workSignal, budgetMs) => {
+            const started = performance.now();
+            let dispatchRemainingMs = this.investigations.snapshot(ownerId)?.remainingMs ?? budgetMs;
+            if (this.reranker!.kind !== "local") {
+              const dispatch = this.investigations.reserveGatewayAttempt(ownerId, "reranker", requestHash);
+              if (dispatch.kind === "blocked") {
+                this.catalog.finishRerank(context.turnId, { failureCode: "investigation_budget_exhausted", durationMs: 0 });
+                return bundle({ status: "unavailable", failureCode: "budget_exhausted", generationId });
+              }
+              dispatchRemainingMs = Math.min(dispatchRemainingMs, dispatch.remainingMs);
+              rankingGatewayAttempts = 1;
+            }
+            try {
+              const rerankTimeoutMs = Math.min(8_000, budgetMs, dispatchRemainingMs);
+              if (rerankTimeoutMs <= 0) throw new Error("Evidence investigation deadline elapsed before reranking.");
+              const ranked = await this.reranker!.rerank({
+                query: candidateQuery,
+                candidates,
+                signal: workSignal,
+                timeoutMs: rerankTimeoutMs,
+              });
+              rankedBox.ordered = validateRerankOrder(candidates, ranked.orderedIds, ranked.lowRelevanceIds ?? []);
+              rankingInputTokens = ranked.inputTokens;
+              rankingOutputTokens = ranked.outputTokens;
+              rankingDurationMs = performance.now() - started;
+              this.catalog.finishRerank(context.turnId, {
+                response: { orderedIds: ranked.orderedIds, lowRelevanceIds: ranked.lowRelevanceIds ?? [], inputTokens: ranked.inputTokens, outputTokens: ranked.outputTokens },
+                durationMs: rankingDurationMs,
+                inputTokens: ranked.inputTokens,
+                outputTokens: ranked.outputTokens,
+              });
+              return bundle({ status: "found", generationId, rankingGatewayAttempts });
+            } catch (error) {
+              rankingDurationMs = performance.now() - started;
+              this.catalog.finishRerank(context.turnId, {
+                failureCode: error instanceof Error && /budget|timeout|deadline/i.test(`${error.name} ${error.message}`) ? "budget_exhausted" : "model_unavailable",
+                durationMs: rankingDurationMs,
+                inputTokens: rankingInputTokens,
+                outputTokens: rankingOutputTokens,
+              });
+              if (this.canUseHybridBaseline() || context.purpose === "evaluation" && this.allowUnacceptedHybridEvaluation) {
+                rankingMode = "hybrid_degraded";
+                return bundle({ status: "found", generationId, rankingMode, rankingDurationMs, rankingInputTokens, rankingOutputTokens, rankingGatewayAttempts });
+              }
+              return bundle({ status: "unavailable", failureCode: failureCode(error), generationId, rankingDurationMs, rankingGatewayAttempts });
+            }
+          }, investigationBudgetMs);
+          if (rerankResult.status !== "found") {
+            return { queryResults, result: KnowledgeEvidenceBundleSchema.parse({
+              ...rerankResult,
+              ...subquerySummary,
+              candidateCount: candidates.length,
+              rankingGatewayAttempts,
+            }) };
+          }
+          if (rankedBox.ordered) {
+            orderedCandidates = rankedBox.ordered;
+            rankingMode = this.reranker.kind === "local" ? "local_cross_encoder" : "gateway_reranked";
+          } else if (!rankingMode) {
+            rankingMode = rerankResult.rankingMode;
+          }
+        } else if (this.canUseHybridBaseline() || context.purpose === "evaluation" && this.allowUnacceptedHybridEvaluation) {
+          rankingMode = "hybrid_degraded";
+        }
+      } else if (this.canUseHybridBaseline() || context.purpose === "evaluation" && this.allowUnacceptedHybridEvaluation) {
+        rankingMode = "hybrid";
+      }
+      if (!rankingMode) {
+        return { queryResults, result: bundle({ status: "unavailable", failureCode: "model_unavailable", generationId, candidateCount: candidates.length, rankingGatewayAttempts }) };
+      }
+      const evidence = orderedCandidates.flatMap((candidate, index) => {
+        const item = byId.get(candidate.id)?.item;
+        return item ? [{ ...item, rank: index + 1, rankMode: rankingMode! }] : [];
+      });
+      const limited = limitEvidence(evidence, requests[0]!);
+      const subjectCoverage = requests[0]!.kind === "player_report"
+        ? requests[0]!.subjects.map(({ subjectId }) => ({
+          subjectId,
+          status: limited.some((item) => item.source.subjects.some((subject) => subject.subjectId === subjectId))
+            ? "found" as const
+            : queryResults.flatMap(({ subjectCoverage: coverage }) => coverage).find((item) => item.subjectId === subjectId)?.status ?? "no_relevant_evidence" as const,
+        }))
+        : [];
+      return {
+        queryResults,
+        result: bundle({
+          status: limited.length ? "found" : "no_relevant_evidence",
+          evidence: limited,
+          subjectCoverage,
+          generationId,
+          rankingMode,
+          rankingDurationMs,
+          rankingInputTokens,
+          rankingOutputTokens,
+          rankingGatewayAttempts,
+          failureCode: queryResults.find(({ status }) => status === "unavailable")?.failureCode ?? null,
+          ...subquerySummary,
+          candidateCount: candidates.length,
+        }),
+      };
+    });
   }
 
   private async resolve(unparsedRefs: EvidenceRef[], unparsedContext: EvidenceAccessContext, signal?: AbortSignal): Promise<KnowledgeEvidenceBundle> {
@@ -385,7 +715,9 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     const context = EvidenceAccessContextSchema.parse(unparsedContext);
     await this.initialized;
     this.assertOpen();
-    return this.withReadLease(() => this.withTurnBudget(context.turnId, signal, async (workSignal) => {
+    const budgetOwnerId = context.investigationId ?? context.turnId;
+    const sharedBudgetMs = context.investigationId ? investigationBudgetMs : this.maxBudgetMs;
+    return this.withReadLease(() => this.withTurnBudget(budgetOwnerId, signal, async (workSignal) => {
       throwIfAborted(workSignal);
       const evidence: KnowledgeEvidenceItem[] = [];
       let invalidCode: KnowledgeEvidenceBundle["failureCode"] = null;
@@ -403,10 +735,14 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
       }
       if (invalidCode && evidence.length === 0) return bundle({ status: "unavailable", failureCode: invalidCode });
       return bundle({ status: evidence.length ? "found" : "no_relevant_evidence", evidence, failureCode: invalidCode, rankingMode: evidence.length ? "hybrid" : null });
-    }));
+    }, sharedBudgetMs));
   }
 
   private async publishDocument(unparsedDocument: KnowledgeEvidenceDocumentInput): Promise<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }> {
+    return this.withIndexMaintenance(() => this.publishDocumentWithinMaintenance(unparsedDocument));
+  }
+
+  private async publishDocumentWithinMaintenance(unparsedDocument: KnowledgeEvidenceDocumentInput): Promise<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }> {
     const document = KnowledgeEvidenceDocumentInputSchema.parse(unparsedDocument);
     await this.initialized;
     this.assertOpen();
@@ -419,16 +755,121 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     const revisionId = documentRevisionId(document);
     const contentHash = digest(document.content);
     const storedDocument = this.catalog.stageDocument(document, source, logicalId, revisionId, contentHash);
-    try {
-      const activeDocuments = this.indexableDocuments(this.catalog.activeDocuments(storedDocument));
-      const generation = await createEvidenceGeneration({ rootPath: this.indexPath, documents: activeDocuments, embedder: this.embedder });
-      const currentSource = this.catalog.source(document.sourceId);
-      if (!currentSource || !sourceCanProcess(currentSource, "local")) throw new Error("来源权限在索引发布前发生变化；暂存版本未激活。");
-      this.catalog.publishGeneration({ generationId: generation.generationId, embeddingModel: this.embedder.modelId, indexPath: generation.path, rowCount: generation.rowCount, document: storedDocument });
+    const currentGeneration = this.catalog.currentGeneration();
+    if (this.catalog.activeRevisionId(logicalId) === revisionId && currentGeneration?.embeddingModel === this.embedder.modelId) {
       this.runtimeReady = true;
-      return { documentId: logicalId, revisionId, generationId: generation.generationId, indexedChunks: generation.rowCount };
+      return { documentId: logicalId, revisionId, generationId: currentGeneration.generationId, indexedChunks: currentGeneration.rowCount };
+    }
+    try {
+      for (let attempt = 0; ; attempt += 1) {
+        const expectedPreviousGenerationId = this.catalog.currentGeneration()?.generationId ?? null;
+        const activeDocuments = this.indexableDocuments(this.catalog.activeDocuments(storedDocument));
+        const generation = await createEvidenceGeneration({ rootPath: this.indexPath, documents: activeDocuments, embedder: this.embedder });
+        const currentSource = this.catalog.source(document.sourceId);
+        if (!currentSource || !sourceCanProcess(currentSource, "local")
+          || !currentSource.allowedCorpora.includes(document.corpus) || !sourceAllowsUrl(currentSource, document.url)) {
+          await rm(generation.path, { recursive: true, force: true });
+          throw new Error("来源权限在索引发布前发生变化；暂存版本未激活。");
+        }
+        try {
+          this.catalog.publishGeneration({
+            generationId: generation.generationId,
+            embeddingModel: this.embedder.modelId,
+            indexPath: generation.path,
+            rowCount: generation.rowCount,
+            documents: [storedDocument],
+            expectedPreviousGenerationId,
+          });
+          this.runtimeReady = true;
+          await this.closeIndexReaders();
+          await this.collectRetiredIndexes();
+          return { documentId: logicalId, revisionId, generationId: generation.generationId, indexedChunks: generation.rowCount };
+        } catch (error) {
+          await rm(generation.path, { recursive: true, force: true });
+          if (!(error instanceof EvidenceGenerationChangedError) || attempt >= 3) throw error;
+        }
+      }
     } catch (error) {
       this.catalog.failStagedDocument(revisionId);
+      throw error;
+    }
+  }
+
+  private async publishDocuments(unparsedDocuments: KnowledgeEvidenceDocumentInput[]): Promise<Array<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }>> {
+    return this.withIndexMaintenance(() => this.publishDocumentsWithinMaintenance(unparsedDocuments));
+  }
+
+  private async publishDocumentsWithinMaintenance(unparsedDocuments: KnowledgeEvidenceDocumentInput[]): Promise<Array<{ documentId: string; revisionId: string; generationId: string; indexedChunks: number }>> {
+    const documents = KnowledgeEvidenceDocumentInputSchema.array().min(1).max(20).parse(unparsedDocuments);
+    if (new Set(documents.map((document) => knowledgeEvidenceDocumentId(document))).size !== documents.length) {
+      throw new Error("一次批量入库不能包含重复的来源/语料/URL 文档；未发布索引。");
+    }
+    await this.initialized;
+    this.assertOpen();
+    const staged: StoredEvidenceDocument[] = [];
+    try {
+      for (const document of documents) {
+        const source = this.catalog.source(document.sourceId);
+        if (!source) throw new Error("来源 " + document.sourceId + " 尚未在权威目录登记；已拒绝发布。");
+        if (!source.allowedModelDestinations.includes("local")) throw new Error("来源 " + source.id + " 未允许本地 embedding，已拒绝发布。");
+        assertCanIngestDocument(source, document);
+        if (!sourceAllowsUrl(source, document.url)) throw new Error("文档 URL 不在来源 " + source.id + " 的登记范围内。");
+        staged.push(this.catalog.stageDocument(
+          document,
+          source,
+          knowledgeEvidenceDocumentId(document),
+          documentRevisionId(document),
+          digest(document.content),
+        ));
+      }
+      const currentGeneration = this.catalog.currentGeneration();
+      if (staged.every((document) => this.catalog.activeRevisionId(document.logicalId) === document.revisionId)
+        && currentGeneration?.embeddingModel === this.embedder.modelId) {
+        this.runtimeReady = true;
+        return staged.map((document) => ({
+          documentId: document.logicalId,
+          revisionId: document.revisionId,
+          generationId: currentGeneration.generationId,
+          indexedChunks: currentGeneration.rowCount,
+        }));
+      }
+      for (let attempt = 0; ; attempt += 1) {
+        const expectedPreviousGenerationId = this.catalog.currentGeneration()?.generationId ?? null;
+        const activeDocuments = this.indexableDocuments(this.catalog.activeDocuments(staged));
+        const generation = await createEvidenceGeneration({ rootPath: this.indexPath, documents: activeDocuments, embedder: this.embedder });
+        for (const document of staged) {
+          const currentSource = this.catalog.source(document.sourceId);
+          if (!currentSource || !sourceCanProcess(currentSource, "local")
+            || !currentSource.allowedCorpora.includes(document.corpus) || !sourceAllowsUrl(currentSource, document.url)) {
+            await rm(generation.path, { recursive: true, force: true });
+            throw new Error("来源权限在批量索引发布前发生变化；暂存版本未激活。");
+          }
+        }
+        try {
+          this.catalog.publishGeneration({
+            generationId: generation.generationId,
+            embeddingModel: this.embedder.modelId,
+            indexPath: generation.path,
+            rowCount: generation.rowCount,
+            documents: staged,
+            expectedPreviousGenerationId,
+          });
+          this.runtimeReady = true;
+          await this.closeIndexReaders();
+          await this.collectRetiredIndexes();
+          return staged.map((document) => ({
+            documentId: document.logicalId,
+            revisionId: document.revisionId,
+            generationId: generation.generationId,
+            indexedChunks: generation.rowCount,
+          }));
+        } catch (error) {
+          await rm(generation.path, { recursive: true, force: true });
+          if (!(error instanceof EvidenceGenerationChangedError) || attempt >= 3) throw error;
+        }
+      }
+    } catch (error) {
+      for (const document of staged) this.catalog.failStagedDocument(document.revisionId);
       throw error;
     }
   }
@@ -437,12 +878,13 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     await this.initialized;
     this.assertOpen();
     return this.withIndexMaintenance(async () => {
+      const expectedGenerationId = this.catalog.currentGeneration()?.generationId ?? null;
       const removed = this.catalog.removeDocument(logicalId);
       if (removed) {
         try {
           await this.rebuildActiveIndex();
         } catch (error) {
-          await this.discardAllDerivedIndexes();
+          await this.discardActiveGenerationAfterFailedRebuild(expectedGenerationId);
           throw new Error("资料已删除，但派生索引重建失败；旧索引已清除，知识查询暂时不可用。", { cause: error });
         }
       }
@@ -450,7 +892,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     });
   }
 
-  private async status(): Promise<{ activeSources: number; activeDocuments: number; generationId: string | null; indexedChunks: number; runtimeReady: boolean; evidenceSnapshotHash: string }> {
+  private async status(): Promise<{ activeSources: number; activeDocuments: number; generationId: string | null; embeddingModelId: string; indexedChunks: number; runtimeReady: boolean; evidenceSnapshotHash: string }> {
     await this.initialized;
     this.assertOpen();
     const generation = this.catalog.currentGeneration();
@@ -459,6 +901,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
       activeSources: this.catalog.sources().length,
       activeDocuments: documents.length,
       generationId: generation?.generationId ?? null,
+      embeddingModelId: generation?.embeddingModel ?? this.embedder.modelId,
       indexedChunks: generation?.rowCount ?? 0,
       runtimeReady: this.runtimeReady,
       evidenceSnapshotHash: this.catalog.activeEvidenceSnapshotHash(),
@@ -497,17 +940,20 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     this.assertOpen();
     const sources = KnowledgeEvidenceSourceSchema.array().parse(unparsedSources);
     if (!sources.length) return;
-    const hasStoredDocuments = sources.some((source) => this.catalog.sourceUsage(source.id).length > 0);
+    if (!this.catalog.sourcePoliciesNeedRefresh(sources)) return;
+    const hasStoredDocuments = sources.some((source) => this.catalog.sourcePolicyNeedsRefresh(source)
+      && this.catalog.sourceUsage(source.id).length > 0);
     if (!hasStoredDocuments) {
       this.catalog.registerSources(sources);
       return;
     }
     await this.withIndexMaintenance(async () => {
+      const expectedGenerationId = this.catalog.currentGeneration()?.generationId ?? null;
       this.catalog.registerSources(sources);
       try {
         await this.rebuildActiveIndex();
       } catch (error) {
-        await this.discardAllDerivedIndexes();
+        await this.discardActiveGenerationAfterFailedRebuild(expectedGenerationId);
         throw new Error("来源策略已更新，但派生索引重建失败；旧索引已清除，知识查询暂时不可用。", { cause: error });
       }
     });
@@ -522,53 +968,102 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
       return;
     }
     await this.withIndexMaintenance(async () => {
+      const expectedGenerationId = this.catalog.currentGeneration()?.generationId ?? null;
       this.catalog.revokeSource(sourceId, eraseStoredContent);
       try {
         await this.rebuildActiveIndex();
       } catch (error) {
-        await this.discardAllDerivedIndexes();
+        await this.discardActiveGenerationAfterFailedRebuild(expectedGenerationId);
         throw new Error("来源撤回已生效，但派生索引重建失败；旧索引已清除，知识查询暂时不可用。", { cause: error });
       }
     });
   }
 
   private async rebuildActiveIndex(): Promise<void> {
-    const documents = this.indexableDocuments(this.catalog.activeDocuments());
-    if (!documents.length) {
-      this.catalog.clearActiveGeneration();
-      this.runtimeReady = false;
-      await this.closeIndexReaders();
-      await rm(path.join(this.indexPath, "generations"), { recursive: true, force: true });
-      return;
-    }
-    const generation = await createEvidenceGeneration({ rootPath: this.indexPath, documents, embedder: this.embedder });
-    this.catalog.activateGeneration({
-      generationId: generation.generationId,
-      embeddingModel: this.embedder.modelId,
-      indexPath: generation.path,
-      rowCount: generation.rowCount,
-    });
-    this.runtimeReady = true;
-    await this.closeIndexReaders();
-    const generationRoot = path.join(this.indexPath, "generations");
-    const entries = await readdir(generationRoot, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      if (entry.isDirectory() && entry.name !== generation.generationId) {
-        await rm(path.join(generationRoot, entry.name), { recursive: true, force: true });
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const expectedPreviousGenerationId = this.catalog.currentGeneration()?.generationId ?? null;
+      const documents = this.indexableDocuments(this.catalog.activeDocuments());
+      if (!documents.length) {
+        try {
+          this.catalog.clearActiveGeneration(expectedPreviousGenerationId);
+          this.runtimeReady = false;
+          await this.closeIndexReaders();
+          await this.collectRetiredIndexes();
+          return;
+        } catch (error) {
+          if (error instanceof EvidenceGenerationChangedError && attempt < 3) continue;
+          throw error;
+        }
+      }
+      const generation = await createEvidenceGeneration({ rootPath: this.indexPath, documents, embedder: this.embedder });
+      try {
+        this.catalog.activateGeneration({
+          generationId: generation.generationId,
+          embeddingModel: this.embedder.modelId,
+          indexPath: generation.path,
+          rowCount: generation.rowCount,
+          expectedPreviousGenerationId,
+        });
+        this.runtimeReady = true;
+        await this.closeIndexReaders();
+        await this.collectRetiredIndexes();
+        return;
+      } catch (error) {
+        await rm(generation.path, { recursive: true, force: true });
+        if (error instanceof EvidenceGenerationChangedError && attempt < 3) continue;
+        throw error;
       }
     }
+    throw new Error("Concurrent evidence index changes prevented a stable generation rebuild.");
   }
 
-  private async discardAllDerivedIndexes(): Promise<void> {
-    this.catalog.clearActiveGeneration();
-    this.runtimeReady = false;
+  private async discardActiveGenerationAfterFailedRebuild(expectedGenerationId: string | null): Promise<void> {
+    let retired = false;
+    try {
+      this.catalog.clearActiveGeneration(expectedGenerationId);
+      retired = expectedGenerationId !== null;
+    } catch (error) {
+      if (!(error instanceof EvidenceGenerationChangedError)) throw error;
+    }
+    if (retired) this.runtimeReady = false;
     await this.closeIndexReaders();
-    await rm(path.join(this.indexPath, "generations"), { recursive: true, force: true });
+    await this.collectRetiredIndexes();
   }
 
   private async closeIndexReaders(): Promise<void> {
     await Promise.all([...this.indexReaders.values()].map((reader) => reader.close()));
     this.indexReaders.clear();
+  }
+
+  private async collectRetiredIndexes(): Promise<void> {
+    const generationRoot = path.resolve(this.indexPath, "generations");
+    for (const generation of this.catalog.retiredGenerationsWithoutLeases()) {
+      const absolutePath = path.resolve(generation.indexPath);
+      const relativePath = path.relative(generationRoot, absolutePath);
+      if (!relativePath || relativePath.startsWith(".." + path.sep) || path.isAbsolute(relativePath)) continue;
+      const reader = this.indexReaders.get(generation.generationId);
+      if (reader) {
+        try {
+          await reader.close();
+          this.indexReaders.delete(generation.generationId);
+        } catch {
+          continue;
+        }
+      }
+      try {
+        await rm(absolutePath, { recursive: true, force: true });
+      } catch {
+        continue;
+      }
+      this.catalog.forgetRetiredGeneration(generation.generationId);
+    }
+    if (!this.closed && !this.generationCleanupTimer && this.catalog.hasRetiredGenerations()) {
+      this.generationCleanupTimer = setTimeout(() => {
+        this.generationCleanupTimer = undefined;
+        void this.collectRetiredIndexes();
+      }, indexGenerationLeaseMs + 100);
+      this.generationCleanupTimer.unref();
+    }
   }
 
   private async withReadLease<T>(operation: () => Promise<T>): Promise<T> {
@@ -583,6 +1078,10 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
   }
 
   private async withIndexMaintenance<T>(operation: () => Promise<T>): Promise<T> {
+    let release!: () => void;
+    const previous = this.maintenanceTail;
+    this.maintenanceTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
     this.indexMaintenance = true;
     if (this.activeReaderCount) await new Promise<void>((resolve) => { this.readerDrain = resolve; });
     this.readerDrain = undefined;
@@ -591,6 +1090,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     } finally {
       this.indexMaintenance = false;
       for (const wake of this.waitingReaders.splice(0)) wake();
+      release();
     }
   }
 
@@ -614,9 +1114,13 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
       for (const source of sources) if (!this.catalog.hasSource(source.id)) this.catalog.registerSource(source);
     } catch (error) {
       // A missing registry is valid for isolated stores; malformed content is not.
-      if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") return;
+      if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+        await this.collectRetiredIndexes();
+        return;
+      }
       throw error;
     }
+    await this.collectRetiredIndexes();
   }
 
   private verifyCandidate(candidate: EvidenceCandidate, eligibleSources: KnowledgeEvidenceSource[]): boolean {
@@ -661,9 +1165,9 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     });
   }
 
-  private async withTurnBudget(turnId: string, externalSignal: AbortSignal | undefined, operation: (signal: AbortSignal, budgetMs: number) => Promise<KnowledgeEvidenceBundle>): Promise<KnowledgeEvidenceBundle> {
+  private async withTurnBudget(turnId: string, externalSignal: AbortSignal | undefined, operation: (signal: AbortSignal, budgetMs: number) => Promise<KnowledgeEvidenceBundle>, maximumMs = this.maxBudgetMs): Promise<KnowledgeEvidenceBundle> {
     throwIfAborted(externalSignal);
-    const reservation = this.catalog.reserveTurnBudget(turnId, this.maxBudgetMs);
+    const reservation = this.catalog.reserveTurnBudget(turnId, maximumMs);
     if (!reservation.reservedMs) return bundle({ status: "unavailable", failureCode: "budget_exhausted", budgetMsUsed: reservation.usedBeforeMs, budgetMsRemaining: 0 });
     const controller = new AbortController();
     let rejectOnAbort: ((reason: unknown) => void) | undefined;
@@ -680,7 +1184,7 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
     const settle = (wasTimedOut: boolean) => {
       if (settled) return this.catalog.turnBudgetUsed(turnId);
       settled = true;
-      return this.catalog.settleTurnBudget(turnId, reservation.usedBeforeMs, reservation.reservedMs, performance.now() - started, wasTimedOut);
+      return this.catalog.settleTurnBudget(turnId, reservation.usedBeforeMs, reservation.reservedMs, performance.now() - started, wasTimedOut, maximumMs);
     };
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
@@ -703,13 +1207,13 @@ class KnowledgeEvidenceSystem implements KnowledgeEvidence {
       return KnowledgeEvidenceBundleSchema.parse({
         ...result,
         budgetMsUsed: used,
-        budgetMsRemaining: Math.max(0, this.maxBudgetMs - used),
+        budgetMsRemaining: Math.max(0, maximumMs - used),
       });
     } catch (error) {
       if (externalSignal?.aborted) throw error;
       const used = settle(timedOut);
-      if (timedOut) return bundle({ status: "unavailable", failureCode: "budget_exhausted", budgetMsUsed: used, budgetMsRemaining: Math.max(0, this.maxBudgetMs - used) });
-      return bundle({ status: "unavailable", failureCode: failureCode(error), budgetMsUsed: used, budgetMsRemaining: Math.max(0, this.maxBudgetMs - used) });
+      if (timedOut) return bundle({ status: "unavailable", failureCode: "budget_exhausted", budgetMsUsed: used, budgetMsRemaining: Math.max(0, maximumMs - used) });
+      return bundle({ status: "unavailable", failureCode: failureCode(error), budgetMsUsed: used, budgetMsRemaining: Math.max(0, maximumMs - used) });
     } finally {
       if (timer) clearTimeout(timer);
       externalSignal?.removeEventListener("abort", onAbort);

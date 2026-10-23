@@ -51,8 +51,12 @@ export function createApp(options: CreateAppOptions = {}) {
       repository: playerRepository,
       ...(options.teamRosterEnrichment ? { teamRosterEnrichment: options.teamRosterEnrichment } : {}),
       planner: options.recruitmentPlanner,
+      ...(options.briefInterpreter ? { briefInterpreter: options.briefInterpreter } : {}),
+      ...(options.recruitmentObserver ? { observer: options.recruitmentObserver } : {}),
+      ...(options.recruitmentEvaluationEvidenceScope ? { evaluationEvidenceScope: options.recruitmentEvaluationEvidenceScope } : {}),
       knowledgeBase: recruitmentKnowledge,
       knowledgeEvidence,
+      ...(options.recruitmentObserver ? { observer: options.recruitmentObserver } : {}),
       checkpointer,
       store: preferenceStore,
     })

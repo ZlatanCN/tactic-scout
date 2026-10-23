@@ -81,7 +81,9 @@ test("Planner compacts oversized navigation history and completes the same reque
   let sentBody: Record<string, unknown> | undefined;
   let observedManifest: Record<string, unknown> | undefined;
   configurePlannerEnvironment();
-  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "32768";
+  // The v2 report schema includes multi-source claims, so leave enough headroom
+  // to test compaction-threshold behavior without crossing the verified window.
+  process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "36000";
   process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "128";
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     requestCount += 1;
@@ -110,7 +112,7 @@ test("Planner compacts oversized navigation history and completes the same reque
     assert.ok(planner.preflightContext);
     const manifest = await planner.preflightContext(input);
     assert.equal(manifest.exceedsVerifiedWindow, false);
-    assert.equal(manifest.exceedsCompactionThreshold, true);
+    assert.equal(manifest.exceedsCompactionThreshold, true, JSON.stringify(manifest));
     const progress: string[] = [];
     const result = await planner.decide({ ...input,
       onContextCompaction: status => progress.push(status),

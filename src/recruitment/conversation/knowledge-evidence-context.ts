@@ -4,16 +4,30 @@ import type { EvidenceAccessContext } from "../../knowledge/evidence-schemas.js"
 import { isLoopbackModelEndpoint } from "../chat-model.js";
 import type { State } from "./state.js";
 
-/** Stable across checkpoint resumes and shared by all evidence calls in one user-input turn. */
+/** Stable across checkpoint resumes; investigation owner is shared while reranker reservations are round-scoped. */
 export function knowledgeEvidenceAccessContext(
   config: LangGraphRunnableConfig,
-  state: Pick<State, "history">,
+  state: Pick<State, "history" | "ragResearchQueryCount">,
   purpose: EvidenceAccessContext["purpose"],
+  options: { phase?: "investigation" | "final_check"; rankingRound?: 1 | 2 } = {},
 ): EvidenceAccessContext {
   const threadId = typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : "local-recruitment-thread";
   const userTurn = Math.max(1, state.history.filter((entry) => entry.role === "user").length);
   const turnId = createHash("sha256").update(`knowledge-evidence-turn-v1\n${threadId}\n${userTurn}`).digest("hex");
-  return { turnId, purpose, modelDestination: isLoopbackModelEndpoint(process.env.OPENAI_BASE_URL) ? "local" : "configured_chat_gateway" };
+  const phase = options.phase ?? "investigation";
+  const investigationId = turnId;
+  const rankingRound = phase === "final_check" ? undefined : options.rankingRound ?? (state.ragResearchQueryCount > 0 ? 2 as const : 1 as const);
+  const operationTurnId = phase === "final_check"
+    ? createHash("sha256").update(investigationId + "\nfinal_check").digest("hex")
+    : rankingRound === undefined
+      ? investigationId
+    : createHash("sha256").update(investigationId + "\nround:" + rankingRound).digest("hex");
+  return {
+    turnId: operationTurnId,
+    ...(phase === "final_check" ? {} : { investigationId, rankingRound }),
+    purpose,
+    modelDestination: isLoopbackModelEndpoint(process.env.OPENAI_BASE_URL) ? "local" : "configured_chat_gateway",
+  };
 }
 
 export interface ExplicitEvidenceSampleScope {

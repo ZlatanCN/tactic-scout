@@ -25,9 +25,15 @@ export interface StoredEvidenceDocument {
   observedTo: string | null;
   sampleSummary: string | null;
   evidenceType: KnowledgeEvidenceType | undefined;
+  normalizationVersion: string;
   contentHash: string;
   content: string;
   sections: Array<{ id: string; heading: string | null; kind: "paragraph" | "list_item" | "table"; text: string; locator: string | null }>;
+}
+
+export function isProjectAuthoredEvidenceDocument(document: Pick<StoredEvidenceDocument, "title" | "attribution" | "sections">): boolean {
+  return /project-authored|项目作者/iu.test(document.title + "\n" + document.attribution)
+    || document.sections.length > 0 && document.sections.every(({ id }) => id.startsWith("authored-method-summary-"));
 }
 
 export interface StoredSection {
@@ -64,7 +70,45 @@ export interface StoredRerankResult {
   outputTokens: number | null;
 }
 
+export class EvidenceGenerationChangedError extends Error {
+  constructor() {
+    super("活动证据索引在新代次构建期间发生变化；需要从最新目录状态重建。");
+    this.name = "EvidenceGenerationChangedError";
+  }
+}
+
 const parseJson = <T>(value: string): T => JSON.parse(value) as T;
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function plainTextSections(content: string): Array<{ id: string; heading: null; kind: "paragraph"; text: string; locator: string }> {
+  const sections: Array<{ id: string; heading: null; kind: "paragraph"; text: string; locator: string }> = [];
+  const separator = /\r?\n(?:[ \t]*\r?\n)+/gu;
+  let start = 0;
+  const addParagraph = (end: number) => {
+    const raw = content.slice(start, end);
+    const text = raw.trim();
+    if (!text) return;
+    const leadingWhitespace = raw.length - raw.trimStart().length;
+    const offset = start + leadingWhitespace;
+    const locator = `plain-text:utf16:${offset}:paragraph:${sections.length + 1}`;
+    const id = "txt-" + createHash("sha256").update(`${locator}\n${text}`).digest("hex").slice(0, 24);
+    sections.push({ id, heading: null, kind: "paragraph", text, locator });
+  };
+  for (const match of content.matchAll(separator)) {
+    addParagraph(match.index ?? start);
+    start = (match.index ?? start) + match[0].length;
+  }
+  addParagraph(content.length);
+  return sections;
+}
 
 export class EvidenceCatalog {
   readonly database: DatabaseSync;
@@ -104,6 +148,14 @@ export class EvidenceCatalog {
       );
       CREATE INDEX IF NOT EXISTS document_revisions_logical_idx ON document_revisions(logical_id, created_at);
       CREATE INDEX IF NOT EXISTS document_revisions_source_idx ON document_revisions(source_id, status);
+      CREATE TABLE IF NOT EXISTS document_acquisitions (
+        revision_id TEXT NOT NULL,
+        source_payload_sha256 TEXT NOT NULL,
+        normalization_version TEXT NOT NULL,
+        acquired_at TEXT NOT NULL,
+        PRIMARY KEY (revision_id, source_payload_sha256, normalization_version),
+        FOREIGN KEY (revision_id) REFERENCES document_revisions(revision_id) ON DELETE CASCADE
+      );
       CREATE TABLE IF NOT EXISTS evidence_sections (
         revision_id TEXT NOT NULL,
         section_id TEXT NOT NULL,
@@ -128,6 +180,12 @@ export class EvidenceCatalog {
         status TEXT NOT NULL CHECK (status IN ('staged', 'active', 'retained', 'failed')),
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS index_generation_leases (
+        lease_id TEXT PRIMARY KEY,
+        generation_id TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS index_generation_leases_generation_idx ON index_generation_leases(generation_id, expires_at);
       CREATE TABLE IF NOT EXISTS knowledge_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS turn_budgets (
         turn_id TEXT PRIMARY KEY,
@@ -165,6 +223,15 @@ export class EvidenceCatalog {
     this.registerSources([source]);
   }
 
+  sourcePoliciesNeedRefresh(sources: KnowledgeEvidenceSource[]): boolean {
+    return sources.some((source) => this.sourcePolicyNeedsRefresh(source));
+  }
+
+  sourcePolicyNeedsRefresh(source: KnowledgeEvidenceSource): boolean {
+    const existing = this.database.prepare("SELECT source_json, status FROM knowledge_sources WHERE source_id = ?").get(source.id) as { source_json: string; status: string } | undefined;
+    return !existing || existing.status !== "active" || canonicalJson(parseJson<KnowledgeEvidenceSource>(existing.source_json)) !== canonicalJson(source);
+  }
+
   registerSources(sources: KnowledgeEvidenceSource[]): void {
     const now = new Date().toISOString();
     this.transaction(() => {
@@ -175,6 +242,8 @@ export class EvidenceCatalog {
           status = 'active', revision = knowledge_sources.revision + 1, updated_at = excluded.updated_at
       `);
       for (const source of sources) {
+        const existing = this.database.prepare("SELECT source_json, status FROM knowledge_sources WHERE source_id = ?").get(source.id) as { source_json: string; status: string } | undefined;
+        if (existing?.status === "active" && canonicalJson(parseJson<KnowledgeEvidenceSource>(existing.source_json)) === canonicalJson(source)) continue;
         register.run(source.id, JSON.stringify(source), now);
         const revision = this.database.prepare("SELECT revision FROM knowledge_sources WHERE source_id = ?").get(source.id) as { revision: number };
         this.database.prepare(`INSERT INTO knowledge_source_policy_history (source_id, revision, source_json, status, changed_at) VALUES (?, ?, ?, 'active', ?)`)
@@ -214,14 +283,17 @@ export class EvidenceCatalog {
       this.database.prepare("DELETE FROM active_documents WHERE logical_id = ?").run(logicalId);
       this.database.prepare("UPDATE document_revisions SET content = NULL, status = 'redacted' WHERE logical_id = ?").run(logicalId);
       this.database.prepare("DELETE FROM evidence_sections WHERE revision_id IN (SELECT revision_id FROM document_revisions WHERE logical_id = ?)").run(logicalId);
+      this.database.prepare("DELETE FROM document_acquisitions WHERE revision_id IN (SELECT revision_id FROM document_revisions WHERE logical_id = ?)").run(logicalId);
     });
     return revisionCount;
   }
 
   stageDocument(input: KnowledgeEvidenceDocumentInput, source: KnowledgeEvidenceSource, logicalId: string, revisionId: string, contentHash: string): StoredEvidenceDocument {
     const now = new Date().toISOString();
-    const sections = input.sections?.map((section) => ({ id: section.id, heading: section.heading, kind: section.kind, text: section.text, locator: section.locator }))
-      ?? [{ id: "body", heading: null, kind: "paragraph" as const, text: input.content, locator: null }];
+    const sourcePayloadSha256 = input.sourcePayloadSha256 ?? contentHash;
+    const sections = input.sections?.length
+      ? input.sections.map((section) => ({ id: section.id, heading: section.heading, kind: section.kind, text: section.text, locator: section.locator }))
+      : plainTextSections(input.content);
     const metadata = {
       sourceName: source.name,
       title: input.title,
@@ -239,6 +311,7 @@ export class EvidenceCatalog {
       observedTo: input.observedTo,
       sampleSummary: input.sampleSummary,
       evidenceType: input.evidenceType ?? (input.corpus === "methodology" ? "methodology" : source.id === firstPartyObservationSourceId ? "first_party_observation" : "external_report"),
+      normalizationVersion: input.normalizationVersion,
     };
     this.transaction(() => {
       const existing = this.database.prepare("SELECT status FROM document_revisions WHERE revision_id = ?").get(revisionId) as { status?: string } | undefined;
@@ -253,6 +326,10 @@ export class EvidenceCatalog {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       sections.forEach((section, index) => insertSection.run(revisionId, section.id, index, section.heading, section.kind, section.text, section.locator));
+      this.database.prepare(`
+        INSERT OR IGNORE INTO document_acquisitions (revision_id, source_payload_sha256, normalization_version, acquired_at)
+        VALUES (?, ?, ?, ?)
+      `).run(revisionId, sourcePayloadSha256, input.normalizationVersion, now);
     });
     return {
       revisionId, logicalId, sourceId: source.id, corpus: input.corpus, title: input.title, url: input.url,
@@ -261,10 +338,37 @@ export class EvidenceCatalog {
       competition: input.competition, season: input.season, observedFrom: input.observedFrom,
       observedTo: input.observedTo, sampleSummary: input.sampleSummary, contentHash, content: input.content, sections,
       evidenceType: metadata.evidenceType as KnowledgeEvidenceType,
+      normalizationVersion: input.normalizationVersion,
     };
   }
 
-  activeDocuments(override?: StoredEvidenceDocument): StoredEvidenceDocument[] {
+  activeRevisionId(logicalId: string): string | null {
+    const row = this.database.prepare(`
+      SELECT d.revision_id FROM active_documents a
+      JOIN document_revisions d ON d.revision_id = a.revision_id
+      WHERE a.logical_id = ? AND d.content IS NOT NULL AND d.status IN ('published', 'retained')
+    `).get(logicalId) as { revision_id?: string } | undefined;
+    return row?.revision_id ?? null;
+  }
+
+  documentAcquisitionHistory(logicalId: string): Array<{ revisionId: string; sourcePayloadSha256: string; normalizationVersion: string; acquiredAt: string }> {
+    const rows = this.database.prepare(`
+      SELECT a.revision_id, a.source_payload_sha256, a.normalization_version, a.acquired_at
+      FROM document_acquisitions a JOIN document_revisions d ON d.revision_id = a.revision_id
+      WHERE d.logical_id = ? AND d.content IS NOT NULL AND d.status IN ('published', 'retained')
+      ORDER BY a.acquired_at, a.source_payload_sha256
+    `).all(logicalId) as Array<Record<string, unknown>>;
+    return rows.map((row) => ({
+      revisionId: String(row.revision_id),
+      sourcePayloadSha256: String(row.source_payload_sha256),
+      normalizationVersion: String(row.normalization_version),
+      acquiredAt: String(row.acquired_at),
+    }));
+  }
+
+  activeDocuments(override?: StoredEvidenceDocument | StoredEvidenceDocument[]): StoredEvidenceDocument[] {
+    const overrides = Array.isArray(override) ? override : override ? [override] : [];
+    const overridesByLogicalId = new Map(overrides.map((document) => [document.logicalId, document]));
     const rows = this.database.prepare(`
       SELECT d.revision_id, d.logical_id, d.source_id, d.corpus, d.metadata_json, d.content_hash, d.content
       FROM active_documents a JOIN document_revisions d ON d.revision_id = a.revision_id
@@ -272,10 +376,10 @@ export class EvidenceCatalog {
       ORDER BY d.logical_id
     `).all() as Array<Record<string, unknown>>;
     const documents = rows.flatMap((row) => {
-      if (override?.logicalId === row.logical_id) return [];
+      if (overridesByLogicalId.has(String(row.logical_id))) return [];
       return [this.hydrateDocument(row)];
     });
-    if (override) documents.push(override);
+    documents.push(...overrides);
     return documents;
   }
 
@@ -332,30 +436,98 @@ export class EvidenceCatalog {
     return row ? { generationId: row.generation_id, embeddingModel: row.embedding_model, indexPath: row.index_path, rowCount: row.row_count } : null;
   }
 
-  publishGeneration(input: { generationId: string; embeddingModel: string; indexPath: string; rowCount: number; document: StoredEvidenceDocument }): void {
+  publishGeneration(input: { generationId: string; embeddingModel: string; indexPath: string; rowCount: number; documents: StoredEvidenceDocument[]; expectedPreviousGenerationId: string | null }): void {
     const now = new Date().toISOString();
     this.transaction(() => {
+      const activeGenerationId = this.currentGeneration()?.generationId ?? null;
+      if (activeGenerationId !== input.expectedPreviousGenerationId) throw new EvidenceGenerationChangedError();
       this.setActiveGeneration(input, now);
-      this.database.prepare("UPDATE document_revisions SET status = 'retained' WHERE logical_id = ? AND status = 'published'").run(input.document.logicalId);
-      this.database.prepare("UPDATE document_revisions SET status = 'published' WHERE revision_id = ?").run(input.document.revisionId);
-      this.database.prepare(`INSERT INTO active_documents (logical_id, revision_id) VALUES (?, ?)
-        ON CONFLICT(logical_id) DO UPDATE SET revision_id = excluded.revision_id`).run(input.document.logicalId, input.document.revisionId);
+      for (const document of input.documents) {
+        this.database.prepare("UPDATE document_revisions SET status = 'retained' WHERE logical_id = ? AND status = 'published'").run(document.logicalId);
+        this.database.prepare("UPDATE document_revisions SET status = 'published' WHERE revision_id = ?").run(document.revisionId);
+        this.database.prepare("INSERT INTO active_documents (logical_id, revision_id) VALUES (?, ?) ON CONFLICT(logical_id) DO UPDATE SET revision_id = excluded.revision_id")
+          .run(document.logicalId, document.revisionId);
+      }
     });
   }
 
-  activateGeneration(input: { generationId: string; embeddingModel: string; indexPath: string; rowCount: number }): void {
-    this.transaction(() => this.setActiveGeneration(input, new Date().toISOString()));
+  activateGeneration(input: { generationId: string; embeddingModel: string; indexPath: string; rowCount: number; expectedPreviousGenerationId: string | null }): void {
+    this.transaction(() => {
+      const activeGenerationId = this.currentGeneration()?.generationId ?? null;
+      if (activeGenerationId !== input.expectedPreviousGenerationId) throw new EvidenceGenerationChangedError();
+      this.setActiveGeneration(input, new Date().toISOString());
+    });
   }
 
-  clearActiveGeneration(): void {
+  clearActiveGeneration(expectedPreviousGenerationId?: string | null): void {
     this.transaction(() => {
+      if (expectedPreviousGenerationId !== undefined) {
+        const activeGenerationId = this.currentGeneration()?.generationId ?? null;
+        if (activeGenerationId !== expectedPreviousGenerationId) throw new EvidenceGenerationChangedError();
+      }
       this.database.prepare("UPDATE index_generations SET status = 'retained' WHERE status = 'active'").run();
       this.database.prepare("DELETE FROM knowledge_metadata WHERE key = 'active_generation'").run();
     });
   }
 
+  acquireIndexGenerationLease(generationId: string, leaseId: string, expiresAt: string): boolean {
+    let acquired = false;
+    this.transaction(() => {
+      const current = this.currentGeneration();
+      if (current?.generationId !== generationId) return;
+      this.database.prepare("DELETE FROM index_generation_leases WHERE expires_at <= ?").run(new Date().toISOString());
+      this.database.prepare("INSERT INTO index_generation_leases (lease_id, generation_id, expires_at) VALUES (?, ?, ?)")
+        .run(leaseId, generationId, expiresAt);
+      acquired = true;
+    });
+    return acquired;
+  }
+
+  releaseIndexGenerationLease(leaseId: string): void {
+    this.database.prepare("DELETE FROM index_generation_leases WHERE lease_id = ?").run(leaseId);
+  }
+
+  retiredGenerationsWithoutLeases(now = new Date().toISOString()): Array<{ generationId: string; indexPath: string }> {
+    let generations: Array<{ generationId: string; indexPath: string }> = [];
+    this.transaction(() => {
+      this.database.prepare("DELETE FROM index_generation_leases WHERE expires_at <= ?").run(now);
+      generations = this.database.prepare(`
+        SELECT g.generation_id AS generationId, g.index_path AS indexPath
+        FROM index_generations g
+        WHERE g.status = 'retained'
+          AND NOT EXISTS (
+            SELECT 1 FROM index_generation_leases l
+            WHERE l.generation_id = g.generation_id AND l.expires_at > ?
+          )
+        ORDER BY g.created_at
+      `).all(now) as Array<{ generationId: string; indexPath: string }>;
+    });
+    return generations;
+  }
+
+  hasRetiredGenerations(): boolean {
+    return Boolean(this.database.prepare("SELECT 1 FROM index_generations WHERE status = 'retained' LIMIT 1").get());
+  }
+
+  forgetRetiredGeneration(generationId: string, now = new Date().toISOString()): boolean {
+    let removed = false;
+    this.transaction(() => {
+      this.database.prepare("DELETE FROM index_generation_leases WHERE expires_at <= ?").run(now);
+      const result = this.database.prepare(`
+        DELETE FROM index_generations
+        WHERE generation_id = ? AND status = 'retained'
+          AND NOT EXISTS (
+            SELECT 1 FROM index_generation_leases l
+            WHERE l.generation_id = index_generations.generation_id AND l.expires_at > ?
+          )
+      `).run(generationId, now);
+      removed = Number(result.changes) > 0;
+    });
+    return removed;
+  }
+
   failStagedDocument(revisionId: string): void {
-    this.database.prepare("UPDATE document_revisions SET status = 'staged' WHERE revision_id = ? AND status != 'redacted'").run(revisionId);
+    this.database.prepare("UPDATE document_revisions SET status = 'staged' WHERE revision_id = ? AND status = 'staged'").run(revisionId);
   }
 
   reserveTurnBudget(turnId: string, maximumMs: number): { reservedMs: number; usedBeforeMs: number } {
@@ -372,11 +544,11 @@ export class EvidenceCatalog {
     return result;
   }
 
-  settleTurnBudget(turnId: string, usedBeforeMs: number, reservedMs: number, actualMs: number, timedOut: boolean): number {
+  settleTurnBudget(turnId: string, usedBeforeMs: number, reservedMs: number, actualMs: number, timedOut: boolean, maximumMs = 15_000): number {
     const used = Math.min(reservedMs, Math.max(0, timedOut ? reservedMs : Math.ceil(actualMs)));
     this.database.prepare("UPDATE turn_budgets SET used_ms = ?, updated_at = ? WHERE turn_id = ?")
-      .run(Math.min(15_000, usedBeforeMs + used), new Date().toISOString(), turnId);
-    return Math.min(15_000, usedBeforeMs + used);
+      .run(Math.min(maximumMs, usedBeforeMs + used), new Date().toISOString(), turnId);
+    return Math.min(maximumMs, usedBeforeMs + used);
   }
 
   turnBudgetUsed(turnId: string): number {
@@ -433,6 +605,7 @@ export class EvidenceCatalog {
     this.database.prepare("UPDATE document_revisions SET content = NULL, status = 'redacted' WHERE source_id = ?").run(sourceId);
     this.database.prepare("DELETE FROM evidence_sections WHERE revision_id IN (SELECT revision_id FROM document_revisions WHERE source_id = ?)").run(sourceId);
     this.database.prepare("DELETE FROM active_documents WHERE revision_id IN (SELECT revision_id FROM document_revisions WHERE source_id = ?)").run(sourceId);
+    this.database.prepare("DELETE FROM document_acquisitions WHERE revision_id IN (SELECT revision_id FROM document_revisions WHERE source_id = ?)").run(sourceId);
   }
 
   private setActiveGeneration(input: { generationId: string; embeddingModel: string; indexPath: string; rowCount: number }, now: string): void {
@@ -457,6 +630,7 @@ export class EvidenceCatalog {
       observedFrom: metadata.observedFrom === null ? null : String(metadata.observedFrom), observedTo: metadata.observedTo === null ? null : String(metadata.observedTo),
       sampleSummary: metadata.sampleSummary === null ? null : String(metadata.sampleSummary),
       evidenceType: metadata.evidenceType as KnowledgeEvidenceType,
+      normalizationVersion: String(metadata.normalizationVersion ?? "raw-sections-v1"),
       contentHash: String(row.content_hash),
       content: String(row.content ?? ""), sections: sections.map((section) => this.sectionFields(section)),
     };

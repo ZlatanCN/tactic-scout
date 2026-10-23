@@ -37,8 +37,12 @@ function safeFailureMetadata(error: unknown): { failureCode?: string; failureSta
 
 export function createUnderstandingNode(input: {
   referenceComparisonEnabled?: boolean;
+  knowledgeQa?: (state: State) => boolean;
 }) {
   return async (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Promise<Partial<State>> => {
+    if (input.knowledgeQa?.(state)) {
+      return { briefInterpretedThrough: state.history.filter(entry => entry.role === "user").length };
+    }
     const context = requireRecruitmentRuntimeContext(runtime.context);
     const config = runtime as LangGraphRunnableConfig;
     if (!context.briefInterpreter) return {};

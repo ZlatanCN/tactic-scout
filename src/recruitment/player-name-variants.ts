@@ -14,13 +14,17 @@ import type { PlayerNameVariantGenerator } from "../players/identity/player-iden
 const VariantSchema = z.object({ names: z.array(z.string().trim().min(1).max(100)).max(3) });
 
 /** Model memory supplies recall leads only. The identity resolver owns verification. */
-export function createPlayerNameVariantGenerator(onUsage?: (usage: NormalizedModelTokenUsage & { outcome: "response" | "failed"; elapsedMs: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }) => void): PlayerNameVariantGenerator | undefined {
+export function createPlayerNameVariantGenerator(onUsage?: (usage: NormalizedModelTokenUsage & { outcome: "response" | "failed"; gatewayAttempts: number; elapsedMs: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }) => void): PlayerNameVariantGenerator | undefined {
   if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) return undefined;
   const maxOutputTokens = 256;
-  const model = createChatModel(process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL, { maxOutputTokens, timeoutMs: openAIRequestTimeoutMs() })
-    .withStructuredOutput(VariantSchema, { method: structuredOutputMethod(), includeRaw: true, name: "football_name_leads" });
   return async (mention, context, signal) => {
     const started = performance.now();
+    let gatewayAttempts = 0;
+    const model = createChatModel(process.env.OPENAI_API_KEY!, process.env.OPENAI_MODEL!, {
+      maxOutputTokens,
+      timeoutMs: openAIRequestTimeoutMs(),
+      onRetry: () => { gatewayAttempts += 1; },
+    }).withStructuredOutput(VariantSchema, { method: structuredOutputMethod(), includeRaw: true, name: "football_name_leads" });
     let estimatedInputTokens: number | undefined;
     let contextManifest: RecruitmentContextManifest | undefined;
     let invocationStarted = false;
@@ -43,14 +47,15 @@ export function createPlayerNameVariantGenerator(onUsage?: (usage: NormalizedMod
       contextManifest = request.manifest;
       assertRecruitmentContextFits(request);
       invocationStarted = true;
+      gatewayAttempts += 1;
       const result = await model.invoke(request.messages, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000) }) as { parsed?: unknown; raw: { content?: unknown } };
       tokenUsage = normalizeModelTokenUsage(result);
       contextManifest = withContextModelUsage(request.manifest, tokenUsage);
       const names = VariantSchema.parse(result.parsed ?? JSON.parse(structuredModelText(result.raw.content))).names;
-      onUsage?.({ outcome: "response", elapsedMs: performance.now() - started, estimatedInputTokens, contextManifest, ...tokenUsage });
+      onUsage?.({ outcome: "response", gatewayAttempts, elapsedMs: performance.now() - started, estimatedInputTokens, contextManifest, ...tokenUsage });
       return names;
     } catch (error) {
-      onUsage?.({ outcome: "failed", elapsedMs: performance.now() - started, ...(estimatedInputTokens === undefined ? {} : { estimatedInputTokens }), ...(contextManifest ? { contextManifest: invocationStarted ? withContextModelUsage(contextManifest, tokenUsage) : contextManifest } : {}), ...tokenUsage });
+      onUsage?.({ outcome: "failed", gatewayAttempts: invocationStarted ? gatewayAttempts : 0, elapsedMs: performance.now() - started, ...(estimatedInputTokens === undefined ? {} : { estimatedInputTokens }), ...(contextManifest ? { contextManifest: invocationStarted ? withContextModelUsage(contextManifest, tokenUsage) : contextManifest } : {}), ...tokenUsage });
       throw error;
     }
   };

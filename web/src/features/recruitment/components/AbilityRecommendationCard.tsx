@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 import { abilityGroups, abilityLabels, friendlyMetricLabel, personalityLabels, traitLabels } from "./ability-labels";
 import { positionLabels } from "./report-labels";
 import { formatMetric } from "./report-evidence-format";
+import { ReportEvidenceCitations } from "./ReportEvidenceCitations";
 
 interface Props {
   recommendation: RecruitmentReport["recommendations"][number];
@@ -98,7 +99,7 @@ export function AbilityRecommendationCard({ recommendation, rank, selected, sele
           </dl><p className="mb-0 mt-2 text-xs leading-relaxed text-muted-foreground">用于比较当前能力与潜力，和职责适配、比赛表现分开看；PA 不保证未来发展。</p>
         </section>}
         {profile.traits.length > 0 && <section><h4 className="mb-2 mt-0 text-sm font-semibold">球员特点</h4><p className="m-0 text-sm leading-relaxed text-muted-foreground">{profile.traits.map(trait => traitLabels[trait] ?? trait.replaceAll("_", " ")).join("、")}</p></section>}
-        {recommendation.reportObservations.length > 0 && <section><h4 className="mb-2 mt-0 text-sm font-semibold">补充观察</h4><ul className="m-0 list-disc space-y-3 ps-4 text-sm text-muted-foreground">{recommendation.reportObservations.map((observation, index) => <li key={index}><p>{observation.summary}</p>{observation.source.evidenceType === "historical_player_analysis" && <small className="block">历史研究者分析，不是职业球探报告或当前能力结论。</small>}{observation.excerpt && <blockquote className="m-0 border-l-2 pl-3">{observation.excerpt}</blockquote>}<a className="text-primary underline underline-offset-4" href={observation.source.url} target="_blank" rel="noreferrer">{observation.source.title} · {observation.source.author} · {observation.source.license}</a></li>)}</ul></section>}
+        {recommendation.reportObservations.length > 0 && <section><h4 className="mb-2 mt-0 text-sm font-semibold">补充观察</h4><ul className="m-0 list-disc space-y-3 ps-4 text-sm text-muted-foreground">{recommendation.reportObservations.map((observation, index) => <li key={index}><p>{observation.summary}</p>{observation.claimType === "source_disagreement" && <small className="block">来源观点有差异；此处并列呈现，不做无证据调和。</small>}{observation.limitations.length > 0 && <small className="block">{observation.limitations.join(" · ")}</small>}{observation.source.evidenceType === "historical_player_analysis" && <small className="block">历史研究者分析，不是职业球探报告或当前能力结论。</small>}<ReportEvidenceCitations citations={observation.citations} /></li>)}</ul></section>}
       </div>
     </details>
   </article>;

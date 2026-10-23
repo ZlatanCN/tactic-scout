@@ -243,6 +243,27 @@ function ReportContentView({ report, teamRosterContext, reportedAt, isWaiting, i
             <small className="mt-2 block">外部资料只补充可追溯的定性线索；缺失的比赛统计继续显示为未知。</small>
             {report.knowledgeCoverage.methodologyChunksRetrieved > 0 && report.knowledgeCoverage.methodologySources.length === 0 && <small className="mt-2 block">本轮检索到方法片段，但来源未获准在报告中展示。</small>}
             <MethodologyReferences sources={report.knowledgeCoverage.methodologySources} />
+            {report.methodologyClaims.length > 0 && <section className="mt-4 space-y-3 border-t pt-3">
+              <h4 className="m-0 text-sm font-semibold text-foreground">有原文依据的方法主张</h4>
+              <ul className="m-0 list-none space-y-4 p-0">
+                {report.methodologyClaims.map((claim) => <li key={claim.claimId} className="min-w-0 space-y-2">
+                  <p className="m-0 text-sm text-foreground">{claim.summary}</p>
+                  {claim.claimType === "source_disagreement" && <small className="block">来源观点有差异；此处并列呈现原文依据。</small>}
+                  {claim.limitations.length > 0 && <small className="block">{claim.limitations.join(" · ")}</small>}
+                  <ul className="m-0 list-none space-y-3 border-l-2 pl-3">
+                    {claim.citations.map((citation) => <li key={[citation.evidenceRef.documentRevisionId, citation.evidenceRef.sectionId, citation.evidenceRef.startOffset].join(":")}>
+                      <small className="block">{citation.sectionPath.join(" / ") || "原文片段"}</small>
+                      <blockquote className="m-0 border-l-2 pl-3 text-xs leading-5 text-muted-foreground">{citation.excerpt}</blockquote>
+                      <a className="break-words text-xs text-primary underline underline-offset-4" href={citation.source.url} target="_blank" rel="noreferrer">
+                        {citation.source.title} · {citation.source.author} · {citation.source.publisher} · {citation.source.license}
+                      </a>
+                      <small className="block break-words">{citation.source.attribution}</small>
+                      {(citation.sampleSummary || citation.season || citation.observedFrom || citation.observedTo) && <small className="block">{[citation.season, citation.observedFrom && citation.observedTo ? citation.observedFrom + "–" + citation.observedTo : null, citation.sampleSummary].filter(Boolean).join(" · ")}</small>}
+                    </li>)}
+                  </ul>
+                </li>)}
+              </ul>
+            </section>}
             <small className="mt-2 block">方法资料用于理解角色和评估方法，不是球员表现证据。球员报告只补充定性观察，不直接计入能力评分；关联比赛指标也不代表整条观察已证实。</small>
           </></EvidenceNote>
         </div>

@@ -1,7 +1,7 @@
 import { RecruitmentBriefSchema } from "./recruitment-brief.js";
 import { z } from "zod/v4";
 import { PlayerIdentityQuestionSchema, PositionSelectionQuestionSchema } from "./position-contracts.js";
-import { RecruitmentReportSchema } from "./reports.js";
+import { KnowledgeAnswerSchema, RecruitmentReportSchema } from "./reports.js";
 
 export const TeamRosterContextStatusSchema = z.enum([
   "available",
@@ -126,6 +126,7 @@ export const ConversationTurnResponseSchema = z.object({
   message: z.string().min(1),
   question: z.object({ reason: z.string().min(1), input: z.union([PositionSelectionQuestionSchema, PlayerIdentityQuestionSchema]).optional() }).nullable(),
   report: RecruitmentReportSchema.nullable(),
+  knowledgeAnswer: KnowledgeAnswerSchema.nullable().optional(),
   brief: RecruitmentBriefSchema.nullable().optional(),
   retryMessage: z.string().min(1).optional(),
   teamRosterContext: TeamRosterContextSchema.optional(),

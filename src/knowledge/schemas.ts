@@ -91,7 +91,8 @@ export const KnowledgeSearchResultSchema = z.object({
   observedFrom: z.iso.date().nullable().optional(),
   observedTo: z.iso.date().nullable().optional(),
   evidenceType: z.enum(["methodology", "external_report", "historical_player_analysis", "first_party_observation"]).optional(),
-  rankMode: z.enum(["hybrid", "gateway_reranked", "hybrid_degraded"]).optional(),
+  sectionPath: z.array(z.string().min(1)).optional(),
+  rankMode: z.enum(["hybrid", "full_text", "dense_vector", "gateway_reranked", "local_cross_encoder", "hybrid_degraded"]).optional(),
   matchedCapabilityGaps: z.array(z.string()).optional(),
   displayAllowed: z.boolean(),
 });

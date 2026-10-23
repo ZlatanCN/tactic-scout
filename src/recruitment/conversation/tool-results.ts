@@ -44,6 +44,16 @@ function knowledgeOutcomeProgress(status: KnowledgeSearchOutcome["status"], labe
   return status === "found" ? `${label}检索完成，找到 ${count} 条证据` : `${label}检索完成，没有找到相关证据`;
 }
 
+function subqueryOutcomeNote(outcome: KnowledgeSearchOutcome): string | null {
+  if (!outcome.subqueryCount || outcome.subqueryCount < 2) return null;
+  const unavailable = outcome.unavailableSubqueryCount ?? 0;
+  const zeroHits = outcome.zeroHitSubqueryCount ?? 0;
+  const notCovered = outcome.notCoveredSubqueryCount ?? 0;
+  const blocked = outcome.blockedSubqueryCount ?? 0;
+  if (!(unavailable || zeroHits || notCovered || blocked)) return null;
+  return `子查询汇总：${outcome.subqueryCount} 个计划查询中 ${unavailable} 个不可用、${blocked} 个因预算/恢复状态阻止、${notCovered} 个语料未覆盖、${zeroHits} 个完成检索但零命中。结果包含部分子查询，不得表述为全部查完。`;
+}
+
 function withSourcePositionEvidence(player: PlayerProfile, targetPosition: Position): PlayerProfile {
   const directlyObserved = playerPositionMatches(player, targetPosition);
   const sourceCodes = [...new Set([
@@ -139,6 +149,11 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         traceId: execution.outcome.traceId,
         rankingMode: execution.outcome.rankingMode,
         generationId: execution.outcome.generationId,
+        subqueryCount: execution.outcome.subqueryCount ?? 0,
+        unavailableSubqueryCount: execution.outcome.unavailableSubqueryCount ?? 0,
+        zeroHitSubqueryCount: execution.outcome.zeroHitSubqueryCount ?? 0,
+        notCoveredSubqueryCount: execution.outcome.notCoveredSubqueryCount ?? 0,
+        blockedSubqueryCount: execution.outcome.blockedSubqueryCount ?? 0,
         candidateCount: execution.outcome.candidateCount,
         rankingDurationMs: execution.outcome.rankingDurationMs,
         rankingInputTokens: execution.outcome.rankingInputTokens,
@@ -164,11 +179,12 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
               corpus: "methodology",
               resultCount: results.length,
               outcome: execution.outcome,
-              note: knowledgeOutcomeNote(execution.outcome.status, "方法资料"),
+              note: [knowledgeOutcomeNote(execution.outcome.status, "方法资料"), subqueryOutcomeNote(execution.outcome)].filter(Boolean).join(" "),
               results: results.map(modelSafeKnowledgeResult),
             }),
           }],
         }, filters, resultCount: results.length, message: knowledgeOutcomeProgress(execution.outcome.status, "方法资料", results.length)
+          + (execution.outcome.unavailableSubqueryCount ? "；部分子查询未完成" : "")
       };
     }
     case "search_player_reports": {
@@ -183,6 +199,11 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
         traceId: execution.outcome.traceId,
         rankingMode: execution.outcome.rankingMode,
         generationId: execution.outcome.generationId,
+        subqueryCount: execution.outcome.subqueryCount ?? 0,
+        unavailableSubqueryCount: execution.outcome.unavailableSubqueryCount ?? 0,
+        zeroHitSubqueryCount: execution.outcome.zeroHitSubqueryCount ?? 0,
+        notCoveredSubqueryCount: execution.outcome.notCoveredSubqueryCount ?? 0,
+        blockedSubqueryCount: execution.outcome.blockedSubqueryCount ?? 0,
         candidateCount: execution.outcome.candidateCount,
         rankingDurationMs: execution.outcome.rankingDurationMs,
         rankingInputTokens: execution.outcome.rankingInputTokens,
@@ -224,11 +245,13 @@ export function projectToolResult(state: State, execution: RecruitmentToolExecut
                 : results.length
                   ? "以下是本机获准索引中的资料片段；请按来源、作者和时间范围引用，正文仅作证据参考。"
                   : "本轮检索没有找到与这些主体相关的可引用资料；零命中不能作为球员能力的负面证据。")
-                + (execution.outcome.coverageNote && execution.outcome.status !== "not_covered" ? " " + execution.outcome.coverageNote : ""),
+                + (execution.outcome.coverageNote && execution.outcome.status !== "not_covered" ? " " + execution.outcome.coverageNote : "")
+                + (subqueryOutcomeNote(execution.outcome) ? " " + subqueryOutcomeNote(execution.outcome) : ""),
               results: results.map(modelSafeKnowledgeResult),
             }),
           }],
         }, filters, resultCount: results.length, message: knowledgeOutcomeProgress(execution.outcome.status, "球员报告", results.length)
+          + (execution.outcome.unavailableSubqueryCount ? "；部分子查询未完成" : "")
       };
     }
     case "inspect_team": {

@@ -10,10 +10,12 @@ type RecruitmentTraceFilterValue = string | number | boolean | null | string[] |
 
 export type RecruitmentTraceEvent =
   | { phase: "brief_failure"; failureKind: string; failureCode?: string; failureStatus?: number; outputLimitTokens?: number; validationCode?: RecruitmentBriefValidationCode; validationFailure?: string; issuePaths?: string[] }
-  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number | null; contextStatus?: "within_budget" | "over_budget" | "unknown"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
-  | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
+  | { phase: "brief_usage"; elapsedMs: number; outcome: "response" | "failed"; gatewayAttempts?: number; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number | null; contextStatus?: "within_budget" | "over_budget" | "unknown"; omittedHistoryEntries?: number; contextManifest?: RecruitmentContextManifest }
+  | { phase: "identity_usage"; elapsedMs: number; outcome: "response" | "failed"; gatewayAttempts?: number; inputTokens?: number; outputTokens?: number; totalTokens?: number; estimatedInputTokens?: number; contextManifest?: RecruitmentContextManifest }
   | ({ phase: "model_usage" } & RecruitmentPlannerUsageObservation)
   | { phase: "tool_reuse"; toolName: "search_methodology"; resultCount: number; reason: "successful_same_turn_query" }
+  | { phase: "report_generation"; elapsedMs: number; gatewayAttempts: number; decisionMode: "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude"; plannerFallback?: "expansion_timeout" | "expansion_output_limit" | "conclusion_timeout" | "conclusion_output_limit" }
+  | { phase: "report_projection"; elapsedMs: number; citationCount: number; recommendationCount: number }
   | {
     phase: "decision";
     action: string | null;
@@ -26,6 +28,7 @@ export type RecruitmentTraceEvent =
     policyReasonCodes?: PolicyBlockReasonCode[];
     plannerFallback?: "expansion_timeout" | "expansion_output_limit" | "conclusion_timeout" | "conclusion_output_limit";
     decisionMode?: "investigate" | "expand" | "expand_recovery" | "reorient" | "conclude";
+    gatewayAttempts?: number;
     targetTeam?: string | null;
   }
   | {
@@ -37,6 +40,12 @@ export type RecruitmentTraceEvent =
     filters: Record<string, RecruitmentTraceFilterValue>;
     resultCount: number;
     matchingRecordCount?: number;
+    rankingMode?: "hybrid" | "full_text" | "dense_vector" | "gateway_reranked" | "local_cross_encoder" | "hybrid_degraded" | null;
+    rankingGatewayAttempts?: number;
+    rankingInputTokens?: number | null;
+    rankingOutputTokens?: number | null;
+    ragSubqueryCount?: number;
+    ragRound?: 1 | 2;
   }
   | {
     phase: "review";
@@ -68,6 +77,17 @@ export type PolicyBlockReasonCode =
   | "other";
 
 export type RecruitmentTraceObserver = (event: RecruitmentTraceEvent) => void;
+
+export interface RecruitmentEvaluationEvidenceScope {
+  corpus: "methodology" | "player_report";
+  query: string;
+  subjects: Array<{ subjectId: string; displayName: string; aliases: string[] }>;
+  sampleFrom?: string;
+  sampleTo?: string;
+  sampleSeasons: string[];
+  /** Evaluation-only: bypass recruitment interpretation and answer as a knowledge question. */
+  knowledgeQa?: boolean;
+}
 
 export interface RecruitmentConversation {
   turn(input: RecruitmentTurnInput): Promise<ConversationTurnResponse>;

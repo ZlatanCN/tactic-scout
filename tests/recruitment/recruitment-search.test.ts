@@ -533,17 +533,22 @@ test("a conclusion Planner timeout preserves the completed LangGraph evidence in
     observer: (event) => { trace.push(event); },
   });
 
-  const response = await conversation.turn({
-    threadId: "conclusion-timeout-fallback",
-    message: "为巴萨找一名后卫，重点看进球产出。",
-  });
+  let response: Awaited<ReturnType<typeof conversation.turn>>;
+  try {
+    response = await conversation.turn({
+      threadId: "conclusion-timeout-fallback",
+      message: "为巴萨找一名后卫，重点看进球产出。",
+    });
+  } catch (error) {
+    assert.fail(`${String(error)}; trace=${JSON.stringify(trace)}`);
+  }
 
-  assert.equal(response.status, "completed");
+  assert.equal(response.status, "completed", JSON.stringify(trace));
   assert.match(response.report?.needSummary ?? "", /报告规划超时/);
   assert.equal(response.report?.recommendations.length, 2);
   const fallback = trace.find((event) => event.phase === "decision" && event.plannerFallback === "conclusion_timeout");
   assert.ok(fallback && fallback.phase === "decision");
-  assert.equal(fallback.decisionMode, "reorient");
+  assert.equal(fallback.decisionMode, "investigate", "the trace records the graph's outer stage; the fixed planner's inner synthesis phase is reported separately in model usage");
   assert.ok(trace.some((event) => event.phase === "model_usage"
     && event.outcome === "failed"
     && event.callPhase === "conclude"

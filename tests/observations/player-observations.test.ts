@@ -269,6 +269,7 @@ test("the new evidence catalog preserves opted-in first-party notes as local-onl
     embedder: {
       modelId: "observation-evidence-test",
       async embedMany(texts) { return texts.map(() => [1, 0]); },
+      async countTokens(text) { return text.trim().split(/\s+/u).length; },
     },
   });
   const index = createKnowledgeEvidenceObservationIndex(system);
@@ -319,6 +320,7 @@ test("first-party observations without an addressable player ID stay saved but a
     embedder: {
       modelId: "unbound-observation-test",
       async embedMany(texts) { return texts.map(() => [1, 0]); },
+      async countTokens(text) { return text.trim().split(/\s+/u).length; },
     },
   });
   const library = createPlayerObservationLibrary({

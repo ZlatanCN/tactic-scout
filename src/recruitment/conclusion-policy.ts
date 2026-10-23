@@ -31,7 +31,8 @@ export interface RecruitmentDecisionConstraints {
     age?: number | null;
     footballManager?: { currentAbility: number | null; potentialAbility: number | null; snapshotDate: string };
   }>;
-  reportObservations: Array<{ playerId: string; documentId: string; evidenceKeys: CapabilityMetricKey[] }>;
+  reportObservations: Array<{ playerId: string; documentId: string; documentIds: string[]; evidenceIds: string[]; evidenceKeys: CapabilityMetricKey[] }>;
+  methodologyEvidenceIds?: string[];
   requestedCapabilityCoverage: RequestedCapabilityCoverage[];
   candidateIdentityGroups?: CandidateIdentityGroupReference[];
 }
@@ -140,7 +141,9 @@ export function createConstrainedConclusionSchema(
       : evidenceKeys
   )))];
   const reportPlayerIds = [...new Set(constraints.reportObservations.map(({ playerId }) => playerId))];
-  const reportDocumentIds = [...new Set(constraints.reportObservations.map(({ documentId }) => documentId))];
+  const reportDocumentIds = [...new Set(constraints.reportObservations.flatMap(({ documentId, documentIds }) => [documentId, ...documentIds]))];
+  const reportEvidenceIds = [...new Set(constraints.reportObservations.flatMap(({ evidenceIds }) => evidenceIds))];
+  const methodologyEvidenceIds = [...new Set(constraints.methodologyEvidenceIds ?? [])];
   const reportEvidenceKeys = [...new Set(constraints.reportObservations.flatMap(({ evidenceKeys }) => evidenceKeys))];
   const recommendationItemSchema = recommendationPlayerIds.length
     ? z.object({
@@ -155,7 +158,10 @@ export function createConstrainedConclusionSchema(
     ? z.object({
       playerId: z.enum(reportPlayerIds as [string, ...string[]]),
       documentId: z.enum(reportDocumentIds as [string, ...string[]]),
+      evidenceIds: z.array(reportEvidenceIds.length ? z.enum(reportEvidenceIds as [string, ...string[]]) : z.string()).max(6).default([]),
+      claimType: z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]).default("source_finding"),
       summary: z.string().trim().min(1).max(280),
+      limitations: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
       linkedMetricKeys: z.array(reportEvidenceKeys.length
         ? z.enum(reportEvidenceKeys as [CapabilityMetricKey, ...CapabilityMetricKey[]])
         : CapabilityMetricKeySchema).max(reportEvidenceKeys.length ? 8 : 0),
@@ -163,9 +169,25 @@ export function createConstrainedConclusionSchema(
     : z.object({
       playerId: z.string().min(1),
       documentId: z.string().min(1),
+      evidenceIds: z.array(z.string().min(1)).max(6).default([]),
+      claimType: z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]).default("source_finding"),
       summary: z.string().trim().min(1).max(280),
+      limitations: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
       // No item can be accepted here, so an exhaustive metric enum adds no constraint.
       linkedMetricKeys: z.array(z.string()).max(0),
+    });
+  const methodologyClaimItemSchema = methodologyEvidenceIds.length
+    ? z.object({
+      evidenceIds: z.array(z.enum(methodologyEvidenceIds as [string, ...string[]])).min(1).max(6),
+      claimType: z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]).default("source_finding"),
+      summary: z.string().trim().min(1).max(600),
+      limitations: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
+    })
+    : z.object({
+      evidenceIds: z.array(z.string()).max(0),
+      claimType: z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]).default("source_finding"),
+      summary: z.string().trim().min(1).max(600),
+      limitations: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
     });
   const constrainedFinishActionSchema = FinishActionSchema.extend({
     targetTeam: constraints.targetTeam === null ? z.null() : z.literal(constraints.targetTeam),
@@ -177,6 +199,7 @@ export function createConstrainedConclusionSchema(
       .describe(requireEvidenceBackedLead
         ? "给出有用户所述能力直接指标支持的后续考察线索；候选人和指标需经复核。"
         : "需求能力没有可测量项时，可依据已有统计给出待核实的考察线索；必须明确能力尚未核实，不能声称这些统计证明战术适配。没有任何表现证据时才为空。"),
+    methodologyClaims: z.array(methodologyClaimItemSchema).max(methodologyEvidenceIds.length ? 5 : 0).default([]),
     reportObservations: z.array(reportObservationItemSchema)
       .max(reportPlayerIds.length && reportDocumentIds.length ? 3 : 0).default([]),
   });
@@ -469,13 +492,21 @@ export function buildDecisionConstraints(input: {
         } }
         : {}),
     })),
-    reportObservations: eligiblePlayers.flatMap(({ player, evidence }) => playerReportDocuments
-      .filter((document) => reportMatchesCandidate(document, player, eligiblePlayers))
-      .map((document) => ({
+    reportObservations: eligiblePlayers.flatMap(({ player, evidence }) => {
+      const matchingDocuments = playerReportDocuments.filter((document) => reportMatchesCandidate(document, player, eligiblePlayers));
+      if (!matchingDocuments.length) return [];
+      return [{
         playerId: player.playerId,
-        documentId: document.documentId,
+        documentId: matchingDocuments[0]!.documentId,
+        documentIds: [...new Set(matchingDocuments.map((document) => document.documentId))],
+        evidenceIds: matchingDocuments.map((document) => document.id).slice(0, 6),
         evidenceKeys: evidence.map((item) => item.key),
-      }))),
+      }];
+    }),
+    methodologyEvidenceIds: input.retrievedKnowledge
+      .filter((document) => document.corpus === "methodology" && document.displayAllowed && document.evidenceRef)
+      .map(({ id }) => id)
+      .slice(0, 20),
     requestedCapabilityCoverage: summarizeRequestedCapabilityCoverage({
       ...(input.brief !== undefined ? { brief: input.brief } : {}),
       userMessages: input.userMessages ?? [],
@@ -582,7 +613,11 @@ export function validateConclusion(input: {
     }
   }
   for (const observation of action.reportObservations) {
-    const document = Object.values(input.retrievedKnowledge).find((candidate) => candidate.documentId === observation.documentId);
+    const selectedEvidence = observation.evidenceIds.map((evidenceId) => Object.values(input.retrievedKnowledge).find((candidate) => candidate.id === evidenceId));
+    const documents = observation.evidenceIds.length
+      ? selectedEvidence
+      : [Object.values(input.retrievedKnowledge).find((candidate) => candidate.documentId === observation.documentId)];
+    const documentIds = [...new Set([observation.documentId, ...documents.flatMap((document) => document ? [document.documentId] : [])])];
     const evaluated = input.evaluatedPlayers[observation.playerId];
     if (!evaluated) {
       problems.push(`球员 ${observation.playerId} 没有比赛数据评估，不能附加球员定性观察。`);
@@ -592,20 +627,42 @@ export function validateConclusion(input: {
       problems.push(`球员 ${observation.playerId} 不符合用户确认的位置 ${input.confirmedPosition}，不能附加球员定性观察。`);
       continue;
     }
-    if (!document || document.corpus !== "player_report") {
-      problems.push(`报告文档 ${observation.documentId} 未在本轮球员报告检索结果中出现。`);
+    if (documents.some((document) => !document || document.corpus !== "player_report")) {
+      problems.push(`报告主张引用的片段集合（${observation.evidenceIds.join("、") || observation.documentId}）未全部出现在本轮球员报告检索结果中。`);
       continue;
     }
-    if (!document.displayAllowed) problems.push(`来源 ${document.sourceName} 不允许在报告中展示。`);
+    if (observation.evidenceIds.length && !documents.some((document) => document?.documentId === observation.documentId)) {
+      problems.push(`报告主张的主来源 ${observation.documentId} 不属于所选原文引用集合。`);
+    }
     const eligiblePlayers = Object.values(input.evaluatedPlayers).filter(({ player }) =>
       matchesConfirmedPosition(player, input),
     );
-    if (!reportMatchesCandidate(document, evaluated.player, eligiblePlayers)) {
-      problems.push(`报告文档 ${observation.documentId} 的实体元数据不匹配球员 ${evaluated.player.name}。`);
+    for (const document of documents) {
+      if (!document) continue;
+      if (!document.displayAllowed) problems.push(`来源 ${document.sourceName} 不允许在报告中展示。`);
+      if (!reportMatchesCandidate(document, evaluated.player, eligiblePlayers)) {
+        problems.push(`报告文档 ${document.documentId} 的实体元数据不匹配球员 ${evaluated.player.name}。`);
+      }
     }
     const availableKeys = new Set(evaluated.evidence.map((item) => item.key));
     const invalidKeys = observation.linkedMetricKeys.filter((key) => !availableKeys.has(key));
     if (invalidKeys.length) problems.push(`球员定性观察引用了不存在的比赛指标：${invalidKeys.join(", ")}`);
+  }
+  for (const claim of action.methodologyClaims) {
+    const evidenceIds = [...new Set(claim.evidenceIds)];
+    const citations = claim.evidenceIds.map((id) => Object.values(input.retrievedKnowledge).find((document) => document.id === id));
+    if (evidenceIds.length !== claim.evidenceIds.length || citations.some((document) => !document || document.corpus !== "methodology" || !document.evidenceRef)) {
+      problems.push("方法资料主张必须引用本轮检索到的、具有稳定原文区间引用的方法资料片段。");
+      continue;
+    }
+    const resolvedCitations = citations as KnowledgeSearchResult[];
+    if (resolvedCitations.some((document) => !document.displayAllowed)) {
+      problems.push("方法资料主张引用了不允许展示的来源。");
+    }
+    if ((claim.claimType === "cross_source_synthesis" || claim.claimType === "source_disagreement")
+      && new Set(resolvedCitations.map((document) => document.sourceId)).size < 2) {
+      problems.push("跨来源方法资料主张至少需要两份不同来源的原文证据。");
+    }
   }
   return problems;
 }

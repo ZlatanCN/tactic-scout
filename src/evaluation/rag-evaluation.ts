@@ -212,7 +212,7 @@ function configuredAnswerModel(): RagAnswerGenerator {
     providerRetries: false,
   }).withStructuredOutput(AnswerSchema, {
     name: "answer_from_retrieved_evidence",
-    method: modelName.startsWith("codex/") ? "jsonSchema" : structuredOutputMethod(),
+    method: structuredOutputMethod(),
     includeRaw: true,
   });
 

@@ -134,7 +134,10 @@ test("local plans can round-trip through a storage adapter", () => {
 
   saveRecruitmentPlans([savedPlan], storage);
 
-  assert.deepEqual(loadRecruitmentPlans(storage), [savedPlan]);
+  assert.deepEqual(loadRecruitmentPlans(storage), [{
+    ...savedPlan,
+    lastReport: { ...originalReport, methodologyClaims: [] },
+  }]);
 });
 
 test("version 2 local reports without capability coverage remain readable", () => {

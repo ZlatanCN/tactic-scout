@@ -1,11 +1,14 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 import {
   KnowledgeEvidenceDocumentInputSchema,
+  EvidencePlayerSubjectSchema,
   type KnowledgeEvidenceDocumentInput,
+  type EvidencePlayerSubject,
 } from "./evidence-schemas.js";
 import {
   KnowledgeDocumentInputSchema,
@@ -14,6 +17,7 @@ import {
   type KnowledgeSource,
 } from "./schemas.js";
 import { canAutomaticallyIngest } from "./permissions.js";
+import { parsePlosJatsArticle, type ParsedJatsSection } from "./plos-jats.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PlosResponseSchema = z.object({
@@ -40,30 +44,33 @@ export interface PlosArticleCandidate {
   registeredForIngestion: boolean;
 }
 
-interface PlosArticleParagraph {
-  heading: string | null;
-  text: string;
+const PlosCurationManifestSchema = z.object({
+  schemaVersion: z.literal("knowledge-evidence-curation-v1"),
+  playerAnalysisPassages: z.array(z.object({
+    sourceId: z.string().min(1),
+    doi: z.string().min(1),
+    paragraphTextSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    subjects: z.array(EvidencePlayerSubjectSchema).min(1).max(10),
+    competition: z.string().trim().min(1).max(120),
+    season: z.string().trim().min(2).max(40),
+    observedFrom: z.iso.date().nullable().default(null),
+    observedTo: z.iso.date().nullable().default(null),
+    sampleSummary: z.string().trim().min(1).max(2_000),
+  })),
+});
+
+function toEvidenceSection(section: ParsedJatsSection) {
+  return {
+    id: section.id,
+    heading: section.heading,
+    kind: section.kind,
+    text: section.text,
+    locator: section.locator,
+  };
 }
 
-function articleParagraphs(value: string): PlosArticleParagraph[] {
-  const safeBody = removeExcludedArticleBlocks(value);
-  return [...safeBody.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p\s*>/gi)].flatMap((match) => {
-    const text = cleanArticleText(match[1] ?? "");
-    if (text.length < 20) return [];
-    const prefix = safeBody.slice(0, match.index);
-    const heading = [...prefix.matchAll(/<(?:title|h[1-6])\b[^>]*>([\s\S]*?)<\/(?:title|h[1-6])\s*>/gi)]
-      .map((candidate) => cleanArticleText(candidate[1] ?? ""))
-      .filter(Boolean)
-      .at(-1) ?? null;
-    return [{ heading, text }];
-  });
-}
-
-function isNamedLaLigaPlayeRankAnalysis(text: string): boolean {
-  return /\b(?:La Liga|LaLiga)\b/i.test(text)
-    && /\bPlayeRank\b/i.test(text)
-    && /\bCristiano\s+Ronaldo\b/i.test(text)
-    && /\bLionel\s+Messi\b/i.test(text);
+function documentContent(sections: Array<{ text: string }>): string {
+  return sections.map(({ text }) => text).join("\n\n");
 }
 
 function articleUrlForDoi(doi: string): string | null {
@@ -93,17 +100,6 @@ function jatsArticleUrlForDoi(doi: string): string | null {
   url.searchParams.set("id", doi);
   url.searchParams.set("type", "manuscript");
   return url.toString();
-}
-
-function jatsBodyForDoi(xml: string, doi: string): string {
-  const doiMatch = /<article-id\b[^>]*pub-id-type=["']doi["'][^>]*>([\s\S]*?)<\/article-id\s*>/i.exec(xml);
-  const xmlDoi = doiMatch ? cleanArticleText(doiMatch[1] ?? "") : null;
-  if (!xmlDoi || xmlDoi.toLocaleLowerCase() !== doi.toLocaleLowerCase()) {
-    throw new Error("PLOS JATS XML DOI 不匹配（请求 " + doi + "，返回 " + (xmlDoi ?? "未提供") + "）；未生成资料。");
-  }
-  const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(xml)?.[1];
-  if (!body) throw new Error("PLOS JATS XML 未包含正文节点；" + doi + " 未生成资料。");
-  return body;
 }
 
 function stringField(value: string | string[] | undefined): string {
@@ -206,11 +202,11 @@ export class PlosDiscoveryProvider {
     const jatsUrl = jatsArticleUrlForDoi(doi);
     if (!jatsUrl) throw new Error("该 PLOS DOI 暂无官方 JATS XML 文章端点。");
     const jatsXml = await this.requestText(new URL(jatsUrl), "application/xml, text/xml");
-    const articleBody = jatsBodyForDoi(jatsXml, doi);
-    const articleText = articleParagraphs(articleBody).map(({ text }) => text).join("\n\n");
+    const article = parsePlosJatsArticle(jatsXml, doi);
+    const articleText = [...article.abstract, ...article.body].map(({ text }) => text).join("\n\n");
     const content = cleanArticleText([stringField(document.abstract), articleText].filter(Boolean).join("\n\n"));
     if (content.length < 40 || content.length > 200_000) throw new Error(`PLOS 正文长度 ${content.length} 超出当前自动入库范围。`);
-    const title = document.title_display ?? doi;
+    const title = document.title_display ?? article.title ?? doi;
     const authors = document.author_display ?? [];
     return KnowledgeDocumentInputSchema.parse({
       sourceId: source.id,
@@ -229,15 +225,17 @@ export class PlosDiscoveryProvider {
 
   async fetchRegisteredEvidenceDocuments(
     doi: string,
-    options: { registryPath?: string } = {},
+    options: { registryPath?: string; curationPath?: string } = {},
   ): Promise<KnowledgeEvidenceDocumentInput[]> {
     const sourceRecords = await this.readSources(options.registryPath);
     const articleUrl = articleUrlForDoi(doi);
     if (!articleUrl) throw new Error("PLOS DOI 暂不支持正文获取。");
     const source = sourceRecords.find((candidate) => canAutomaticallyIngest(candidate, articleUrl));
     if (!source) throw new Error("该 PLOS DOI 尚无允许自动抓取、保存和 AI/RAG 处理的来源登记；未发出正文请求。");
-    if (!source.allowedCorpora.includes("methodology") || !source.allowedCorpora.includes("player_report")) {
-      throw new Error("该 PLOS 来源尚未分别登记为方法资料与球员定性资料来源。");
+    const curationManifest = await this.readCurationManifest(options.curationPath);
+    const playerCuration = curationManifest.playerAnalysisPassages.filter((entry) => entry.doi === doi && entry.sourceId === source.id);
+    if (playerCuration.length && !source.allowedCorpora.includes("player_report")) {
+      throw new Error("具名球员段落清单与来源允许的语料不一致；未发出正文请求。");
     }
     const url = new URL("https://api.plos.org/search");
     url.searchParams.set("q", "id:\"" + doi + "\"");
@@ -253,20 +251,31 @@ export class PlosDiscoveryProvider {
     const jatsUrl = jatsArticleUrlForDoi(doi);
     if (!jatsUrl) throw new Error("该 PLOS DOI 暂无官方 JATS XML 文章端点。");
     const jatsXml = await this.requestText(new URL(jatsUrl), "application/xml, text/xml");
-    const articleBody = jatsBodyForDoi(jatsXml, doi);
+    const sourcePayloadSha256 = createHash("sha256").update(jatsXml).digest("hex");
+    const article = parsePlosJatsArticle(jatsXml, doi);
 
-    const title = rawDocument.title_display ?? doi;
+    const title = rawDocument.title_display ?? article.title ?? doi;
     const authors = rawDocument.author_display ?? [];
-    const abstract = cleanArticleText(stringField(rawDocument.abstract));
-    const paragraphs = articleParagraphs(articleBody);
-    const playerParagraphs = paragraphs.filter(({ text }) => isNamedLaLigaPlayeRankAnalysis(text));
-    if (!playerParagraphs.length) throw new Error("PLOS 正文没有包含指定的具名 La Liga PlayeRank 历史分析段落；没有生成球员定性资料。");
-    const playerText = new Set(playerParagraphs.map(({ text }) => text));
-    const methodologyParagraphs = paragraphs.filter(({ text }) => !playerText.has(text));
-    if (abstract) methodologyParagraphs.unshift({ heading: "Abstract", text: abstract });
-    const attribution = authors.join(", ") + ". " + title + ". DOI: " + doi + ". " + articleUrl
-      + ". CC BY 4.0. Data Provided by PLOS. DOI and license verified with the official PLOS Search API; article text from the official PLOS JATS XML endpoint; figures, tables, references, acknowledgements and external links excluded.";
-    const shared = {
+    const abstractSections = article.abstract.length
+      ? article.abstract
+      : (() => {
+        const text = cleanArticleText(stringField(rawDocument.abstract));
+        if (!text) return [];
+        const textSha256 = createHash("sha256").update(text).digest("hex");
+        return [{ id: "abstract-" + textSha256.slice(0, 24), heading: "Abstract", kind: "paragraph" as const, text, locator: "search-api/abstract", textSha256 }];
+      })();
+    const allSections = [...abstractSections, ...article.body];
+    const selectedByHash = new Map<string, ParsedJatsSection>();
+    for (const selection of playerCuration) {
+      const matches = article.body.filter(({ textSha256 }) => textSha256 === selection.paragraphTextSha256);
+      if (matches.length !== 1) {
+        throw new Error(`具名球员段落清单要求 DOI ${doi} 精确匹配一个原文段落，实际匹配 ${matches.length} 个；没有发布资料。`);
+      }
+      selectedByHash.set(selection.paragraphTextSha256, matches[0]!);
+    }
+    const selectedSectionIds = new Set([...selectedByHash.values()].map(({ id }) => id));
+    const attribution = `${authors.join(", ") || "PLOS 作者"}. ${title}. DOI: ${doi}. ${articleUrl}. ${source.license}. Data Provided by PLOS. DOI and license verified via the official PLOS Search API; text from the official JATS XML article endpoint. The importer preserves article section/paragraph structure and excludes figures, tables, supplementary material, references, acknowledgements, boxed text and linked external materials unless a source-specific policy explicitly admits them.`;
+    const common = {
       sourceId: source.id,
       url: articleUrl,
       author: authors.join(", ") || "PLOS 作者",
@@ -279,47 +288,57 @@ export class PlosDiscoveryProvider {
       observedFrom: null as string | null,
       observedTo: null as string | null,
       acquisition: "authorized_fetch" as const,
+      normalizationVersion: "plos-jats-v1",
+      sourcePayloadSha256,
     };
-    const methodContent = methodologyParagraphs.map(({ text }) => text).join("\n\n");
-    const methodology = KnowledgeEvidenceDocumentInputSchema.parse({
-      ...shared,
-      evidenceType: "methodology",
-      corpus: "methodology",
-      title,
-      content: methodContent,
-      sections: methodologyParagraphs.map((paragraph, index) => ({
-        id: "method-paragraph-" + String(index + 1),
-        heading: paragraph.heading,
-        kind: "paragraph" as const,
-        text: paragraph.text,
-        locator: "article-body/paragraph-" + String(index + 1),
-      })),
-    });
-    const playerReport = KnowledgeEvidenceDocumentInputSchema.parse({
-      ...shared,
-      evidenceType: "historical_player_analysis",
-      corpus: "player_report",
-      title: title + " — La Liga historical analysis",
-      content: playerParagraphs.map(({ text }) => text).join("\n\n"),
-      entityIds: ["Q11571", "Q615"],
-      entityNames: ["Cristiano Ronaldo", "Lionel Messi"],
-      competition: "La Liga",
-      season: "2017/18",
-      sampleSummary: "Authors discuss the role of Cristiano Ronaldo and Lionel Messi in La Liga PlayeRank results. The paper describes its underlying top-five-league event sample as the 2017/18 season, but does not identify each player's specific match dates in this passage.",
-      sections: playerParagraphs.map((paragraph, index) => ({
-        id: "player-analysis-paragraph-" + String(index + 1),
-        heading: paragraph.heading,
-        kind: "paragraph" as const,
-        text: paragraph.text,
-        locator: "article-body/player-analysis-paragraph-" + String(index + 1),
-      })),
-    });
-    return [methodology, playerReport];
+    const documents: KnowledgeEvidenceDocumentInput[] = [];
+    if (source.allowedCorpora.includes("methodology")) {
+      const methodologySections = allSections.filter(({ id }) => !selectedSectionIds.has(id)).map(toEvidenceSection);
+      const content = documentContent(methodologySections);
+      if (content.length >= 40) documents.push(KnowledgeEvidenceDocumentInputSchema.parse({
+        ...common,
+        evidenceType: "methodology",
+        corpus: "methodology",
+        title,
+        content,
+        sections: methodologySections,
+      }));
+    }
+    if (source.allowedCorpora.includes("player_report")) {
+      for (const selection of playerCuration) {
+        const passage = selectedByHash.get(selection.paragraphTextSha256)!;
+        const sections = [toEvidenceSection(passage)];
+        documents.push(KnowledgeEvidenceDocumentInputSchema.parse({
+          ...common,
+          evidenceType: "historical_player_analysis",
+          corpus: "player_report",
+          title: `${title} — ${selection.competition} historical analysis`,
+          url: `${articleUrl}#evidence-${selection.paragraphTextSha256.slice(0, 16)}`,
+          content: documentContent(sections),
+          entityIds: selection.subjects.map(({ subjectId }) => subjectId),
+          entityNames: selection.subjects.map(({ displayName }) => displayName),
+          competition: selection.competition,
+          season: selection.season,
+          observedFrom: selection.observedFrom,
+          observedTo: selection.observedTo,
+          sampleSummary: selection.sampleSummary,
+          sections,
+        }));
+      }
+    }
+    if (!documents.length) throw new Error(`PLOS DOI ${doi} 没有符合来源授权和显式内容分类清单的资料；未生成资料。`);
+    return documents;
   }
 
   private async readSources(registryPath?: string): Promise<KnowledgeSource[]> {
     const resolvedRegistryPath = path.resolve(registryPath ?? process.env.TACTISCOUT_KNOWLEDGE_SOURCES_FILE ?? path.join(projectRoot, "data", "knowledge", "sources.json"));
     return KnowledgeSourceSchema.array().parse(JSON.parse(await readFile(resolvedRegistryPath, "utf8")) as unknown);
+  }
+
+  private async readCurationManifest(curationPath?: string) {
+    const resolvedPath = path.resolve(curationPath ?? process.env.TACTISCOUT_KNOWLEDGE_EVIDENCE_CURATION_FILE ?? path.join(projectRoot, "data", "knowledge", "evidence-curation.v1.json"));
+    const value = JSON.parse(await readFile(resolvedPath, "utf8")) as unknown;
+    return PlosCurationManifestSchema.parse(value);
   }
 
   private async waitForRequestSlot(): Promise<void> {

@@ -178,6 +178,7 @@ function reportFromLegacy(analysis: ScoutResponse, brief: string): RecruitmentRe
     },
     understatMatchResearch: [],
     knowledgeCoverage: { methodologyChunksRetrieved: 0, methodologyOutcome: "not_triggered", methodologySearchFailed: false, methodologySources: [], playerReportSearchPerformed: false, playerReportOutcome: "not_triggered", playerReportSearchFailed: false, playerReportChunksRetrieved: 0 },
+    methodologyClaims: [],
     searchScopes: [{
       position: analysis.requirements.position,
       maxAge: analysis.requirements.maxAge ?? null,

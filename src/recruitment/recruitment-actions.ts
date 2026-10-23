@@ -28,10 +28,20 @@ export const FinishActionSchema = z.object({
     evidenceKeys: z.array(CapabilityMetricKeySchema).min(1).describe("仅引用直接支持用户明确提出能力与角色的评估指标；不能用不相关指标凑足推荐依据。"),
   })).max(MAX_RECOMMENDATIONS_PER_REPORT),
   limitationKeys: z.array(FinishLimitationKeySchema).max(10),
+  methodologyClaims: z.array(z.object({
+    evidenceIds: z.array(z.string().min(1)).min(1).max(6),
+    claimType: z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]),
+    summary: z.string().trim().min(1).max(600),
+    limitations: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
+  })).max(8).default([]),
   reportObservations: z.array(z.object({
     playerId: z.string().min(1),
     documentId: z.string().min(1),
+    /** Exact retrieval-result IDs selected as citations for this claim. */
+    evidenceIds: z.array(z.string().min(1)).max(6).default([]),
+    claimType: z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]).default("source_finding"),
     summary: z.string().trim().min(1).max(600),
+    limitations: z.array(z.string().trim().min(1).max(300)).max(5).default([]),
     linkedMetricKeys: z.array(CapabilityMetricKeySchema).max(8),
   })).max(10).default([]),
 });
@@ -93,12 +103,14 @@ export const RecruitmentActionSchema = z.discriminatedUnion("action", [
     ...targetTeamContextField,
     action: z.literal("search_methodology"),
     query: z.string().trim().min(2).max(2000),
+    additionalQueries: z.array(z.string().trim().min(2).max(2000)).max(2).default([]),
     limit: z.number().int().min(1).max(8).default(4),
   }),
   z.object({
     ...targetTeamContextField,
     action: z.literal("search_player_reports"),
     query: z.string().trim().min(2).max(2000),
+    additionalQueries: z.array(z.string().trim().min(2).max(2000)).max(2).default([]),
   playerNames: z.array(z.string().trim().min(1)).max(10).default([]),
     limit: z.number().int().min(1).max(8).default(4),
   }),

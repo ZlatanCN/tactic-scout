@@ -15,7 +15,9 @@ export function availablePlannerActions(input: {
   repository: PlayerRepository;
   decisionMode: PlanningMode;
 }): RecruitmentPlannerAction[] {
+  const maximumEvidenceQueriesPerTurn = 5;
   const { state, repository, decisionMode } = input;
+  if (state.evaluationKnowledgeQa) return ["search_methodology", "finish"];
   if (decisionMode === "conclude") return ["ask_user", "finish"];
   if (decisionMode === "expand") return ["search_candidates", "ask_user", "finish"];
   if (decisionMode === "expand_recovery") return ["search_candidates", "finish"];
@@ -37,13 +39,19 @@ export function availablePlannerActions(input: {
     "ask_user",
     "finish",
   ];
-  return actions.filter((action) => action === "ask_user" || action === "finish" || state.toolUses[action] < toolBudgets[action]);
+  return actions.filter((action) => {
+    if (action === "ask_user" || action === "finish") return true;
+    if ((action === "search_methodology" || action === "search_player_reports")
+      && state.ragResearchQueryCount >= maximumEvidenceQueriesPerTurn) return false;
+    return state.toolUses[action] < toolBudgets[action];
+  });
 }
 
 export function chooseDecisionMode(input: {
   state: State;
   retrievalMode: RecruitmentRetrievalMode;
   understatResearchMode?: "catalog_only" | "fixed_profile" | "adaptive";
+  knowledgeQa?: boolean;
 }): {
   decisionMode: PlanningMode;
   canExpandCandidates: boolean;
@@ -52,6 +60,15 @@ export function chooseDecisionMode(input: {
   expansionConstraints: RecruitmentExpansionConstraints | undefined;
 } {
   const { state } = input;
+  if (input.knowledgeQa || state.evaluationKnowledgeQa) {
+    return {
+      decisionMode: "investigate",
+      canExpandCandidates: false,
+      nextOffset: null,
+      request: null,
+      expansionConstraints: undefined,
+    };
+  }
   const retrievalNeeds = recruitmentRetrievalNeeds(state, input.retrievalMode);
   const { unsearchedReportCandidates } = investigationCandidates(state);
   const currentTurnCandidateSearches = state.candidateSearchObservations.slice(state.candidateSearchTurnStartIndex);

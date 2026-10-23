@@ -1,7 +1,11 @@
 import { type RecruitmentAction, type RecruitmentPlanner } from "../../src/recruitment/conversation.js";
 import { createApp } from "../../src/app.js";
+import type { RecruitmentBrief } from "../../src/domain/recruitment-brief.js";
 import type { PlayerRepository } from "../../src/sources/registry.js";
 import { type PlayerProfile } from "../../src/domain/players.js";
+import { createKnowledgeEvidence } from "../../src/knowledge/evidence.js";
+import type { EvidenceEmbedder } from "../../src/knowledge/evidence-index.js";
+import type { AppKnowledgeBase } from "../../src/app/types.js";
 
 const mode = process.argv[2];
 const databasePath = process.argv[3];
@@ -41,35 +45,97 @@ const repository: PlayerRepository = {
   async loadPlayers() { return [player]; },
 };
 
-const actions: RecruitmentAction[] = mode === "pause"
-  ? [
-      { action: "inspect_team", teamName: "Bayern Munich" },
-      { action: "search_methodology", query: "中锋接班人的能力画像" },
-      { action: "search_candidates", position: "ST", minimumMinutes: 0, limit: 10 },
-      { action: "ask_user", question: "更倾向即战力，还是未来两三年的接班人？", reason: "这会影响样本与培养周期的取舍。" },
-  ]
-  : [
+const finishAction = {
+  action: "finish",
+  targetTeam: "Bayern Munich",
+  needSummary: "为拜仁寻找中锋接班人。",
+  capabilityProfile: ["禁区终结"],
+  recommendations: [{ playerId: player.playerId, evidenceKeys: ["goals"] }],
+  limitationKeys: [],
+} satisfies RecruitmentAction;
+
+const actions: RecruitmentAction[] = mode === "pause" ? [] : [
       { action: "evaluate_candidates", playerIds: [player.playerId] },
-      { action: "search_player_reports", query: "中锋终结观察", playerNames: [player.name] },
-      {
-        action: "finish",
-        targetTeam: "Bayern Munich",
-        needSummary: "为拜仁寻找中锋接班人。",
-        capabilityProfile: ["禁区终结"],
-        recommendations: [{ playerId: player.playerId, evidenceKeys: ["goals"] }],
-        limitationKeys: [],
-      },
+      finishAction,
     ];
 
 const planner: RecruitmentPlanner = {
+  requiresGatewayDispatch() { return false; },
   async decide() {
-    const action = actions.shift();
-    if (!action) throw new Error(`No scripted action remains in ${mode} process.`);
-    return action;
+    return actions.shift() ?? finishAction;
   },
 };
 
-const app = createApp({ playerRepository: repository, recruitmentPlanner: planner, checkpointPath: databasePath });
+const initialBrief: RecruitmentBrief = {
+  task: "reinforcement",
+  targetTeam: { value: "拜仁", basis: "explicit", quote: "拜仁" },
+  referencePlayer: null,
+  referenceClues: [],
+  referenceRecheck: null,
+  selectedCandidateId: null,
+  criteria: [],
+  unresolved: [{
+    topic: "preference",
+    question: "更倾向即战力，还是未来两三年的接班人？",
+    impact: "这会影响样本与培养周期的取舍。",
+  }],
+};
+
+const evidenceEmbedder: EvidenceEmbedder = {
+  modelId: "checkpoint-recovery-fixture",
+  async embedMany(texts) { return texts.map(() => [1, 0]); },
+  async countTokens(text) { return text.trim().split(/\s+/u).length; },
+};
+const knowledgeEvidence = createKnowledgeEvidence({
+  catalogPath: `${databasePath}.knowledge.sqlite`,
+  indexPath: `${databasePath}.knowledge-index`,
+  embedder: evidenceEmbedder,
+  reranker: null,
+});
+const knowledgeBase: AppKnowledgeBase = {
+  async search() { return []; },
+  async ingest() { return { documentId: "checkpoint-fixture", chunkCount: 0 }; },
+  async removeDocument() { return 0; },
+  async status() {
+    return {
+      indexedChunks: 0,
+      methodologyChunks: 0,
+      playerReportChunks: 0,
+      registeredSources: 0,
+      methodologySourceIds: [],
+      ingestiblePlayerReportSources: 0,
+      embeddingModel: "checkpoint-recovery-fixture",
+      indexPath: "checkpoint-recovery-fixture",
+    };
+  },
+};
+
+const app = createApp({
+  playerRepository: repository,
+  recruitmentPlanner: planner,
+  knowledgeBase,
+  knowledgeEvidence,
+  briefInterpreter: {
+    async interpret({ previous }) {
+      if (!previous) return initialBrief;
+      return {
+        ...previous,
+        criteria: [{
+          field: "position",
+          operator: "in",
+          value: ["ST"],
+          unit: null,
+          attributeKey: null,
+          strength: "required",
+          basis: "explicit",
+          quote: "中锋",
+        }],
+        unresolved: [],
+      };
+    },
+  },
+  checkpointPath: databasePath,
+});
 
 try {
   const response = await app.inject({

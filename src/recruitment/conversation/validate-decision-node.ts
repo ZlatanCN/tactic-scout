@@ -95,8 +95,9 @@ function validateDirectedAction(
       phase: "decision",
       action: proposedAction.action,
       decisionSource: "policy",
-      elapsedMs: 0,
-      ok: true,
+      elapsedMs: planningRun.decisionElapsedMs ?? 0,
+      ok: planningRun.decisionOk ?? true,
+      gatewayAttempts: planningRun.decisionGatewayAttempts ?? 0,
       policyBlocked: false,
       askPolicyOutcome: suppressed ? "suppressed" : "allowed",
       targetTeam: proposedAction.targetTeam,
@@ -148,14 +149,17 @@ function validateDirectedAction(
     return policyCommand(state, action, planningRun.requiredAction?.update, planningRun.requiredAction?.history);
   }
 
-  const enforced = enforceInvestigationAction(proposedAction, state, {
-    candidatePolicyMode: input.candidatePolicyMode,
-    enforceCurrentTurnObservation: input.enforceCurrentTurnObservation,
-    decisionMode,
-    ...(expansionConstraints ? { expansionConstraints } : {}),
-    retrievalNeeds,
-    understatResearchMode: input.understatResearchMode,
-  });
+  const budgetFinish = state.ragInvestigationBudgetExhausted && proposedAction.action === "finish";
+  const enforced = budgetFinish
+    ? { action: proposedAction, policyOverrodePlanner: true, candidateSearchExhausted: false }
+    : enforceInvestigationAction(proposedAction, state, {
+      candidatePolicyMode: input.candidatePolicyMode,
+      enforceCurrentTurnObservation: input.enforceCurrentTurnObservation,
+      decisionMode,
+      ...(expansionConstraints ? { expansionConstraints } : {}),
+      retrievalNeeds,
+      understatResearchMode: input.understatResearchMode,
+    });
   let action = enforced.action;
   let policyOverrodePlanner = enforced.policyOverrodePlanner;
   let shortlistComparisonApplied = false;
@@ -167,14 +171,16 @@ function validateDirectedAction(
       shortlistComparisonApplied = true;
     }
   }
-  const { endedTooEarly, policyFeedback } = investigationActionFeedback(
-    state,
-    proposedAction,
-    action,
-    decisionMode,
-    enforced.candidateSearchExhausted,
-    retrievalNeeds,
-  );
+  const { endedTooEarly, policyFeedback } = budgetFinish
+    ? { endedTooEarly: false, policyFeedback: [] as string[] }
+    : investigationActionFeedback(
+      state,
+      proposedAction,
+      action,
+      decisionMode,
+      enforced.candidateSearchExhausted,
+      retrievalNeeds,
+    );
   const policyReasonCodes = policyFeedback.map(policyBlockReasonCode);
   if (shortlistComparisonApplied) policyReasonCodes.push("shortlist_comparison_handled");
   if (decisionMode === "expand"
@@ -218,18 +224,19 @@ function validateDirectedAction(
     : 0;
   const stopRepeatedPolicyAction = sameBlockedAction && state.policyBlockedRepeatCount >= 1;
   context.observer?.({
-    phase: "decision",
-    action: action.action,
-    decisionSource: policyOverrodePlanner || planningRun.plannerFallback ? "policy" : "planner",
-    ...(!planningRun.plannerFallback ? { proposedAction: proposedAction.action } : {}),
-    ...(planningRun.plannerFallback ? { plannerFallback: planningRun.plannerFallback } : {}),
-    decisionMode,
-    elapsedMs: 0,
-    ok: true,
-    policyBlocked: blockedByPolicy,
-    ...(askPolicyOutcome ? { askPolicyOutcome } : {}),
-    ...(policyReasonCodes.length ? { policyReasonCodes } : {}),
-    targetTeam: action.action === "inspect_team" ? action.teamName : action.targetTeam ?? state.targetTeam,
+      phase: "decision",
+      action: action.action,
+      decisionSource: policyOverrodePlanner || planningRun.plannerFallback || planningRun.decisionSource === "policy" ? "policy" : "planner",
+      ...(!planningRun.plannerFallback ? { proposedAction: proposedAction.action } : {}),
+      ...(planningRun.plannerFallback ? { plannerFallback: planningRun.plannerFallback } : {}),
+      decisionMode,
+      elapsedMs: planningRun.decisionElapsedMs ?? 0,
+      ok: planningRun.decisionOk ?? true,
+      gatewayAttempts: planningRun.decisionGatewayAttempts ?? 0,
+      policyBlocked: blockedByPolicy,
+      ...(askPolicyOutcome ? { askPolicyOutcome } : {}),
+      ...(policyReasonCodes.length ? { policyReasonCodes } : {}),
+      targetTeam: action.action === "inspect_team" ? action.teamName : action.targetTeam ?? state.targetTeam,
   });
   if (stopRepeatedPolicyAction) {
     const fallback = emptyDecision(state.targetTeam);
@@ -259,7 +266,7 @@ function validateDirectedAction(
     decisionSteps: state.decisionSteps + 1,
     policyBlocked: blockedByPolicy,
     policyBlockedRepeatCount,
-    candidateSearchCursorAdjustment: enforced.candidateSearchCursorAdjustment,
+    candidateSearchCursorAdjustment: "candidateSearchCursorAdjustment" in enforced ? enforced.candidateSearchCursorAdjustment : null,
     ...(action.targetTeam ? { targetTeam: action.targetTeam } : {}),
     ...(action.action === "ask_user" && !endedTooEarly && !blockedByPolicy ? {
       pendingQuestion: questionForAskPolicy(action, input.askUserMode),

@@ -1,13 +1,13 @@
 import type { TeamRosterEnrichmentProvider } from "../sources/thesportsdb/roster.js";
 import { type CapabilityMetricKey } from "../domain/capabilities.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { type TeamRosterContext } from "../domain/conversation.js";
 import { type PlayerProfile } from "../domain/players.js";
 import type { RecruitmentEvaluationBatch, RecruitmentEvidenceEvaluator } from "./recruitment-evidence-evaluator.js";
 import type { KnowledgeRepository } from "../knowledge/index.js";
 import type { KnowledgePlayerContext, KnowledgeSearchResult } from "../knowledge/schemas.js";
 import type { KnowledgeEvidence } from "../knowledge/evidence.js";
-import type { EvidenceAccessContext, EvidenceSubjectCoverage, KnowledgeEvidenceBundle } from "../knowledge/evidence-schemas.js";
+import { KnowledgeEvidenceBundleSchema, type EvidenceAccessContext, type EvidenceSubjectCoverage, type KnowledgeEvidenceBundle } from "../knowledge/evidence-schemas.js";
 import { inspectTeamPlayers, searchPlayerPage, type PlayerRepository, type PlayerSearchPage } from "../players/repository.js";
 import type { ParsedRecruitmentAction, ToolActionName } from "./recruitment-actions.js";
 import { throwIfAborted } from "../domain/abort.js";
@@ -17,7 +17,15 @@ import { knowledgeSearchResultsFromEvidence } from "../knowledge/evidence-adapte
 
 type ToolAction<Action extends ToolActionName> = Extract<ParsedRecruitmentAction, { action: Action }>;
 
-export type KnowledgeSearchOutcome = Pick<KnowledgeEvidenceBundle, "status" | "failureCode" | "traceId" | "rankingMode" | "subjectCoverage" | "generationId" | "rankingDurationMs" | "rankingInputTokens" | "rankingOutputTokens" | "candidateCount" | "budgetMsUsed" | "budgetMsRemaining"> & { coverageNote?: string };
+export type KnowledgeSearchOutcome = Pick<KnowledgeEvidenceBundle, "status" | "failureCode" | "traceId" | "rankingMode" | "subjectCoverage" | "generationId" | "rankingDurationMs" | "rankingInputTokens" | "rankingOutputTokens" | "candidateCount" | "budgetMsUsed" | "budgetMsRemaining"> & {
+  rankingGatewayAttempts?: number;
+  subqueryCount?: number;
+  unavailableSubqueryCount?: number;
+  zeroHitSubqueryCount?: number;
+  notCoveredSubqueryCount?: number;
+  blockedSubqueryCount?: number;
+  coverageNote?: string;
+};
 
 function knowledgeSearchOutcome(result: KnowledgeEvidenceBundle): KnowledgeSearchOutcome {
   return {
@@ -30,6 +38,12 @@ function knowledgeSearchOutcome(result: KnowledgeEvidenceBundle): KnowledgeSearc
     rankingDurationMs: result.rankingDurationMs,
     rankingInputTokens: result.rankingInputTokens,
     rankingOutputTokens: result.rankingOutputTokens,
+    rankingGatewayAttempts: result.rankingGatewayAttempts,
+    subqueryCount: result.subqueryCount,
+    unavailableSubqueryCount: result.unavailableSubqueryCount,
+    zeroHitSubqueryCount: result.zeroHitSubqueryCount,
+    notCoveredSubqueryCount: result.notCoveredSubqueryCount,
+    blockedSubqueryCount: result.blockedSubqueryCount,
     candidateCount: result.candidateCount,
     budgetMsUsed: result.budgetMsUsed,
     budgetMsRemaining: result.budgetMsRemaining,
@@ -51,6 +65,113 @@ function localOutcome(results: KnowledgeSearchResult[]): KnowledgeSearchOutcome 
     budgetMsUsed: 0,
     budgetMsRemaining: 15_000,
   };
+}
+
+function cachedEvidenceBundle(input: {
+  status: KnowledgeEvidenceBundle["status"];
+  failureCode: KnowledgeEvidenceBundle["failureCode"];
+  evidence: KnowledgeEvidenceBundle["evidence"];
+  subjectCoverage: EvidenceSubjectCoverage[];
+  generationId: string | null;
+  rankingMode: KnowledgeEvidenceBundle["rankingMode"];
+  candidateCount: number;
+}): KnowledgeEvidenceBundle {
+  return KnowledgeEvidenceBundleSchema.parse({
+    ...input,
+    traceId: randomUUID(),
+    rankingDurationMs: null,
+    rankingInputTokens: null,
+    rankingOutputTokens: null,
+    budgetMsUsed: 0,
+    budgetMsRemaining: 15_000,
+  });
+}
+
+async function retrieveBatchWithInvestigationLedger(
+  inputRequests: Parameters<KnowledgeEvidence["reader"]["retrieveBatch"]>[0],
+  system: KnowledgeEvidence,
+  context: EvidenceAccessContext,
+  signal?: AbortSignal,
+): Promise<KnowledgeEvidenceBundle> {
+  const normalizeQuery = (query: string) => query.normalize("NFKC").replace(/\s+/gu, " ").trim().toLocaleLowerCase();
+  const requestHashFor = (request: Parameters<KnowledgeEvidence["reader"]["retrieve"]>[0]) => createHash("sha256")
+    .update(JSON.stringify({ ...request, query: normalizeQuery(request.query) }))
+    .digest("hex");
+  const requests = [...new Map(inputRequests.map((request) => [requestHashFor(request), request])).values()];
+  const ledger = system.investigations;
+  if (!ledger) return (await system.reader.retrieveBatch(requests, context, signal)).result;
+  const investigationId = context.investigationId ?? context.turnId;
+  ledger.begin(investigationId);
+  const reusedResults: Array<KnowledgeEvidenceBundle | null> = [];
+  const reserved: Array<{ index: number; requestHash: string; round: 1 | 2 }> = [];
+  try {
+    for (const [index, request] of requests.entries()) {
+      const requestHash = requestHashFor(request);
+      const reservation = ledger.reserveQuery(investigationId, requestHash);
+      if (reservation.kind === "reserved") {
+        reusedResults.push(null);
+        reserved.push({ index, requestHash, round: reservation.round });
+      } else if (reservation.kind === "cached") {
+        const cached = reservation.result;
+        if (!cached.evidenceRefs.length) {
+          reusedResults.push(cachedEvidenceBundle({
+            status: cached.status,
+            failureCode: cached.failureCode as KnowledgeEvidenceBundle["failureCode"],
+            evidence: [],
+            subjectCoverage: cached.subjectCoverage,
+            generationId: cached.generationId,
+            rankingMode: cached.rankingMode,
+            candidateCount: cached.candidateCount,
+          }));
+        } else {
+          const resolved = await system.reader.resolve(cached.evidenceRefs, context, signal);
+          reusedResults.push(cachedEvidenceBundle({
+            status: resolved.status === "found" ? cached.status : "unavailable",
+            failureCode: resolved.status === "found" ? cached.failureCode as KnowledgeEvidenceBundle["failureCode"] : resolved.failureCode ?? "reference_invalid",
+            evidence: resolved.evidence,
+            subjectCoverage: resolved.subjectCoverage,
+            generationId: cached.generationId,
+            rankingMode: cached.rankingMode,
+            candidateCount: cached.candidateCount,
+          }));
+        }
+      } else {
+        if (reservation.kind === "unknown") ledger.markQueryUnknown(investigationId, requestHash, "completion_unknown");
+        reusedResults.push(cachedEvidenceBundle({
+          status: "unavailable",
+          failureCode: reservation.kind === "blocked" ? "budget_exhausted" : "investigation_unknown",
+          evidence: [],
+          subjectCoverage: [],
+          generationId: null,
+          rankingMode: null,
+          candidateCount: 0,
+        }));
+      }
+    }
+    const batch = await system.reader.retrieveBatch(requests, context, signal, reusedResults);
+    for (const { index, requestHash } of reserved) {
+      const result = batch.queryResults[index]!;
+      ledger.completeQuery(investigationId, requestHash, {
+        status: result.status === "not_triggered" ? "no_relevant_evidence" : result.status,
+        failureCode: result.failureCode,
+        generationId: result.generationId,
+        rankingMode: result.rankingMode,
+        candidateCount: result.candidateCount,
+        evidenceRefs: result.evidence.map(({ ref }) => ref),
+        subjectCoverage: result.subjectCoverage,
+      });
+    }
+    const snapshot = ledger.snapshot(investigationId);
+    if (snapshot?.round === 1 && (snapshot.initialQueryCount ?? 0) > 0 && !ledger.hasPendingQueries(investigationId, 1)) {
+      ledger.markFollowupStarted(investigationId);
+    } else if (snapshot?.round === 2 && (snapshot.followupQueryCount ?? 0) > 0 && !ledger.hasPendingQueries(investigationId, 2)) {
+      ledger.finish(investigationId);
+    }
+    return batch.result;
+  } catch (error) {
+    for (const { requestHash } of reserved) ledger.markQueryUnknown(investigationId, requestHash, error instanceof Error ? error.name : "unknown_failure");
+    throw error;
+  }
 }
 
 async function observeCancellation<T>(signal: AbortSignal | undefined, operation: () => Promise<T>): Promise<T> {
@@ -123,19 +244,18 @@ export async function executeRecruitmentToolAction(
   switch (request.action) {
     case "search_methodology": {
       if (dependencies.knowledgeEvidence && dependencies.knowledgeEvidenceContext) {
-        const result = await observeCancellation(signal, () => dependencies.knowledgeEvidence!.reader.retrieve({
-          kind: "methodology",
-          query: request.query,
-          limit: request.limit,
-        }, dependencies.knowledgeEvidenceContext!, signal));
+        const requests = [request.query, ...(request.additionalQueries ?? [])].map((query) => ({ kind: "methodology" as const, query, limit: request.limit }));
+        const result = await observeCancellation(signal, () => retrieveBatchWithInvestigationLedger(requests, dependencies.knowledgeEvidence!, dependencies.knowledgeEvidenceContext!, signal));
         return { action: "search_methodology", request, results: knowledgeSearchResultsFromEvidence(result), outcome: knowledgeSearchOutcome(result) };
       }
-      const results = await observeCancellation(signal, () => dependencies.knowledgeBase.search({
+      const legacyQueries = [request.query, ...(request.additionalQueries ?? [])];
+      const queryResults = await observeCancellation(signal, () => Promise.all(legacyQueries.map((query) => dependencies.knowledgeBase.search({
         corpus: "methodology",
-        query: request.query,
+        query,
         playerNames: [],
         limit: request.limit,
-      }, { signal }));
+      }, { signal }))));
+      const results = [...new Map(queryResults.flat().map((item) => [item.id, item])).values()];
       return {
         action: "search_methodology",
         request,
@@ -219,16 +339,17 @@ export async function executeRecruitmentToolAction(
             },
           };
         }
-        const result = await observeCancellation(signal, () => dependencies.knowledgeEvidence!.reader.retrieve({
-          kind: "player_report",
-          query: request.query,
+        const requests = [request.query, ...(request.additionalQueries ?? [])].map((query) => ({
+          kind: "player_report" as const,
+          query,
           subjects: uniqueSubjects,
           ...(request.sampleFrom ? { sampleFrom: request.sampleFrom } : {}),
           ...(request.sampleTo ? { sampleTo: request.sampleTo } : {}),
           ...(request.sampleSeasons?.length ? { sampleSeasons: request.sampleSeasons } : {}),
           limit: request.limit,
           perSubjectLimit: Math.min(2, request.limit),
-        }, dependencies.knowledgeEvidenceContext!, signal));
+        }));
+        const result = await observeCancellation(signal, () => retrieveBatchWithInvestigationLedger(requests, dependencies.knowledgeEvidence!, dependencies.knowledgeEvidenceContext!, signal));
         return {
           action: "search_player_reports",
           request,

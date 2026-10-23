@@ -27,3 +27,13 @@ PLOS 的[文本与数据挖掘政策](https://plos.org/text-and-data-mining/)明
 - 更多文章需要相关性筛选，不能从标题或网页可读性推断适合入库。比如 [A Messi affair!](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0225033)讨论球探方法，底层数据保密。
 - [Sage AI/TDM 政策](https://www.sagepub.com/tdm-ai-policy)对包括 RAG 的 AI 使用要求许可，不能将其当成 PLOS 的等价自动扩展来源。
 - 新资料会改变现有验收所绑定的证据快照；新自动评测方案需明确内容更新后的验收流程。
+
+## 2026-10-22 implementation update
+
+Three individually registered PLOS methodology sources were added after checking the official article pages for their article license:
+
+- DOI 10.1371/journal.pone.0304139, passing difficulty and contextual passing.
+- DOI 10.1371/journal.pone.0226978, tactics, context, and offensive effectiveness.
+- DOI 10.1371/journal.pone.0308749, high-intensity-run value.
+
+They were fetched through the official PLOS Search API and JATS endpoint using a single rate-limited importer session, then published in one derived-index generation. Only article text passed the current importer policy; figures, tables, references, linked data, and the Second Spectrum/MLS tracking dataset remain excluded. The working catalog now contains six distinct article identities. This coverage is enough to attempt the v2 minimum source-count gate, but it does not establish a quality score or production acceptance.

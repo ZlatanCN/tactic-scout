@@ -1,6 +1,18 @@
-# RAG pilot review
+# RAG evaluation
 
-The packet `rag-review-packet.v1.json` contains 24 frozen starter questions: 12 methodology and 12 historical-player questions. Question content is frozen independently of mutable review records. The packet records human judgments when a human reviewer is used; AI panel judgments are stored in a separate artifact and are never labeled human review.
+## Current RAG v2 workflow
+
+The active evaluation workflow is RAG v2. Its design and current run status are in [the RAG v2 implementation guide](../../../.scratch/rag-v2/implementation.md). The frozen inputs are `rag-v2-question-pack.v5.json` and `rag-v2-judge-controls.v5.json`; the current budget stop record is `rag-v2-pipeline-preflight.v5-budget-exhausted.json`.
+
+RAG v2 uses source-grounded, automatically generated questions and same-gateway semantic judges. All quality labels are AI automatic estimates; no artifact from this workflow is human review or domain ground truth. Development comparisons are available in `rag-v2-ranking-comparison-dev.v5.json` (hybrid/gateway/local ranking) and `rag-v2-retrieval-strategy-comparison-dev.v5.json` (full-text/dense-vector/hybrid retrieval). The frozen validation candidate, fixed baseline, Oracle and acceptance phases have run under the user-authorized 1,300-call ceiling. The budget account is 1,257/1,300, including conservative prior charges. The final record `rag-v2-acceptance-v5-authorized-1300-reconciled.json` is `not_accepted`: the candidate regressed against baseline, the baseline missed support/refusal targets, and five control judgments remained unresolved. An earlier candidate artifact is diagnostic only because repeated runs reused exhausted investigation ledgers; case IDs now include the evaluation run ID. Failed, incomplete or unresolved results must not be represented as accepted.
+
+The earlier 24-question packet, manual review recorder and three-agent AI panel below belong to the historical pilot. They are retained for reproducibility and are not the acceptance path for RAG v2.
+
+## Historical 24-question pilot
+
+The pilot packet `rag-review-packet.v1.json` contains 24 starter questions: 12 methodology and 12 historical-player questions. Question content is frozen independently of mutable review records. This packet is not the current v5 RAG v2 benchmark.
+
+The packet records human judgments only when a human reviewer is used; AI panel judgments are stored separately and are never labeled human review.
 
 ## Prepare the local corpus
 

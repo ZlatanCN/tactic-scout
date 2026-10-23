@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "rag-v2-acceptance-v1",
+  "createdAt": "2026-10-23T05:45:20.049Z",
+  "status": "not_accepted",
+  "label": "automatic_estimate",
+  "pins": {
+    "packetSha256": "f44b5ffb55d486839af91a7942b279ad3b806819b5c859fbc2c9e0b62a3e3eae",
+    "sourceRegistrySha256": "ec080600be8260b67a36e0883f1297e9f9261adf1c3e37f328ad1b2cb9d61f44",
+    "evidenceSnapshotSha256": "bab0b49364ed4a96550d10e5d916f1853f324a2d4ff799e079ed37b6a92705b5",
+    "indexGenerationId": "a0ce3eaf-ff85-49cd-9311-e17304f6de56",
+    "embeddingModelId": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+    "rankingMode": "local_cross_encoder",
+    "investigationStrategy": "adaptive_agent",
+    "rankerModelId": "onnx-community/bge-reranker-v2-m3-ONNX",
+    "rankerRevision": "6f5ff65298512715a1e669753bc754d2bc8f367b",
+    "rankerConfigSha256": "35b1cb5b20ac1f9d32e53771c70f6804309fe26d9b356eb7e1ef2d35df5dc617",
+    "answerModelId": "codex/gpt-6-luna",
+    "controlPackSha256": "1513ab382338190c810d3c7fc4329dcaa8b84fadc4fefe63473ce24763514b2c",
+    "controlEvaluationSha256": "9d29b3accd9d9fa6ec211ee994b638712d1fa20c46690ba2a1948548f5d30098",
+    "questionPromptSha256": "59989446b9911239e15a7725a9bdf435f42c7a3a95e27961da4dd31f86326c6c",
+    "verifierPromptSha256": "c1028fe7e089f8eaebb82ac6629adbbdde865292c7163e131cbb5b4869e785c1",
+    "answerPromptSha256": "47071204c524a1f196b88d313a82b95d8bf2181357dfeb2bc0c2a07ad60a125d",
+    "judgePromptSha256": "81995d5aca6ef0813363f3eec22f67d5bd20c089d972f5667138f13eed653fc4",
+    "appRevision": "c610b6cd27800590cde81edf4c1406df3d99a991c8aa047a7b1f02f12ef0ff9d"
+  },
+  "baselinePins": {
+    "packetSha256": "f44b5ffb55d486839af91a7942b279ad3b806819b5c859fbc2c9e0b62a3e3eae",
+    "sourceRegistrySha256": "ec080600be8260b67a36e0883f1297e9f9261adf1c3e37f328ad1b2cb9d61f44",
+    "evidenceSnapshotSha256": "bab0b49364ed4a96550d10e5d916f1853f324a2d4ff799e079ed37b6a92705b5",
+    "indexGenerationId": "a0ce3eaf-ff85-49cd-9311-e17304f6de56",
+    "embeddingModelId": "transformers.js:q8:onnx-community/multilingual-e5-base-ONNX",
+    "rankingMode": "hybrid",
+    "investigationStrategy": "fixed_single_pass",
+    "rankerModelId": "none",
+    "rankerRevision": null,
+    "rankerConfigSha256": "bacb595bff1cfc4410fb4acbbd808e9fd21df18231bb633be56e74452642777a",
+    "answerModelId": "codex/gpt-6-luna",
+    "controlPackSha256": "1513ab382338190c810d3c7fc4329dcaa8b84fadc4fefe63473ce24763514b2c",
+    "controlEvaluationSha256": "9d29b3accd9d9fa6ec211ee994b638712d1fa20c46690ba2a1948548f5d30098",
+    "questionPromptSha256": "59989446b9911239e15a7725a9bdf435f42c7a3a95e27961da4dd31f86326c6c",
+    "verifierPromptSha256": "c1028fe7e089f8eaebb82ac6629adbbdde865292c7163e131cbb5b4869e785c1",
+    "answerPromptSha256": "47071204c524a1f196b88d313a82b95d8bf2181357dfeb2bc0c2a07ad60a125d",
+    "judgePromptSha256": "81995d5aca6ef0813363f3eec22f67d5bd20c089d972f5667138f13eed653fc4",
+    "appRevision": "c610b6cd27800590cde81edf4c1406df3d99a991c8aa047a7b1f02f12ef0ff9d"
+  },
+  "candidateRunId": "76c95ff6-8bb2-43f7-805c-6fd0cc87e8e0",
+  "baselineRunId": "26669abe-60a7-400f-bc20-0d5703733a40",
+  "candidateRunSha256": "1977dc3d91c8b3d4d43eb87f6a96657425e49cc7993cd8c32c85363cbd03848d",
+  "baselineRunSha256": "90d96b75a1836deb958c7638e1711ff30de64878ba9bfbf955865be46695a765",
+  "pipelinePreflightSha256": "bb9cdbab5f70633fba8342ba261e7b447b36c60c88c37b8206b8aeabcc89891a",
+  "pipelineBudgetAccountedAttempts": 1257,
+  "pipelineBudgetAccounting": "conservative_upper_bound",
+  "pipelinePhaseViolations": [],
+  "candidateSummary": {
+    "answerableCount": 28,
+    "supportedCount": 7,
+    "supportRate": 0.25,
+    "refusalExpectedCount": 26,
+    "correctRefusalCount": 6,
+    "refusalHandlingRate": 0.23076923076923078,
+    "factQuestionCount": 28,
+    "requiredFactMacroCoverage": 0.42857142857142855,
+    "retrievalFactCoverageAt6Macro": 0.9464285714285714,
+    "unresolvedCount": 11,
+    "hardViolationCount": 25,
+    "judgeControls": {
+      "positiveCount": 12,
+      "negativeCount": 12,
+      "positivePasses": 12,
+      "positivePassRate": 1,
+      "falsePasses": 0,
+      "unresolvedCount": 5,
+      "reliable": false
+    },
+    "qualityEligible": false,
+    "label": "automatic_estimate"
+  },
+  "baselineSummary": {
+    "answerableCount": 28,
+    "supportedCount": 22,
+    "supportRate": 0.7857142857142857,
+    "refusalExpectedCount": 26,
+    "correctRefusalCount": 12,
+    "refusalHandlingRate": 0.46153846153846156,
+    "factQuestionCount": 28,
+    "requiredFactMacroCoverage": 0.9464285714285714,
+    "retrievalFactCoverageAt6Macro": 0.8214285714285714,
+    "unresolvedCount": 14,
+    "hardViolationCount": 0,
+    "judgeControls": {
+      "positiveCount": 12,
+      "negativeCount": 12,
+      "positivePasses": 12,
+      "positivePassRate": 1,
+      "falsePasses": 0,
+      "unresolvedCount": 5,
+      "reliable": false
+    },
+    "qualityEligible": false,
+    "label": "automatic_estimate"
+  },
+  "callEstimate": {
+    "questionCount": 45,
+    "controlCount": 24,
+    "workflow": "full",
+    "expectedGatewayAttempts": 1284,
+    "maximumGatewayAttempts": 1300,
+    "withinCap": true
+  },
+  "comparison": {
+    "comparedQuestionCount": 45,
+    "missingComparisons": false,
+    "definitionMismatches": [],
+    "regressions": [
+      "rag2-6497aae54b62a14d6d2ebf00",
+      "rag2-09a169cf79690a5adadff8f3",
+      "rag2-a3bd3247b49ed0621fa0e657",
+      "rag2-b5204a0a8c8f3b48260bc43e",
+      "rag2-720f403ed37c3dde92c43c5e",
+      "rag2-aeee97ff5cecd10ab31d4e1a",
+      "rag2-c602146fe6d7ed763a759737",
+      "rag2-e0b3c9fb01045f6b63967677",
+      "rag2-dc6f5bcfa11ce0b9ccc79a31",
+      "rag2-275cf9c0140332b38bc02efe",
+      "rag2-2a3e726a49280eac10b62a17",
+      "rag2-9e1eb4d82b12dfbf9759a4f3",
+      "rag2-10e4396dd5bf69e6ec746fce",
+      "rag2-af94017b99c35f663e3b5fa1"
+    ],
+    "retrievalCoverageRegressions": [],
+    "semanticCategoryRegressions": [
+      {
+        "category": "answerable",
+        "candidateRate": 0.3157894736842105,
+        "baselineRate": 0.8947368421052632
+      },
+      {
+        "category": "partial",
+        "candidateRate": 0.1111111111111111,
+        "baselineRate": 0.4444444444444444
+      }
+    ],
+    "fixedHybridBaseline": true,
+    "noRegression": false
+  },
+  "blockedReasons": [
+    "candidate_regressed_from_baseline",
+    "baseline_quality_gate_failed",
+    "quality_gate_failed"
+  ],
+  "recordSha256": "b668e22e2d344ae47070082eceba1cd3c5aafe0130fd1ca4d45b886e6a8798f0"
+}

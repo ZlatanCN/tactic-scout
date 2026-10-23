@@ -12,6 +12,97 @@ import { UnderstatMatchResearchSchema, UnderstatPlayerResearchSchema, UnderstatT
 import { CandidateRoleFitSchema } from "./player-abilities.js";
 import { FmSearchCriterionSchema } from "./recruitment-brief.js";
 
+export const ReportClaimTypeSchema = z.enum(["source_finding", "cross_source_synthesis", "source_disagreement"]);
+
+export const ReportEvidenceCitationSchema = z.object({
+  documentId: z.string().min(1),
+  evidenceRef: EvidenceRefSchema,
+  excerpt: z.string().min(1).max(1_200),
+  sampleSummary: z.string().nullable().optional(),
+  competition: z.string().nullable().optional(),
+  season: z.string().nullable().optional(),
+  observedFrom: z.iso.date().nullable().optional(),
+  observedTo: z.iso.date().nullable().optional(),
+  sectionPath: z.array(z.string().min(1)).default([]),
+  source: z.object({
+    sourceId: z.string(),
+    sourceName: z.string(),
+    title: z.string(),
+    url: z.string().url(),
+    author: z.string(),
+    publisher: z.string(),
+    publishedAt: z.string().nullable(),
+    license: z.string(),
+    attribution: z.string(),
+    evidenceType: z.enum(["methodology", "external_report", "historical_player_analysis", "first_party_observation"]).optional(),
+  }),
+});
+export type ReportEvidenceCitation = z.infer<typeof ReportEvidenceCitationSchema>;
+
+export const ReportKnowledgeClaimSchema = z.object({
+  claimId: z.string().min(1),
+  claimType: ReportClaimTypeSchema,
+  summary: z.string().trim().min(1).max(1_200),
+  limitations: z.array(z.string().trim().min(1)).max(10).default([]),
+  citations: z.array(ReportEvidenceCitationSchema).min(1).max(8),
+});
+export type ReportKnowledgeClaim = z.infer<typeof ReportKnowledgeClaimSchema>;
+
+export const KnowledgeAnswerCitationSchema = z.object({
+  id: z.string().min(1),
+  evidenceRef: EvidenceRefSchema,
+  excerpt: z.string().trim().min(1).max(1_200),
+  source: z.object({
+    sourceId: z.string().min(1),
+    sourceName: z.string().min(1),
+    title: z.string().min(1),
+    url: z.string().url(),
+    author: z.string().min(1),
+    publisher: z.string().min(1),
+    publishedAt: z.string().nullable(),
+    license: z.string().min(1),
+    attribution: z.string().min(1),
+  }),
+});
+export type KnowledgeAnswerCitation = z.infer<typeof KnowledgeAnswerCitationSchema>;
+
+export const KnowledgeAnswerClaimSchema = z.object({
+  claimId: z.string().min(1),
+  text: z.string().trim().min(1).max(1_200),
+  evidenceIds: z.array(z.string().min(1)).min(1).max(8),
+  citations: z.array(KnowledgeAnswerCitationSchema).min(1).max(8),
+}).superRefine((claim, context) => {
+  const cited = new Set(claim.citations.map(({ id }) => id));
+  for (const id of claim.evidenceIds) {
+    if (!cited.has(id)) {
+      context.addIssue({ code: "custom", path: ["evidenceIds"], message: "每条知识回答主张都必须引用同一声明中的证据。" });
+      break;
+    }
+  }
+});
+export type KnowledgeAnswerClaim = z.infer<typeof KnowledgeAnswerClaimSchema>;
+
+export const KnowledgeAnswerSchema = z.object({
+  status: z.enum(["answered", "partial", "abstained"]),
+  claims: z.array(KnowledgeAnswerClaimSchema).max(12),
+  missingFacts: z.array(z.string().trim().min(1)).max(12),
+  abstentionReason: z.enum(["no_evidence", "evidence_insufficient", "scope_not_covered"]).nullable(),
+}).superRefine((answer, context) => {
+  if (answer.status === "answered" && !answer.claims.length) {
+    context.addIssue({ code: "custom", path: ["claims"], message: "已回答状态必须包含至少一条有证据的主张。" });
+  }
+  if (answer.status === "partial" && (!answer.claims.length || !answer.missingFacts.length)) {
+    context.addIssue({ code: "custom", path: ["claims"], message: "部分回答必须同时包含已支持主张和缺失事实。" });
+  }
+  if (answer.status === "abstained" && answer.claims.length) {
+    context.addIssue({ code: "custom", path: ["claims"], message: "拒答状态不能包含未交付的事实主张。" });
+  }
+  if ((answer.status === "abstained") !== (answer.abstentionReason !== null)) {
+    context.addIssue({ code: "custom", path: ["abstentionReason"], message: "只有拒答状态需要且必须说明原因。" });
+  }
+});
+export type KnowledgeAnswer = z.infer<typeof KnowledgeAnswerSchema>;
+
 export const PlayerRecommendationSchema = z.object({
   referenceSimilarity: ReferenceSimilaritySchema.optional(),
   roleFits: z.array(CandidateRoleFitSchema).optional(),
@@ -33,12 +124,16 @@ export const PlayerRecommendationSchema = z.object({
   externalSignals: z.array(PlayerEloSignalSchema).default([]),
   historicalArchiveSamples: z.array(HistoricalArchiveSampleSchema).default([]),
   reportObservations: z.array(z.object({
+    claimId: z.string().min(1),
+    claimType: ReportClaimTypeSchema,
     summary: z.string(),
+    limitations: z.array(z.string().min(1)).max(10).default([]),
     verificationStatus: z.enum(["unverified", "linked_to_match_data"]),
     linkedMetricKeys: z.array(CapabilityMetricKeySchema),
     documentId: z.string().optional(),
     evidenceRef: EvidenceRefSchema.optional(),
     excerpt: z.string().max(1_200).optional(),
+    citations: z.array(ReportEvidenceCitationSchema).min(1).max(8),
     sampleSummary: z.string().nullable().optional(),
     competition: z.string().nullable().optional(),
     season: z.string().nullable().optional(),
@@ -213,6 +308,7 @@ export const RecruitmentReportSchema = z.object({
     playerReportSearchFailed: false,
     playerReportChunksRetrieved: 0,
   }),
+  methodologyClaims: z.array(ReportKnowledgeClaimSchema).max(8).default([]),
   searchScopes: z.array(RecruitmentSearchScopeSchema),
   recommendations: z.array(PlayerRecommendationSchema).max(5),
   limitations: z.array(z.string()),

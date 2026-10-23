@@ -7,7 +7,7 @@ import { createEmptyExternalSignalCoverage, type ExternalSignalCoverage, type Hi
 import { type PlayerProfile } from "../../domain/players.js";
 import { type Position, type SelectablePosition } from "../../domain/position-contracts.js";
 import { type CapabilityMetricKey } from "../../domain/capabilities.js";
-import { RecruitmentSearchScopeSchema, type RecruitmentReport } from "../../domain/reports.js";
+import { RecruitmentSearchScopeSchema, type KnowledgeAnswer, type RecruitmentReport } from "../../domain/reports.js";
 import { type UnderstatMatchResearch, type UnderstatPlayerResearch, type UnderstatTeamResearch } from "../../domain/understat-evidence.js";
 import { type CandidateIdentityGroupReference } from "../../players/identity/candidate-groups.js";
 import { type KnowledgeSearchResult } from "../../knowledge/schemas.js";
@@ -110,11 +110,16 @@ export const RecruitmentState = Annotation.Root({
   replacementPositionClarificationAsked: replaceable<boolean>(() => false),
   pendingQuestion: replaceable<PendingQuestion | null>(() => null),
   report: replaceable<RecruitmentReport | null>(() => null),
+  knowledgeAnswer: replaceable<KnowledgeAnswer | null>(() => null),
+  evaluationKnowledgeQa: replaceable<boolean>(() => false),
   reportFollowupContext: replaceable<ReportFollowupContext | null>(() => null),
   datasetScope: replaceable<DatasetScope | undefined>(() => undefined),
   responseMessage: replaceable<string>(() => ""),
   decisionSteps: replaceable<number>(() => 0),
   toolUses: replaceable<ToolUseCounts>(emptyToolUseCounts),
+  ragInvestigationId: replaceable<string | null>(() => null),
+  ragResearchQueryCount: replaceable<number>(() => 0),
+  ragInvestigationBudgetExhausted: replaceable<boolean>(() => false),
   reviewAttempts: replaceable<number>(() => 0),
   reviewResult: replaceable<"valid" | "retry" | "exhausted" | "bypassed">(() => "valid"),
   forcedLimitReached: replaceable<boolean>(() => false),

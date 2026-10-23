@@ -87,6 +87,14 @@ export function nextRequiredInvestigation(
   source: PlayerRepository,
   options: { deterministicSearchEnabled?: boolean; retrievalNeeds?: { methodology: boolean; playerReports: boolean }; understatResearchMode?: UnderstatResearchMode } = {},
 ): InvestigationDirective | null {
+  if (state.ragInvestigationBudgetExhausted) return {
+    action: emptyDecision(state.targetTeam),
+    message: "资料综合调查达到 30 秒或网关调用上限，正在保留已有证据并说明缺口",
+    update: {
+      responseMessage: "资料综合调查达到单轮预算上限；报告只保留已取得并重新核验的来源证据，尚未覆盖的事实仍标为缺口。",
+      pendingQuestion: null,
+    },
+  };
   const needsReports = options.retrievalNeeds?.playerReports ?? true;
   const needsMethodology = options.retrievalNeeds?.methodology ?? true;
   const { intent, eligibleEvaluatedPlayers, unsearchedReportCandidates, pendingCandidateIds, confirmedPositionSearchPending } = investigationCandidates(state);

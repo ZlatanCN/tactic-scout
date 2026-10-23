@@ -73,10 +73,7 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
   const modelName = process.env.OPENAI_MODEL;
   if (!apiKey || !modelName) throw new Error("需求理解服务尚未配置模型。");
   const maxOutputTokens = openAIMaxOutputTokens();
-  const configuredOutputMethod = process.env.OPENAI_STRUCTURED_OUTPUT_METHOD?.trim();
-  const outputMethod = configuredOutputMethod && configuredOutputMethod !== "auto"
-    ? structuredOutputMethod()
-    : modelName.startsWith("codex/") ? "jsonSchema" : structuredOutputMethod();
+  const outputMethod = structuredOutputMethod();
   const model = createChatModel(apiKey, modelName, { maxOutputTokens }).withStructuredOutput(RecruitmentBriefModelSchema, {
     name: "recruitment_brief",
     method: outputMethod,
@@ -87,6 +84,13 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
       let correction: string | undefined;
       let previousAttempt: unknown;
       const modelAttemptBudget = createModelAttemptBudget({ signal: input.signal, onRetry: input.onModelRetry });
+      let reportedGatewayAttempts = 0;
+      const emitUsage = (usage: Parameters<NonNullable<typeof input.onUsage>>[0]) => {
+        const totalAttempts = Math.max(reportedGatewayAttempts, usage.gatewayAttempts ?? modelAttemptBudget.attempts);
+        const gatewayAttempts = totalAttempts - reportedGatewayAttempts;
+        reportedGatewayAttempts = totalAttempts;
+        input.onUsage?.({ ...usage, gatewayAttempts });
+      };
       const configuredContextWindow = modelContextWindowTokens();
       const payload = () => ({ previous: input.previous, ...(input.recentDialogue ? { recentDialogue: input.recentDialogue } : { recentMessages: input.recentMessages }), visibleCandidates: input.visibleCandidates ?? [], clarificationQuestion: input.clarificationQuestion, message: input.message, previousAttempt, correction, ...(input.protectedQuoteReferences?.length ? { protectedQuoteReferences: input.protectedQuoteReferences } : {}) });
       const request = (compacted: boolean) => {
@@ -149,7 +153,7 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
         }
         try { assertRecruitmentContextFits(assembled); }
         catch (error) {
-          input.onUsage?.({ outcome: "failed", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: assembled.manifest });
+          emitUsage({ outcome: "failed", gatewayAttempts: modelAttemptBudget.attempts, contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: assembled.manifest });
           completeCompaction();
           throw error;
         }
@@ -157,7 +161,7 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
         try {
           result = await invokeWithModelAttemptBudget(modelAttemptBudget, () => model.invoke(assembled.messages, input.signal ? { signal: input.signal } : undefined));
         } catch (error) {
-          input.onUsage?.({ outcome: "failed", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: withContextModelUsage(assembled.manifest, {}) });
+          emitUsage({ outcome: "failed", gatewayAttempts: modelAttemptBudget.attempts, contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: withContextModelUsage(assembled.manifest, {}) });
           if (isProviderContextOverflow(error)) {
             if (!compacted) {
               startCompaction();
@@ -182,7 +186,7 @@ export function createRecruitmentBriefInterpreter(): RecruitmentBriefInterpreter
         }
         completeCompaction();
         const tokenUsage = normalizeModelTokenUsage(result);
-        input.onUsage?.({ outcome: "response", contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: withContextModelUsage(assembled.manifest, tokenUsage), ...tokenUsage });
+        emitUsage({ outcome: "response", gatewayAttempts: modelAttemptBudget.attempts, contextChars: assembled.manifest.requestBytes, estimatedInputTokens: assembled.manifest.estimatedInputTokens, inputBudgetTokens: assembled.manifest.inputBudgetTokens, contextStatus: assembled.manifest.status, omittedHistoryEntries: assembled.manifest.omittedHistoryEntries, contextManifest: withContextModelUsage(assembled.manifest, tokenUsage), ...tokenUsage });
         let candidate: unknown = result.parsed;
         if (!candidate) {
           try { candidate = JSON.parse(structuredModelText(result.raw.content)); } catch { /* The schema validator records a failed structured response. */ }

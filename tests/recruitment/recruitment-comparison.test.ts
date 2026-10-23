@@ -172,11 +172,14 @@ for (const arm of ["enabled", "reference-off", "comparison-off"] as const) {
 }
 
 test("review recovery retains a valid candidate when a repeated invalid evidence reference is exhausted", async () => {
-  let calls = 0;
+  const calls: Array<{ stage: string; lastTools: string[] }> = [];
   const conversation = createRecruitmentConversation({
     repository: { mode: "demo", sourceName: "Fixture", loadPlayers: async () => candidates },
-    planner: createSinglePassInvestigationPlanner({ async decide() {
-      calls++;
+    planner: createSinglePassInvestigationPlanner({ async decide(input) {
+      calls.push({
+        stage: input.decisionSnapshot.caps.stage,
+        lastTools: input.history.filter((entry) => entry.role === "tool").map((entry) => entry.toolName ?? ""),
+      });
       return { action: "finish", targetTeam: "拜仁", needSummary: "寻找中锋", capabilityProfile: [], recommendations: [
         { playerId: "a", evidenceKeys: ["goals"] }, { playerId: "b", evidenceKeys: ["pressures"] },
       ], limitationKeys: [] };
@@ -185,7 +188,8 @@ test("review recovery retains a valid candidate when a repeated invalid evidence
   });
   const result = await conversation.turn({ threadId: "targeted-review-recovery", message: "为拜仁找一个中锋" });
   assert.equal(result.status, "completed");
-  assert.equal(calls, 2, "one repair attempt only");
+  assert.equal(calls.length, 3, "one RAG report lookup plus one final recomposition: " + JSON.stringify(calls));
+  assert.equal(calls[2]?.lastTools.filter((toolName) => toolName === "evidence_review").length, 1);
   assert.deepEqual(result.report?.recommendations.map(item => item.player.playerId), ["a"]);
   assert.match(result.report?.needSummary ?? "", /保留 1 名/);
 });

@@ -163,6 +163,14 @@ test("planner actions follow repository capabilities and hard tool budgets", () 
     repository,
     decisionMode: "investigate",
   }).includes("search_candidates"), false);
+
+  const exhaustedEvidenceActions = availablePlannerActions({
+    state: plannerState({ ragResearchQueryCount: 5 }),
+    repository,
+    decisionMode: "investigate",
+  });
+  assert.equal(exhaustedEvidenceActions.includes("search_methodology"), false);
+  assert.equal(exhaustedEvidenceActions.includes("search_player_reports"), false);
 });
 
 test("conclusion actions stay within the adopted Planner action set", () => {

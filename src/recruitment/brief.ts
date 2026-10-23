@@ -26,7 +26,8 @@ export interface RecruitmentBriefInterpreter {
     clarificationQuestionEventId?: string;
     signal?: AbortSignal;
     onModelRetry?: (notice: import("./chat-model.js").ModelRetryNotice) => void;
-    onUsage?: (usage: { outcome?: "response" | "failed"; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number | null; contextStatus?: "within_budget" | "over_budget" | "unknown"; omittedHistoryEntries?: number; contextManifest?: import("./context.js").RecruitmentContextManifest }) => void;
+    /** gatewayAttempts is the count since the preceding usage event for this interpretation. */
+    onUsage?: (usage: { outcome?: "response" | "failed"; gatewayAttempts?: number; inputTokens?: number; outputTokens?: number; totalTokens?: number; contextChars?: number; estimatedInputTokens?: number; inputBudgetTokens?: number | null; contextStatus?: "within_budget" | "over_budget" | "unknown"; omittedHistoryEntries?: number; contextManifest?: import("./context.js").RecruitmentContextManifest }) => void;
     onContextCompaction?: (status: "started" | "completed") => void;
   }): Promise<RecruitmentBrief>;
 }

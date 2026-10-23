@@ -86,7 +86,8 @@ export function RecommendationCard({ recommendation, backgroundOnly, rank, selec
         const internalObservationUrl = firstParty && new URL(observation.source.url).hostname === "tactiscout.local";
         return <li className="space-y-1 text-xs leading-5" key={`${observation.source.sourceId}-${index}`}>
           <p className="m-0 text-sm">{observation.summary}</p>
-          {observation.excerpt && <blockquote className="m-0 border-l-2 pl-3 text-muted-foreground">{observation.excerpt}</blockquote>}
+          {observation.claimType === "source_disagreement" && <small className="block text-muted-foreground">来源观点有差异；此处并列呈现，不做无证据调和。</small>}
+          {observation.limitations.length > 0 && <small className="block text-muted-foreground">{observation.limitations.join(" · ")}</small>}
           {(observation.competition || observation.season || observation.observedFrom || observation.observedTo || observation.sampleSummary) && <small className="block text-muted-foreground">{[observation.competition, observation.season, observation.observedFrom && observation.observedTo ? observation.observedFrom + "–" + observation.observedTo : null, observation.sampleSummary].filter(Boolean).join(" · ")}</small>}
           <small className="block text-muted-foreground">{observation.verificationStatus === "linked_to_match_data" ? `关联比赛数据：${observation.linkedMetricKeys.join("、")}；需人工核实完整语义。` : "当前比赛数据未核实，作为单一来源的定性观点。"}</small>
           {firstParty && <small className="block text-muted-foreground">TactiScout 自录观察 · 作者观点，未经独立核实</small>}
@@ -95,6 +96,20 @@ export function RecommendationCard({ recommendation, backgroundOnly, rank, selec
             ? <small className="block text-muted-foreground">没有提供外部参考链接；此观察只保存在本机。</small>
             : <a className="text-primary underline underline-offset-4" href={observation.source.url} target="_blank" rel="noreferrer">{firstParty ? "打开观察者提供的参考链接" : `${observation.source.title} · ${observation.source.author} · ${observation.source.license}`}</a>}
           <small className="block text-muted-foreground">{observation.source.attribution}</small>
+          <ul className="m-0 list-none space-y-3 border-l-2 pl-3">
+            {observation.citations.map((citation) => {
+              const localSource = citation.source.sourceId === firstPartyObservationSourceId && new URL(citation.source.url).hostname === "tactiscout.local";
+              return <li key={[citation.evidenceRef.documentRevisionId, citation.evidenceRef.sectionId, citation.evidenceRef.startOffset].join(":")} className="space-y-1">
+                <small className="block text-muted-foreground">{citation.sectionPath.join(" / ") || "原文片段"}</small>
+                <blockquote className="m-0 border-l-2 pl-3 text-muted-foreground">{citation.excerpt}</blockquote>
+                {(citation.competition || citation.season || citation.observedFrom || citation.observedTo || citation.sampleSummary) && <small className="block text-muted-foreground">{[citation.competition, citation.season, citation.observedFrom && citation.observedTo ? citation.observedFrom + "–" + citation.observedTo : null, citation.sampleSummary].filter(Boolean).join(" · ")}</small>}
+                {localSource
+                  ? <small className="block text-muted-foreground">没有提供外部参考链接；此观察只保存在本机。</small>
+                  : <a className="break-words text-primary underline underline-offset-4" href={citation.source.url} target="_blank" rel="noreferrer">{citation.source.title} · {citation.source.author} · {citation.source.publisher} · {citation.source.license}</a>}
+                <small className="block break-words text-muted-foreground">{citation.source.attribution}</small>
+              </li>;
+            })}
+          </ul>
         </li>;
       })}</ul></details>}
       </div>

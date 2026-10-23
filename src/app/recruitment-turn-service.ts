@@ -143,7 +143,7 @@ export class RecruitmentTurnService {
           this.dependencies.recruitmentProgressByCase.delete(oldestCaseId);
         }
         this.dependencies.recruitmentProgressEmitters.set(progressKey, updateProgress);
-        updateProgress({ stage: "starting", message: "已启动本轮球探调查", completedSteps: 0, status: "started" });
+        updateProgress({ stage: "starting", message: "已启动本轮调查", completedSteps: 0, status: "started" });
         try {
           const result = await this.dependencies.recruitmentConversation.turn({
             threadId: caseId,

@@ -31,6 +31,8 @@ export function createRecordUserTurnNode(input: {
   abilityProfilesEnabled?: boolean;
   disabledPlayerEloCoverage: ExternalSignalCoverage;
   historicalArchiveSetup: ReturnType<typeof createConfiguredHistoricalArchive>;
+  evaluationKnowledgeQa?: () => boolean;
+  knowledgeQuestionClassifier?: (message: string) => boolean;
 }) {
   const { disabledPlayerEloCoverage, historicalArchiveSetup } = input;
   return (state: State, runtime: Runtime<RecruitmentRuntimeContext>): Partial<State> => {
@@ -69,6 +71,8 @@ export function createRecordUserTurnNode(input: {
       briefCandidates: state.report ? state.report.recommendations.map((item, index) => ({ playerId: item.player.playerId, name: item.player.name, rank: index + 1 })) : state.briefCandidates,
       candidateSearchTurnStartIndex: state.candidateSearchObservations.length,
       history: [{ role: "user" as const, content: state.userMessage }],
+      evaluationKnowledgeQa: (input.evaluationKnowledgeQa?.() ?? false)
+        || (input.knowledgeQuestionClassifier?.(state.userMessage) ?? false),
       ...(explicitTargetTeam ? { targetTeam: explicitTargetTeam } : {}),
       report: null,
       reportFollowupContext,
@@ -80,6 +84,9 @@ export function createRecordUserTurnNode(input: {
       pendingQuestion: null,
       decisionSteps: 0,
       toolUses: emptyToolUseCounts(),
+      ragInvestigationId: null,
+      ragResearchQueryCount: 0,
+      ragInvestigationBudgetExhausted: false,
       reviewAttempts: 0,
       reviewResult: "valid" as const,
       forcedLimitReached: false,
@@ -138,6 +145,9 @@ export const waitForUser = (state: State) => {
         responseMessage: "",
         decisionSteps: 0,
         toolUses: emptyToolUseCounts(),
+        ragInvestigationId: null,
+        ragResearchQueryCount: 0,
+        ragInvestigationBudgetExhausted: false,
         hasSearchedMethodology: false,
         hasSearchedPlayerReports: false,
         methodologySearchFailed: false,
@@ -180,6 +190,9 @@ export const waitForUser = (state: State) => {
           responseMessage: "",
           decisionSteps: 0,
           toolUses: emptyToolUseCounts(),
+          ragInvestigationId: null,
+          ragResearchQueryCount: 0,
+          ragInvestigationBudgetExhausted: false,
           successfulMethodologyQueries: {},
           candidateSearchSucceededThisTurn: false,
           candidateSearchFailure: null,
@@ -205,6 +218,9 @@ export const waitForUser = (state: State) => {
         responseMessage: "",
         decisionSteps: 0,
         toolUses: emptyToolUseCounts(),
+        ragInvestigationId: null,
+        ragResearchQueryCount: 0,
+        ragInvestigationBudgetExhausted: false,
         successfulMethodologyQueries: {},
         candidateSearchSucceededThisTurn: false,
         candidateSearchFailure: null,
@@ -234,6 +250,9 @@ export const waitForUser = (state: State) => {
         responseMessage: "",
         decisionSteps: 0,
         toolUses: emptyToolUseCounts(),
+        ragInvestigationId: null,
+        ragResearchQueryCount: 0,
+        ragInvestigationBudgetExhausted: false,
         candidateSearchTurnStartIndex: state.candidateSearchObservations.length,
         candidateSearchScopeChanged: true,
         candidateSearchSucceededThisTurn: false,
@@ -264,6 +283,9 @@ export const waitForUser = (state: State) => {
       responseMessage: "",
       decisionSteps: 0,
       toolUses: emptyToolUseCounts(),
+      ragInvestigationId: null,
+      ragResearchQueryCount: 0,
+      ragInvestigationBudgetExhausted: false,
       successfulMethodologyQueries: {},
       confirmedPositionSearchObservationIndex: positionChange.changed
         ? priorCandidateSearchIndex

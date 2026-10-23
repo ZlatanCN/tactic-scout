@@ -228,6 +228,42 @@ test("conclusion schema permits only evaluated players, measured metrics, and re
   }));
 });
 
+test("methodology claims are constrained to exact result IDs from this turn", () => {
+  const method = {
+    ...playerReport,
+    id: "method-chunk-1",
+    documentId: "method-revision-1",
+    corpus: "methodology" as const,
+    evidenceRef: { documentRevisionId: "a".repeat(64), sectionId: "method-section", startOffset: 0, endOffset: 12, textHash: "b".repeat(64) },
+  };
+  const constraints = buildDecisionConstraints({
+    targetTeam: "Barcelona",
+    evaluatedPlayers: [candidate],
+    retrievedKnowledge: [playerReport, method],
+  });
+  assert.deepEqual(constraints.methodologyEvidenceIds, ["method-chunk-1"]);
+  const schema = createConstrainedConclusionSchema(constraints);
+  const parsed = schema.parse({
+    ...validFinish(),
+    methodologyClaims: [{
+      evidenceIds: ["method-chunk-1"],
+      claimType: "source_finding",
+      summary: "The method source recommends interpreting observable actions in match context.",
+      limitations: ["This is a method, not a player-specific fact."],
+    }],
+  });
+  assert.equal(parsed.action === "finish" ? parsed.methodologyClaims[0]?.evidenceIds[0] : null, "method-chunk-1");
+  assert.throws(() => schema.parse({
+    ...validFinish(),
+    methodologyClaims: [{
+      evidenceIds: ["not-retrieved"],
+      claimType: "source_finding",
+      summary: "Unretrieved claim.",
+      limitations: [],
+    }],
+  }));
+});
+
 test("a soft younger preference constrains the default five recommendations without inventing an age cutoff", () => {
   const ages = [35, 34, 33, 23, 22, 21, 20, 19];
   const constraints = {

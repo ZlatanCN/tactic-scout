@@ -255,6 +255,17 @@ export function enforceInvestigationAction(proposedAction: ParsedRecruitmentActi
 }
 
 export function investigationActionFeedback(state: State, proposedAction: ParsedRecruitmentAction, action: ParsedRecruitmentAction, decisionMode: PlanningMode, candidateSearchExhausted: boolean, retrievalNeeds = { methodology: true, playerReports: true }) {
+  if (state.evaluationKnowledgeQa) {
+    const knowledgeTools = new Set<ParsedRecruitmentAction["action"]>(["search_methodology"]);
+    return {
+      endedTooEarly: false,
+      policyFeedback: !knowledgeTools.has(action.action) && action.action !== "finish"
+        ? ["知识问答只能使用资料检索工具，不能进入候选搜索、球员评估或招募流程。"]
+        : action.action === "finish" && !state.hasSearchedMethodology
+          ? ["知识问答必须至少完成一次资料检索，再提交带原文引用的回答。"]
+          : [],
+    };
+  }
   const { intent, eligibleEvaluatedPlayers, unsearchedReportCandidates } = investigationCandidates(state);
   const hasInspectedReplacementReference = intent.replacementRequest
     && state.history.some(({ role, toolName }) => role === "tool" && toolName === "inspect_team");

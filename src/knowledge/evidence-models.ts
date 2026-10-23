@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { createChatModel, openAIPlannerMaxOutputTokens, structuredOutputMethod } from "../recruitment/chat-model.js";
+import { createChatModel, openAIPlannerMaxOutputTokens, structuredOutputMethod } from "../platform/chat-model.js";
 import type { EvidenceCandidate, EvidenceEmbedder } from "./evidence-index.js";
 
 const defaultEmbeddingModel = "onnx-community/multilingual-e5-base-ONNX";
@@ -9,9 +9,15 @@ async function createLocalExtractor(modelId: string) {
   return pipeline("feature-extraction", modelId, { dtype: "q8" });
 }
 
+async function createLocalTokenizer(modelId: string) {
+  const { AutoTokenizer } = await import("@huggingface/transformers");
+  return AutoTokenizer.from_pretrained(modelId);
+}
+
 export class LocalE5EvidenceEmbedder implements EvidenceEmbedder {
   readonly modelId: string;
   private extractorPromise: ReturnType<typeof createLocalExtractor> | undefined;
+  private tokenizerPromise: ReturnType<typeof createLocalTokenizer> | undefined;
 
   constructor(modelId = process.env.TACTISCOUT_EMBEDDING_MODEL?.trim() || defaultEmbeddingModel) {
     this.modelId = `transformers.js:q8:${modelId}`;
@@ -33,6 +39,12 @@ export class LocalE5EvidenceEmbedder implements EvidenceEmbedder {
     }
     return vectors;
   }
+
+  async countTokens(text: string, kind: "query" | "passage"): Promise<number> {
+    this.tokenizerPromise ??= createLocalTokenizer(this.modelId.replace("transformers.js:q8:", ""));
+    const tokenizer = await this.tokenizerPromise;
+    return tokenizer.encode(`${kind}: ${text}`, { add_special_tokens: true }).length;
+  }
 }
 
 export interface EvidenceRerankerResult {
@@ -43,6 +55,9 @@ export interface EvidenceRerankerResult {
 }
 
 export interface EvidenceReranker {
+  readonly kind?: "gateway" | "local";
+  readonly modelId?: string;
+  readonly revision?: string | null;
   rerank(input: { query: string; candidates: EvidenceCandidate[]; signal: AbortSignal; timeoutMs: number }): Promise<EvidenceRerankerResult>;
 }
 
@@ -65,7 +80,10 @@ function usageTokenCounts(value: unknown): { inputTokens: number | null; outputT
 }
 
 export class ConfiguredGatewayEvidenceReranker implements EvidenceReranker {
-  private constructor(private readonly apiKey: string, private readonly modelName: string) {}
+  readonly kind = "gateway" as const;
+  readonly revision = null;
+
+  private constructor(private readonly apiKey: string, readonly modelId: string) {}
 
   static fromEnvironment(): ConfiguredGatewayEvidenceReranker | undefined {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -74,13 +92,13 @@ export class ConfiguredGatewayEvidenceReranker implements EvidenceReranker {
   }
 
   async rerank(input: { query: string; candidates: EvidenceCandidate[]; signal: AbortSignal; timeoutMs: number }): Promise<EvidenceRerankerResult> {
-    const model = createChatModel(this.apiKey, this.modelName, {
+    const model = createChatModel(this.apiKey, this.modelId, {
       maxOutputTokens: Math.min(512, openAIPlannerMaxOutputTokens()),
       timeoutMs: Math.min(8_000, Math.max(1, input.timeoutMs)),
       providerRetries: false,
     }).withStructuredOutput(EvidenceRankingSchema, {
       name: "rank_evidence_candidates",
-      method: this.modelName.startsWith("codex/") ? "jsonSchema" : structuredOutputMethod(),
+      method: structuredOutputMethod(),
       includeRaw: true,
     });
     const response = await model.invoke([

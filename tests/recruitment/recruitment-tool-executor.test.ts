@@ -79,17 +79,20 @@ test("methodology search sends only its corpus request and returns typed results
 
 test("the LangGraph tool executor routes methodology actions through stable knowledge evidence references", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-tool-evidence-"));
+  let rerankerCalls = 0;
   const system = createKnowledgeEvidence({
     catalogPath: path.join(directory, "catalog.sqlite"),
     indexPath: path.join(directory, "index"),
     reranker: {
       async rerank({ candidates }) {
+        rerankerCalls += 1;
         return { orderedIds: candidates.map(({ id }) => id), inputTokens: null, outputTokens: null };
       },
     } satisfies EvidenceReranker,
     embedder: {
       modelId: "test-e5-revision-1",
       async embedMany(texts) { return texts.map(() => [1, 0]); },
+      async countTokens(text, kind) { return Array.from(`${kind}: ${text}`).length; },
     },
   });
   const source: KnowledgeEvidenceSource = {
@@ -123,20 +126,76 @@ test("the LangGraph tool executor routes methodology actions through stable know
     content: "Player roles must be interpreted alongside the match sample and the observable evidence that supports the analysis.",
     sections: [{ id: "roles", heading: "Player roles", kind: "paragraph", text: "Player roles must be interpreted alongside the match sample and the observable evidence that supports the analysis.", locator: "roles/p1" }],
   };
+  const secondSource: KnowledgeEvidenceSource = {
+    ...source,
+    id: "executor-evidence-methods-second",
+    name: "Second Executor Evidence Source",
+    allowedUrlPrefixes: ["https://evidence.executor.test/second-papers/"],
+  };
+  const secondDocument: KnowledgeEvidenceDocumentInput = {
+    ...document,
+    sourceId: secondSource.id,
+    title: "Observable movement in a match sample",
+    url: "https://evidence.executor.test/second-papers/movement",
+    content: "Observable movement should be interpreted within the match sample and the role the player performs.",
+    sections: [{ id: "movement", heading: "Observable movement", kind: "paragraph", text: "Observable movement should be interpreted within the match sample and the role the player performs.", locator: "movement/p1" }],
+  };
   try {
     await system.admin.registerSource(source);
-    await system.admin.publishDocument(document);
+    await system.admin.registerSource(secondSource);
+    await system.admin.publishDocuments([document, secondDocument]);
     const deps = dependencies({});
-    const result = await executeRecruitmentToolAction({ action: "search_methodology", query: "如何结合比赛样本理解球员职责？", limit: 2 }, {
+    const request: RecruitmentToolExecutionRequest = {
+      action: "search_methodology",
+      query: "如何结合比赛样本理解球员职责？",
+      additionalQueries: ["如何用可观察行为解释球员角色？", "球员比赛样本应怎样限定角色判断？"],
+      limit: 2,
+    };
+    const result = await executeRecruitmentToolAction(request, {
       ...deps,
       knowledgeEvidence: system,
-      knowledgeEvidenceContext: { turnId: "executor-evidence-turn-01", purpose: "recruitment", modelDestination: "configured_chat_gateway" },
+      knowledgeEvidenceContext: { turnId: "executor-evidence-turn-01", investigationId: "executor-evidence-investigation-01", rankingRound: 1, purpose: "recruitment", modelDestination: "configured_chat_gateway" },
     });
     assert.equal(result.action, "search_methodology");
     if (result.action !== "search_methodology") throw new Error("The methodology action returned another result type.");
     assert.equal(result.outcome.status, "found");
     assert.ok(result.results[0]?.evidenceRef);
     assert.equal(result.results[0]?.documentId, result.results[0]?.evidenceRef?.documentRevisionId);
+    assert.deepEqual([...new Set(result.results.map(({ sourceId }) => sourceId))].sort(), [source.id, secondSource.id].sort());
+    assert.equal(rerankerCalls, 1);
+    const repeated = await executeRecruitmentToolAction(request, {
+      ...deps,
+      knowledgeEvidence: system,
+      knowledgeEvidenceContext: { turnId: "executor-evidence-turn-01", investigationId: "executor-evidence-investigation-01", rankingRound: 1, purpose: "recruitment", modelDestination: "configured_chat_gateway" },
+    });
+    assert.equal(repeated.action, "search_methodology");
+    if (repeated.action !== "search_methodology") throw new Error("The repeated methodology action returned another result type.");
+    assert.equal(repeated.outcome.status, "found");
+    assert.deepEqual(repeated.results[0]?.evidenceRef, result.results[0]?.evidenceRef);
+    assert.equal(rerankerCalls, 1, "the ledger reuses a completed query instead of issuing a duplicate ranking call");
+
+    const followup = await executeRecruitmentToolAction({
+      action: "search_methodology",
+      query: "补查比赛样本中的可观察角色线索",
+      additionalQueries: ["补查球员职责与比赛上下文的关系"],
+      limit: 2,
+    }, {
+      ...deps,
+      knowledgeEvidence: system,
+      knowledgeEvidenceContext: {
+        turnId: "executor-evidence-turn-02",
+        investigationId: "executor-evidence-investigation-01",
+        rankingRound: 2,
+        purpose: "recruitment",
+        modelDestination: "configured_chat_gateway",
+      },
+    });
+    assert.equal(followup.action, "search_methodology");
+    if (followup.action !== "search_methodology") throw new Error("The follow-up methodology action returned another result type.");
+    assert.equal(followup.outcome.status, "found");
+    assert.equal(rerankerCalls, 2);
+    assert.equal(system.investigations?.snapshot("executor-evidence-investigation-01")?.initialQueryCount, 3);
+    assert.equal(system.investigations?.snapshot("executor-evidence-investigation-01")?.followupQueryCount, 2);
   } finally {
     await system.close();
     await rm(directory, { recursive: true, force: true });

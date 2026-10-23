@@ -19,7 +19,7 @@ import { type RecruitmentEvidenceEvaluator } from "../recruitment-evidence-evalu
 import { type RecruitmentToolExecutionRequest, executeRecruitmentToolAction } from "../recruitment-tool-executor.js";
 import { RecruitmentTurnCancelledError, throwIfTurnCancelled } from "../turn-cancellation.js";
 import { constrainSearchActionToIntent, discoveredPlayersForConstraint, evaluatedPlayersForConstraint, resolvedCandidateSearchIntent, userMessages } from "./candidate-context.js";
-import { type RecruitmentTraceObserver } from "./contracts.js";
+import { type RecruitmentEvaluationEvidenceScope, type RecruitmentTraceObserver } from "./contracts.js";
 import { type ProgressUpdate, emitCandidatePreviews, emitProgress } from "./progress.js";
 import { type State } from "./state.js";
 import { projectToolResult } from "./tool-results.js";
@@ -70,6 +70,7 @@ function mismatchedActionFields(invoked: unknown, authorized: unknown, name: Too
 
 export function createToolNode(input: {
   methodologyReuseEnabled: boolean;
+  evaluationEvidenceScope?: () => RecruitmentEvaluationEvidenceScope | null;
 }) {
   const tools = recruitmentDataToolNames().map((name) => tool(
     async (args, runtime: ToolRuntime) => {
@@ -91,6 +92,7 @@ export function createToolNode(input: {
         runtime.config as LangGraphRunnableConfig,
         context,
         input.methodologyReuseEnabled,
+        input.evaluationEvidenceScope?.() ?? null,
       );
       return new Command({
         update: {
@@ -113,6 +115,7 @@ async function executeRecruitmentStateAction(
   config: LangGraphRunnableConfig,
   context: RecruitmentRuntimeContext,
   methodologyReuseEnabled: boolean,
+  evaluationEvidenceScope: RecruitmentEvaluationEvidenceScope | null,
 ): Promise<Partial<State>> {
     const {
       repository,
@@ -125,13 +128,43 @@ async function executeRecruitmentStateAction(
       referenceNameResolver,
     } = context;
     throwIfTurnCancelled(config.signal);
-    const action = state.action;
-    if (!action || action.action === "ask_user" || action.action === "finish") {
+    const proposedAction = state.action;
+    if (!proposedAction || proposedAction.action === "ask_user" || proposedAction.action === "finish") {
       return { history: [{ role: "tool" as const, toolName: "agent", content: "无效的工具动作。" }] };
     }
+    const proposedEvidenceAction = proposedAction.action === "search_methodology" || proposedAction.action === "search_player_reports";
+    const evidencePurpose = proposedAction.action === "search_player_reports" ? "reporting" as const : "recruitment" as const;
+    const evidenceContextSeed = proposedEvidenceAction && knowledgeEvidence
+      ? knowledgeEvidenceAccessContext(config, state, evidencePurpose)
+      : null;
+    const investigationSnapshot = evidenceContextSeed?.investigationId
+      ? knowledgeEvidence?.investigations?.snapshot(evidenceContextSeed.investigationId)
+      : null;
+    const roundQueryLimit = investigationSnapshot
+      ? investigationSnapshot.round === 1
+        ? Math.max(0, 3 - investigationSnapshot.initialQueryCount)
+        : Math.max(0, 2 - investigationSnapshot.followupQueryCount)
+      : Math.max(0, (state.ragResearchQueryCount < 3 ? 3 : 5) - state.ragResearchQueryCount);
+    const action = proposedEvidenceAction
+      ? (() => {
+        const uniqueQueries = new Map<string, string>();
+        for (const query of [proposedAction.query, ...proposedAction.additionalQueries]) {
+          const clean = query.trim();
+          if (clean) uniqueQueries.set(clean.normalize("NFKC").replace(/\s+/gu, " ").toLocaleLowerCase(), clean);
+        }
+        const queries = [...uniqueQueries.values()].slice(0, Math.max(1, roundQueryLimit));
+        return { ...proposedAction, query: queries[0] ?? proposedAction.query, additionalQueries: queries.slice(1) };
+      })()
+      : proposedAction;
+    const actionRagQueryCount = action.action === "search_methodology" || action.action === "search_player_reports"
+      ? 1 + action.additionalQueries.length
+      : 0;
     const toolStartedAt = performance.now();
     const progressByTool: Record<ToolActionName, Pick<ProgressUpdate, "stage" | "message">> = {
-      search_methodology: { stage: "methodology", message: "正在检索球员角色和评估方法" },
+      search_methodology: {
+        stage: "methodology",
+        message: state.evaluationKnowledgeQa ? "正在检索可核验的资料" : "正在检索球员角色和评估方法",
+      },
       inspect_team: { stage: "team_sample", message: "正在检查目标球队在数据集中的历史样本" },
       inspect_player: { stage: "player_detail", message: "正在读取候选球员的位置记录和近期表现" },
       inspect_candidate_group: { stage: "player_detail", message: "正在并行比较候选组的位置、表现和进攻参与数据" },
@@ -169,18 +202,29 @@ async function executeRecruitmentStateAction(
       state.decisionSteps,
     );
     const eligibleEvaluatedPlayers = Object.values(evaluatedPlayersForConstraint(state));
+    const benchmarkPlayerReportScope = action.action === "search_player_reports" && evaluationEvidenceScope?.corpus === "player_report"
+      ? evaluationEvidenceScope
+      : null;
     const alreadySearchedReportNames = new Set(state.searchedReportPlayerNames.map(normalizeSearchText));
     const reportNames = action.action === "search_player_reports"
-      ? eligibleEvaluatedPlayers
-        .map(({ player }) => player.name)
-        .filter((name) => !alreadySearchedReportNames.has(normalizeSearchText(name)))
+      ? benchmarkPlayerReportScope
+        ? benchmarkPlayerReportScope.subjects.map(({ displayName }) => displayName)
+        : eligibleEvaluatedPlayers
+          .map(({ player }) => player.name)
+          .filter((name) => !alreadySearchedReportNames.has(normalizeSearchText(name)))
       : [];
     let filters: Record<string, string | number | boolean | null | string[] | string[][]> = {};
     const toolUses = { ...state.toolUses, [action.action]: state.toolUses[action.action] + 1 };
+    const rankingRound = evidenceContextSeed?.investigationId
+      ? knowledgeEvidence?.investigations?.snapshot(evidenceContextSeed.investigationId)?.round
+      : undefined;
+    const evidenceAccessContext = evidenceContextSeed
+      ? knowledgeEvidenceAccessContext(config, state, evidencePurpose, rankingRound ? { rankingRound } : {})
+      : null;
     // Only fixed methodology evidence is reusable. Candidate/roster reads and evaluator
     // cohorts may change; their existing cursor and eligibility policies remain authoritative.
     const methodologyKey = action.action === "search_methodology"
-      ? createHash("sha256").update(JSON.stringify([action.query, action.limit])).digest("hex")
+      ? createHash("sha256").update(JSON.stringify([[action.query, ...action.additionalQueries], action.limit])).digest("hex")
       : null;
     const previousResultCount = methodologyKey === null ? undefined : state.successfulMethodologyQueries[methodologyKey];
     if (methodologyReuseEnabled && previousResultCount !== undefined) {
@@ -206,7 +250,15 @@ async function executeRecruitmentStateAction(
         .map(({ name }) => name)
       : [];
     const reportPlayerContexts = action.action === "search_player_reports"
-      ? currentEvaluations
+      ? benchmarkPlayerReportScope
+        ? benchmarkPlayerReportScope.subjects.map(({ subjectId, displayName }) => ({
+          playerName: displayName,
+          team: "not specified",
+          competition: "not specified",
+          season: benchmarkPlayerReportScope.sampleSeasons[0] ?? "not specified",
+          verifiedSubjectIds: [subjectId],
+        }))
+        : currentEvaluations
         .map(({ player }) => player)
         .filter((player) => reportNames.includes(player.name))
         .slice(0, 10)
@@ -223,12 +275,18 @@ async function executeRecruitmentStateAction(
       ? state.referenceProfiles.find(profile => profile.abilitySnapshotId && profile.abilityRolePriorities) : undefined;
     const searchIntent = resolvedCandidateSearchIntent(state);
     const { scopeUnavailable: sampleScopeUnavailable, ...sampleScope } = action.action === "search_player_reports"
-      ? explicitEvidenceSampleScope(state.userMessage)
+      ? benchmarkPlayerReportScope
+        ? {
+          ...(benchmarkPlayerReportScope.sampleFrom ? { sampleFrom: benchmarkPlayerReportScope.sampleFrom } : {}),
+          ...(benchmarkPlayerReportScope.sampleTo ? { sampleTo: benchmarkPlayerReportScope.sampleTo } : {}),
+          ...(benchmarkPlayerReportScope.sampleSeasons.length ? { sampleSeasons: benchmarkPlayerReportScope.sampleSeasons } : {}),
+        }
+        : explicitEvidenceSampleScope(state.userMessage)
       : {};
     const toolRequest: RecruitmentToolExecutionRequest = action.action === "search_player_reports"
       ? {
         ...action,
-        playerNames: reportNames,
+        playerNames: benchmarkPlayerReportScope ? [] : reportNames,
         requestedPlayerCount: reportNames.length,
         ...sampleScope,
         ...(sampleScopeUnavailable ? { sampleScopeUnavailable: true } : {}),
@@ -265,11 +323,7 @@ async function executeRecruitmentStateAction(
         knowledgeBase,
         ...(knowledgeEvidence ? {
           knowledgeEvidence,
-          knowledgeEvidenceContext: knowledgeEvidenceAccessContext(
-            config,
-            state,
-            action.action === "search_player_reports" ? "reporting" : "recruitment",
-          ),
+          ...(evidenceAccessContext ? { knowledgeEvidenceContext: evidenceAccessContext } : {}),
           identityResolutionScopeId: typeof config.configurable?.thread_id === "string" ? config.configurable.thread_id : undefined,
         } : {}),
         evaluator: evidenceEvaluator,
@@ -280,7 +334,23 @@ async function executeRecruitmentStateAction(
       throwIfTurnCancelled(config.signal);
       const projected = projectToolResult(state, execution, { repository, evidenceAvailability: evidenceEvaluator.availability, groupCandidateRecords });
       filters = projected.filters;
-      observer?.({ phase: "tool", toolName: execution.action, elapsedMs: Math.round(performance.now() - toolStartedAt), ok: true, filters: projected.filters, resultCount: projected.resultCount, ...(projected.matchingRecordCount === undefined ? {} : { matchingRecordCount: projected.matchingRecordCount }) });
+      observer?.({
+        phase: "tool",
+        toolName: execution.action,
+        elapsedMs: Math.round(performance.now() - toolStartedAt),
+        ok: true,
+        filters: projected.filters,
+        resultCount: projected.resultCount,
+        ...(projected.matchingRecordCount === undefined ? {} : { matchingRecordCount: projected.matchingRecordCount }),
+        ...((execution.action === "search_methodology" || execution.action === "search_player_reports") ? {
+          rankingMode: execution.outcome.rankingMode,
+          rankingGatewayAttempts: execution.outcome.rankingGatewayAttempts ?? 0,
+          rankingInputTokens: execution.outcome.rankingInputTokens,
+          rankingOutputTokens: execution.outcome.rankingOutputTokens,
+          ragSubqueryCount: actionRagQueryCount,
+          ragRound: rankingRound ?? 1,
+        } : {}),
+      });
       completeToolProgress(projected.message);
       if (execution.action === "search_candidates" && projected.update.history?.at(-1)?.role === "tool") {
         const historyPayload = projected.update.history.at(-1)?.content;
@@ -297,6 +367,20 @@ async function executeRecruitmentStateAction(
       }
       return {
         ...projected.update,
+        ...(execution.action === "search_methodology" || execution.action === "search_player_reports" ? {
+          ragInvestigationId: knowledgeEvidence
+            ? knowledgeEvidenceAccessContext(config, state, execution.action === "search_player_reports" ? "reporting" : "recruitment").investigationId ?? state.ragInvestigationId
+            : state.ragInvestigationId,
+          ragResearchQueryCount: evidenceContextSeed?.investigationId && knowledgeEvidence?.investigations
+            ? (() => {
+              const snapshot = knowledgeEvidence.investigations!.snapshot(evidenceContextSeed.investigationId!);
+              return (snapshot?.initialQueryCount ?? 0) + (snapshot?.followupQueryCount ?? 0);
+            })()
+            : state.ragResearchQueryCount + actionRagQueryCount,
+          ragInvestigationBudgetExhausted: state.ragInvestigationBudgetExhausted
+            || execution.outcome.failureCode === "budget_exhausted"
+            || execution.outcome.failureCode === "investigation_unknown",
+        } : {}),
         ...(methodologyKey === null ? {} : { successfulMethodologyQueries: { ...state.successfulMethodologyQueries, [methodologyKey]: projected.resultCount } }),
       };
     } catch (error) {
@@ -312,6 +396,7 @@ async function executeRecruitmentStateAction(
         toolName: action.action,
         elapsedMs: Math.round(performance.now() - toolStartedAt),
         ok: false,
+        ...(actionRagQueryCount ? { ragSubqueryCount: actionRagQueryCount, ragRound: rankingRound ?? 1 } : {}),
         ...(failure.code ? { errorCode: failure.code } : {}),
         filters,
         resultCount: 0,
@@ -324,6 +409,17 @@ async function executeRecruitmentStateAction(
         ...(action.action === "inspect_team" ? { inspectedReferenceMention: normalizeSearchText(replacementTargetMention(currentUserMessages) ?? "") } : {}),
         ...(action.action === "search_methodology" ? { hasSearchedMethodology: true, methodologySearchOutcome: "unavailable" as const, methodologySearchFailed: true } : {}),
         ...(action.action === "search_player_reports" ? { hasSearchedPlayerReports: true, playerReportSearchOutcome: "unavailable" as const, playerReportSearchFailed: true } : {}),
+        ...(action.action === "search_methodology" || action.action === "search_player_reports" ? {
+          ragInvestigationId: knowledgeEvidence
+            ? knowledgeEvidenceAccessContext(config, state, action.action === "search_player_reports" ? "reporting" : "recruitment").investigationId ?? state.ragInvestigationId
+            : state.ragInvestigationId,
+          ragResearchQueryCount: evidenceContextSeed?.investigationId && knowledgeEvidence?.investigations
+            ? (() => {
+              const snapshot = knowledgeEvidence.investigations!.snapshot(evidenceContextSeed.investigationId!);
+              return (snapshot?.initialQueryCount ?? 0) + (snapshot?.followupQueryCount ?? 0);
+            })()
+            : state.ragResearchQueryCount + actionRagQueryCount,
+        } : {}),
         ...(action.action === "search_player_reports" ? { searchedReportPlayerNames: reportNames } : {}),
         ...(["fbref", "fpl", "premier_league", "asa", "understat", "mosaic"].includes(repository.mode) && (code === "blocked" || code === "rate_limit")
           ? { sourceAccessFailure: { code, message } }

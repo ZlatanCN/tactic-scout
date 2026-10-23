@@ -6,7 +6,7 @@ import {
 import { RecruitmentTurnCancelledError } from "./turn-cancellation.js";
 import { ConversationTurnResponseSchema, RecruitmentGraphCandidatesUpdateSchema, RecruitmentGraphProgressUpdateSchema, type ConversationTurnResponse, type RecruitmentGraphCandidatesUpdate, type RecruitmentGraphProgressUpdate, type RecruitmentProgress, type RecruitmentProgressEventStatus } from "../domain/conversation.js";
 import { PlayerIdentityAnswerSchema, PositionSelectionAnswerSchema, type PlayerIdentityAnswer, type PositionSelectionAnswer, type SelectablePosition, type PositionSelectionQuestion, type PlayerIdentityQuestion } from "../domain/position-contracts.js";
-import { type RecruitmentReport } from "../domain/reports.js";
+import { type KnowledgeAnswer, type RecruitmentReport } from "../domain/reports.js";
 
 export type RecruitmentTurnProgress = Pick<RecruitmentProgress, "stage" | "message" | "completedSteps"> & {
   status: RecruitmentProgressEventStatus;
@@ -33,6 +33,7 @@ export interface RecruitmentTurnState {
   pendingQuestion: { question: string; reason: string; input?: PositionSelectionQuestion | PlayerIdentityQuestion } | null;
   responseMessage: string;
   report: RecruitmentReport | null;
+  knowledgeAnswer?: KnowledgeAnswer | null;
   runtimeFailure?: import("./conversation/node-policies.js").RecruitmentRuntimeFailure | null;
 }
 
@@ -265,6 +266,7 @@ export function createRecruitmentTurnRuntime(input: {
           message: state.responseMessage || "调查已完成。",
           question: null,
           report: state.report,
+          ...(state.knowledgeAnswer ? { knowledgeAnswer: state.knowledgeAnswer } : {}),
           brief: state.brief,
           ...(state.retryMessage ? { retryMessage: state.retryMessage } : {}),
         });

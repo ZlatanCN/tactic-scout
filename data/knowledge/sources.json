@@ -96,5 +96,65 @@
     },
     "rightsVerifiedAt": "2026-10-21",
     "rightsNote": "PLOS 正文声明 CC BY 4.0；使用官方 Search API 按 DOI 核验元数据和许可，再通过 PLOS 官方 JATS XML 文章端点取得结构化原文。球员语料限于作者对 La Liga PlayeRank 结果中具名球员的原文分析段落，标成研究者历史分析观点而非职业球探观察；排除图表、参考文献及引用媒体全文。底层 Wyscout、Transfermarkt、Kaggle、FBref 与 ClubElo 数据不随文章入库或再分发。"
+  },
+  {
+    "id": "plos-passing-difficulty-2024",
+    "name": "PLOS ONE: Who are the best passing players in professional soccer?",
+    "publisher": "PLOS ONE",
+    "rightsUrl": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0304139",
+    "license": "CC BY 4.0",
+    "allowedCorpora": ["methodology"],
+    "allowedUrlPrefixes": [
+      "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0304139"
+    ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
+    "rights": {
+      "automatedFetch": true,
+      "persistentStorage": true,
+      "aiProcessing": true,
+      "display": true
+    },
+    "rightsVerifiedAt": "2026-10-22",
+    "rightsNote": "PLOS 官方文章页核验 DOI 与 CC BY 许可；PLOS 的统一许可说明允许在署名条件下复用文章正文。本项目只通过 PLOS Search API 与官方 JATS XML 取得本文正文，排除图表、参考文献和第三方素材；论文所引数据集不随文章许可入库或再分发。"
+  },
+  {
+    "id": "plos-offensive-context-2020",
+    "name": "PLOS ONE: Playing tactics, contextual variables and offensive effectiveness in EPL soccer",
+    "publisher": "PLOS ONE",
+    "rightsUrl": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0226978",
+    "license": "CC BY 4.0",
+    "allowedCorpora": ["methodology"],
+    "allowedUrlPrefixes": [
+      "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0226978"
+    ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
+    "rights": {
+      "automatedFetch": true,
+      "persistentStorage": true,
+      "aiProcessing": true,
+      "display": true
+    },
+    "rightsVerifiedAt": "2026-10-22",
+    "rightsNote": "PLOS 官方文章页核验 DOI 与 CC BY 许可；PLOS 的统一许可说明允许在署名条件下复用文章正文。本项目只通过 PLOS Search API 与官方 JATS XML 取得本文正文，排除图表、参考文献和第三方素材；论文提及的比赛事件或其他数据文件不随文章许可入库或再分发。"
+  },
+  {
+    "id": "plos-high-intensity-run-values-2024",
+    "name": "PLOS ONE: Assigning goal-probability value to high intensity runs in football",
+    "publisher": "PLOS ONE",
+    "rightsUrl": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0308749",
+    "license": "CC BY 4.0",
+    "allowedCorpora": ["methodology"],
+    "allowedUrlPrefixes": [
+      "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0308749"
+    ],
+    "allowedModelDestinations": ["local", "configured_chat_gateway"],
+    "rights": {
+      "automatedFetch": true,
+      "persistentStorage": true,
+      "aiProcessing": true,
+      "display": true
+    },
+    "rightsVerifiedAt": "2026-10-22",
+    "rightsNote": "PLOS 官方文章页核验 DOI 与 CC BY 许可；PLOS 的统一许可说明允许在署名条件下复用文章正文。本项目只通过 PLOS Search API 与官方 JATS XML 取得本文正文，排除图表、参考文献和第三方素材。Second Spectrum/MLS 底层追踪数据仍受单独限制，不随文章许可入库或再分发。"
   }
 ]

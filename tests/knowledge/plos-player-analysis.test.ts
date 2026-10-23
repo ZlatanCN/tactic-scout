@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { PlosDiscoveryProvider } from "../../src/knowledge/plos-discovery.js";
@@ -6,6 +10,24 @@ import { PlosDiscoveryProvider } from "../../src/knowledge/plos-discovery.js";
 const doi = "10.1371/journal.pone.0282295";
 
 test("PLOS import separates one licensed historical player-analysis passage from methodology and excluded material", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "tactiscout-plos-curation-"));
+  const curationPath = path.join(directory, "curation.json");
+  const playerText = "In Spain’s La Liga, PlayeRank scores placed surprisingly high (when compared to other competitions) due to the high variability in its entries resulting from the performances of Cristiano Ronaldo and Lionel Messi (widely considered the two best players in the world), alongside other players (e.g., Suarez, Griezmann and Benzema) who also had stellar seasons. This was why the La Liga’s odds ratio value for PlayeRank was the only one within the top five leagues to indicate that the higher the score, the more likely a shot is to be successful.";
+  await writeFile(curationPath, JSON.stringify({
+    schemaVersion: "knowledge-evidence-curation-v1",
+    playerAnalysisPassages: [{
+      sourceId: "plos-xg-soccer-player-analysis-2023",
+      doi,
+      paragraphTextSha256: createHash("sha256").update(playerText).digest("hex"),
+      subjects: [
+        { subjectId: "Q11571", displayName: "Cristiano Ronaldo", aliases: [] },
+        { subjectId: "Q615", displayName: "Lionel Messi", aliases: [] },
+      ],
+      competition: "La Liga",
+      season: "2017/18",
+      sampleSummary: "The authors discuss named players in the historical La Liga analysis; their individual match dates are not provided in this passage.",
+    }],
+  }));
   let requested = 0;
   const provider = new PlosDiscoveryProvider(async (input) => {
     requested += 1;
@@ -30,7 +52,7 @@ test("PLOS import separates one licensed historical player-analysis passage from
       <article>
         <front><article-meta><article-id pub-id-type="doi">${doi}</article-id></article-meta></front>
         <body><sec><title>Results</title>
-          <p>In Spain’s La Liga, PlayeRank scores placed surprisingly high (when compared to other competitions) due to the high variability in its entries resulting from the performances of Cristiano Ronaldo and Lionel Messi (widely considered the two best players in the world), alongside other players (e.g., Suarez, Griezmann and Benzema) who also had stellar seasons. This was why the La Liga’s odds ratio value for PlayeRank was the only one within the top five leagues to indicate that the higher the score, the more likely a shot is to be successful.</p>
+          <p id="curated-player-analysis">${playerText}</p>
           <p>The transfer value was obtained from Transfermarkt and compared against Wyscout records.</p>
           <table-wrap><table><tr><td>THIRD-PARTY MATCH VALUES</td></tr></table></table-wrap>
           <ref-list><ref>REFERENCE-ONLY MEDIA ARTICLE</ref></ref-list>
@@ -41,23 +63,29 @@ test("PLOS import separates one licensed historical player-analysis passage from
 
   const documents = await provider.fetchRegisteredEvidenceDocuments(doi, {
     registryPath: fileURLToPath(new URL("../../data/knowledge/sources.json", import.meta.url)),
+    curationPath,
   });
 
-  assert.equal(requested, 2);
-  assert.equal(documents.length, 2);
-  const playerAnalysis = documents.find(({ corpus }) => corpus === "player_report");
-  const methods = documents.find(({ corpus }) => corpus === "methodology");
-  assert.deepEqual(playerAnalysis?.entityIds, ["Q11571", "Q615"]);
-  assert.equal(playerAnalysis?.evidenceType, "historical_player_analysis");
-  assert.deepEqual(playerAnalysis?.entityNames, ["Cristiano Ronaldo", "Lionel Messi"]);
-  assert.match(playerAnalysis?.content ?? "", /Spain’s La Liga, PlayeRank scores/);
-  assert.equal(playerAnalysis?.competition, "La Liga");
-  assert.equal(playerAnalysis?.season, "2017/18", "the article identifies its analysis dataset season");
-  assert.match(playerAnalysis?.sampleSummary ?? "", /does not identify each player's specific match dates/i);
-  assert.doesNotMatch(playerAnalysis?.content ?? "", /Transfermarkt|THIRD-PARTY|REFERENCE-ONLY/);
-  assert.doesNotMatch(methods?.content ?? "", /PlayeRank scores placed surprisingly high/);
-  assert.match(playerAnalysis?.attribution ?? "", /CC BY 4\.0/);
-  assert.match(playerAnalysis?.attribution ?? "", /Data Provided by PLOS/);
+  try {
+    assert.equal(requested, 2);
+    assert.equal(documents.length, 2);
+    const playerAnalysis = documents.find(({ corpus }) => corpus === "player_report");
+    const methods = documents.find(({ corpus }) => corpus === "methodology");
+    assert.deepEqual(playerAnalysis?.entityIds, ["Q11571", "Q615"]);
+    assert.equal(playerAnalysis?.evidenceType, "historical_player_analysis");
+    assert.deepEqual(playerAnalysis?.entityNames, ["Cristiano Ronaldo", "Lionel Messi"]);
+    assert.match(playerAnalysis?.content ?? "", /Spain’s La Liga, PlayeRank scores/);
+    assert.equal(playerAnalysis?.competition, "La Liga");
+    assert.equal(playerAnalysis?.season, "2017/18");
+    assert.match(playerAnalysis?.sampleSummary ?? "", /individual match dates are not provided/i);
+    assert.doesNotMatch(playerAnalysis?.content ?? "", /Transfermarkt|THIRD-PARTY|REFERENCE-ONLY/);
+    assert.doesNotMatch(methods?.content ?? "", /PlayeRank scores placed surprisingly high/);
+    assert.match(playerAnalysis?.attribution ?? "", /CC BY 4\.0/);
+    assert.match(playerAnalysis?.attribution ?? "", /Data Provided by PLOS/);
+    assert.match(playerAnalysis?.sections?.[0]?.locator ?? "", /curated-player-analysis/u);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("the PLOS player-evidence adapter refuses an unregistered DOI before contacting the source", async () => {

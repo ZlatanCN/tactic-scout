@@ -65,7 +65,7 @@ test("the full graph safely pauses on unresolved role ambiguity when the ask pol
     && event.askPolicyOutcome === "suppressed"));
 });
 
-test("the full graph runs the frozen single-page investigation before shared conclusion synthesis", async () => {
+test("the evaluation-only frozen single-page planner searches the verbatim question before conclusion synthesis", async () => {
   const events: RecruitmentTraceEvent[] = [];
   const methodologyQueries: string[] = [];
   const conclusionInputs: Array<Parameters<RecruitmentPlanner["decide"]>[0]> = [];
@@ -111,7 +111,7 @@ test("the full graph runs the frozen single-page investigation before shared con
     "search_player_reports",
   ]);
   assert.equal(methodologyQueries.length, 1);
-  assert.doesNotMatch(methodologyQueries[0]!, /拜仁|凯恩|Jonas Vale/);
+  assert.equal(methodologyQueries[0], "为拜仁寻找凯恩的中锋接班人，重点看进球产出。");
   const candidateSearches = events.filter((event) => event.phase === "tool" && event.toolName === "search_candidates");
   assert.equal(candidateSearches.length, 1, "the graph waits for a concrete position rather than sampling mixed roles first");
   assert.equal(candidateSearches[0]?.phase === "tool" ? candidateSearches[0].filters.position : null, "ST");

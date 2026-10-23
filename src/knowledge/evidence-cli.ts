@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { KnowledgeEvidenceDocumentInputSchema, KnowledgeEvidenceSourceSchema, type KnowledgeEvidenceDocumentInput } from "./evidence-schemas.js";
+import type { KnowledgeEvidenceMarkdownInput } from "./markdown-evidence.js";
 import { createKnowledgeEvidence } from "./evidence.js";
 import { starterKnowledgeDocuments } from "./seed.js";
 import { PlosDiscoveryProvider } from "./plos-discovery.js";
@@ -29,7 +31,9 @@ const usage = `用法：
   pnpm knowledge:evidence -- seed-methodology
   pnpm knowledge:evidence -- preview-plos <DOI>
   pnpm knowledge:evidence -- crawl-plos <DOI>
+  pnpm knowledge:evidence -- crawl-plos-batch <DOI> [<DOI> ...]
   pnpm knowledge:evidence -- ingest <document.json>
+  pnpm knowledge:evidence -- ingest-markdown <metadata.json> <document.md>
   pnpm knowledge:evidence -- source-history <source-id>
   pnpm knowledge:evidence -- revoke-source <source-id> [--erase]
 
@@ -69,10 +73,28 @@ try {
       for (const document of documents) published.push(await system.admin.publishDocument(document));
       console.log(JSON.stringify({ published }, null, 2));
     }
+  } else if (command === "crawl-plos-batch" && argumentsList.length > 0) {
+    if (argumentsList.length > 20) throw new Error("一次批量抓取最多处理 20 个 DOI。");
+    const provider = new PlosDiscoveryProvider();
+    const documents: KnowledgeEvidenceDocumentInput[] = [];
+    for (const doi of argumentsList) documents.push(...await provider.fetchRegisteredEvidenceDocuments(doi));
+    const published = await system.admin.publishDocuments(documents);
+    console.log(JSON.stringify({ requestedDoiCount: argumentsList.length, documentCount: documents.length, published }, null, 2));
   } else if (command === "ingest" && argumentsList[0]) {
     const filename = path.resolve(argumentsList[0]!);
-    const document = KnowledgeEvidenceDocumentInputSchema.parse(JSON.parse(await readFile(filename, "utf8")) as unknown);
+    const raw = await readFile(filename, "utf8");
+    const document = KnowledgeEvidenceDocumentInputSchema.parse({
+      ...JSON.parse(raw) as Record<string, unknown>,
+      normalizationVersion: "json-sections-v1",
+      sourcePayloadSha256: createHash("sha256").update(raw).digest("hex"),
+    });
     console.log(JSON.stringify(await system.admin.publishDocument(document), null, 2));
+  } else if (command === "ingest-markdown" && argumentsList[0] && argumentsList[1]) {
+    const metadataPath = path.resolve(argumentsList[0]!);
+    const markdownPath = path.resolve(argumentsList[1]!);
+    const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as KnowledgeEvidenceMarkdownInput["metadata"];
+    const markdown = await readFile(markdownPath, "utf8");
+    console.log(JSON.stringify(await system.admin.publishMarkdownDocument({ metadata, markdown }), null, 2));
   } else if (command === "revoke-source" && argumentsList[0]) {
     await system.admin.revokeSource(argumentsList[0]!, { eraseStoredContent: argumentsList.includes("--erase") });
     console.log(JSON.stringify({ revokedSourceId: argumentsList[0], erasedStoredContent: argumentsList.includes("--erase") }, null, 2));

@@ -11,7 +11,7 @@ test("context health reports the active window and compaction policy without mod
   const keys = ["OPENAI_API_KEY", "OPENAI_MODEL", "TACTISCOUT_CONTEXT_WINDOW_TOKENS", "TACTISCOUT_CONTEXT_COMPACTION_RATIO", "TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS", "OPENAI_MAX_OUTPUT_TOKENS"] as const;
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   process.env.OPENAI_API_KEY = "never-return-this-value";
-  process.env.OPENAI_MODEL = "codex/gpt-6-luna";
+  process.env.OPENAI_MODEL = "group/free";
   process.env.TACTISCOUT_CONTEXT_WINDOW_TOKENS = "258000";
   process.env.TACTISCOUT_CONTEXT_COMPACTION_RATIO = "0.9";
   process.env.TACTISCOUT_CONTEXT_SAFETY_MARGIN_TOKENS = "1024";
@@ -22,7 +22,7 @@ test("context health reports the active window and compaction policy without mod
     const response = await app.inject({ method: "GET", url: "/health/context" });
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json(), {
-      configuredModel: "codex/gpt-6-luna",
+      configuredModel: "group/free",
       configuredContextWindowTokens: 258000,
       compactionRatio: 0.9,
       defaultOutputBudgetTokens: 8192,

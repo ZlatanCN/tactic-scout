@@ -30,6 +30,7 @@ export function knowledgeSearchResultFromEvidence(item: KnowledgeEvidenceItem): 
     observedFrom: item.source.observedFrom,
     observedTo: item.source.observedTo,
     evidenceType: item.source.sourceType,
+    sectionPath: item.source.sectionPath,
     rankMode: item.rankMode,
     displayAllowed: item.source.displayAllowed,
   });

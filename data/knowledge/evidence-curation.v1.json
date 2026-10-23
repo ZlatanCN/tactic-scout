@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "knowledge-evidence-curation-v1",
+  "playerAnalysisPassages": [
+    {
+      "sourceId": "plos-xg-soccer-player-analysis-2023",
+      "doi": "10.1371/journal.pone.0282295",
+      "paragraphTextSha256": "a19200a8a1b4ae4d311d1e307ea75e9ad1140a27ebfc3dde0027b1b268f954f0",
+      "subjects": [
+        { "subjectId": "Q11571", "displayName": "Cristiano Ronaldo", "aliases": [] },
+        { "subjectId": "Q615", "displayName": "Lionel Messi", "aliases": [] }
+      ],
+      "competition": "La Liga",
+      "season": "2017/18",
+      "sampleSummary": "Authors discuss the role of Cristiano Ronaldo and Lionel Messi in La Liga PlayeRank results. The paper describes its underlying top-five-league event sample as the 2017/18 season, but does not identify each player's specific match dates in this passage."
+    }
+  ]
+}

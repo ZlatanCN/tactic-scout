@@ -22,3 +22,11 @@ Updated: 2026-10-22
 - 区分只排序与拒绝低相关证据，logit 或 sigmoid 不自动等于已校准置信度。
 - 测量预热后耗时、首次加载、峰值内存、问题族质量、同语/跨语言效果和预算耗尽；不预先承诺比聊天模型快或好。
 - 本地原生推理可能在调用方返回后继续执行；需要丢弃迟到结果，不声称截止时间能立即停止底层计算。
+
+## v2 实现候选
+
+实现了一个可注入的 Transformers.js/ONNX 配对分类器，默认指向 [onnx-community/bge-reranker-v2-m3-ONNX](https://huggingface.co/onnx-community/bge-reranker-v2-m3-ONNX/tree/6f5ff65298512715a1e669753bc754d2bc8f367b)，revision 固定为 6f5ff65298512715a1e669753bc754d2bc8f367b，本地使用 q8。[上游 BAAI 模型卡](https://huggingface.co/BAAI/bge-reranker-v2-m3)声明 Apache-2.0，并标注该模型为多语言 cross-encoder。仓库提供 Transformers.js ONNX 分发与分类 pipeline 示例；实现实际使用 tokenizer 的 query/text_pair 输入，直接按原始 logits 排序。
+
+适配器在任何推理前统计完整配对输入，超过 512 tokens 直接拒绝；本地推理返回后若 AbortSignal 已触发则抛弃排序。生产默认策略没有改变，只有 eval:rag-v2 的 compare 模式显式载入候选。
+
+目前没有下载这组新模型权重，也没有测得它在本项目题包上的准确率、启动时间或峰值内存。因此任何默认排序选择都必须等同题包对照结果完成后再作决定。

@@ -8,6 +8,7 @@ import type { StoredEvidenceDocument } from "./evidence-catalog.js";
 export interface EvidenceEmbedder {
   readonly modelId: string;
   embedMany(texts: string[], kind: "query" | "passage"): Promise<number[][]>;
+  countTokens(text: string, kind: "query" | "passage"): Promise<number>;
 }
 
 interface EvidenceIndexRow {
@@ -19,6 +20,8 @@ interface EvidenceIndexRow {
   sourceId: string;
   corpus: string;
   retrievalText: string;
+  embeddingText: string;
+  embeddingTokens: number;
   evidenceText: string;
   vector: number[];
 }
@@ -29,43 +32,85 @@ export interface EvidenceCandidate extends EvidenceIndexRow {
 
 const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
-function splitSection(text: string): Array<{ startOffset: number; endOffset: number; text: string }> {
-  const chunks: Array<{ startOffset: number; endOffset: number; text: string }> = [];
-  const target = 1_050;
+function safeBoundary(text: string, index: number): number {
+  if (index > 0 && index < text.length) {
+    const previous = text.charCodeAt(index - 1);
+    const next = text.charCodeAt(index);
+    if (previous >= 0xd800 && previous <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) return index - 1;
+  }
+  return index;
+}
+
+function sentenceBoundary(text: string, start: number, end: number): number | null {
+  const floor = start + Math.floor((end - start) * 0.55);
+  const candidates = [
+    text.lastIndexOf(". ", end), text.lastIndexOf("! ", end), text.lastIndexOf("? ", end),
+    text.lastIndexOf("。", end), text.lastIndexOf("！", end), text.lastIndexOf("？", end),
+    text.lastIndexOf("\n", end),
+  ].filter((index) => index >= floor);
+  return candidates.length ? safeBoundary(text, Math.max(...candidates) + 1) : null;
+}
+
+async function splitSection(text: string, prefix: string, embedder: EvidenceEmbedder): Promise<Array<{ startOffset: number; endOffset: number; text: string; embeddingTokens: number }>> {
+  const chunks: Array<{ startOffset: number; endOffset: number; text: string; embeddingTokens: number }> = [];
+  const maximumCharsPerProbe = 2_400;
+  const hardTokenLimit = 512;
+  const preferredTokenLimit = 448;
   let start = 0;
   while (start < text.length) {
-    let end = Math.min(start + target, text.length);
-    if (end < text.length) {
-      const searchStart = start + Math.floor(target * 0.55);
-      const candidates = [
-        text.lastIndexOf(". ", end), text.lastIndexOf("! ", end), text.lastIndexOf("? ", end),
-        text.lastIndexOf("。", end), text.lastIndexOf("！", end), text.lastIndexOf("？", end),
-        text.lastIndexOf("\n", end),
-      ].filter((index) => index >= searchStart);
-      if (candidates.length) end = Math.max(...candidates) + 1;
+    let low = start + 1;
+    let high = Math.min(text.length, start + maximumCharsPerProbe);
+    let best = start;
+    while (low <= high) {
+      const middle = safeBoundary(text, Math.floor((low + high) / 2));
+      if (middle <= start) { low = start + 1; continue; }
+      const candidate = `${prefix}\n${text.slice(start, middle)}`;
+      const tokenCount = await embedder.countTokens(candidate, "passage");
+      if (tokenCount <= preferredTokenLimit) {
+        best = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
     }
+
+    if (best === start) {
+      const next = safeBoundary(text, start + 1);
+      const tokenCount = await embedder.countTokens(`${prefix}\n${text.slice(start, next)}`, "passage");
+      if (tokenCount > hardTokenLimit) throw new Error("JATS/Markdown 元数据前缀或单个字符已超过 E5 的 512-token 窗口；未发布索引。");
+      best = next;
+    }
+
+    const boundary = best < text.length ? sentenceBoundary(text, start, best) : null;
     let exactStart = start;
-    let exactEnd = end;
+    let exactEnd = boundary ?? best;
     while (exactStart < exactEnd && /\s/u.test(text[exactStart]!)) exactStart += 1;
     while (exactEnd > exactStart && /\s/u.test(text[exactEnd - 1]!)) exactEnd -= 1;
-    if (exactEnd > exactStart) chunks.push({ startOffset: exactStart, endOffset: exactEnd, text: text.slice(exactStart, exactEnd) });
-    if (end >= text.length) break;
-    start = end;
+    if (exactEnd <= exactStart) throw new Error("结构化片段无法切成非空 E5 输入；未发布索引。");
+    const chunkText = text.slice(exactStart, exactEnd);
+    const embeddingTokens = await embedder.countTokens(`${prefix}\n${chunkText}`, "passage");
+    if (embeddingTokens > hardTokenLimit) throw new Error(`切块输入 ${embeddingTokens} tokens 超过 E5 的 ${hardTokenLimit}-token 窗口；未发布索引。`);
+    chunks.push({ startOffset: exactStart, endOffset: exactEnd, text: chunkText, embeddingTokens });
+    if (exactEnd >= text.length) break;
+
+    // Overlap only when a long sentence had to be cut without a natural boundary.
+    start = boundary === null ? Math.max(start + 1, exactEnd - 32) : exactEnd;
   }
   return chunks;
 }
 
-function retrievalPrefix(document: StoredEvidenceDocument, section: StoredEvidenceDocument["sections"][number]): string {
-  const fields = [
+function retrievalPrefixes(document: StoredEvidenceDocument, section: StoredEvidenceDocument["sections"][number]): { lexical: string; embedding: string } {
+  const coreFields = [
     document.title,
     section.heading,
     document.entityNames.join(", "),
     document.competition,
     document.season,
     document.observedFrom && document.observedTo ? `${document.observedFrom}–${document.observedTo}` : null,
-    document.sampleSummary,
   ].filter((value): value is string => Boolean(value?.trim()));
-  return fields.join(" | ");
+  const embedding = coreFields.join(" | ");
+  const lexical = [...coreFields, document.sampleSummary].filter((value): value is string => Boolean(value?.trim())).join(" | ");
+  return { lexical, embedding };
 }
 
 export async function createEvidenceGeneration(input: {
@@ -81,9 +126,10 @@ export async function createEvidenceGeneration(input: {
   const pendingRows: Array<Omit<EvidenceIndexRow, "vector">> = [];
   for (const document of input.documents) {
     for (const section of document.sections) {
-      const prefix = retrievalPrefix(document, section);
-      for (const chunk of splitSection(section.text)) {
-        const retrievalText = `${prefix}\n${chunk.text}`;
+      const prefixes = retrievalPrefixes(document, section);
+      for (const chunk of await splitSection(section.text, prefixes.embedding, input.embedder)) {
+        const retrievalText = `${prefixes.lexical}\n${chunk.text}`;
+        const embeddingText = `${prefixes.embedding}\n${chunk.text}`;
         const id = createHash("sha256")
           .update(`${document.revisionId}\n${section.id}\n${chunk.startOffset}\n${chunk.endOffset}\n${chunk.text}`)
           .digest("hex");
@@ -96,9 +142,11 @@ export async function createEvidenceGeneration(input: {
           sourceId: document.sourceId,
           corpus: document.corpus,
           retrievalText,
+          embeddingText,
+          embeddingTokens: chunk.embeddingTokens,
           evidenceText: chunk.text,
         });
-        embeddedTexts.push(retrievalText);
+        embeddedTexts.push(embeddingText);
       }
     }
   }
@@ -127,17 +175,28 @@ export class EvidenceIndexReader {
   async search(input: {
     request: EvidenceRetrievalRequest;
     revisionIds: readonly string[];
-    queryVector: number[];
+    queryVector?: number[];
+    mode?: "hybrid" | "full_text" | "dense_vector";
     corpus: "methodology" | "player_report";
     candidateLimit?: number;
   }): Promise<EvidenceCandidate[]> {
     if (!input.revisionIds.length) return [];
+    const mode = input.mode ?? "hybrid";
+    if (mode !== "full_text" && !input.queryVector) throw new Error("Dense retrieval requires a query vector.");
     const table = await this.table();
     const where = `corpus = ${quote(input.corpus)} AND revisionId IN (${input.revisionIds.map(quote).join(",")})`;
     const [vectorRows, lexicalRows] = await Promise.all([
-      table.query().nearestTo(input.queryVector).where(where).limit(30).toArray() as Promise<EvidenceIndexRow[]>,
-      table.search(input.request.query, "fts", ["retrievalText"]).where(where).limit(30).toArray() as Promise<EvidenceIndexRow[]>,
+      mode === "full_text"
+        ? Promise.resolve([] as EvidenceIndexRow[])
+        : table.query().nearestTo(input.queryVector!).where(where).limit(30).toArray() as Promise<EvidenceIndexRow[]>,
+      mode === "dense_vector"
+        ? Promise.resolve([] as EvidenceIndexRow[])
+        : table.search(input.request.query, "fts", ["retrievalText"]).where(where).limit(30).toArray() as Promise<EvidenceIndexRow[]>,
     ]);
+    if (mode !== "hybrid") {
+      const rows = mode === "dense_vector" ? vectorRows : lexicalRows;
+      return rows.slice(0, input.candidateLimit ?? 12).map((row, index) => ({ ...row, fusedScore: 1 / (61 + index) }));
+    }
     const scores = new Map<string, number>();
     for (const rows of [vectorRows, lexicalRows]) {
       const unique = new Set<string>();
