@@ -13,23 +13,41 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import {
   createAssistantNode,
-  createReferenceClarificationNode,
-  createReferenceMentionExtractor,
-  createReferenceResolutionNode,
-  createUnresolvedReferenceNode,
+  createEntityResolutionNode,
+  createIdentityClarificationNode,
+  createRequestBoundaryNode,
+  createRequestUnderstandingExtractor,
+  createRequestUnderstandingNode,
+  createUnresolvedRequestNode,
 } from "./utils/nodes.js";
-import type { ReferenceMentionExtractor } from "./utils/nodes.js";
-import { AgentState } from "./utils/state.js";
+import type { RequestUnderstandingExtractor } from "./utils/nodes.js";
+import { AgentState, createInitialRequestState } from "./utils/state.js";
+import type { RequestState } from "./utils/state.js";
 import { createTools, resolvePlayerReference } from "./utils/tools.js";
 import type { ReferenceIdentityLookup } from "./utils/tools.js";
 
 type CreateAgentOptions = {
   model?: BaseChatModel;
   tools?: StructuredToolInterface[];
-  referenceMentionExtractor?: ReferenceMentionExtractor;
-  referenceIdentityLookup?: ReferenceIdentityLookup;
+  requestUnderstandingExtractor?: RequestUnderstandingExtractor;
+  playerIdentityLookup?: ReferenceIdentityLookup;
   checkpointer?: BaseCheckpointSaver;
   store?: BaseStore;
+};
+
+const routeRequest = (request: RequestState) => {
+  if (request.status === "needs_confirmation") return "confirm_identity";
+  if (request.status === "clarification_exhausted") return "identity_unresolved";
+  if (
+    request.kind === "player_lookup" &&
+    request.players.length === 0
+  ) return "request_boundary";
+  if (
+    request.kind === "player_comparison" ||
+    request.kind === "player_recommendation" ||
+    request.kind === "team_recommendation"
+  ) return "request_boundary";
+  return "assistant";
 };
 
 const configuredModel = (): ChatOpenAI => {
@@ -52,34 +70,34 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const model = options.model ?? configuredModel();
   const modelWithTools = model.bindTools?.(tools);
   if (!modelWithTools) throw new Error("配置的聊天模型不支持工具调用。");
-  const resolveReference = createReferenceResolutionNode(
-    options.referenceMentionExtractor ?? createReferenceMentionExtractor(model),
-    options.referenceIdentityLookup ?? resolvePlayerReference,
+  const understandRequest = createRequestUnderstandingNode(
+    options.requestUnderstandingExtractor ?? createRequestUnderstandingExtractor(model),
+  );
+  const resolveEntities = createEntityResolutionNode(
+    options.playerIdentityLookup ?? resolvePlayerReference,
   );
 
   const graph = new StateGraph(AgentState)
-    .addNode("resolve_reference", resolveReference)
-    .addNode("confirm_reference", createReferenceClarificationNode())
-    .addNode("identity_unresolved", createUnresolvedReferenceNode())
+    .addNode("understand_request", understandRequest)
+    .addNode("resolve_entities", resolveEntities)
+    .addNode("confirm_identity", createIdentityClarificationNode())
+    .addNode("identity_unresolved", createUnresolvedRequestNode())
+    .addNode("request_boundary", createRequestBoundaryNode())
     .addNode(
       "assistant",
       createAssistantNode(modelWithTools),
     )
     .addNode("tools", new ToolNode(tools))
-    .addEdge(START, "resolve_reference")
+    .addEdge(START, "understand_request")
+    .addEdge("understand_request", "resolve_entities")
     .addConditionalEdges(
-      "resolve_reference",
-      (state) => state.referenceResolution.status === "needs_confirmation"
-        || state.referenceResolution.status === "not_found"
-        || state.referenceResolution.status === "registry_unavailable"
-        ? "confirm_reference"
-        : state.referenceResolution.status === "clarification_exhausted"
-          ? "identity_unresolved"
-          : "assistant",
-      ["confirm_reference", "identity_unresolved", "assistant"],
+      "resolve_entities",
+      (state) => routeRequest(state.request ?? createInitialRequestState()),
+      ["confirm_identity", "identity_unresolved", "request_boundary", "assistant"],
     )
-    .addEdge("confirm_reference", "resolve_reference")
+    .addEdge("confirm_identity", "resolve_entities")
     .addEdge("identity_unresolved", END)
+    .addEdge("request_boundary", END)
     .addConditionalEdges("assistant", toolsCondition)
     .addEdge("tools", "assistant");
 

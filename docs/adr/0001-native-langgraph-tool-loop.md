@@ -2,6 +2,8 @@
 
 Status: accepted
 
+The identity-specific routing described here is superseded by ADR-0002. The single assistant/ToolNode loop and in-memory checkpoint decisions remain in effect.
+
 ## Decision
 
 Build the first agent as one explicit LangGraph `StateGraph` with an assistant node and LangGraph `ToolNode`. `toolsCondition` routes model tool calls to the tool node and returns tool results to the assistant node.

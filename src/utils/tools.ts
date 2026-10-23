@@ -46,12 +46,23 @@ type ReepRecordResolution = {
   status: "resolved" | "unresolved" | "ambiguous";
   canonicalIdentityId: string | null;
 };
+type SearchRecordReference = {
+  provider: CandidateSourceRecord["provider"];
+  identitySourceId: string;
+  recordId: string;
+  name: string;
+};
+type SearchIdentityGroup = {
+  canonicalIdentityId: string;
+  name: string;
+  records: SearchRecordReference[];
+};
 
 const createTools = (search: PlayerSearch = searchPlayerRecords) => [
   tool(search, {
     name: "search_player_records",
     description:
-      "按姓名查找本地 Understat 赛季表现记录和/或 Football Manager 能力画像。两个来源独立返回，同名不代表身份已确认。",
+      "按姓名查找本地 Understat 赛季表现记录和/或 Football Manager 能力画像。identityGroups 只合并身份注册表通过 canonical Reep ID 确认关联的来源记录；unlinkedRecords 不可按姓名合并。",
     schema: searchInputSchema,
   }),
 ];
@@ -62,17 +73,115 @@ const searchPlayerRecords: PlayerSearch = async (input) => {
     return JSON.stringify({ query: input.playerName, result: "empty_query" });
 
   assertModelProcessingAllowed(input.source);
-  const result: Record<string, unknown> = { query: input.playerName };
+  const sourceResults: Record<string, unknown> = {};
+  let understatResult: ReturnType<typeof readUnderstat> | null = null;
+  let fmResult: ReturnType<typeof readFmProfiles> | null = null;
 
   if (input.source === "understat" || input.source === "both") {
-    result.understat = readUnderstat(input, normalizedName);
+    understatResult = readUnderstat(input, normalizedName);
+    sourceResults.understat = understatResult;
   }
   if (input.source === "fm" || input.source === "both") {
-    result.fm = readFmProfiles(input, normalizedName);
+    fmResult = readFmProfiles(input, normalizedName);
+    sourceResults.fm = fmResult;
   }
 
-  result.identityNote = "不同来源的同名记录没有在本工具中进行身份合并。";
-  return JSON.stringify(result);
+  return JSON.stringify({
+    query: input.playerName,
+    ...sourceResults,
+    identityGroups: resolveSearchIdentityGroups(understatResult, fmResult),
+  });
+};
+
+const resolveSearchIdentityGroups = (
+  understatResult: ReturnType<typeof readUnderstat> | null,
+  fmResult: ReturnType<typeof readFmProfiles> | null,
+) => {
+  const records = [
+    ...searchRecordReferences("understat", understatResult),
+    ...searchRecordReferences("fm", fmResult),
+  ];
+  if (!records.length) {
+    return {
+      registryStatus: "not_needed",
+      canonicalGroups: [] as SearchIdentityGroup[],
+      unlinkedRecords: [] as Array<SearchRecordReference & { reason: string }>,
+    };
+  }
+
+  const registryPath = resolveDataPath(
+    process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH,
+    ".data/reep/identity-with-fm.sqlite",
+  );
+  const registry = openIdentityRegistry(registryPath);
+  if (!registry) {
+    return {
+      registryStatus: "unavailable",
+      canonicalGroups: [] as SearchIdentityGroup[],
+      unlinkedRecords: records.map((record) => ({
+        ...record,
+        reason: "registry_unavailable",
+      })),
+    };
+  }
+
+  try {
+    const groups = new Map<string, SearchIdentityGroup>();
+    const unlinkedRecords: Array<SearchRecordReference & { reason: string }> = [];
+    for (const record of records) {
+      const identity = resolveReepRecord(
+        registry,
+        record.provider,
+        record.identitySourceId,
+      );
+      if (identity.status !== "resolved" || !identity.canonicalIdentityId) {
+        unlinkedRecords.push({ ...record, reason: identity.status });
+        continue;
+      }
+
+      const group = groups.get(identity.canonicalIdentityId);
+      if (group) {
+        if (!group.records.some((item) =>
+          item.provider === record.provider && item.recordId === record.recordId
+        )) group.records.push(record);
+      } else {
+        groups.set(identity.canonicalIdentityId, {
+          canonicalIdentityId: identity.canonicalIdentityId,
+          name: record.name,
+          records: [record],
+        });
+      }
+    }
+    return {
+      registryStatus: "available",
+      canonicalGroups: [...groups.values()],
+      unlinkedRecords,
+    };
+  } finally {
+    registry.close();
+  }
+};
+
+const searchRecordReferences = (
+  provider: CandidateSourceRecord["provider"],
+  result: ReturnType<typeof readUnderstat> | ReturnType<typeof readFmProfiles> | null,
+): SearchRecordReference[] => {
+  if (!result || !("records" in result) || !Array.isArray(result.records)) return [];
+  return result.records.flatMap((record) => {
+    if (!record || typeof record !== "object") return [];
+    const item = record as Record<string, unknown>;
+    const identitySourceId = provider === "understat"
+      ? item.sourcePlayerId
+      : item.identitySourceId;
+    const recordId = provider === "understat"
+      ? item.sourcePlayerId
+      : item.sourceRecordId;
+    const name = item.player;
+    return typeof identitySourceId === "string" && identitySourceId &&
+      typeof recordId === "string" && recordId
+      ? [{ provider, identitySourceId, recordId, name: typeof name === "string" ? name : "" }]
+      : [];
+  });
 };
 
 const resolvePlayerReference = async (
@@ -552,6 +661,7 @@ const readFmProfiles = (input: PlayerSearchInput, normalizedName: string) => {
       return {
         source: "Football Manager",
         sourceRecordId: record_id,
+        identitySourceId: String(profile.unique_id || record_id),
         player: String(
           profile.common_name || profile.full_name || profile.name || "",
         ),
