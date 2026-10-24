@@ -2,429 +2,569 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
 import { Command } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
-import type { PlayerSearchInput } from "../src/utils/tools.js";
-import type { ReferenceCandidate } from "../src/utils/state.js";
+
+import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
+import type { PlayerSearch } from "../src/player-data/search-records.js";
+import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
+import type { ReferenceCandidate } from "../src/state.js";
+import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
+
 vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
+
 vi.stubEnv("OPENAI_BASE_URL", "");
 
 const { createAgent } = await import("../src/agent.js");
-const { createTools } = await import("../src/utils/tools.js");
+const { createTools } = await import("../src/tools/search-player-records.js");
+
+type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
+
+const createTestExtractor =
+  (
+    extract: (message: string) => ExtractedRequest
+  ): RequestUnderstandingExtractor =>
+  async (message) =>
+    await Promise.resolve(extract(message));
 
 describe("LangGraph model-tool loop", () => {
   it("runs a tool call, returns its result to the model, and resumes thread messages in memory", async () => {
     const candidate: ReferenceCandidate = {
       candidateId: "fixture:sample-striker",
-      name: "Sample Striker",
       canonicalIdentityId: "fixture-sample-striker",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Sample Striker",
       records: [],
     };
-    const search = vi.fn(async (input: PlayerSearchInput) => JSON.stringify({
-      source: "fixture",
-      player: input.playerName,
-      season: "2025/26",
-    }));
+
+    const search = vi.fn<PlayerSearch>((input: PlayerSearchInput) =>
+      JSON.stringify({
+        player: input.playerName,
+        season: "2025/26",
+        source: "fixture",
+      })
+    );
+
     const model = fakeModel()
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Sample Striker" },
-      }])
+      .respondWithTools([
+        {
+          args: { playerName: "Sample Striker" },
+          name: "search_player_records",
+        },
+      ])
       .respond(new AIMessage("Sample Striker has a 2025/26 fixture record."))
       .respond(new AIMessage("The record is from 2025/26."));
+
     const graph = createAgent({
       model,
-      tools: createTools(search),
-      playerIdentityLookup: async (mention) => ({
-        status: "resolved",
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 1,
+        candidates: [candidate],
+        candidatesTruncated: false,
+        canonicalIdentityId: candidate.canonicalIdentityId,
+        clarificationMessage: null,
         mention,
         selectedCandidateId: candidate.candidateId,
-        canonicalIdentityId: candidate.canonicalIdentityId,
         selectedName: candidate.name,
-        candidates: [candidate],
-        candidateCount: 1,
-        candidatesTruncated: false,
-        clarificationMessage: null,
+        status: "resolved",
       }),
-      requestUnderstandingExtractor: async (message) => ({
+      requestUnderstandingExtractor: createTestExtractor((message) => ({
+        constraints: [],
         kind: message.includes("Sample Striker") ? "player_lookup" : "other",
         players: message.includes("Sample Striker")
-          ? [{ mention: "Sample Striker", lookupName: null }]
+          ? [{ lookupName: null, mention: "Sample Striker" }]
           : [],
         teams: [],
-        constraints: [],
-      }),
+      })),
+      tools: createTools(search),
     });
+
     const config = { configurable: { thread_id: "vitest-memory-thread" } };
 
     const first = await graph.invoke(
       { messages: [new HumanMessage("Look up Sample Striker.")] },
-      config,
+      config
     );
 
     expect(search.mock.calls[0]?.[0]).toMatchObject({
+      limit: 3,
       playerName: "Sample Striker",
       source: "both",
-      limit: 3,
     });
-    expect(first.messages.some((message) => message instanceof ToolMessage)).toBe(true);
-    expect(first.messages.at(-1)?.content).toBe("Sample Striker has a 2025/26 fixture record.");
+    expect(
+      first.messages.some((message) => message instanceof ToolMessage)
+    ).toBeTruthy();
+    expect(first.messages.at(-1)?.content).toBe(
+      "Sample Striker has a 2025/26 fixture record."
+    );
 
     const second = await graph.invoke(
       { messages: [new HumanMessage("Which season was it?")] },
-      config,
+      config
     );
 
-    expect(second.messages.some((message) => message.content === "Look up Sample Striker.")).toBe(true);
+    expect(
+      second.messages.some(
+        (message) => message.content === "Look up Sample Striker."
+      )
+    ).toBeTruthy();
     expect(second.messages.at(-1)?.content).toBe("The record is from 2025/26.");
   });
 
   it("resolves a player mention before the lookup and resumes through Command", async () => {
     const candidate: ReferenceCandidate = {
       candidateId: "reep:harry-kane",
-      name: "Harry Kane",
       canonicalIdentityId: "reep-harry-kane",
-      identityVerified: true,
       exactNameMatch: false,
+      identityVerified: true,
+      name: "Harry Kane",
       records: [
         {
-          provider: "understat",
-          sourceId: "647",
-          name: "Harry Kane",
-          team: "Bayern Munich",
           competition: "Bundesliga",
+          name: "Harry Kane",
+          provider: "understat",
           season: "2026/27",
+          sourceId: "647",
+          team: "Bayern Munich",
         },
         {
-          provider: "fm",
-          sourceId: "12075123",
-          name: "Harry Kane",
-          team: null,
           competition: null,
+          name: "Harry Kane",
+          provider: "fm",
           season: null,
+          sourceId: "12075123",
+          team: null,
         },
       ],
     };
-    const identityLookup = vi.fn(async (mention: string) => ({
-      status: "needs_confirmation" as const,
-      mention,
-      selectedCandidateId: null,
-      canonicalIdentityId: null,
-      selectedName: null,
-      candidates: [candidate],
-      candidateCount: 1,
-      candidatesTruncated: false,
-      clarificationMessage: `Confirm whether “${mention}” means Harry Kane.`,
-    }));
-    const search = vi.fn(async () => JSON.stringify({ candidates: ["fixture player"] }));
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(
+      (mention: string) => ({
+        candidateCount: 1,
+        candidates: [candidate],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: `Confirm whether “${mention}” means Harry Kane.`,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "needs_confirmation" as const,
+      })
+    );
+
+    const search = vi.fn<PlayerSearch>(() =>
+      JSON.stringify({ candidates: ["fixture player"] })
+    );
+
     const model = fakeModel()
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Bayern Munich striker" },
-      }])
-      .respond(new AIMessage("I found a candidate for the confirmed reference player."));
+      .respondWithTools([
+        {
+          args: { playerName: "Bayern Munich striker" },
+          name: "search_player_records",
+        },
+      ])
+      .respond(
+        new AIMessage("I found a candidate for the confirmed reference player.")
+      );
+
     const graph = createAgent({
       model,
-      tools: createTools(search),
-      requestUnderstandingExtractor: async () => ({
-        kind: "player_lookup",
-        players: [{ mention: "Kane", lookupName: "Kane" }],
-        teams: [],
-        constraints: [],
-      }),
       playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createTestExtractor(() => ({
+        constraints: [],
+        kind: "player_lookup",
+        players: [{ lookupName: "Kane", mention: "Kane" }],
+        teams: [],
+      })),
+      tools: createTools(search),
     });
-    const config = { configurable: { thread_id: "identity-confirmation-thread" } };
+
+    const config = {
+      configurable: { thread_id: "identity-confirmation-thread" },
+    };
 
     const interrupted = await graph.invoke(
       { messages: [new HumanMessage("Look up Kane's records.")] },
-      config,
+      config
     );
 
-    expect(interrupted).toHaveProperty("__interrupt__");
-    expect(search).not.toHaveBeenCalled();
-    expect(identityLookup).toHaveBeenCalledWith("Kane");
+    expect({
+      identityLookupArguments: identityLookup.mock.calls.map(
+        ([mention]) => mention
+      ),
+      interrupted: Object.hasOwn(interrupted, "__interrupt__"),
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      identityLookupArguments: ["Kane"],
+      interrupted: true,
+      searchCalls: 0,
+    });
 
     const resumed = await graph.invoke(new Command({ resume: "1" }), config);
 
-    expect(search).toHaveBeenCalledTimes(1);
-    expect(resumed.request.status).toBe("ready");
-    expect(resumed.request.players[0]?.resolution?.canonicalIdentityId).toBe("reep-harry-kane");
-    expect(resumed.messages.at(-1)?.content).toBe("I found a candidate for the confirmed reference player.");
+    expect(search).toHaveBeenCalledOnce();
+    expect(resumed.request).toMatchObject({
+      players: [{ resolution: { canonicalIdentityId: "reep-harry-kane" } }],
+      status: "ready",
+    });
+    expect(resumed.messages.at(-1)?.content).toBe(
+      "I found a candidate for the confirmed reference player."
+    );
   });
 
   it("passes through for a full name with a verified Reep identity", async () => {
     const candidate: ReferenceCandidate = {
       candidateId: "reep:harry-kane",
-      name: "Harry Kane",
       canonicalIdentityId: "reep-harry-kane",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Harry Kane",
       records: [],
     };
-    const model = fakeModel().respond(new AIMessage("I will use Harry Kane as the reference."));
-    const lookup = vi.fn(async (mention: string) => ({
-      status: "resolved" as const,
+
+    const model = fakeModel().respond(
+      new AIMessage("I will use Harry Kane as the reference.")
+    );
+
+    const lookup = vi.fn<ReferenceIdentityLookup>((mention: string) => ({
+      candidateCount: 1,
+      candidates: [candidate],
+      candidatesTruncated: false,
+      canonicalIdentityId: candidate.canonicalIdentityId,
+      clarificationMessage: null,
       mention,
       selectedCandidateId: candidate.candidateId,
-      canonicalIdentityId: candidate.canonicalIdentityId,
       selectedName: candidate.name,
-      candidates: [candidate],
-      candidateCount: 1,
-      candidatesTruncated: false,
-      clarificationMessage: null,
+      status: "resolved" as const,
     }));
+
     const graph = createAgent({
       model,
-      requestUnderstandingExtractor: async () => ({
-        kind: "player_lookup",
-        players: [{ mention: "Harry Kane", lookupName: "Harry Kane" }],
-        teams: [],
-        constraints: [],
-      }),
       playerIdentityLookup: lookup,
+      requestUnderstandingExtractor: createTestExtractor(() => ({
+        constraints: [],
+        kind: "player_lookup",
+        players: [{ lookupName: "Harry Kane", mention: "Harry Kane" }],
+        teams: [],
+      })),
     });
 
     const result = await graph.invoke(
       { messages: [new HumanMessage("Look up Harry Kane.")] },
-      { configurable: { thread_id: "exact-reference-thread" } },
+      { configurable: { thread_id: "exact-reference-thread" } }
     );
 
     expect(result).not.toHaveProperty("__interrupt__");
     expect(lookup).toHaveBeenCalledWith("Harry Kane");
     expect(result.request.status).toBe("ready");
-    expect(result.request.players[0]?.resolution?.canonicalIdentityId).toBe("reep-harry-kane");
-    expect(result.messages.at(-1)?.content).toBe("I will use Harry Kane as the reference.");
+    expect(result.request.players[0]?.resolution?.canonicalIdentityId).toBe(
+      "reep-harry-kane"
+    );
+    expect(result.messages.at(-1)?.content).toBe(
+      "I will use Harry Kane as the reference."
+    );
   });
 
   it("remembers a confirmed Chinese alias and pins lookup tools to its identity", async () => {
     const kimmich: ReferenceCandidate = {
       candidateId: "reep:joshua-kimmich",
-      name: "Joshua Kimmich",
       canonicalIdentityId: "reep-joshua-kimmich",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Joshua Kimmich",
       records: [],
     };
-    const identityLookup = vi.fn(async (mention: string) => ({
-      status: "resolved" as const,
-      mention,
-      selectedCandidateId: kimmich.candidateId,
-      canonicalIdentityId: kimmich.canonicalIdentityId,
-      selectedName: kimmich.name,
-      candidates: [kimmich],
-      candidateCount: 1,
-      candidatesTruncated: false,
-      clarificationMessage: null,
-    }));
-    const search = vi.fn(async (input: PlayerSearchInput) => JSON.stringify({
-      player: input.playerName,
-    }));
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(
+      (mention: string) => ({
+        candidateCount: 1,
+        candidates: [kimmich],
+        candidatesTruncated: false,
+        canonicalIdentityId: kimmich.canonicalIdentityId,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: kimmich.candidateId,
+        selectedName: kimmich.name,
+        status: "resolved" as const,
+      })
+    );
+
+    const search = vi.fn<PlayerSearch>((input: PlayerSearchInput) =>
+      JSON.stringify({
+        player: input.playerName,
+      })
+    );
+
     const model = fakeModel()
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Declan Rice" },
-      }])
+      .respondWithTools([
+        {
+          args: { playerName: "Declan Rice" },
+          name: "search_player_records",
+        },
+      ])
       .respond(new AIMessage("Joshua Kimmich is the first lookup result."))
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Declan Rice" },
-      }])
+      .respondWithTools([
+        {
+          args: { playerName: "Declan Rice" },
+          name: "search_player_records",
+        },
+      ])
       .respond(new AIMessage("Joshua Kimmich is the repeated lookup result."));
+
     const graph = createAgent({
       model,
-      tools: createTools(search),
       playerIdentityLookup: identityLookup,
-      requestUnderstandingExtractor: async (message) => ({
-        kind: "player_lookup",
-        players: [message.includes("查询")
-          ? { mention: "基米希", lookupName: "Joshua Kimmich" }
-          : { mention: "Joshua Kimmich", lookupName: "Joshua Kimmich" }],
-        teams: [],
+      requestUnderstandingExtractor: createTestExtractor((message) => ({
         constraints: [],
-      }),
+        kind: "player_lookup",
+        players: [
+          message.includes("查询")
+            ? { lookupName: "Joshua Kimmich", mention: "基米希" }
+            : { lookupName: "Joshua Kimmich", mention: "Joshua Kimmich" },
+        ],
+        teams: [],
+      })),
+      tools: createTools(search),
     });
-    const config = { configurable: { thread_id: "confirmed-player-alias-thread" } };
+
+    const config = {
+      configurable: { thread_id: "confirmed-player-alias-thread" },
+    };
 
     const interrupted = await graph.invoke(
       { messages: [new HumanMessage("查询基米希的资料")] },
-      config,
+      config
     );
-    expect(interrupted).toHaveProperty("__interrupt__");
-    expect(identityLookup).toHaveBeenCalledTimes(1);
+
+    expect({
+      identityLookupCalls: identityLookup.mock.calls.length,
+      interrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toStrictEqual({ identityLookupCalls: 1, interrupted: true });
 
     const first = await graph.invoke(new Command({ resume: "1" }), config);
-    expect(first.conversationContext.playerAliases).toMatchObject([{
-      mention: "基米希",
-      reference: { referenceId: "reep-joshua-kimmich" },
-    }]);
+    expect(first.conversationContext.playerAliases).toMatchObject([
+      {
+        mention: "基米希",
+        reference: { referenceId: "reep-joshua-kimmich" },
+      },
+    ]);
 
     const repeated = await graph.invoke(
       { messages: [new HumanMessage("再介绍一下基米希")] },
-      config,
+      config
     );
 
-    expect(repeated).not.toHaveProperty("__interrupt__");
-    expect(identityLookup).toHaveBeenCalledTimes(1);
-    expect(repeated.request.players[0]?.resolution?.selectedName).toBe("Joshua Kimmich");
-    expect(search.mock.calls.map(([input]) => input.playerName))
-      .toEqual(["Joshua Kimmich", "Joshua Kimmich"]);
+    expect({
+      identityLookupCalls: identityLookup.mock.calls.length,
+      interrupted: Object.hasOwn(repeated, "__interrupt__"),
+      searchedPlayers: search.mock.calls.map(([input]) => input.playerName),
+      selectedName: repeated.request.players[0]?.resolution?.selectedName,
+    }).toStrictEqual({
+      identityLookupCalls: 1,
+      interrupted: false,
+      searchedPlayers: ["Joshua Kimmich", "Joshua Kimmich"],
+      selectedName: "Joshua Kimmich",
+    });
   });
 
   it("updates the focus when the user corrects an identity in an other request", async () => {
     const rice: ReferenceCandidate = {
       candidateId: "reep:declan-rice",
-      name: "Declan Rice",
       canonicalIdentityId: "reep-declan-rice",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Declan Rice",
       records: [],
     };
+
     const kimmich: ReferenceCandidate = {
       candidateId: "reep:joshua-kimmich",
-      name: "Joshua Kimmich",
       canonicalIdentityId: "reep-joshua-kimmich",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Joshua Kimmich",
       records: [],
     };
-    const identityLookup = vi.fn(async (mention: string) => {
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>((mention: string) => {
       const candidate = mention === "Joshua Kimmich" ? kimmich : rice;
+
       return {
-        status: candidate === kimmich ? "needs_confirmation" as const : "resolved" as const,
-        mention,
-        selectedCandidateId: candidate === kimmich ? null : candidate.candidateId,
-        canonicalIdentityId: candidate === kimmich ? null : candidate.canonicalIdentityId,
-        selectedName: candidate === kimmich ? null : candidate.name,
-        candidates: [candidate],
         candidateCount: 1,
+        candidates: [candidate],
         candidatesTruncated: false,
+        canonicalIdentityId:
+          candidate === kimmich ? null : candidate.canonicalIdentityId,
         clarificationMessage: `Confirm whether “${mention}” means ${candidate.name}.`,
+        mention,
+        selectedCandidateId:
+          candidate === kimmich ? null : candidate.candidateId,
+        selectedName: candidate === kimmich ? null : candidate.name,
+        status:
+          candidate === kimmich
+            ? ("needs_confirmation" as const)
+            : ("resolved" as const),
       };
     });
-    const search = vi.fn(async () => JSON.stringify({ player: "fixture" }));
+
+    const search = vi.fn<PlayerSearch>(() =>
+      JSON.stringify({ player: "fixture" })
+    );
+
     const model = fakeModel()
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Declan Rice" },
-      }])
+      .respondWithTools([
+        {
+          args: { playerName: "Declan Rice" },
+          name: "search_player_records",
+        },
+      ])
       .respond(new AIMessage("Rice profile."))
       .respond(new AIMessage("Understood, I meant Joshua Kimmich."));
+
     const graph = createAgent({
       model,
-      tools: createTools(search),
       playerIdentityLookup: identityLookup,
-      requestUnderstandingExtractor: async (message) => message.includes("Declan Rice")
-        ? {
+      requestUnderstandingExtractor: createTestExtractor((message) => {
+        if (message.includes("Declan Rice")) {
+          return {
+            constraints: [],
             kind: "player_lookup",
-            players: [{ mention: "Declan Rice", lookupName: null }],
+            players: [{ lookupName: null, mention: "Declan Rice" }],
             teams: [],
-            constraints: [],
-          }
-        : {
-            kind: "other",
-            players: [{ mention: "基米希", lookupName: "Joshua Kimmich" }],
-            teams: [],
-            constraints: [],
-          },
+          };
+        }
+
+        return {
+          constraints: [],
+          kind: "other",
+          players: [{ lookupName: "Joshua Kimmich", mention: "基米希" }],
+          teams: [],
+        };
+      }),
+      tools: createTools(search),
     });
-    const config = { configurable: { thread_id: "identity-correction-focus-thread" } };
+
+    const config = {
+      configurable: { thread_id: "identity-correction-focus-thread" },
+    };
 
     const first = await graph.invoke(
       { messages: [new HumanMessage("Look up Declan Rice.")] },
-      config,
+      config
     );
-    expect(first.conversationContext.focusPlayers.map(({ candidate }) => candidate.name))
-      .toEqual(["Declan Rice"]);
+
+    expect(
+      first.conversationContext.focusPlayers.map(
+        ({ candidate }) => candidate.name
+      )
+    ).toStrictEqual(["Declan Rice"]);
 
     const interrupted = await graph.invoke(
       { messages: [new HumanMessage("我说的是基米希")] },
-      config,
+      config
     );
+
     expect(interrupted).toHaveProperty("__interrupt__");
 
     const corrected = await graph.invoke(new Command({ resume: "1" }), config);
 
-    expect(corrected.request.kind).toBe("other");
-    expect(corrected.request.players[0]?.resolution?.selectedName).toBe("Joshua Kimmich");
-    expect(corrected.conversationContext.focusPlayers.map(({ candidate }) => candidate.name))
-      .toEqual(["Joshua Kimmich"]);
-    expect(corrected.conversationContext.playerAliases).toContainEqual({
-      mention: "基米希",
-      reference: {
-        referenceId: "reep-joshua-kimmich",
-        candidate: kimmich,
-      },
+    expect({
+      aliases: corrected.conversationContext.playerAliases,
+      focusPlayers: corrected.conversationContext.focusPlayers.map(
+        ({ candidate }) => candidate.name
+      ),
+      kind: corrected.request.kind,
+      selectedName: corrected.request.players[0]?.resolution?.selectedName,
+    }).toMatchObject({
+      aliases: [
+        {
+          mention: "基米希",
+          reference: {
+            candidate: kimmich,
+            referenceId: "reep-joshua-kimmich",
+          },
+        },
+      ],
+      focusPlayers: ["Joshua Kimmich"],
+      kind: "other",
+      selectedName: "Joshua Kimmich",
     });
   });
 
   it("asks when one confirmed alias is bound to multiple player identities", async () => {
     const kimmich: ReferenceCandidate = {
       candidateId: "reep:joshua-kimmich",
-      name: "Joshua Kimmich",
       canonicalIdentityId: "reep-joshua-kimmich",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Joshua Kimmich",
       records: [],
     };
+
     const anotherPlayer: ReferenceCandidate = {
       candidateId: "reep:another-player",
-      name: "Another Player",
       canonicalIdentityId: "reep-another-player",
-      identityVerified: true,
       exactNameMatch: true,
+      identityVerified: true,
+      name: "Another Player",
       records: [],
     };
-    const identityLookup = vi.fn(async (mention: string) => ({
-      status: "not_found" as const,
-      mention,
-      selectedCandidateId: null,
-      canonicalIdentityId: null,
-      selectedName: null,
-      candidates: [],
-      candidateCount: 0,
-      candidatesTruncated: false,
-      clarificationMessage: null,
-    }));
-    const search = vi.fn(async () => JSON.stringify({ player: "fixture" }));
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(
+      (mention: string) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "not_found" as const,
+      })
+    );
+
+    const search = vi.fn<PlayerSearch>(() =>
+      JSON.stringify({ player: "fixture" })
+    );
+
     const graph = createAgent({
       model: fakeModel(),
-      tools: createTools(search),
       playerIdentityLookup: identityLookup,
-      requestUnderstandingExtractor: async () => ({
-        kind: "player_lookup",
-        players: [{ mention: "基米希", lookupName: "Joshua Kimmich" }],
-        teams: [],
+      requestUnderstandingExtractor: createTestExtractor(() => ({
         constraints: [],
-      }),
+        kind: "player_lookup",
+        players: [{ lookupName: "Joshua Kimmich", mention: "基米希" }],
+        teams: [],
+      })),
+      tools: createTools(search),
     });
 
     const result = await graph.invoke(
       {
-        messages: [new HumanMessage("介绍一下基米希")],
         conversationContext: {
           focusPlayers: [],
           playerAliases: [
             {
               mention: "基米希",
               reference: {
-                referenceId: "reep-joshua-kimmich",
                 candidate: kimmich,
+                referenceId: "reep-joshua-kimmich",
               },
             },
             {
               mention: "基米希",
               reference: {
-                referenceId: "reep-another-player",
                 candidate: anotherPlayer,
+                referenceId: "reep-another-player",
               },
             },
           ],
         },
+        messages: [new HumanMessage("介绍一下基米希")],
       },
-      { configurable: { thread_id: "ambiguous-player-alias-thread" } },
+      { configurable: { thread_id: "ambiguous-player-alias-thread" } }
     );
 
     expect(result).toHaveProperty("__interrupt__");
@@ -435,134 +575,188 @@ describe("LangGraph model-tool loop", () => {
   it("keeps a prior-focus pronoun separate from a same-turn comparison player", async () => {
     const saebari: ReferenceCandidate = {
       candidateId: "reep:ismael-saibari",
-      name: "Ismael Saibari",
       canonicalIdentityId: "reep-ismael-saibari",
-      identityVerified: true,
       exactNameMatch: true,
-      records: [{
-        provider: "fm",
-        sourceId: "saibari-fm",
-        name: "Ismael Saibari",
-        team: null,
-        competition: null,
-        season: null,
-      }],
+      identityVerified: true,
+      name: "Ismael Saibari",
+      records: [
+        {
+          competition: null,
+          name: "Ismael Saibari",
+          provider: "fm",
+          season: null,
+          sourceId: "saibari-fm",
+          team: null,
+        },
+      ],
     };
+
     const kvaratskhelia: ReferenceCandidate = {
       candidateId: "reep:khvicha-kvaratskhelia",
-      name: "Khvicha Kvaratskhelia",
       canonicalIdentityId: "reep-khvicha-kvaratskhelia",
-      identityVerified: true,
       exactNameMatch: true,
-      records: [{
-        provider: "fm",
-        sourceId: "kvaratskhelia-fm",
-        name: "Khvicha Kvaratskhelia",
-        team: null,
-        competition: null,
-        season: null,
-      }],
+      identityVerified: true,
+      name: "Khvicha Kvaratskhelia",
+      records: [
+        {
+          competition: null,
+          name: "Khvicha Kvaratskhelia",
+          provider: "fm",
+          season: null,
+          sourceId: "kvaratskhelia-fm",
+          team: null,
+        },
+      ],
     };
-    const identityLookup = vi.fn(async (mention: string) => {
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>((mention: string) => {
       const candidate = mention === "Ismael Saibari" ? saebari : kvaratskhelia;
+
       return {
-        status: "resolved" as const,
+        candidateCount: 1,
+        candidates: [candidate],
+        candidatesTruncated: false,
+        canonicalIdentityId: candidate.canonicalIdentityId,
+        clarificationMessage: null,
         mention,
         selectedCandidateId: candidate.candidateId,
-        canonicalIdentityId: candidate.canonicalIdentityId,
         selectedName: candidate.name,
-        candidates: [candidate],
-        candidateCount: 1,
-        candidatesTruncated: false,
-        clarificationMessage: null,
+        status: "resolved" as const,
       };
     });
-    const search = vi.fn(async (input: PlayerSearchInput) => JSON.stringify({
-      player: input.playerName,
-    }));
+
+    const search = vi.fn<PlayerSearch>((input: PlayerSearchInput) =>
+      JSON.stringify({
+        player: input.playerName,
+      })
+    );
+
     const model = fakeModel()
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Ismael Saibari" },
-      }])
+      .respondWithTools([
+        {
+          args: { playerName: "Ismael Saibari" },
+          name: "search_player_records",
+        },
+      ])
       .respond(new AIMessage("Ismael Saibari is the lookup result."))
-      .respondWithTools([{
-        name: "search_player_records",
-        args: { playerName: "Declan Rice" },
-      }])
+      .respondWithTools([
+        {
+          args: { playerName: "Declan Rice" },
+          name: "search_player_records",
+        },
+      ])
       .respond(new AIMessage("Ismael Saibari is the profile result."));
+
     const graph = createAgent({
       model,
-      tools: createTools(search),
       playerIdentityLookup: identityLookup,
-      requestUnderstandingExtractor: async (message) => message.includes("Ismael Saibari")
-        ? {
-            kind: "player_lookup",
-            players: [{ mention: "Ismael Saibari", lookupName: null }],
-            teams: [],
+      requestUnderstandingExtractor: createTestExtractor((message) => {
+        if (message.includes("Ismael Saibari")) {
+          return {
             constraints: [],
-          }
-        : message.includes("Khvicha Kvaratskhelia")
-        ? {
+            kind: "player_lookup",
+            players: [{ lookupName: null, mention: "Ismael Saibari" }],
+            teams: [],
+          };
+        }
+
+        if (message.includes("Khvicha Kvaratskhelia")) {
+          return {
+            constraints: [],
             kind: "player_comparison",
             players: [
               {
-                mention: "He",
                 lookupName: null,
+                mention: "He",
                 referenceScope: "prior_context",
               },
               {
-                mention: "Khvicha Kvaratskhelia",
                 lookupName: "Khvicha Kvaratskhelia",
+                mention: "Khvicha Kvaratskhelia",
               },
             ],
             teams: [],
-            constraints: [],
-          }
-        : {
-            kind: "player_lookup",
-            players: [{
-              mention: "him",
+          };
+        }
+
+        return {
+          constraints: [],
+          kind: "player_lookup",
+          players: [
+            {
               lookupName: null,
+              mention: "him",
               referenceScope: "prior_context",
-            }],
-            teams: [],
-            constraints: [],
-          },
+            },
+          ],
+          teams: [],
+        };
+      }),
+      tools: createTools(search),
     });
-    const config = { configurable: { thread_id: "prior-focus-comparison-thread" } };
+
+    const config = {
+      configurable: { thread_id: "prior-focus-comparison-thread" },
+    };
 
     const first = await graph.invoke(
       { messages: [new HumanMessage("Look up Ismael Saibari.")] },
-      config,
-    );
-    expect(first.conversationContext.focusPlayers.map(({ candidate }) => candidate.name))
-      .toEqual(["Ismael Saibari"]);
-    const comparison = await graph.invoke(
-      { messages: [new HumanMessage("He seems worse than Khvicha Kvaratskhelia.")] },
-      config,
+      config
     );
 
-    expect(identityLookup.mock.calls.map(([mention]) => mention)).toEqual([
-      "Ismael Saibari",
-      "Khvicha Kvaratskhelia",
+    expect(first.conversationContext.focusPlayers).toMatchObject([
+      { candidate: { name: "Ismael Saibari" } },
     ]);
-    expect(comparison.request.players[0]?.referenceScope).toBe("prior_context");
-    expect(comparison.request.players[0]?.resolution?.selectedName).toBe("Ismael Saibari");
-    expect(comparison.request.players[1]?.resolution?.selectedName).toBe("Khvicha Kvaratskhelia");
-    expect(comparison.conversationContext.focusPlayers.map(({ candidate }) => candidate.name))
-      .toEqual(["Ismael Saibari"]);
-    expect(comparison.messages.at(-1)?.content)
-      .toBe("我已经识别到这是球员比较请求；比较流程还未接通，目前可以查询单个球员记录。");
+
+    const comparison = await graph.invoke(
+      {
+        messages: [
+          new HumanMessage("He seems worse than Khvicha Kvaratskhelia."),
+        ],
+      },
+      config
+    );
+
+    expect({
+      focusPlayers: comparison.conversationContext.focusPlayers.map(
+        ({ candidate }) => candidate.name
+      ),
+      identityLookups: identityLookup.mock.calls.map(([mention]) => mention),
+      message: comparison.messages.at(-1)?.content,
+      players: comparison.request.players.map((player) => ({
+        referenceScope: player.referenceScope,
+        selectedName: player.resolution?.selectedName,
+      })),
+    }).toStrictEqual({
+      focusPlayers: ["Ismael Saibari"],
+      identityLookups: ["Ismael Saibari", "Khvicha Kvaratskhelia"],
+      message:
+        "我已经识别到这是球员比较请求；比较流程还未接通，目前可以查询单个球员记录。",
+      players: [
+        {
+          referenceScope: "prior_context",
+          selectedName: "Ismael Saibari",
+        },
+        {
+          referenceScope: "explicit",
+          selectedName: "Khvicha Kvaratskhelia",
+        },
+      ],
+    });
 
     const followUp = await graph.invoke(
       { messages: [new HumanMessage("Give me his profile.")] },
-      config,
+      config
     );
 
-    expect(followUp.request.players[0]?.resolution?.selectedName).toBe("Ismael Saibari");
-    expect(search.mock.calls.map(([input]) => input.playerName))
-      .toEqual(["Ismael Saibari", "Ismael Saibari"]);
-    expect(followUp.messages.at(-1)?.content).toBe("Ismael Saibari is the profile result.");
+    expect({
+      response: followUp.messages.at(-1)?.content,
+      searchedPlayers: search.mock.calls.map(([input]) => input.playerName),
+      selectedName: followUp.request.players[0]?.resolution?.selectedName,
+    }).toStrictEqual({
+      response: "Ismael Saibari is the profile result.",
+      searchedPlayers: ["Ismael Saibari", "Ismael Saibari"],
+      selectedName: "Ismael Saibari",
+    });
   });
 });
