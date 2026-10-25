@@ -74,54 +74,501 @@ const normalizeName = (value: string): string =>
     .toLocaleLowerCase()
     .replaceAll(/[^a-z0-9]/gu, "");
 
-const findSelectedCandidate = (
-  answer: string,
+type CandidateSelection = {
+  candidates: ReferenceCandidate[];
+  provider: "fm" | "understat" | null;
+  status: "selected" | "ambiguous" | "not_found";
+};
+
+type ConfirmedCandidate = {
+  candidate: ReferenceCandidate | null;
+  clarificationMessage: string | null;
+};
+
+const candidateFromToken = (
+  token: string,
   resolution: PlayerResolutionState
 ): ReferenceCandidate | undefined => {
-  const trimmed = cleanReferenceAnswer(answer);
-
-  const affirmative = trimmed
-    .replaceAll(/[，,。.!?？\s]/gu, "")
-    .toLocaleLowerCase();
-
-  if (
-    resolution.candidates.length === 1 &&
-    [
-      "yes",
-      "yeah",
-      "yep",
-      "是",
-      "是的",
-      "是他",
-      "对",
-      "对是他",
-      "没错",
-      "没错是他",
-      "就是他",
-      "是的就是他",
-      "就是这位",
-      "确认",
-      "可以",
-    ].includes(affirmative)
-  ) {
-    return resolution.candidates[0];
-  }
-
+  const trimmed = token.trim();
   const number = Number(trimmed);
 
-  if (
-    Number.isInteger(number) &&
-    number >= 1 &&
-    number <= resolution.candidates.length
-  ) {
+  if (Number.isInteger(number) && number >= 1) {
     return resolution.candidates[number - 1];
   }
 
   return resolution.candidates.find(
-    (candidate) =>
-      candidate.candidateId === trimmed ||
-      normalizeName(candidate.name) === normalizeName(trimmed)
+    (candidate) => candidate.candidateId === trimmed
   );
+};
+
+const sourceProviderFromAnswer = (
+  answer: string
+): "fm" | "understat" | null => {
+  const normalized = answer
+    .toLocaleLowerCase()
+    .replaceAll(/[\s，,。.!?？]/gu, "");
+
+  if (
+    /^(?:只用|仅用|只选|use|only|just)?(?:fm|footballmanager)(?:only|来源)?$/u.test(
+      normalized
+    )
+  ) {
+    return "fm";
+  }
+
+  if (
+    /^(?:只用|仅用|只选|use|only|just)?understat(?:only|来源)?$/u.test(
+      normalized
+    )
+  ) {
+    return "understat";
+  }
+
+  return null;
+};
+
+const candidateSelection = (
+  candidates: ReferenceCandidate[],
+  provider: CandidateSelection["provider"] = null
+): CandidateSelection => ({
+  candidates,
+  provider,
+  status: "selected",
+});
+
+const selectionStatus = (count: number): CandidateSelection["status"] => {
+  if (count === 1) {
+    return "selected";
+  }
+
+  if (count > 1) {
+    return "ambiguous";
+  }
+
+  return "not_found";
+};
+
+const isSamePersonConfirmation = (answer: string): boolean => {
+  const normalized = answer
+    .toLocaleLowerCase()
+    .replaceAll(/[\s，,。.!?？]/gu, "");
+
+  return [
+    "botharethesameperson",
+    "botharethesameplayer",
+    "botharesameperson",
+    "allsameperson",
+    "allsameplayer",
+    "sameperson",
+    "sameplayer",
+    "sameidentity",
+    "同一人",
+    "同一个人",
+    "都属于同一人",
+    "两条都是同一人",
+  ].some((phrase) => normalized.includes(phrase));
+};
+
+const selectionsFromTokens = (
+  answer: string,
+  resolution: PlayerResolutionState
+): CandidateSelection | null => {
+  const tokens = answer
+    .split(/[，,、]/u)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (tokens.length < 2) {
+    return null;
+  }
+
+  const selected = tokens.map((token) => candidateFromToken(token, resolution));
+
+  if (!selected.every((candidate) => candidate !== undefined)) {
+    return null;
+  }
+
+  return candidateSelection(
+    selected.filter(
+      (candidate): candidate is ReferenceCandidate => candidate !== undefined
+    )
+  );
+};
+
+const selectionsForSamePerson = (
+  answer: string,
+  resolution: PlayerResolutionState
+): CandidateSelection => {
+  const selected: ReferenceCandidate[] = [];
+
+  for (const match of answer.matchAll(/\d+/gu)) {
+    const number = Number(match[0]);
+    const candidate = resolution.candidates[number - 1];
+
+    if (Number.isInteger(number) && number >= 1 && candidate !== undefined) {
+      selected.push(candidate);
+    }
+  }
+
+  if (selected.length > 0) {
+    return candidateSelection(selected);
+  }
+
+  if (resolution.candidates.length <= 2) {
+    return candidateSelection(resolution.candidates);
+  }
+
+  return {
+    candidates: [],
+    provider: null,
+    status: "ambiguous",
+  };
+};
+
+const selectionsForProvider = (
+  provider: "fm" | "understat",
+  resolution: PlayerResolutionState
+): CandidateSelection => {
+  const candidates = resolution.candidates.filter((candidate) =>
+    candidate.records.some((record) => record.provider === provider)
+  );
+
+  return {
+    candidates,
+    provider,
+    status: selectionStatus(candidates.length),
+  };
+};
+
+const isAffirmativeAnswer = (answer: string): boolean => {
+  const affirmative = answer
+    .replaceAll(/[，,。.!?？\s]/gu, "")
+    .toLocaleLowerCase();
+
+  return [
+    "yes",
+    "yeah",
+    "yep",
+    "是",
+    "是的",
+    "是他",
+    "对",
+    "对是他",
+    "没错",
+    "没错是他",
+    "就是他",
+    "是的就是他",
+    "就是这位",
+    "确认",
+    "可以",
+  ].includes(affirmative);
+};
+
+const selectionsByName = (
+  answer: string,
+  resolution: PlayerResolutionState
+): CandidateSelection => {
+  const normalizedAnswer = normalizeName(answer);
+
+  const candidates = resolution.candidates.filter(
+    (candidate) =>
+      normalizeName(candidate.name) === normalizedAnswer ||
+      candidate.records.some(
+        (record) => normalizeName(record.name) === normalizedAnswer
+      )
+  );
+
+  return {
+    candidates,
+    provider: null,
+    status: selectionStatus(candidates.length),
+  };
+};
+
+const findSelectedCandidates = (
+  answer: string,
+  resolution: PlayerResolutionState
+): CandidateSelection => {
+  const trimmed = cleanReferenceAnswer(answer);
+
+  const tokenSelection = selectionsFromTokens(trimmed, resolution);
+
+  if (tokenSelection !== null) {
+    return tokenSelection;
+  }
+
+  if (isSamePersonConfirmation(trimmed)) {
+    return selectionsForSamePerson(trimmed, resolution);
+  }
+
+  const sourceProvider = sourceProviderFromAnswer(trimmed);
+
+  if (sourceProvider !== null) {
+    return selectionsForProvider(sourceProvider, resolution);
+  }
+
+  const singleToken = candidateFromToken(trimmed, resolution);
+
+  if (singleToken !== undefined) {
+    return {
+      candidates: [singleToken],
+      provider: null,
+      status: "selected",
+    };
+  }
+
+  if (resolution.candidates.length === 1 && isAffirmativeAnswer(trimmed)) {
+    return candidateSelection(resolution.candidates);
+  }
+
+  return selectionsByName(trimmed, resolution);
+};
+
+const mergeCandidateRecords = (
+  candidates: ReferenceCandidate[],
+  provider: "fm" | "understat" | null
+): ReferenceCandidate["records"] => {
+  const records = new Map<string, ReferenceCandidate["records"][number]>();
+
+  for (const candidate of candidates) {
+    for (const record of candidate.records) {
+      if (provider !== null && record.provider !== provider) {
+        continue;
+      }
+
+      const canonicalIdentityId =
+        record.canonicalIdentityId ?? candidate.canonicalIdentityId;
+
+      const identityVerified =
+        record.identityVerified ?? candidate.identityVerified;
+
+      const resolvedRecord = {
+        ...record,
+        canonicalIdentityId,
+        identityVerified,
+      };
+
+      const key = JSON.stringify([
+        record.provider,
+        record.sourceId,
+        record.competition,
+        record.season,
+      ]);
+
+      if (!records.has(key)) {
+        records.set(key, resolvedRecord);
+      }
+    }
+  }
+
+  return [...records.values()];
+};
+
+type CanonicalRecordIdentity = {
+  canonicalIdentityId: string | null;
+  conflict: boolean;
+  fullyVerified: boolean;
+};
+
+const canonicalIdentityFromRecords = (
+  records: ReferenceCandidate["records"]
+): CanonicalRecordIdentity => {
+  const canonicalIds = new Set(
+    records.flatMap((record) =>
+      record.identityVerified === true && record.canonicalIdentityId !== null
+        ? [record.canonicalIdentityId]
+        : []
+    )
+  );
+
+  if (canonicalIds.size > 1) {
+    return {
+      canonicalIdentityId: null,
+      conflict: true,
+      fullyVerified: false,
+    };
+  }
+
+  const [canonicalIdentityId] = canonicalIds;
+
+  const fullyVerified =
+    canonicalIdentityId !== undefined &&
+    records.every(
+      (record) =>
+        record.identityVerified === true &&
+        record.canonicalIdentityId === canonicalIdentityId
+    );
+
+  return {
+    canonicalIdentityId: fullyVerified ? canonicalIdentityId : null,
+    conflict: false,
+    fullyVerified,
+  };
+};
+
+const candidateNameFromSelection = (
+  selection: CandidateSelection,
+  records: ReferenceCandidate["records"]
+): string | null => {
+  const exactCandidate = selection.candidates.find(
+    (candidate) => candidate.exactNameMatch
+  );
+
+  if (exactCandidate !== undefined) {
+    return exactCandidate.name;
+  }
+
+  const [firstCandidate] = selection.candidates;
+
+  if (firstCandidate !== undefined) {
+    return firstCandidate.name;
+  }
+
+  return records[0]?.name ?? null;
+};
+
+const sourceOnlyCandidate = (
+  selection: CandidateSelection,
+  records: ReferenceCandidate["records"],
+  name: string
+): ReferenceCandidate | null => {
+  if (selection.provider === null) {
+    return null;
+  }
+
+  const providers = new Set(records.map((record) => record.provider));
+  const sourceIds = new Set(records.map((record) => record.sourceId));
+
+  if (providers.size !== 1 || sourceIds.size !== 1) {
+    return null;
+  }
+
+  const sourceId = records[0]?.sourceId;
+
+  if (sourceId === undefined) {
+    return null;
+  }
+
+  return {
+    candidateId: `source:${selection.provider}:${sourceId}`,
+    canonicalIdentityId: null,
+    exactNameMatch: selection.candidates.some(
+      (candidate) => candidate.exactNameMatch
+    ),
+    identityBasis: "source_selection",
+    identityVerified: false,
+    name,
+    records,
+  };
+};
+
+const unlinkedConfirmedCandidate = (
+  selection: CandidateSelection,
+  records: ReferenceCandidate["records"],
+  name: string
+): ReferenceCandidate => {
+  const candidateIds = selection.candidates
+    .map((candidate) => candidate.candidateId)
+    .toSorted();
+
+  const confirmedGroup =
+    selection.candidates.length > 1 ||
+    selection.candidates.some(
+      (candidate) => candidate.identityBasis === "thread_candidate"
+    );
+
+  const uniqueProviders = new Set(records.map((record) => record.provider));
+  const uniqueSourceIds = new Set(records.map((record) => record.sourceId));
+
+  let candidateId: string;
+
+  if (uniqueProviders.size === 1 && uniqueSourceIds.size === 1) {
+    candidateId = `source:${records[0]?.provider}:${records[0]?.sourceId}`;
+  } else {
+    const prefix = confirmedGroup ? "thread-confirmed" : "source-group";
+    candidateId = `${prefix}:${candidateIds.join("|")}`;
+  }
+
+  return {
+    candidateId,
+    canonicalIdentityId: null,
+    exactNameMatch: selection.candidates.some(
+      (candidate) => candidate.exactNameMatch
+    ),
+    identityBasis: confirmedGroup ? "thread_confirmed" : "source_record",
+    identityVerified: false,
+    name,
+    records,
+  };
+};
+
+const confirmedCandidate = (
+  selection: CandidateSelection
+): ConfirmedCandidate => {
+  const records = mergeCandidateRecords(
+    selection.candidates,
+    selection.provider
+  );
+
+  if (records.length === 0) {
+    return {
+      candidate: null,
+      clarificationMessage: "所选来源没有对应记录，请选择候选编号或来源名称。",
+    };
+  }
+
+  const identity = canonicalIdentityFromRecords(records);
+
+  if (identity.conflict) {
+    return {
+      candidate: null,
+      clarificationMessage:
+        "所选候选分别对应不同的 Reep ID，不能合并为同一球员。请单独选择其中一位。",
+    };
+  }
+
+  const name = candidateNameFromSelection(selection, records);
+
+  if (name === null) {
+    return {
+      candidate: null,
+      clarificationMessage: "无法确定所选候选的球员名称，请补充完整姓名。",
+    };
+  }
+
+  if (selection.provider !== null) {
+    const sourceCandidate = sourceOnlyCandidate(selection, records, name);
+
+    return sourceCandidate === null
+      ? {
+          candidate: null,
+          clarificationMessage:
+            "所选来源对应多条记录，请补充球队、赛事或赛季后再选。",
+        }
+      : { candidate: sourceCandidate, clarificationMessage: null };
+  }
+
+  if (identity.fullyVerified && identity.canonicalIdentityId !== null) {
+    return {
+      candidate: {
+        candidateId: `reep:${identity.canonicalIdentityId}`,
+        canonicalIdentityId: identity.canonicalIdentityId,
+        exactNameMatch: selection.candidates.some(
+          (candidate) => candidate.exactNameMatch
+        ),
+        identityBasis: "reep_registry",
+        identityVerified: true,
+        name,
+        records,
+      },
+      clarificationMessage: null,
+    };
+  }
+
+  return {
+    candidate: unlinkedConfirmedCandidate(selection, records, name),
+    clarificationMessage: null,
+  };
 };
 
 const updateRequestPlayer = (
@@ -138,40 +585,61 @@ const updateRequestPlayer = (
   status: "not_processed",
 });
 
-const applyPlayerAnswer = async (
+const keepIdentityClarificationOpen = (
   request: RequestState,
+  index: number,
+  clarificationMessage: string
+): RequestState => ({
+  ...request,
+  activePlayerIndex: index,
+  clarificationMessage,
+  status: "needs_confirmation",
+});
+
+const applyConfirmedCandidateSelection = (
+  request: RequestState,
+  index: number,
+  player: RequestPlayerState,
+  current: PlayerResolutionState,
+  selection: CandidateSelection
+): RequestState => {
+  const confirmed = confirmedCandidate(selection);
+
+  if (confirmed.candidate === null) {
+    return keepIdentityClarificationOpen(
+      request,
+      index,
+      confirmed.clarificationMessage ??
+        "这些候选无法安全合并，请选择其中一位球员。"
+    );
+  }
+
+  const { candidate } = confirmed;
+
+  return updateRequestPlayer(request, index, {
+    ...player,
+    resolution: {
+      ...current,
+      candidateCount: 1,
+      candidates: [candidate],
+      candidatesTruncated: false,
+      canonicalIdentityId: candidate.canonicalIdentityId,
+      clarificationMessage: null,
+      selectedCandidateId: candidate.candidateId,
+      selectedName: candidate.name,
+      status: "resolved",
+    },
+  });
+};
+
+const retryIdentityLookup = async (
+  request: RequestState,
+  index: number,
+  player: RequestPlayerState,
+  current: PlayerResolutionState,
   answer: string,
   lookup: ReferenceIdentityLookup
 ): Promise<RequestState> => {
-  const index = request.activePlayerIndex;
-
-  if (index === null) {
-    return request;
-  }
-
-  const player = request.players[index];
-  const current = player?.resolution;
-
-  if (player === undefined || current === null || current === undefined) {
-    return request;
-  }
-
-  const selected = findSelectedCandidate(answer, current);
-
-  if (selected !== undefined) {
-    return updateRequestPlayer(request, index, {
-      ...player,
-      resolution: {
-        ...current,
-        canonicalIdentityId: selected.canonicalIdentityId,
-        clarificationMessage: null,
-        selectedCandidateId: selected.candidateId,
-        selectedName: selected.name,
-        status: "resolved",
-      },
-    });
-  }
-
   if (player.attempts >= 1) {
     return {
       ...request,
@@ -218,6 +686,47 @@ const applyPlayerAnswer = async (
       resolution.clarificationMessage ?? "请回复候选编号或完整球员姓名。",
     status: "needs_confirmation",
   };
+};
+
+const applyPlayerAnswer = (
+  request: RequestState,
+  answer: string,
+  lookup: ReferenceIdentityLookup
+): RequestState | Promise<RequestState> => {
+  const index = request.activePlayerIndex;
+
+  if (index === null) {
+    return request;
+  }
+
+  const player = request.players[index];
+  const current = player?.resolution;
+
+  if (player === undefined || current === null || current === undefined) {
+    return request;
+  }
+
+  const selection = findSelectedCandidates(answer, current);
+
+  if (selection.status === "selected") {
+    return applyConfirmedCandidateSelection(
+      request,
+      index,
+      player,
+      current,
+      selection
+    );
+  }
+
+  if (selection.status === "ambiguous") {
+    return keepIdentityClarificationOpen(
+      request,
+      index,
+      "这个名称仍对应多个候选。请回复候选编号，或补充球队、赛事、赛季；若要把多条来源记录确认成同一人，请回复多个候选编号，例如 1,2。"
+    );
+  }
+
+  return retryIdentityLookup(request, index, player, current, answer, lookup);
 };
 
 const defaultClarification = (player: RequestPlayerState): string =>
@@ -295,6 +804,69 @@ const resolveConfirmedPlayerAlias = (
   return references.length
     ? resolveConversationReference(mention, references)
     : null;
+};
+
+const refreshKnownAliasForComparison = async (
+  player: RequestPlayerState,
+  request: RequestState,
+  resolution: PlayerResolutionState,
+  lookup: ReferenceIdentityLookup
+): Promise<PlayerResolutionState> => {
+  const selectedCandidate = resolution.candidates.find(
+    (candidate) => candidate.candidateId === resolution.selectedCandidateId
+  );
+
+  const providerCount = new Set(
+    selectedCandidate?.records.map((record) => record.provider)
+  ).size;
+
+  const isRegistryCandidate =
+    selectedCandidate?.identityBasis === undefined ||
+    selectedCandidate.identityBasis === "reep_registry";
+
+  const shouldCheckForUnlinkedSources =
+    request.kind === "player_comparison" &&
+    resolution.canonicalIdentityId !== null &&
+    isRegistryCandidate &&
+    providerCount === 1;
+
+  if (!shouldCheckForUnlinkedSources) {
+    return { ...resolution, mention: player.mention };
+  }
+
+  const lookupName =
+    player.lookupName ?? resolution.selectedName ?? player.mention;
+
+  const refreshed = await lookup(lookupName);
+
+  if (refreshed.status === "needs_confirmation") {
+    return { ...refreshed, mention: player.mention };
+  }
+
+  if (
+    refreshed.status === "resolved" &&
+    refreshed.canonicalIdentityId === resolution.canonicalIdentityId
+  ) {
+    return { ...refreshed, mention: player.mention };
+  }
+
+  if (refreshed.status === "resolved") {
+    return {
+      ...refreshed,
+      canonicalIdentityId: null,
+      clarificationMessage: `“${player.mention}”在本线程已确认指向“${resolution.selectedName}”，但本轮资料解析到了另一个身份“${refreshed.selectedName}”。请确认是否要更换目标。`,
+      mention: player.mention,
+      selectedCandidateId: null,
+      selectedName: null,
+      status: "needs_confirmation",
+    };
+  }
+
+  if (refreshed.status === "registry_unavailable") {
+    return { ...refreshed, mention: player.mention };
+  }
+
+  return { ...resolution, mention: player.mention };
 };
 
 const conversationPlayerFromResolution = (
@@ -428,16 +1000,14 @@ const conversationContextFromRequest = (
     ({ player }) => player.referenceScope === "explicit"
   );
 
-  const correctionKeys = isCorrection
-    ? new Set(
-        explicitResolvedPlayers.map(({ player }) =>
-          normalizeMentionText(player.mention)
-        )
-      )
-    : new Set<string>();
+  const confirmedMentionKeys = new Set(
+    explicitResolvedPlayers.map(({ player }) =>
+      normalizeMentionText(player.mention)
+    )
+  );
 
-  const aliasesAfterCorrection = previousContext.playerAliases.filter(
-    (alias) => !correctionKeys.has(normalizeMentionText(alias.mention))
+  const aliasesAfterConfirmation = previousContext.playerAliases.filter(
+    (alias) => !confirmedMentionKeys.has(normalizeMentionText(alias.mention))
   );
 
   const addedAliases = explicitResolvedPlayers.map(({ player, reference }) => ({
@@ -458,9 +1028,10 @@ const conversationContextFromRequest = (
       : (correctedFocus ?? previousContext.focusPlayers);
 
   return {
+    ...previousContext,
     focusPlayers,
     playerAliases: uniqueConversationAliases([
-      ...aliasesAfterCorrection,
+      ...aliasesAfterConfirmation,
       ...addedAliases,
     ]),
   };
@@ -495,7 +1066,12 @@ const resolveRequestPlayer = async (
   const knownAlias = resolveConfirmedPlayerAlias(player.mention, context);
 
   if (knownAlias !== null) {
-    return knownAlias;
+    return await refreshKnownAliasForComparison(
+      player,
+      request,
+      knownAlias,
+      lookup
+    );
   }
 
   const lookupName = player.lookupName ?? player.mention;

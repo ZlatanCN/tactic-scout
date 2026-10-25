@@ -22,17 +22,24 @@ This branch is a minimal LangGraph.js football-data agent. The model may call a 
 
 **Thread-local player alias**: An exact player mention the user has confirmed in a thread, bound to that resolved player reference. It avoids repeating model-based name expansion and identity confirmation in that thread; it does not modify the shared Reep identity registry.
 
+**Thread-confirmed source group**: A set of provider source records the user explicitly confirms as one player in a thread. It keeps each record's provider and Reep-link status; it does not claim that unlinked records share a canonical Reep ID.
+
+**Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
+
 ## Boundaries
 
 - `StateGraph` owns routing and per-thread message state.
 - Tool functions own local data access and return source-tagged records.
 - The model may explain returned records; it must not invent missing values or merge source identities by name.
 - Every extracted player mention passes through identity resolution before model/tool execution. Ambiguity pauses the graph for user clarification.
+- Source records with the same canonical Reep ID form one identity automatically. Similar unlinked cross-provider names may be offered as a tentative group for explicit confirmation; names alone never merge identities. Candidates with different canonical Reep IDs remain separate.
+- The identity interrupt resolves a person candidate and may include multiple source records. The user can confirm the group for the current thread or choose one provider record. Thread confirmation never writes to the shared Reep registry.
 - User-confirmed player mentions are stored as thread-local aliases. If one mention was confirmed for multiple identities, the graph asks which identity the user means.
 - Explicit player names resolve through the identity registry. Prior-turn references resolve only against conversation focus; same-turn references require an explicit target mention. Missing or multiple referents pause for clarification.
-- Per-turn request participants and per-thread conversation focus are separate. A completed single-player lookup or explicit identity correction updates the focus; unsupported comparison and recommendation requests preserve it.
+- Per-turn request participants, per-thread conversation focus, and the active comparison are separate. A completed single-player lookup or explicit identity correction updates the focus; comparisons and recommendation requests preserve it.
+- A completed comparison stores its participants and conditions together. Additions inherit conditions, explicit current conditions override matching previous conditions, and a new comparison resets them. An omitted season in a new comparison selects the latest local snapshot.
 - A single resolved player controls the player-search tool argument, so older mentions in the chat history cannot change the queried identity.
-- The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Only player lookup currently enters the model/tool loop; other recognized tasks end with a clear unsupported response.
+- The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Player lookups and comparisons enter the model/tool loop; recommendation requests end with a clear unsupported response.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
 - Checkpoint and Store use in-memory implementations in this branch. Restarting the process loses them.
 - There is no frontend, RAG pipeline, or application database in this branch.

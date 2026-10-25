@@ -246,6 +246,6 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
   }
 };
 
-export { readFmProfiles, readFmReferenceRecords };
+export { fmReadResultSchema, readFmProfiles, readFmReferenceRecords };
 
 export type { FmReadResult };

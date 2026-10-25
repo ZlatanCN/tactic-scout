@@ -18,30 +18,125 @@ const normalizeMentionText = (value: string): string =>
     .toLocaleLowerCase()
     .replaceAll(/[\s\p{P}\p{S}]/gu, "");
 
-const mentionOccursInMessage = (message: string, mention: string): boolean => {
+type AliasOccurrence = {
+  end: number;
+  mention: string;
+  referenceId: string;
+  start: number;
+};
+
+const aliasOccurrencesInMessage = (
+  message: string,
+  mention: string,
+  referenceId: string
+): AliasOccurrence[] => {
   if (/\p{Script=Han}/u.test(mention)) {
-    return normalizeMentionText(message).includes(
-      normalizeMentionText(mention)
-    );
+    const messageKey = normalizeMentionText(message);
+    const mentionKey = normalizeMentionText(mention);
+    const occurrences: AliasOccurrence[] = [];
+
+    if (!mentionKey) {
+      return occurrences;
+    }
+
+    let start = messageKey.indexOf(mentionKey);
+
+    while (start >= 0) {
+      occurrences.push({
+        end: start + mentionKey.length,
+        mention,
+        referenceId,
+        start,
+      });
+      start = messageKey.indexOf(mentionKey, start + 1);
+    }
+
+    return occurrences;
   }
 
   const escapedMention = mention
     .normalize("NFKC")
     .replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
-  return new RegExp(
-    `(?:^|[^\\p{L}\\p{N}])${escapedMention}(?=$|[^\\p{L}\\p{N}])`,
-    "iu"
-  ).test(message.normalize("NFKC"));
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{N}])(?<mention>${escapedMention})(?![\\p{L}\\p{N}])`,
+    "giu"
+  );
+
+  const normalizedMessage = message.normalize("NFKC");
+  const occurrences: AliasOccurrence[] = [];
+
+  for (const match of normalizedMessage.matchAll(pattern)) {
+    if (match.index !== undefined && match.groups?.mention !== undefined) {
+      occurrences.push({
+        end: match.index + match.groups.mention.length,
+        mention,
+        referenceId,
+        start: match.index,
+      });
+    }
+  }
+
+  return occurrences;
 };
 
 const findConfirmedPlayerAliasesInMessage = (
   message: string,
   context: ConversationContext
-): string[] =>
-  context.playerAliases.flatMap((alias) =>
-    mentionOccursInMessage(message, alias.mention) ? [alias.mention] : []
-  );
+): string[] => {
+  const occurrences = context.playerAliases
+    .flatMap((alias) =>
+      aliasOccurrencesInMessage(
+        message,
+        alias.mention,
+        alias.reference.referenceId
+      )
+    )
+    .toSorted(
+      (left, right) =>
+        left.start - right.start ||
+        right.end - right.start - (left.end - left.start)
+    );
+
+  const selectedOccurrences: AliasOccurrence[] = [];
+
+  for (const occurrence of occurrences) {
+    const overlappingIndex = selectedOccurrences.findIndex(
+      (selected) =>
+        selected.referenceId === occurrence.referenceId &&
+        selected.start < occurrence.end &&
+        occurrence.start < selected.end
+    );
+
+    if (overlappingIndex === -1) {
+      selectedOccurrences.push(occurrence);
+      continue;
+    }
+
+    const selected = selectedOccurrences[overlappingIndex];
+
+    if (
+      selected !== undefined &&
+      occurrence.end - occurrence.start > selected.end - selected.start
+    ) {
+      selectedOccurrences[overlappingIndex] = occurrence;
+    }
+  }
+
+  const seenMentions = new Set<string>();
+
+  return selectedOccurrences.flatMap(({ mention }) => {
+    const key = normalizeMentionText(mention);
+
+    if (!key || seenMentions.has(key)) {
+      return [];
+    }
+
+    seenMentions.add(key);
+
+    return [mention];
+  });
+};
 
 const findPlayerReferenceMention = (value: string): string | null => {
   const chineseMatch =

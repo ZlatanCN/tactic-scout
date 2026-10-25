@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { searchPlayerRecords } from "../player-data/search-records.js";
 import type { PlayerSearch } from "../player-data/search-records.js";
+import { createComparePlayerRecordsTool } from "./compare-player-records.js";
 
 const searchInputSchema = z.object({
   limit: z
@@ -35,6 +36,7 @@ const createTools = (search: PlayerSearch = searchPlayerRecords) => [
     name: "search_player_records",
     schema: searchInputSchema,
   }),
+  createComparePlayerRecordsTool(search),
 ];
 
 export { createTools };

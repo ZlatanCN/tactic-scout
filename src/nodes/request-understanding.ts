@@ -1,6 +1,11 @@
 import type { GraphNode } from "@langchain/langgraph";
 
 import {
+  activeComparisonContext,
+  mergeComparisonConstraints,
+  requestPlayerFromReference,
+} from "../comparison-context.js";
+import {
   findConfirmedPlayerAliasesInMessage,
   latestHumanMessage,
   messageText,
@@ -26,6 +31,14 @@ const createRequestUnderstandingNode =
     const conversationContext =
       state.conversationContext ?? createInitialConversationContext();
 
+    const contextWithComparison = {
+      ...conversationContext,
+      activeComparison: activeComparisonContext(
+        state.messages,
+        conversationContext
+      ),
+    };
+
     const latestUserMessage = latestHumanMessage(state.messages);
 
     if (!latestUserMessage) {
@@ -39,11 +52,11 @@ const createRequestUnderstandingNode =
     }
 
     const text = messageText(latestUserMessage);
-    const extracted = await extractRequest(text, conversationContext);
+    const extracted = await extractRequest(text, contextWithComparison);
 
     const confirmedAliases = findConfirmedPlayerAliasesInMessage(
       text,
-      conversationContext
+      contextWithComparison
     );
 
     const extractedPlayers = [
@@ -55,19 +68,45 @@ const createRequestUnderstandingNode =
       })),
     ];
 
-    const players = normalizeExtractedPlayers(text, extractedPlayers).map(
-      (player) => ({
-        ...player,
-        attempts: 0,
-        resolution: null,
-      })
-    );
+    const isComparisonAddition =
+      extracted.kind === "player_comparison" &&
+      extracted.comparisonAction === "add";
+
+    const inheritedComparisonPlayers = isComparisonAddition
+      ? contextWithComparison.activeComparison.players.map(
+          requestPlayerFromReference
+        )
+      : [];
+
+    let { constraints } = extracted;
+
+    if (extracted.kind === "player_comparison") {
+      constraints = mergeComparisonConstraints(
+        isComparisonAddition
+          ? contextWithComparison.activeComparison.constraints
+          : [],
+        extracted.constraints
+      );
+    }
+
+    const currentTurnPlayers = normalizeExtractedPlayers(
+      text,
+      extractedPlayers
+    ).map((player) => ({
+      ...player,
+      attempts: 0,
+      resolution: null,
+    }));
+
+    const players = [...inheritedComparisonPlayers, ...currentTurnPlayers];
 
     return {
+      conversationContext: contextWithComparison,
       request: {
         activePlayerIndex: null,
         clarificationMessage: null,
-        constraints: extracted.constraints,
+        comparisonAction: extracted.comparisonAction ?? "replace",
+        constraints,
         kind: extracted.kind,
         players,
         processedMessageId: messageId,

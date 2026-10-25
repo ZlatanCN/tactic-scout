@@ -1,6 +1,6 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
-import { Command } from "@langchain/langgraph";
+import { Command, InMemoryStore, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
@@ -273,7 +273,16 @@ describe("LangGraph model-tool loop", () => {
       exactNameMatch: true,
       identityVerified: true,
       name: "Joshua Kimmich",
-      records: [],
+      records: [
+        {
+          competition: null,
+          name: "Joshua Kimmich",
+          provider: "fm",
+          season: null,
+          sourceId: "kimmich-fm",
+          team: null,
+        },
+      ],
     };
 
     const identityLookup = vi.fn<ReferenceIdentityLookup>(
@@ -375,7 +384,16 @@ describe("LangGraph model-tool loop", () => {
       exactNameMatch: true,
       identityVerified: true,
       name: "Declan Rice",
-      records: [],
+      records: [
+        {
+          competition: null,
+          name: "Declan Rice",
+          provider: "fm",
+          season: null,
+          sourceId: "rice-fm",
+          team: null,
+        },
+      ],
     };
 
     const kimmich: ReferenceCandidate = {
@@ -384,7 +402,16 @@ describe("LangGraph model-tool loop", () => {
       exactNameMatch: true,
       identityVerified: true,
       name: "Joshua Kimmich",
-      records: [],
+      records: [
+        {
+          competition: null,
+          name: "Joshua Kimmich",
+          provider: "fm",
+          season: null,
+          sourceId: "kimmich-fm",
+          team: null,
+        },
+      ],
     };
 
     const identityLookup = vi.fn<ReferenceIdentityLookup>((mention: string) => {
@@ -479,9 +506,19 @@ describe("LangGraph model-tool loop", () => {
     }).toMatchObject({
       aliases: [
         {
+          mention: "Declan Rice",
+          reference: {
+            candidate: { name: "Declan Rice" },
+            referenceId: "reep-declan-rice",
+          },
+        },
+        {
           mention: "基米希",
           reference: {
-            candidate: kimmich,
+            candidate: {
+              canonicalIdentityId: "reep-joshua-kimmich",
+              name: "Joshua Kimmich",
+            },
             referenceId: "reep-joshua-kimmich",
           },
         },
@@ -627,7 +664,8 @@ describe("LangGraph model-tool loop", () => {
 
     const search = vi.fn<PlayerSearch>((input: PlayerSearchInput) =>
       JSON.stringify({
-        player: input.playerName,
+        identityGroups: { canonicalGroups: [] },
+        query: input.playerName,
       })
     );
 
@@ -639,6 +677,11 @@ describe("LangGraph model-tool loop", () => {
         },
       ])
       .respond(new AIMessage("Ismael Saibari is the lookup result."))
+      .respond(
+        new AIMessage(
+          "The local data does not include comparable records for both players."
+        )
+      )
       .respondWithTools([
         {
           args: { playerName: "Declan Rice" },
@@ -727,11 +770,14 @@ describe("LangGraph model-tool loop", () => {
         referenceScope: player.referenceScope,
         selectedName: player.resolution?.selectedName,
       })),
+      searchedForComparison: search.mock.calls
+        .slice(1)
+        .map(([input]) => input.playerName),
     }).toStrictEqual({
       focusPlayers: ["Ismael Saibari"],
       identityLookups: ["Ismael Saibari", "Khvicha Kvaratskhelia"],
       message:
-        "我已经识别到这是球员比较请求；比较流程还未接通，目前可以查询单个球员记录。",
+        "The local data does not include comparable records for both players.",
       players: [
         {
           referenceScope: "prior_context",
@@ -742,6 +788,7 @@ describe("LangGraph model-tool loop", () => {
           selectedName: "Khvicha Kvaratskhelia",
         },
       ],
+      searchedForComparison: ["Ismael Saibari", "Khvicha Kvaratskhelia"],
     });
 
     const followUp = await graph.invoke(
@@ -755,8 +802,292 @@ describe("LangGraph model-tool loop", () => {
       selectedName: followUp.request.players[0]?.resolution?.selectedName,
     }).toStrictEqual({
       response: "Ismael Saibari is the profile result.",
-      searchedPlayers: ["Ismael Saibari", "Ismael Saibari"],
+      searchedPlayers: [
+        "Ismael Saibari",
+        "Ismael Saibari",
+        "Khvicha Kvaratskhelia",
+        "Ismael Saibari",
+      ],
       selectedName: "Ismael Saibari",
+    });
+  });
+
+  it("adds a player to the comparison in the same thread without leaking it to another thread", async () => {
+    const candidates = new Map<string, ReferenceCandidate>([
+      [
+        "Kylian Mbappé",
+        {
+          candidateId: "reep:kylian-mbappe",
+          canonicalIdentityId: "reep-kylian-mbappe",
+          exactNameMatch: true,
+          identityVerified: true,
+          name: "Kylian Mbappé",
+          records: [],
+        },
+      ],
+      [
+        "Troy Parrott",
+        {
+          candidateId: "reep:troy-parrott",
+          canonicalIdentityId: "reep-troy-parrott",
+          exactNameMatch: true,
+          identityVerified: true,
+          name: "Troy Parrott",
+          records: [],
+        },
+      ],
+      [
+        "Erling Haaland",
+        {
+          candidateId: "reep:erling-haaland",
+          canonicalIdentityId: "reep-erling-haaland",
+          exactNameMatch: true,
+          identityVerified: true,
+          name: "Erling Haaland",
+          records: [],
+        },
+      ],
+    ]);
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>((mention) => {
+      const candidate = candidates.get(mention);
+
+      if (candidate === undefined) {
+        throw new Error(`Unexpected identity lookup: ${mention}`);
+      }
+
+      return {
+        candidateCount: 1,
+        candidates: [candidate],
+        candidatesTruncated: false,
+        canonicalIdentityId: candidate.canonicalIdentityId,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: candidate.candidateId,
+        selectedName: candidate.name,
+        status: "resolved" as const,
+      };
+    });
+
+    const search = vi.fn<PlayerSearch>((input: PlayerSearchInput) =>
+      JSON.stringify({
+        identityGroups: { canonicalGroups: [] },
+        query: input.playerName,
+      })
+    );
+
+    const model = fakeModel()
+      .respond(new AIMessage("The first comparison completed."))
+      .respond(new AIMessage("The three-player comparison completed."));
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createTestExtractor((message) =>
+        message.includes("Erling Haaland")
+          ? {
+              comparisonAction: "add",
+              constraints: [],
+              kind: "player_comparison",
+              players: [{ lookupName: null, mention: "Erling Haaland" }],
+              teams: [],
+            }
+          : {
+              comparisonAction: "replace",
+              constraints: [],
+              kind: "player_comparison",
+              players: [
+                { lookupName: null, mention: "Kylian Mbappé" },
+                { lookupName: null, mention: "Troy Parrott" },
+              ],
+              teams: [],
+            }
+      ),
+      store: new InMemoryStore(),
+      tools: createTools(search),
+    });
+
+    const comparisonThread = {
+      configurable: { thread_id: "comparison-context-thread" },
+    };
+
+    const firstComparison = await graph.invoke(
+      {
+        messages: [new HumanMessage("Compare Kylian Mbappé and Troy Parrott.")],
+      },
+      comparisonThread
+    );
+
+    expect(
+      firstComparison.conversationContext.activeComparison.players.map(
+        ({ candidate }) => candidate.name
+      )
+    ).toStrictEqual(["Kylian Mbappé", "Troy Parrott"]);
+
+    const expandedComparison = await graph.invoke(
+      {
+        messages: [
+          new HumanMessage("Also add Erling Haaland to the comparison."),
+        ],
+      },
+      comparisonThread
+    );
+
+    expect({
+      action: expandedComparison.request.comparisonAction,
+      activeComparison:
+        expandedComparison.conversationContext.activeComparison.players.map(
+          ({ candidate }) => candidate.name
+        ),
+      message: expandedComparison.messages.at(-1)?.content,
+      players: expandedComparison.request.players.map(
+        (player) => player.resolution?.selectedName
+      ),
+      searchedPlayers: search.mock.calls
+        .slice(2)
+        .map(([input]) => input.playerName),
+    }).toStrictEqual({
+      action: "add",
+      activeComparison: ["Kylian Mbappé", "Troy Parrott", "Erling Haaland"],
+      message: "The three-player comparison completed.",
+      players: ["Kylian Mbappé", "Troy Parrott", "Erling Haaland"],
+      searchedPlayers: ["Kylian Mbappé", "Troy Parrott", "Erling Haaland"],
+    });
+
+    const separateThread = await graph.invoke(
+      {
+        messages: [
+          new HumanMessage("Also add Erling Haaland to the comparison."),
+        ],
+      },
+      { configurable: { thread_id: "separate-comparison-thread" } }
+    );
+
+    expect({
+      activeComparison:
+        separateThread.conversationContext.activeComparison.players,
+      message: separateThread.messages.at(-1)?.content,
+      playerCount: separateThread.request.players.length,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activeComparison: [],
+      message:
+        "当前线程没有可继续添加的球员比较。请先提供至少两名球员开始比较。",
+      playerCount: 1,
+      searchCalls: 5,
+    });
+  });
+
+  it("recovers the last comparison participants from thread history", async () => {
+    const haaland: ReferenceCandidate = {
+      candidateId: "reep:erling-haaland",
+      canonicalIdentityId: "reep-erling-haaland",
+      exactNameMatch: true,
+      identityVerified: true,
+      name: "Erling Haaland",
+      records: [],
+    };
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>((mention) => ({
+      candidateCount: 1,
+      candidates: [haaland],
+      candidatesTruncated: false,
+      canonicalIdentityId: haaland.canonicalIdentityId,
+      clarificationMessage: null,
+      mention,
+      selectedCandidateId: haaland.candidateId,
+      selectedName: haaland.name,
+      status: "resolved" as const,
+    }));
+
+    const search = vi.fn<PlayerSearch>((input: PlayerSearchInput) =>
+      JSON.stringify({
+        identityGroups: { canonicalGroups: [] },
+        query: input.playerName,
+      })
+    );
+
+    const model = fakeModel().respond(
+      new AIMessage("The recovered three-player comparison completed.")
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createTestExtractor(() => ({
+        comparisonAction: "add",
+        constraints: [],
+        kind: "player_comparison",
+        players: [{ lookupName: null, mention: "Erling Haaland" }],
+        teams: [],
+      })),
+      store: new InMemoryStore(),
+      tools: createTools(search),
+    });
+
+    const priorComparisonId = "previous-comparison-call";
+
+    const result = await graph.invoke(
+      {
+        messages: [
+          new HumanMessage("Compare Kylian Mbappé and Troy Parrott."),
+          new AIMessage({
+            content: "",
+            tool_calls: [
+              {
+                args: {
+                  players: [
+                    {
+                      canonicalIdentityId: "reep-kylian-mbappe",
+                      identityBasis: "reep_registry",
+                      playerName: "Kylian Mbappé",
+                      sourceRecords: [
+                        { provider: "fm", sourceId: "mbappe-fm" },
+                      ],
+                    },
+                    {
+                      canonicalIdentityId: "reep-troy-parrott",
+                      identityBasis: "reep_registry",
+                      playerName: "Troy Parrott",
+                      sourceRecords: [
+                        { provider: "fm", sourceId: "parrott-fm" },
+                      ],
+                    },
+                  ],
+                  source: "both",
+                },
+                id: priorComparisonId,
+                name: "compare_player_records",
+                type: "tool_call",
+              },
+            ],
+          }),
+          new ToolMessage({
+            content: JSON.stringify({ status: "no_comparable_data" }),
+            name: "compare_player_records",
+            tool_call_id: priorComparisonId,
+          }),
+          new AIMessage("The earlier comparison completed."),
+          new HumanMessage("Also add Erling Haaland to the comparison."),
+        ],
+      },
+      { configurable: { thread_id: "historical-comparison-thread" } }
+    );
+
+    expect({
+      activeComparison: result.conversationContext.activeComparison.players.map(
+        ({ candidate }) => candidate.name
+      ),
+      players: result.request.players.map(
+        (player) => player.resolution?.selectedName
+      ),
+      searchedPlayers: search.mock.calls.map(([input]) => input.playerName),
+    }).toStrictEqual({
+      activeComparison: ["Kylian Mbappé", "Troy Parrott", "Erling Haaland"],
+      players: ["Kylian Mbappé", "Troy Parrott", "Erling Haaland"],
+      searchedPlayers: ["Kylian Mbappé", "Troy Parrott", "Erling Haaland"],
     });
   });
 });

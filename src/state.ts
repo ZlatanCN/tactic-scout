@@ -14,6 +14,8 @@ const RequestKindSchema = z.enum([
   "other",
 ]);
 
+const ComparisonActionSchema = z.enum(["replace", "add"]);
+
 const ConversationPlayerReferenceSchema = z.object({
   candidate: ReferenceCandidateSchema,
   referenceId: z.string(),
@@ -24,7 +26,25 @@ const ConversationPlayerAliasSchema = z.object({
   reference: ConversationPlayerReferenceSchema,
 });
 
+const RequestConstraintSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+});
+
+const ActiveComparisonSchema = z.object({
+  constraints: z.array(RequestConstraintSchema),
+  players: z.array(ConversationPlayerReferenceSchema),
+});
+
+const createInitialActiveComparison = () => ({
+  constraints: [],
+  players: [],
+});
+
 const ConversationContextSchema = z.object({
+  activeComparison: ActiveComparisonSchema.default(
+    createInitialActiveComparison
+  ),
   focusPlayers: z.array(ConversationPlayerReferenceSchema),
   playerAliases: z.array(ConversationPlayerAliasSchema).default([]),
 });
@@ -40,14 +60,10 @@ const RequestPlayerSchema = z.object({
   resolution: PlayerResolutionSchema.nullable(),
 });
 
-const RequestConstraintSchema = z.object({
-  name: z.string(),
-  value: z.string(),
-});
-
 const RequestStateSchema = z.object({
   activePlayerIndex: z.number().int().nonnegative().nullable(),
   clarificationMessage: z.string().nullable(),
+  comparisonAction: ComparisonActionSchema.default("replace"),
   constraints: z.array(RequestConstraintSchema),
   kind: RequestKindSchema,
   players: z.array(RequestPlayerSchema),
@@ -64,6 +80,7 @@ const RequestStateSchema = z.object({
 const createInitialRequestState = () => ({
   activePlayerIndex: null,
   clarificationMessage: null,
+  comparisonAction: "replace" as const,
   constraints: [],
   kind: "other" as const,
   players: [],
@@ -73,6 +90,7 @@ const createInitialRequestState = () => ({
 });
 
 const createInitialConversationContext = () => ({
+  activeComparison: createInitialActiveComparison(),
   focusPlayers: [],
   playerAliases: [],
 });
@@ -87,6 +105,8 @@ const AgentState = MessagesZodState.extend({
 
 type AgentStateType = z.infer<typeof AgentState>;
 
+type ActiveComparison = z.infer<typeof ActiveComparisonSchema>;
+
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
 
 type ConversationPlayerAlias = z.infer<typeof ConversationPlayerAliasSchema>;
@@ -99,22 +119,28 @@ type RequestConstraint = z.infer<typeof RequestConstraintSchema>;
 
 type RequestKind = z.infer<typeof RequestKindSchema>;
 
+type ComparisonAction = z.infer<typeof ComparisonActionSchema>;
+
 type RequestPlayerState = z.infer<typeof RequestPlayerSchema>;
 
 type RequestState = z.infer<typeof RequestStateSchema>;
 
 export {
+  ActiveComparisonSchema,
   AgentState,
+  ComparisonActionSchema,
   createInitialConversationContext,
   createInitialRequestState,
   RequestKindSchema,
 };
 
 export type {
+  ActiveComparison,
   AgentStateType,
   ConversationContext,
   ConversationPlayerAlias,
   ConversationPlayerReference,
+  ComparisonAction,
   RequestConstraint,
   RequestKind,
   RequestPlayerState,

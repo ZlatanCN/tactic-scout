@@ -8,6 +8,7 @@ import {
   normalizeMentionText,
 } from "./player-mentions.js";
 import type {
+  ComparisonAction,
   ConversationContext,
   RequestConstraint,
   RequestKind,
@@ -30,6 +31,7 @@ type ExtractedPlayerMention = {
 };
 
 type ExtractedRequest = {
+  comparisonAction?: ComparisonAction;
   kind: RequestKind;
   players: ExtractedPlayerMention[];
   teams: string[];
@@ -49,10 +51,18 @@ type NormalizedExtractedPlayerMention = {
 };
 
 const requestExtractionSchema = z.object({
+  comparisonAction: z
+    .enum(["replace", "add"])
+    .optional()
+    .describe(
+      "球员比较请求：replace 表示本轮提供的是完整比较名单；add 仅用于明确要求把球员加入当前 thread 已有比较。"
+    ),
   constraints: z
     .array(
       z.object({
-        name: z.string(),
+        name: z
+          .string()
+          .describe("赛季条件统一使用 season；其他条件使用其明确名称。"),
         value: z.string(),
       })
     )
@@ -89,8 +99,13 @@ const requestExtractionSchema = z.object({
   teams: z.array(z.string()).describe("照抄用户本轮消息里提到的球队名。"),
 });
 
-const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员和中文称呼绑定。
+const addToComparisonPattern =
+  /(?:加入|加上|添加|纳入).{0,12}(?:对比|比较)|\b(?:add|include)\b.{0,80}\b(?:comparison|comparison set)\b/iu;
+
+const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定和当前比较对象。
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；other：其他请求。
+comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补语义时一律 replace。add 时 players 仍只列本轮新增的称呼，已有比较对象会由程序从 thread 状态合并，不要重复输出。
+constraints 只提取本轮原文明确指定的条件，不要复制 activeComparison.constraints；程序负责继承。赛季条件的 name 统一用 season，value 保留用户指定的赛季。
 列出本轮消息里出现的所有球员称呼和球队。mention 必须照抄本轮原文。
 用户明确写出球员姓名时 referenceScope=explicit。代词指向本轮之前的焦点球员时 referenceScope=prior_context；指向本轮较早出现的明确姓名时用 same_turn，并填入 referenceTargetMention；无法判断先行对象时用 ambiguous。
 prior_context 只表示引用之前的焦点，不要用本轮另一个显式提到的球员替换它。比如“他比凯恩差”中的“他”引用之前的焦点，凯恩是比较对象。
@@ -119,10 +134,22 @@ const uniqueText = (values: string[]): string[] => {
 const createRequestUnderstandingExtractor = (
   model: BaseChatModel
 ): RequestUnderstandingExtractor => {
-  const structuredModel = model.withStructuredOutput(requestExtractionSchema);
+  const structuredModel = model.withStructuredOutput(requestExtractionSchema, {
+    method: "functionCalling",
+  });
 
   return async (message, context) => {
     const contextInput = {
+      activeComparison: {
+        constraints: context.activeComparison.constraints,
+        players: context.activeComparison.players.map(
+          ({ referenceId, candidate }) => ({
+            canonicalIdentityId: candidate.canonicalIdentityId,
+            name: candidate.name,
+            referenceId,
+          })
+        ),
+      },
       confirmedPlayerAliases: context.playerAliases.map(
         ({ mention, reference }) => ({
           canonicalIdentityId: reference.candidate.canonicalIdentityId,
@@ -146,6 +173,11 @@ const createRequestUnderstandingExtractor = (
     ]);
 
     return {
+      comparisonAction:
+        result.comparisonAction === "add" ||
+        addToComparisonPattern.test(message)
+          ? "add"
+          : "replace",
       constraints: result.constraints.flatMap((constraint) => {
         const name = constraint.name.trim();
         const value = constraint.value.trim();

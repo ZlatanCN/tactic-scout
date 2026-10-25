@@ -245,6 +245,10 @@ const readUnderstatReferenceRecords = (
   }
 };
 
-export { readUnderstat, readUnderstatReferenceRecords };
+export {
+  readUnderstat,
+  readUnderstatReferenceRecords,
+  understatReadResultSchema,
+};
 
 export type { UnderstatReadResult };

@@ -18,6 +18,7 @@ import {
   createIdentityClarificationNode,
   createUnresolvedRequestNode,
 } from "./nodes/identity-clarification.js";
+import { createRememberComparisonNode } from "./nodes/remember-comparison.js";
 import { createRequestBoundaryNode } from "./nodes/request-boundary.js";
 import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
@@ -37,7 +38,7 @@ type CreateAgentOptions = {
   store?: BaseStore;
 };
 
-const routeRequest = (request: RequestState) => {
+const routeRequest = (request: RequestState, hasComparisonTool: boolean) => {
   if (request.status === "needs_confirmation") {
     return "confirm_identity";
   }
@@ -50,8 +51,19 @@ const routeRequest = (request: RequestState) => {
     return "request_boundary";
   }
 
+  if (request.kind === "player_comparison") {
+    const allPlayersResolved = request.players.every(
+      (player) => player.resolution?.status === "resolved"
+    );
+
+    return hasComparisonTool &&
+      request.players.length >= 2 &&
+      allPlayersResolved
+      ? "assistant"
+      : "request_boundary";
+  }
+
   if (
-    request.kind === "player_comparison" ||
     request.kind === "player_recommendation" ||
     request.kind === "team_recommendation"
   ) {
@@ -95,7 +107,16 @@ const configuredModel = (): ChatOpenAI => {
 const createAgent = (options: CreateAgentOptions = {}) => {
   const tools = options.tools ?? createTools();
   const model = options.model ?? configuredModel();
-  const modelWithTools = model.bindTools?.(tools);
+
+  const modelVisibleTools = tools.filter(
+    (configuredTool) => configuredTool.name !== "compare_player_records"
+  );
+
+  const modelWithTools = model.bindTools?.(modelVisibleTools);
+
+  const hasComparisonTool = tools.some(
+    (configuredTool) => configuredTool.name === "compare_player_records"
+  );
 
   if (!modelWithTools) {
     throw new Error("配置的聊天模型不支持工具调用。");
@@ -116,13 +137,18 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("confirm_identity", createIdentityClarificationNode())
     .addNode("identity_unresolved", createUnresolvedRequestNode())
     .addNode("request_boundary", createRequestBoundaryNode())
-    .addNode("assistant", createAssistantNode(modelWithTools))
+    .addNode("remember_comparison", createRememberComparisonNode())
+    .addNode("assistant", createAssistantNode(model, modelWithTools))
     .addNode("tools", new ToolNode(tools))
     .addEdge(START, "understand_request")
     .addEdge("understand_request", "resolve_entities")
     .addConditionalEdges(
       "resolve_entities",
-      (state) => routeRequest(state.request ?? createInitialRequestState()),
+      (state) =>
+        routeRequest(
+          state.request ?? createInitialRequestState(),
+          hasComparisonTool
+        ),
       [
         "confirm_identity",
         "identity_unresolved",
@@ -134,7 +160,8 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addEdge("identity_unresolved", END)
     .addEdge("request_boundary", END)
     .addConditionalEdges("assistant", toolsCondition)
-    .addEdge("tools", "assistant");
+    .addEdge("tools", "remember_comparison")
+    .addEdge("remember_comparison", "assistant");
 
   return graph.compile({
     checkpointer: options.checkpointer ?? new MemorySaver(),
