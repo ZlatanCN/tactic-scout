@@ -69,11 +69,14 @@ type ReferenceLookupResult = Pick<
 
 type PlayerSearchSource = "understat" | "fm" | "both";
 
+type PlayerSearchSourceRecord = {
+  provider: "understat" | "fm";
+  sourceId: string;
+};
+
 type PlayerSearchQuery = {
-  limit: number;
-  playerName: string;
+  sourceRecords: PlayerSearchSourceRecord[];
   seasonStartYear?: number;
-  source: PlayerSearchSource;
 };
 
 export {
@@ -85,6 +88,7 @@ export {
 export type {
   CandidateSourceRecord,
   PlayerResolutionState,
+  PlayerSearchSourceRecord,
   PlayerSearchQuery,
   PlayerSearchSource,
   ReferenceCandidate,

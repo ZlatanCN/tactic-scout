@@ -1,9 +1,9 @@
 import type { PlayerSearchQuery } from "./contracts.js";
-import { readFmProfiles } from "./football-manager.js";
+import { readFmProfilesBySourceIds } from "./football-manager.js";
 import type { FmReadResult } from "./football-manager.js";
 import { resolveSearchIdentityGroups } from "./reep-registry.js";
-import { assertModelProcessingAllowed, normalizePlayerName } from "./shared.js";
-import { readUnderstat } from "./understat.js";
+import { assertModelProcessingAllowed } from "./shared.js";
+import { readUnderstatBySourceIds } from "./understat.js";
 import type { UnderstatReadResult } from "./understat.js";
 
 type PlayerSearch = (input: PlayerSearchQuery) => Promise<string> | string;
@@ -11,35 +11,51 @@ type PlayerSearch = (input: PlayerSearchQuery) => Promise<string> | string;
 type SearchPlayerRecordsResult = {
   fm?: FmReadResult;
   identityGroups: ReturnType<typeof resolveSearchIdentityGroups>;
-  query: string;
+  query: PlayerSearchQuery["sourceRecords"];
   understat?: UnderstatReadResult;
 };
 
 const searchPlayerRecords: PlayerSearch = (input) => {
-  const normalizedName = normalizePlayerName(input.playerName);
+  const sourceRecords = input.sourceRecords.filter(
+    ({ sourceId }) => sourceId.trim().length > 0
+  );
 
-  if (normalizedName.length === 0) {
+  if (sourceRecords.length === 0) {
     return JSON.stringify({
-      query: input.playerName,
-      result: "empty_query",
+      query: [],
+      result: "no_confirmed_source_ids",
     });
   }
 
-  assertModelProcessingAllowed(input.source);
+  const providers = new Set(sourceRecords.map(({ provider }) => provider));
+
+  for (const provider of providers) {
+    assertModelProcessingAllowed(provider);
+  }
+
   let understatResult: UnderstatReadResult | null = null;
   let fmResult: FmReadResult | null = null;
 
-  if (input.source === "understat" || input.source === "both") {
-    understatResult = readUnderstat(input, normalizedName);
+  if (providers.has("understat")) {
+    understatResult = readUnderstatBySourceIds(
+      sourceRecords.flatMap((record) =>
+        record.provider === "understat" ? [record.sourceId] : []
+      ),
+      input.seasonStartYear
+    );
   }
 
-  if (input.source === "fm" || input.source === "both") {
-    fmResult = readFmProfiles(input, normalizedName);
+  if (providers.has("fm")) {
+    fmResult = readFmProfilesBySourceIds(
+      sourceRecords.flatMap((record) =>
+        record.provider === "fm" ? [record.sourceId] : []
+      )
+    );
   }
 
   const result: SearchPlayerRecordsResult = {
     identityGroups: resolveSearchIdentityGroups(understatResult, fmResult),
-    query: input.playerName,
+    query: sourceRecords,
   };
 
   if (understatResult !== null) {

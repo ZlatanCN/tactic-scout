@@ -30,7 +30,6 @@ const comparisonPlayerSchema = z.object({
 const comparePlayerRecordsInputSchema = z.object({
   players: z.array(comparisonPlayerSchema).min(2),
   seasonStartYear: z.number().int().min(2000).max(2100).optional(),
-  source: z.enum(["understat", "fm", "both"]).default("both"),
 });
 
 const comparisonIdentityGroupsSchema = z.object({
@@ -50,7 +49,7 @@ const comparisonIdentityGroupsSchema = z.object({
 const comparisonSearchResultSchema = z.object({
   fm: fmReadResultSchema.optional(),
   identityGroups: comparisonIdentityGroupsSchema,
-  query: z.string(),
+  query: z.array(comparisonSourceRecordSchema),
   understat: understatReadResultSchema.optional(),
 });
 
@@ -69,31 +68,13 @@ type PlayerComparisonData = {
 
 const selectedSourceIds = (
   player: ComparisonPlayer,
-  provider: "understat" | "fm",
-  identityGroups: z.output<typeof comparisonIdentityGroupsSchema>
-): Set<string> => {
-  const sourceIds = new Set(
+  provider: "understat" | "fm"
+): Set<string> =>
+  new Set(
     player.sourceRecords.flatMap((record) =>
       record.provider === provider ? [record.sourceId] : []
     )
   );
-
-  if (player.canonicalIdentityId === null) {
-    return sourceIds;
-  }
-
-  const canonicalGroup = identityGroups.canonicalGroups.find(
-    (group) => group.canonicalIdentityId === player.canonicalIdentityId
-  );
-
-  for (const record of canonicalGroup?.records ?? []) {
-    if (record.provider === provider) {
-      sourceIds.add(record.identitySourceId);
-    }
-  }
-
-  return sourceIds;
-};
 
 const filterUnderstatRecords = (
   result: UnderstatReadResult | undefined,
@@ -242,25 +223,20 @@ const comparePlayerRecords = async (
   const players = await Promise.all(
     selectedPlayers.map(async (player): Promise<PlayerComparisonData> => {
       const query: PlayerSearchQuery = {
-        limit: 5,
-        playerName: player.playerName,
         seasonStartYear: input.seasonStartYear,
-        source: input.source,
+        sourceRecords: player.sourceRecords,
       };
 
       const rawResult = await search(query);
       const result = comparisonSearchResultSchema.parse(JSON.parse(rawResult));
 
       return {
-        fm: filterFmRecords(
-          result.fm,
-          selectedSourceIds(player, "fm", result.identityGroups)
-        ),
+        fm: filterFmRecords(result.fm, selectedSourceIds(player, "fm")),
         identityBasis: player.identityBasis,
         playerName: player.playerName,
         understat: filterUnderstatRecords(
           result.understat,
-          selectedSourceIds(player, "understat", result.identityGroups)
+          selectedSourceIds(player, "understat")
         ),
       };
     })

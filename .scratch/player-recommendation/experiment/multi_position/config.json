@@ -1,0 +1,49 @@
+{
+  "protocolVersion": "fm-all-positions-v1",
+  "runId": "20261025-multiposition-v2",
+  "seed": 20261025,
+  "expectedManifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
+  "featureMapPath": ".scratch/player-recommendation/position-feature-map.json",
+  "expectedFeatureMapSha256": "37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20",
+  "positionRatingMinimum": 15,
+  "correlationConstantVectorPolicy": "both constant => distance 0; exactly one constant => distance 1",
+  "fitFraction": 0.7,
+  "developmentFraction": 0.15,
+  "testFraction": 0.15,
+  "singleQueriesPerPositionPerSplit": 60,
+  "twoReferenceQueriesPerPositionPerSplit": 30,
+  "threeReferenceQueriesPerPositionPerSplit": 30,
+  "bootstrapReplicates": 2000,
+  "noiseReplicates": 2,
+  "minimumSelectionPool": 50,
+  "minimumMacroJaccardGain": 0.02,
+  "maximumPerPositionJaccardRegression": -0.1,
+  "maximumP95Milliseconds": 50,
+  "topK": 10,
+  "mainStrategies": [
+    "mae",
+    "rmse",
+    "cosine",
+    "correlation",
+    "zrmse",
+    "mahalanobis",
+    "weighted_mae"
+  ],
+  "selectionStrategies": ["rmse", "zrmse", "mahalanobis", "weighted_mae"],
+  "controls": ["ca_only", "random"],
+  "currentScenarios": [
+    { "id": "open", "maxAge": null, "minCa": null, "minPa": null },
+    { "id": "u23", "maxAge": 23, "minCa": null, "minPa": null },
+    { "id": "u23_ca160", "maxAge": 23, "minCa": 160, "minPa": null },
+    { "id": "u23_pa160", "maxAge": 23, "minCa": null, "minPa": 160 }
+  ],
+  "potentialScenarios": [
+    { "id": "open", "maxAge": null, "minCa": null, "minPa": null },
+    { "id": "u23", "maxAge": 23, "minCa": null, "minPa": null },
+    { "id": "u23_pa160", "maxAge": 23, "minCa": null, "minPa": 160 }
+  ],
+  "reportCaGap": true,
+  "caGapIsSelectionGate": false,
+  "groupAblations": ["mae", "developmentSelectedStrategy"],
+  "groupAblationsAreSelectionInputs": false
+}

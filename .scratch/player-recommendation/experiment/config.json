@@ -1,0 +1,81 @@
+{
+  "protocolVersion": "fm-stc-formulas-v1",
+  "seed": 20261025,
+  "queryCount": 240,
+  "developmentCount": 120,
+  "bootstrapReplicates": 2000,
+  "noiseReplicates": 2,
+  "benchmarkQueries": 40,
+  "benchmarkRepeats": 2,
+  "minimumSelectionPool": 50,
+  "minimumJaccardGain": 0.02,
+  "maximumCaGapIncrease": 5,
+  "maximumP95Milliseconds": 50,
+  "expectedManifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
+  "mainStrategies": [
+    "mae18",
+    "rmse18",
+    "cosine18",
+    "correlation18",
+    "zrmse18",
+    "mahalanobis18",
+    "weighted_mae18"
+  ],
+  "selectionStrategies": [
+    "rmse18",
+    "zrmse18",
+    "mahalanobis18",
+    "weighted_mae18"
+  ],
+  "features": [
+    "acceleration",
+    "decisions",
+    "finishing",
+    "first_touch",
+    "off_the_ball",
+    "pace",
+    "passing",
+    "strength",
+    "technique",
+    "vision",
+    "heading",
+    "jumping_reach",
+    "composure",
+    "anticipation",
+    "teamwork",
+    "dribbling",
+    "stamina",
+    "work_rate"
+  ],
+  "groups": {
+    "physical": [
+      "acceleration",
+      "pace",
+      "strength",
+      "jumping_reach",
+      "stamina"
+    ],
+    "finishing": [
+      "finishing",
+      "off_the_ball",
+      "heading",
+      "composure",
+      "anticipation"
+    ],
+    "link": [
+      "decisions",
+      "first_touch",
+      "passing",
+      "technique",
+      "vision",
+      "teamwork",
+      "dribbling",
+      "work_rate"
+    ]
+  },
+  "scenarios": [
+    { "id": "open", "maxAge": null, "minCa": null },
+    { "id": "u25", "maxAge": 25, "minCa": null },
+    { "id": "u25_ca160", "maxAge": 25, "minCa": 160 }
+  ]
+}

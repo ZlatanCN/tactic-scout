@@ -4,16 +4,13 @@ import { z } from "zod/v4";
 import { searchPlayerRecords } from "../player-data/search-records.js";
 import type { PlayerSearch } from "../player-data/search-records.js";
 import { createComparePlayerRecordsTool } from "./compare-player-records.js";
+import {
+  createRecommendPlayerCandidatesTool,
+  recommendPlayerCandidates,
+} from "./recommend-player-candidates.js";
+import type { RecommendPlayerCandidates } from "./recommend-player-candidates.js";
 
 const searchInputSchema = z.object({
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(5)
-    .default(3)
-    .describe("每个来源最多返回的记录数"),
-  playerName: z.string().min(2).max(100).describe("球员姓名或姓名片段"),
   seasonStartYear: z
     .number()
     .int()
@@ -21,22 +18,31 @@ const searchInputSchema = z.object({
     .max(2100)
     .optional()
     .describe("Understat 赛季起始年份；不填时使用数据库中最新赛季"),
-  source: z
-    .enum(["understat", "fm", "both"])
-    .default("both")
-    .describe("要查询的数据来源"),
+  sourceRecords: z
+    .array(
+      z.object({
+        provider: z.enum(["understat", "fm"]),
+        sourceId: z.string().min(1),
+      })
+    )
+    .min(1)
+    .describe("身份解析已确认的精确数据源记录，不要自行更换或猜测 ID"),
 });
 
 type PlayerSearchInput = z.output<typeof searchInputSchema>;
 
-const createTools = (search: PlayerSearch = searchPlayerRecords) => [
+const createTools = (
+  search: PlayerSearch = searchPlayerRecords,
+  recommend: RecommendPlayerCandidates = recommendPlayerCandidates
+) => [
   tool(search, {
     description:
-      "按姓名查找本地 Understat 赛季表现记录和/或 Football Manager 能力画像。identityGroups 只合并身份注册表通过 canonical Reep ID 确认关联的来源记录；unlinkedRecords 不可按姓名合并。",
+      "读取身份解析已确认的精确 Understat 和/或 Football Manager source ID。不得按姓名搜索，也不得替换传入的 source ID。",
     name: "search_player_records",
     schema: searchInputSchema,
   }),
   createComparePlayerRecordsTool(search),
+  createRecommendPlayerCandidatesTool(recommend),
 ];
 
 export { createTools };

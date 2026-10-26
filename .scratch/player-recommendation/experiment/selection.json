@@ -1,0 +1,84 @@
+{
+  "purpose": "offline-experiment-decision-not-runtime-config",
+  "status": "provisional",
+  "qualityValidated": false,
+  "strategyVersion": "fm-stc-rmse18-v1-provisional",
+  "featureSetVersion": "fm-stc18-v1",
+  "strategy": "rmse18",
+  "formula": "sqrt(sum((candidateRaw-referenceRaw)^2)/18)",
+  "featureNames": [
+    "acceleration",
+    "decisions",
+    "finishing",
+    "first_touch",
+    "off_the_ball",
+    "pace",
+    "passing",
+    "strength",
+    "technique",
+    "vision",
+    "heading",
+    "jumping_reach",
+    "composure",
+    "anticipation",
+    "teamwork",
+    "dribbling",
+    "stamina",
+    "work_rate"
+  ],
+  "weights": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  "preprocessing": "raw-1-100",
+  "snapshotDate": "2025-11-23",
+  "manifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
+  "protocolConfigSha256": "7196d034467a2f4909c29167dbb23bc122bfe475fe17206eb16b2fe044bed279",
+  "developmentSelectionSha256": "f2b7a3694a61210440cf6a6a0db757d0396a0635ab1a62ecb2c0982f41b188ed",
+  "testConfirmation": {
+    "strategy": "rmse18",
+    "jaccardDelta": {
+      "mean": 0.0716600529100529,
+      "low95": 0.03900132275132273,
+      "high95": 0.10375620039682538,
+      "n": 120
+    },
+    "caGapDelta": {
+      "mean": 0.03166666666666664,
+      "low95": -0.35670833333333335,
+      "high95": 0.426708333333333,
+      "n": 120
+    },
+    "checks": {
+      "levelSensitive": true,
+      "nondegenerate": true,
+      "minimumEffect": true,
+      "positivePairedInterval": true,
+      "abilityGapGuardrail": true,
+      "latencyBudget": true
+    },
+    "passes": true
+  },
+  "testNoiseJaccard5": {
+    "mae18": 0.5875826719576719,
+    "rmse18": 0.659242724867725
+  },
+  "diagnosticRmseMinusStandardizedRmse": {
+    "mean": 0.01979166666666666,
+    "low95": -0.012750496031746026,
+    "high95": 0.05278273809523806,
+    "n": 120
+  },
+  "eliteReferenceSlice": {
+    "n": 5,
+    "minimumReferenceCa": 160,
+    "mae18MeanCaGap5": 16.4,
+    "rmse18MeanCaGap5": 18.08
+  },
+  "resultDirectory": ".data/recommendation-experiments/20261025-v1",
+  "report": ".scratch/player-recommendation/experiment-report.md",
+  "limitations": [
+    "No independent replacement-relevance labels; no NDCG/Recall claim.",
+    "Robustness margin measures the fixed synthetic perturbation protocol only.",
+    "RMSE versus standardized RMSE diagnostic interval includes zero.",
+    "Only five high-CA reference identities in the test sample.",
+    "Understat small, time-shifted panel did not participate in selection."
+  ]
+}

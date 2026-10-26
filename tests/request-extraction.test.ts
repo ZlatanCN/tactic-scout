@@ -41,4 +41,34 @@ describe("request understanding extraction", () => {
       players: [{ lookupName: "Erling Haaland", mention: "哈兰德" }],
     });
   });
+
+  it("preserves explicit null while omitting recommendation fields the user did not mention", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "player_recommendation",
+        players: [],
+        recommendation: { maxAge: null },
+        teams: [],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "Remove the age limit from the last recommendation.",
+      createInitialConversationContext()
+    );
+
+    expect({
+      action: result.recommendationAction,
+      recommendation: result.recommendation,
+    }).toStrictEqual({
+      action: "replace",
+      recommendation: { maxAge: null },
+    });
+  });
 });

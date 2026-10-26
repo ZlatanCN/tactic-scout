@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This branch is a minimal LangGraph.js football-data agent. The model may call a bounded local player-search tool; LangGraph owns the model/tool loop and thread state.
+This branch is a LangGraph.js football-data agent with three explicit player workflows. Lookup uses a bounded model/tool loop; comparison and FM recommendation use deterministic task nodes that call their data tools directly. LangGraph owns routing, interrupts, and per-thread state.
 
 ## Terms
 
@@ -10,7 +10,17 @@ This branch is a minimal LangGraph.js football-data agent. The model may call a 
 
 **Performance record**: A player-season observation with its source, competition, season, minutes, and reported metrics. It does not establish current club registration or transfer availability.
 
-**FM profile**: A versioned Football Manager ability profile. Current ability and potential are game data; potential is not a guarantee of future development.
+**FM profile**: A versioned Football Manager ability profile containing current ability (CA), potential ability (PA), and player attributes. PA is a potential ceiling signal, not a probability or guarantee of reaching it.
+
+**Ability-similar recommendation**: A ranking of FM profiles by their position-specific attributes for a selected playing position. For multiple references, their attributes are averaged equally; this describes similarity within the FM snapshot, not real-world transfer availability.
+
+**Potential prospect recommendation**: A separate list for requests about youth or potential, ordered by PA while showing CA and current-attribute similarity as context. It does not predict a future attribute profile or combine PA with the current-ability similarity score.
+
+**Recommendation target position**: The playing position used to compare and filter candidates. An explicitly requested position takes precedence; if references do not share one unambiguous natural position and none is specified, the target must be clarified. Every reference profile must have a rating of at least 15 for the target position.
+
+**Recommendation reference set**: One or more identity-resolved FM profiles whose playing-position attributes define the requested ability profile.
+
+**Position-capable candidate**: An FM profile with a rating of at least 15 for the recommendation target position.
 
 **Agent loop**: The repeated path from model node to a LangGraph `ToolNode` when the model returns tool calls, then back to the model. The loop ends when the model returns a response without tool calls.
 
@@ -18,7 +28,7 @@ This branch is a minimal LangGraph.js football-data agent. The model may call a 
 
 **Canonical player identity**: A Reep ID linked to one or more provider-specific player IDs. Search results may be grouped across providers only when the identity registry resolves both provider IDs to the same canonical Reep ID. Matching names alone never establish identity.
 
-**Conversation player focus**: The resolved focal player or players from the latest supported player lookup or explicit identity correction in one thread. A later pronoun may refer to this prior-turn focus; an explicit player named as a comparison target in the current turn does not replace it.
+**Conversation player focus**: The resolved focal player or players from the latest successful single-player data lookup in one thread. Identity resolution alone does not replace the focus. A later pronoun may refer to this prior-turn focus; an explicit player named as a comparison target in the current turn does not replace it.
 
 **Thread-local player alias**: An exact player mention the user has confirmed in a thread, bound to that resolved player reference. It avoids repeating model-based name expansion and identity confirmation in that thread; it does not modify the shared Reep identity registry.
 
@@ -26,20 +36,24 @@ This branch is a minimal LangGraph.js football-data agent. The model may call a 
 
 **Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
 
+**Active recommendation**: The confirmed reference and excluded identities, target position, effective filters, result limit, and completed result from the latest successful recommendation in a thread. Condition refinements inherit this context; failed or interrupted attempts do not replace it.
+
 ## Boundaries
 
 - `StateGraph` owns routing and per-thread message state.
 - Tool functions own local data access and return source-tagged records.
 - The model may explain returned records; it must not invent missing values or merge source identities by name.
-- Every extracted player mention passes through identity resolution before model/tool execution. Ambiguity pauses the graph for user clarification.
+- Every extracted player mention passes through identity resolution before data tools run. Ambiguity pauses the graph for user clarification.
 - Source records with the same canonical Reep ID form one identity automatically. Similar unlinked cross-provider names may be offered as a tentative group for explicit confirmation; names alone never merge identities. Candidates with different canonical Reep IDs remain separate.
 - The identity interrupt resolves a person candidate and may include multiple source records. The user can confirm the group for the current thread or choose one provider record. Thread confirmation never writes to the shared Reep registry.
 - User-confirmed player mentions are stored as thread-local aliases. If one mention was confirmed for multiple identities, the graph asks which identity the user means.
 - Explicit player names resolve through the identity registry. Prior-turn references resolve only against conversation focus; same-turn references require an explicit target mention. Missing or multiple referents pause for clarification.
-- Per-turn request participants, per-thread conversation focus, and the active comparison are separate. A completed single-player lookup or explicit identity correction updates the focus; comparisons and recommendation requests preserve it.
+- Per-turn request participants, per-thread conversation focus, active comparison, and active recommendation are separate. A successful single-player data lookup updates the focus; identity resolution alone does not.
 - A completed comparison stores its participants and conditions together. Additions inherit conditions, explicit current conditions override matching previous conditions, and a new comparison resets them. An omitted season in a new comparison selects the latest local snapshot.
-- A single resolved player controls the player-search tool argument, so older mentions in the chat history cannot change the queried identity.
-- The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Player lookups and comparisons enter the model/tool loop; recommendation requests end with a clear unsupported response.
+- Player-search tools read only the provider source IDs selected by identity resolution. The model cannot substitute another name or source record.
+- The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Only lookup enters the model/tool loop; comparison and recommendation nodes directly invoke their deterministic tools. Team recommendations remain unsupported.
+- One typed pending clarification resumes identity, position, age, role, or season questions within the same request. Request state does not duplicate that lifecycle with status flags or an active player index.
+- Completed comparison and recommendation contexts are committed with their data outcomes before answer generation. Historical tool messages do not reconstruct missing context.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
-- Checkpoint and Store use in-memory implementations in this branch. Restarting the process loses them.
+- Thread checkpointing uses LangGraph's in-memory saver. There is no Store. Restarting the process loses thread state.
 - There is no frontend, RAG pipeline, or application database in this branch.

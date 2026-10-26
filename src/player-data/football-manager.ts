@@ -4,11 +4,16 @@ import { inflateRawSync } from "node:zlib";
 
 import { z } from "zod/v4";
 
-import type { CandidateSourceRecord, PlayerSearchQuery } from "./contracts.js";
+import type { CandidateSourceRecord } from "./contracts.js";
 import {
   deduplicateSourceRecords,
   matchReferenceName,
 } from "./name-matching.js";
+import {
+  getPositionFeatureDefinition,
+  isSupportedPosition,
+} from "./position-features.js";
+import type { SupportedPosition } from "./position-features.js";
 import {
   normalizePlayerName,
   numeric,
@@ -89,18 +94,9 @@ type FmReadResult = z.output<typeof fmReadResultSchema>;
 
 type FmProfile = z.output<typeof fmProfileSchema>;
 
-const selectedAttributes = (profile: FmProfile) => ({
-  accelerationRaw: numeric(profile.raw_attributes_acceleration),
-  decisionsRaw: numeric(profile.raw_attributes_decisions),
-  finishingRaw: numeric(profile.raw_attributes_finishing),
-  first_touchRaw: numeric(profile.raw_attributes_first_touch),
-  off_the_ballRaw: numeric(profile.raw_attributes_off_the_ball),
-  paceRaw: numeric(profile.raw_attributes_pace),
-  passingRaw: numeric(profile.raw_attributes_passing),
-  strengthRaw: numeric(profile.raw_attributes_strength),
-  techniqueRaw: numeric(profile.raw_attributes_technique),
-  visionRaw: numeric(profile.raw_attributes_vision),
-});
+const fmProfilesDefaultPath = ".data/fm/profiles-v2.sqlite";
+const fmDatabaseMissingMessage = "FM 本地画像快照不存在。";
+const fmDatabaseOpenErrorMessage = "FM 本地画像快照无法打开。";
 
 const nullableString = (value: string | null | undefined): string | null =>
   value !== null && value !== undefined && value.length > 0 ? value : null;
@@ -117,64 +113,409 @@ const firstNonEmptyString = (
   return "";
 };
 
-const readFmProfiles = (
-  input: PlayerSearchQuery,
-  normalizedName: string
-): FmReadResult => {
+const fmRecommendationProfileRowSchema = z.object({
+  birth_date: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  payload: z.instanceof(Uint8Array),
+  position_rating: z.number().nullable(),
+  record_id: z.string(),
+  unique_id: z.string().nullable(),
+});
+
+const fmRecommendationProfileSchema = z.looseObject({
+  ability_current: sourceValueSchema,
+  ability_potential: sourceValueSchema,
+  birth_date: z.string().nullish(),
+  common_name: z.string().nullish(),
+  full_name: z.string().nullish(),
+  name: z.string().nullish(),
+  natural_positions: z.string().nullish(),
+  unique_id: sourceValueSchema,
+});
+
+type FmRecommendationProfile = {
+  attributes: Record<string, number | null>;
+  birthDate: string | null;
+  currentAbility: number | null;
+  fmId: string;
+  name: string;
+  naturalPositions: string | null;
+  positionRating: number | null;
+  potentialAbility: number | null;
+  sourceRecordId: string;
+};
+
+type FmRecommendationReadResult =
+  | {
+      excludedMissingFmIdCandidates: number;
+      gameBuild: string;
+      manifestSha256: string;
+      position: SupportedPosition;
+      profiles: FmRecommendationProfile[];
+      references: FmRecommendationProfile[];
+      snapshotDate: string;
+      status: "ready";
+    }
+  | {
+      position: string;
+      reason: string;
+      status: "unsupported_position";
+    }
+  | {
+      reason: string;
+      status: "unavailable";
+    };
+
+type FmRecommendationReferenceMetadata = {
+  fmId: string;
+  name: string;
+  naturalPositions: string | null;
+  sourceRecordId: string;
+};
+
+type FmRecommendationReferenceMetadataResult =
+  | {
+      manifestSha256: string;
+      missingReferenceFmIds: string[];
+      profiles: FmRecommendationReferenceMetadata[];
+      snapshotDate: string;
+      status: "ready";
+    }
+  | {
+      reason: string;
+      status: "unavailable";
+    };
+
+const fmRecommendationReferenceMetadataSchema = z.looseObject({
+  common_name: z.string().nullish(),
+  full_name: z.string().nullish(),
+  name: z.string().nullish(),
+  natural_positions: z.string().nullish(),
+  unique_id: sourceValueSchema,
+});
+
+const readFmRecommendationReferenceMetadata = (
+  referenceFmIds: string[]
+): FmRecommendationReferenceMetadataResult => {
   const databasePath = resolveDataPath(
     process.env.TACTISCOUT_FM_PROFILES_PATH,
-    ".data/fm/profiles-v2.sqlite"
+    fmProfilesDefaultPath
   );
 
   if (!existsSync(databasePath)) {
-    return { reason: "FM 本地画像快照不存在。", status: "unavailable" };
+    return { reason: fmDatabaseMissingMessage, status: "unavailable" };
   }
 
-  const database = new DatabaseSync(databasePath, { readOnly: true });
+  let database: DatabaseSync;
 
   try {
-    const pattern = `%${normalizedName}%`;
+    database = new DatabaseSync(databasePath, { readOnly: true });
+  } catch {
+    return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+  }
 
-    const rows = z.array(fmProfileRowSchema).parse(
-      database
-        .prepare(
-          `SELECT DISTINCT p.record_id, p.payload
-       FROM players p
-       LEFT JOIN aliases a ON a.record_id = p.record_id
-       WHERE a.name LIKE ? OR LOWER(p.name) LIKE ?
-       ORDER BY p.name
-       LIMIT ?`
-        )
-        .all(pattern, `%${input.playerName.toLocaleLowerCase()}%`, input.limit)
+  try {
+    const manifestPayload = parseJson(
+      String(
+        database.prepare("SELECT payload FROM manifest WHERE id = 1").get()
+          ?.payload ?? ""
+      ),
+      z.object({
+        inGameDate: z.string(),
+        sha256: z.string(),
+      })
     );
 
-    const source = "Football Manager" as const;
+    const profiles: FmRecommendationReferenceMetadata[] = [];
+    const missingReferenceFmIds: string[] = [];
 
-    const records = rows.map(({ record_id, payload }) => {
-      const profile = parseJson(
-        inflateRawSync(payload).toString("utf-8"),
-        fmProfileSchema
+    const query = database.prepare(
+      `SELECT birth_date, name, payload, record_id, unique_id
+       FROM players WHERE unique_id = ? ORDER BY record_id LIMIT 1`
+    );
+
+    for (const fmId of new Set(referenceFmIds)) {
+      const row = fmRecommendationProfileRowSchema
+        .omit({ position_rating: true })
+        .nullable()
+        .optional()
+        .parse(query.get(fmId));
+
+      if (row === null || row === undefined) {
+        missingReferenceFmIds.push(fmId);
+      } else {
+        const profile = parseJson(
+          inflateRawSync(row.payload).toString("utf-8"),
+          fmRecommendationReferenceMetadataSchema
+        );
+
+        const fmIdFromProfile = sourceValueToString(
+          profile.unique_id,
+          row.unique_id ?? ""
+        );
+
+        if (fmIdFromProfile.length === 0) {
+          missingReferenceFmIds.push(fmId);
+        } else {
+          profiles.push({
+            fmId: fmIdFromProfile,
+            name: firstNonEmptyString(
+              profile.common_name,
+              profile.full_name,
+              profile.name,
+              row.name
+            ),
+            naturalPositions: nullableString(profile.natural_positions),
+            sourceRecordId: row.record_id,
+          });
+        }
+      }
+    }
+
+    return {
+      manifestSha256: manifestPayload.sha256,
+      missingReferenceFmIds,
+      profiles,
+      snapshotDate: manifestPayload.inGameDate,
+      status: "ready",
+    };
+  } catch {
+    return { reason: "FM 本地身份位置资料无法读取。", status: "unavailable" };
+  } finally {
+    database.close();
+  }
+};
+
+const recommendationProfileFromRow = (
+  row: z.output<typeof fmRecommendationProfileRowSchema>,
+  position: SupportedPosition
+): FmRecommendationProfile => {
+  const profile = parseJson(
+    inflateRawSync(row.payload).toString("utf-8"),
+    fmRecommendationProfileSchema
+  );
+
+  const definition = getPositionFeatureDefinition(position);
+
+  const attributes = Object.fromEntries(
+    definition.features.map((feature) => [
+      feature,
+      numeric(sourceValueSchema.parse(profile[`raw_attributes_${feature}`])),
+    ])
+  );
+
+  return {
+    attributes,
+    birthDate: nullableString(profile.birth_date ?? row.birth_date),
+    currentAbility: numeric(profile.ability_current),
+    fmId: sourceValueToString(profile.unique_id, row.unique_id ?? ""),
+    name: firstNonEmptyString(
+      profile.common_name,
+      profile.full_name,
+      profile.name,
+      row.name
+    ),
+    naturalPositions: nullableString(profile.natural_positions),
+    positionRating: row.position_rating,
+    potentialAbility: numeric(profile.ability_potential),
+    sourceRecordId: row.record_id,
+  };
+};
+
+const readFmRecommendationProfiles = (
+  position: string,
+  referenceFmIds: string[]
+): FmRecommendationReadResult => {
+  if (!isSupportedPosition(position)) {
+    return {
+      position,
+      reason: "该位置当前没有经过公式实验验证的 FM 属性映射。",
+      status: "unsupported_position",
+    };
+  }
+
+  const databasePath = resolveDataPath(
+    process.env.TACTISCOUT_FM_PROFILES_PATH,
+    fmProfilesDefaultPath
+  );
+
+  if (!existsSync(databasePath)) {
+    return { reason: fmDatabaseMissingMessage, status: "unavailable" };
+  }
+
+  let database: DatabaseSync;
+
+  try {
+    database = new DatabaseSync(databasePath, { readOnly: true });
+  } catch {
+    return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+  }
+
+  try {
+    const manifestPayload = parseJson(
+      String(
+        database.prepare("SELECT payload FROM manifest WHERE id = 1").get()
+          ?.payload ?? ""
+      ),
+      z.object({
+        gameBuild: z.string(),
+        inGameDate: z.string(),
+        sha256: z.string(),
+      })
+    );
+
+    const candidateRows = z.array(fmRecommendationProfileRowSchema).parse(
+      database
+        .prepare(
+          `SELECT p.birth_date, p.name, p.payload, p.record_id,
+                  p.unique_id, s.rating AS position_rating
+           FROM positions s
+           JOIN players p ON p.record_id = s.record_id
+           WHERE s.position = ? AND s.rating >= 15
+           ORDER BY p.unique_id, p.record_id`
+        )
+        .all(position)
+    );
+
+    const excludedMissingFmIdCandidates = z
+      .number()
+      .int()
+      .nonnegative()
+      .parse(
+        database
+          .prepare(
+            `SELECT COUNT(*) AS count
+           FROM positions s
+           JOIN players p ON p.record_id = s.record_id
+           WHERE s.position = ? AND s.rating >= 15
+             AND (p.unique_id IS NULL OR p.unique_id = '')`
+          )
+          .get(position)?.count
       );
 
-      return {
-        attributes: selectedAttributes(profile),
-        birthDate: nullableString(profile.birth_date),
-        currentAbility: numeric(profile.ability_current),
-        heightCm: numeric(profile.height_cm),
-        identitySourceId: sourceValueToString(profile.unique_id, record_id),
-        naturalPositions: nullableString(profile.natural_positions),
-        player: firstNonEmptyString(
-          profile.common_name,
-          profile.full_name,
-          profile.name
-        ),
-        potentialAbility: numeric(profile.ability_potential),
-        source,
-        sourceRecordId: record_id,
-      };
+    const references = referenceFmIds.flatMap((fmId) => {
+      const row = fmRecommendationProfileRowSchema
+        .nullable()
+        .optional()
+        .parse(
+          database
+            .prepare(
+              `SELECT p.birth_date, p.name, p.payload, p.record_id,
+                    p.unique_id, s.rating AS position_rating
+             FROM players p
+             LEFT JOIN positions s
+               ON s.record_id = p.record_id AND s.position = ?
+             WHERE p.unique_id = ?
+             ORDER BY p.record_id
+             LIMIT 1`
+            )
+            .get(position, fmId)
+        );
+
+      return row === null || row === undefined
+        ? []
+        : [recommendationProfileFromRow(row, position)];
+    });
+
+    return {
+      excludedMissingFmIdCandidates,
+      gameBuild: manifestPayload.gameBuild,
+      manifestSha256: manifestPayload.sha256,
+      position,
+      profiles: candidateRows.flatMap((row) =>
+        row.unique_id === null || row.unique_id.length === 0
+          ? []
+          : [recommendationProfileFromRow(row, position)]
+      ),
+      references,
+      snapshotDate: manifestPayload.inGameDate,
+      status: "ready",
+    };
+  } catch {
+    return {
+      reason: "FM 本地画像快照包含无法读取的推荐字段。",
+      status: "unavailable",
+    };
+  } finally {
+    database.close();
+  }
+};
+
+const selectedAttributes = (profile: FmProfile) => ({
+  accelerationRaw: numeric(profile.raw_attributes_acceleration),
+  decisionsRaw: numeric(profile.raw_attributes_decisions),
+  finishingRaw: numeric(profile.raw_attributes_finishing),
+  first_touchRaw: numeric(profile.raw_attributes_first_touch),
+  off_the_ballRaw: numeric(profile.raw_attributes_off_the_ball),
+  paceRaw: numeric(profile.raw_attributes_pace),
+  passingRaw: numeric(profile.raw_attributes_passing),
+  strengthRaw: numeric(profile.raw_attributes_strength),
+  techniqueRaw: numeric(profile.raw_attributes_technique),
+  visionRaw: numeric(profile.raw_attributes_vision),
+});
+
+const readFmProfilesBySourceIds = (sourceIds: string[]): FmReadResult => {
+  const databasePath = resolveDataPath(
+    process.env.TACTISCOUT_FM_PROFILES_PATH,
+    fmProfilesDefaultPath
+  );
+
+  if (!existsSync(databasePath)) {
+    return { reason: fmDatabaseMissingMessage, status: "unavailable" };
+  }
+
+  let database: DatabaseSync;
+
+  try {
+    database = new DatabaseSync(databasePath, { readOnly: true });
+  } catch {
+    return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+  }
+
+  try {
+    const query = database.prepare(
+      `SELECT p.record_id, p.payload
+       FROM players p
+       WHERE p.unique_id = ? OR p.record_id = ?
+       ORDER BY p.record_id`
+    );
+
+    const records = [...new Set(sourceIds)].flatMap((sourceId) => {
+      const rows = z
+        .array(fmProfileRowSchema)
+        .parse(query.all(sourceId, sourceId));
+
+      return rows.map(({ record_id: recordId, payload }) => {
+        const profile = parseJson(
+          inflateRawSync(payload).toString("utf-8"),
+          fmProfileSchema
+        );
+
+        return {
+          attributes: selectedAttributes(profile),
+          birthDate: nullableString(profile.birth_date),
+          currentAbility: numeric(profile.ability_current),
+          heightCm: numeric(profile.height_cm),
+          identitySourceId: sourceValueToString(profile.unique_id, recordId),
+          naturalPositions: nullableString(profile.natural_positions),
+          player: firstNonEmptyString(
+            profile.common_name,
+            profile.full_name,
+            profile.name
+          ),
+          potentialAbility: numeric(profile.ability_potential),
+          source: "Football Manager" as const,
+          sourceRecordId: recordId,
+        };
+      });
     });
 
     return { records, status: records.length > 0 ? "found" : "not_found" };
+  } catch {
+    return {
+      reason: "FM 本地画像快照包含无法读取的球员资料。",
+      status: "unavailable",
+    };
   } finally {
     database.close();
   }
@@ -183,7 +524,7 @@ const readFmProfiles = (
 const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
   const databasePath = resolveDataPath(
     process.env.TACTISCOUT_FM_PROFILES_PATH,
-    ".data/fm/profiles-v2.sqlite"
+    fmProfilesDefaultPath
   );
 
   if (!existsSync(databasePath)) {
@@ -246,6 +587,18 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
   }
 };
 
-export { fmReadResultSchema, readFmProfiles, readFmReferenceRecords };
+export {
+  fmReadResultSchema,
+  readFmProfilesBySourceIds,
+  readFmRecommendationProfiles,
+  readFmRecommendationReferenceMetadata,
+  readFmReferenceRecords,
+};
 
-export type { FmReadResult };
+export type {
+  FmReadResult,
+  FmRecommendationProfile,
+  FmRecommendationReadResult,
+  FmRecommendationReferenceMetadata,
+  FmRecommendationReferenceMetadataResult,
+};

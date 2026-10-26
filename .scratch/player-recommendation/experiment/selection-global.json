@@ -1,0 +1,89 @@
+{
+  "status": "provisional",
+  "qualityValidated": false,
+  "strategy": "rmse",
+  "strategyVersion": "fm-position-global-rmse-v1-provisional",
+  "featureSetVersion": "fm-position-features-v1",
+  "preprocessing": "raw-1-100",
+  "formula": "sqrt(mean((candidateRaw - referenceMeanRaw)^2)) for the selected position feature set",
+  "referenceAggregation": "equal-weight arithmetic mean per position-specific raw attribute",
+  "positionEligibility": "reference and candidate positions.rating >= 15; position score not in distance",
+  "positions": [
+    "amc",
+    "aml",
+    "amr",
+    "dc",
+    "dl",
+    "dm",
+    "dr",
+    "gk",
+    "mc",
+    "ml",
+    "mr",
+    "stc",
+    "wbl",
+    "wbr"
+  ],
+  "unsupportedPositions": {
+    "sw": "no local profiles with positions.rating >= 15"
+  },
+  "snapshotDate": "2025-11-23",
+  "manifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
+  "featureMapSha256": "37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20",
+  "protocolConfigSha256": "d27c8a7f7c776d40d1341748b61a3f76eed2c304077a67a18cc916cb3bc31abe",
+  "developmentSelected": "rmse",
+  "testConfirmed": true,
+  "testConfirmation": {
+    "metric": "macro mean Top5 Jaccard under fixed +/-2 raw-attribute perturbation",
+    "comparison": "rmse minus mae",
+    "meanDelta": 0.07304067460317461,
+    "paired95": [0.06381005527210884, 0.08273021187641724],
+    "queryGroups": 1680,
+    "minimumPerPositionDelta": 0.04990079365079365,
+    "perPositionDelta": {
+      "gk": 0.07542989417989417,
+      "dc": 0.07493386243386244,
+      "dl": 0.04990079365079365,
+      "dr": 0.06221891534391535,
+      "wbl": 0.08548280423280422,
+      "wbr": 0.06972552910052908,
+      "dm": 0.06526124338624338,
+      "mc": 0.08048941798941799,
+      "ml": 0.06340939153439154,
+      "mr": 0.09274140211640211,
+      "aml": 0.1167824074074074,
+      "amr": 0.05122354497354496,
+      "amc": 0.08404431216931216,
+      "stc": 0.05092592592592592
+    },
+    "p95InMemoryScoreAndTopKMs": 1.7544369,
+    "allPreregisteredGatesPassed": true
+  },
+  "sampling": {
+    "positionCount": 14,
+    "developmentQueriesPerPosition": 120,
+    "testQueriesPerPosition": 120,
+    "referenceMixPerPositionSplit": {
+      "single": 60,
+      "twoReference": 30,
+      "threeReference": 30
+    },
+    "allReferenceIdsDisjointAcrossQueriesWithinSplit": true
+  },
+  "experimentResultDirectory": ".data/recommendation-experiments/20261025-multiposition-v2",
+  "verification": {
+    "passed": true,
+    "auditedRankings": 120960,
+    "potentialRowsRecomputed": 10080,
+    "ablationRowsValidated": 10320,
+    "verifierSha256": "3d24d0d2ec6f69380c1a7f4a677dbfe143e6ada251b863197937fd013289cd33",
+    "verificationFileSha256": "b4004904266c10187f3962666e438b749e5ca91e9b3a830a1760259eddfdf548",
+    "ablationScoresAndTop5Recomputed": true
+  },
+  "limitations": [
+    "No independent scout relevance labels; robustness is an engineering proxy, not recommendation truth.",
+    "The position-specific feature map is an explicit domain hypothesis, not an official FM scoring formula.",
+    "PA ranking is separate and does not predict future CA or attribute growth.",
+    "Timing covers in-memory scoring and stable TopK only; it excludes SQLite and LLM costs."
+  ]
+}

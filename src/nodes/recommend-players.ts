@@ -1,0 +1,296 @@
+import type { StructuredToolInterface } from "@langchain/core/tools";
+import type { GraphNode } from "@langchain/langgraph";
+import { z } from "zod/v4";
+
+import type {
+  AgentState,
+  ConversationPlayerReference,
+  RequestConstraint,
+  RequestPlayerState,
+} from "../state.js";
+import type { RecommendationIdentityGroup } from "../tools/recommend-player-candidates.js";
+
+const recommendationResultSchema = z.object({ status: z.string() });
+
+const selectedCandidate = (player: RequestPlayerState) => {
+  const { resolution } = player;
+
+  if (resolution?.status !== "resolved") {
+    return null;
+  }
+
+  return (
+    resolution.candidates.find(
+      (candidate) => candidate.candidateId === resolution.selectedCandidateId
+    ) ?? null
+  );
+};
+
+const recommendationGroups = (
+  players: RequestPlayerState[],
+  role: "exclude" | "reference"
+): RecommendationIdentityGroup[] => {
+  const groups = new Map<string, { fmIds: Set<string>; names: Set<string> }>();
+
+  for (const player of players.filter(
+    (item) => item.recommendationRole === role
+  )) {
+    const candidate = selectedCandidate(player);
+
+    if (candidate !== null) {
+      const identityKey =
+        candidate.canonicalIdentityId ?? candidate.candidateId;
+
+      const current = groups.get(identityKey) ?? {
+        fmIds: new Set<string>(),
+        names: new Set<string>(),
+      };
+
+      current.names.add(candidate.name);
+
+      for (const record of candidate.records) {
+        if (record.provider === "fm") {
+          current.fmIds.add(record.sourceId);
+        }
+      }
+
+      groups.set(identityKey, current);
+    }
+  }
+
+  return [...groups.entries()]
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([identityKey, group]) => ({
+      fmIds: [...group.fmIds].toSorted(),
+      identityKey,
+      name: [...group.names].toSorted()[0] ?? identityKey,
+    }));
+};
+
+const normalizedConstraintName = (name: string): string =>
+  name
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]/gu, "");
+
+const constraintIsApplied = (
+  constraint: RequestConstraint,
+  recommendation: {
+    maxAge: number | null;
+    minimumCurrentAbility: number | null;
+    minimumPotentialAbility: number | null;
+    position: string | null;
+    resultLimit: number | null;
+  }
+): boolean => {
+  const name = normalizedConstraintName(constraint.name);
+  const value = constraint.value.normalize("NFKC").trim().toLocaleLowerCase();
+  const number = Number(/\d+/u.exec(value)?.[0]);
+
+  if (["age", "maxage", "年龄", "年龄上限"].includes(name)) {
+    return recommendation.maxAge === number;
+  }
+
+  if (["ca", "minca", "currentability", "当前能力"].includes(name)) {
+    return recommendation.minimumCurrentAbility === number;
+  }
+
+  if (["pa", "minpa", "potentialability", "潜力"].includes(name)) {
+    return recommendation.minimumPotentialAbility === number;
+  }
+
+  if (["position", "位置"].includes(name)) {
+    return recommendation.position?.toLocaleLowerCase() === value;
+  }
+
+  if (["limit", "resultlimit", "结果数", "最多"].includes(name)) {
+    return recommendation.resultLimit === number;
+  }
+
+  return false;
+};
+
+const referenceFromPlayer = (
+  player: RequestPlayerState
+): ConversationPlayerReference | null => {
+  const candidate = selectedCandidate(player);
+
+  return candidate === null
+    ? null
+    : {
+        candidate,
+        referenceId: candidate.canonicalIdentityId ?? candidate.candidateId,
+      };
+};
+
+const createRecommendPlayersNode =
+  (recommendationTool: StructuredToolInterface): GraphNode<typeof AgentState> =>
+  async (state) => {
+    const { request } = state;
+
+    if (request.kind !== "player_recommendation") {
+      return {
+        outcome: {
+          kind: "player_recommendation",
+          resultJson: null,
+          status: "invalid_task_state",
+        },
+      };
+    }
+
+    const unsupportedConstraints = request.constraints.filter(
+      (constraint) => !constraintIsApplied(constraint, request.recommendation)
+    );
+
+    if (unsupportedConstraints.length > 0) {
+      return {
+        outcome: {
+          kind: "player_recommendation",
+          resultJson: JSON.stringify({ constraints: unsupportedConstraints }),
+          status: "unsupported_constraints",
+        },
+      };
+    }
+
+    const referenceGroups = recommendationGroups(request.players, "reference");
+    const excludeGroups = recommendationGroups(request.players, "exclude");
+
+    if (referenceGroups.length === 0) {
+      return {
+        outcome: {
+          kind: "player_recommendation",
+          resultJson: null,
+          status: "reference_required",
+        },
+      };
+    }
+
+    try {
+      const { recommendation } = request;
+
+      const toolInput = {
+        excludeGroups,
+        includePotential: recommendation.includePotential,
+        maxAge: recommendation.maxAge,
+        minimumCurrentAbility: recommendation.minimumCurrentAbility,
+        minimumPotentialAbility: recommendation.minimumPotentialAbility,
+        position: recommendation.position,
+        referenceGroups,
+        resultLimit: recommendation.resultLimit,
+      };
+
+      const rawResult: unknown = await recommendationTool.invoke(toolInput);
+      const parsedString = z.string().safeParse(rawResult);
+
+      if (!parsedString.success) {
+        throw new Error("推荐工具未返回 JSON 文本。");
+      }
+
+      const resultJson = parsedString.data;
+      const parsedResult: unknown = JSON.parse(resultJson);
+      const result = recommendationResultSchema.parse(parsedResult);
+
+      if (result.status === "position_required") {
+        const positionClarification = z
+          .object({
+            commonNaturalPositions: z.array(z.string()),
+            positionOptions: z.array(z.string()),
+          })
+          .parse(parsedResult);
+
+        const options =
+          positionClarification.commonNaturalPositions.length > 0
+            ? positionClarification.commonNaturalPositions
+            : positionClarification.positionOptions;
+
+        const question =
+          positionClarification.commonNaturalPositions.length > 0
+            ? `参考球员共有自然位置：${options.join("、")}。请选择一个位置代码或编号。`
+            : `参考球员没有唯一共同自然位置。可选位置：${options.join("、")}。请选择一个位置代码或编号。`;
+
+        return {
+          outcome: {
+            kind: "player_recommendation",
+            resultJson,
+            status: "position_required",
+          },
+          pendingClarification: {
+            answer: null,
+            kind: "position",
+            options,
+            question,
+          },
+        };
+      }
+
+      if (result.status !== "ready" && result.status !== "no_candidates") {
+        return {
+          outcome: {
+            kind: "player_recommendation",
+            resultJson,
+            status: result.status,
+          },
+        };
+      }
+
+      const referencePlayers = request.players.flatMap((player) => {
+        if (player.recommendationRole !== "reference") {
+          return [];
+        }
+
+        const reference = referenceFromPlayer(player);
+
+        return reference === null ? [] : [reference];
+      });
+
+      const excludePlayers = request.players.flatMap((player) => {
+        if (player.recommendationRole !== "exclude") {
+          return [];
+        }
+
+        const reference = referenceFromPlayer(player);
+
+        return reference === null ? [] : [reference];
+      });
+
+      const resultPosition = z
+        .object({ position: z.string() })
+        .parse(parsedResult).position;
+
+      const resultLimit = recommendation.resultLimit ?? 5;
+
+      return {
+        conversationContext: {
+          ...state.conversationContext,
+          activeRecommendation: {
+            excludePlayers,
+            includePotential: recommendation.includePotential,
+            maxAge: recommendation.maxAge,
+            minimumCurrentAbility: recommendation.minimumCurrentAbility,
+            minimumPotentialAbility: recommendation.minimumPotentialAbility,
+            position: resultPosition,
+            referencePlayers,
+            resultJson,
+            resultLimit,
+            status: result.status,
+          },
+        },
+        outcome: {
+          kind: "player_recommendation",
+          resultJson,
+          status: result.status,
+        },
+      };
+    } catch {
+      return {
+        outcome: {
+          kind: "player_recommendation",
+          resultJson: null,
+          status: "tool_error",
+        },
+      };
+    }
+  };
+
+export { createRecommendPlayersNode };

@@ -3,13 +3,12 @@ import { DatabaseSync } from "node:sqlite";
 
 import { z } from "zod/v4";
 
-import type { CandidateSourceRecord, PlayerSearchQuery } from "./contracts.js";
+import type { CandidateSourceRecord } from "./contracts.js";
 import {
   deduplicateSourceRecords,
   matchReferenceName,
 } from "./name-matching.js";
 import {
-  normalizePlayerName,
   numeric,
   parseJson,
   resolveDataPath,
@@ -75,34 +74,85 @@ const understatReadResultSchema = z.discriminatedUnion("status", [
 
 type UnderstatReadResult = z.output<typeof understatReadResultSchema>;
 
-const readUnderstat = (
-  input: PlayerSearchQuery,
-  normalizedName: string
+const understatDatabaseDefaultPath = ".data/understat/understat.sqlite";
+
+const recordsFromSnapshotRow = (
+  row: z.output<typeof understatSnapshotRowSchema>,
+  selectedIds: Set<string>,
+  season: string
+): z.output<typeof understatSearchRecordSchema>[] => {
+  const payload = parseJson(row.payload_json, understatPayloadSchema);
+
+  return (payload.players ?? []).flatMap((unparsedPlayer) => {
+    const parsedPlayer = understatPlayerSchema.safeParse(unparsedPlayer);
+
+    if (!parsedPlayer.success) {
+      return [];
+    }
+
+    const player = parsedPlayer.data;
+    const sourcePlayerId = sourceValueToString(player.id);
+
+    return selectedIds.has(sourcePlayerId)
+      ? [
+          {
+            assists: numeric(player.assists),
+            competition: row.resource_id,
+            expectedAssists: numeric(player.xA),
+            expectedGoals: numeric(player.xG),
+            goals: numeric(player.goals),
+            keyPasses: numeric(player.key_passes),
+            minutes: numeric(player.time),
+            nonPenaltyExpectedGoals: numeric(player.npxG),
+            player: player.player_name ?? "",
+            position: player.position ?? "",
+            season,
+            shots: numeric(player.shots),
+            source: "Understat" as const,
+            sourcePlayerId,
+            team: player.team_title ?? "",
+          },
+        ]
+      : [];
+  });
+};
+
+const readUnderstatBySourceIds = (
+  sourceIds: string[],
+  seasonStartYear?: number
 ): UnderstatReadResult => {
   const databasePath = resolveDataPath(
     process.env.TACTISCOUT_UNDERSTAT_DB_PATH,
-    ".data/understat/understat.sqlite"
+    understatDatabaseDefaultPath
   );
 
   if (!existsSync(databasePath)) {
     return { reason: "Understat 本地快照不存在。", status: "unavailable" };
   }
 
-  const database = new DatabaseSync(databasePath, { readOnly: true });
+  let database: DatabaseSync;
+
+  try {
+    database = new DatabaseSync(databasePath, { readOnly: true });
+  } catch {
+    return { reason: "Understat 本地快照无法打开。", status: "unavailable" };
+  }
 
   try {
     const rows = z.array(understatSnapshotRowSchema).parse(
       database
         .prepare(
           `SELECT resource_id, season_start_year, payload_json
-       FROM source_snapshots
-       WHERE kind = 'league'
-       ORDER BY season_start_year DESC, resource_id`
+           FROM source_snapshots
+           WHERE kind = 'league'
+           ORDER BY season_start_year DESC, resource_id`
         )
         .all()
     );
 
-    let latestYear = input.seasonStartYear ?? 0;
+    const selectedIds = new Set(sourceIds);
+
+    let latestYear = seasonStartYear ?? 0;
 
     if (latestYear === 0) {
       for (const row of rows) {
@@ -117,53 +167,26 @@ const readUnderstat = (
       };
     }
 
-    const records: z.output<typeof understatSearchRecordSchema>[] = [];
     const season = `${latestYear}/${String(latestYear + 1).slice(-2)}`;
 
-    for (const row of rows) {
-      if (row.season_start_year !== latestYear) {
-        continue;
-      }
-
-      const payload = parseJson(row.payload_json, understatPayloadSchema);
-
-      for (const unparsedPlayer of payload.players ?? []) {
-        const result = understatPlayerSchema.safeParse(unparsedPlayer);
-
-        if (result.success) {
-          const player = result.data;
-          const playerName = player.player_name ?? "";
-
-          if (normalizePlayerName(playerName).includes(normalizedName)) {
-            records.push({
-              assists: numeric(player.assists),
-              competition: row.resource_id,
-              expectedAssists: numeric(player.xA),
-              expectedGoals: numeric(player.xG),
-              goals: numeric(player.goals),
-              keyPasses: numeric(player.key_passes),
-              minutes: numeric(player.time),
-              nonPenaltyExpectedGoals: numeric(player.npxG),
-              player: playerName,
-              position: player.position ?? "",
-              season,
-              shots: numeric(player.shots),
-              source: "Understat",
-              sourcePlayerId: sourceValueToString(player.id),
-              team: player.team_title ?? "",
-            });
-          }
-        }
-      }
-    }
-
-    const limitedRecords = records
-      .toSorted((left, right) => (right.minutes ?? 0) - (left.minutes ?? 0))
-      .slice(0, input.limit);
+    const records = rows.flatMap((row) =>
+      row.season_start_year === latestYear
+        ? recordsFromSnapshotRow(row, selectedIds, season)
+        : []
+    );
 
     return {
-      records: limitedRecords,
-      status: limitedRecords.length > 0 ? "found" : "not_found",
+      records: records.toSorted(
+        (left, right) =>
+          left.competition.localeCompare(right.competition) ||
+          (right.minutes ?? 0) - (left.minutes ?? 0)
+      ),
+      status: records.length > 0 ? "found" : "not_found",
+    };
+  } catch {
+    return {
+      reason: "Understat 本地快照包含无法读取的球员资料。",
+      status: "unavailable",
     };
   } finally {
     database.close();
@@ -175,7 +198,7 @@ const readUnderstatReferenceRecords = (
 ): CandidateSourceRecord[] => {
   const databasePath = resolveDataPath(
     process.env.TACTISCOUT_UNDERSTAT_DB_PATH,
-    ".data/understat/understat.sqlite"
+    understatDatabaseDefaultPath
   );
 
   if (!existsSync(databasePath)) {
@@ -246,7 +269,7 @@ const readUnderstatReferenceRecords = (
 };
 
 export {
-  readUnderstat,
+  readUnderstatBySourceIds,
   readUnderstatReferenceRecords,
   understatReadResultSchema,
 };

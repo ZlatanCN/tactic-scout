@@ -3,8 +3,6 @@ import type { GraphNode } from "@langchain/langgraph";
 import type { ReferenceIdentityLookup } from "../player-data/resolve-reference.js";
 import {
   isPlayerReferenceMention,
-  latestHumanMessage,
-  messageText,
   normalizeMentionText,
 } from "../player-mentions.js";
 import type {
@@ -28,9 +26,6 @@ const resolutionOrder = [
   "same_turn",
   "ambiguous",
 ] as const;
-
-const playerIdentityCorrectionPattern =
-  /(?:我说的是|我指的是|我刚才说的是|我想说的是|我的意思是|i meant|i was referring to)/iu;
 
 const clarificationPrefixes = [
   "i mean",
@@ -577,12 +572,9 @@ const updateRequestPlayer = (
   player: RequestPlayerState
 ): RequestState => ({
   ...request,
-  activePlayerIndex: null,
-  clarificationMessage: null,
   players: request.players.map((item, itemIndex) =>
     itemIndex === index ? player : item
   ),
-  status: "not_processed",
 });
 
 const keepIdentityClarificationOpen = (
@@ -591,9 +583,16 @@ const keepIdentityClarificationOpen = (
   clarificationMessage: string
 ): RequestState => ({
   ...request,
-  activePlayerIndex: index,
-  clarificationMessage,
-  status: "needs_confirmation",
+  players: request.players.map((player, playerIndex) => {
+    const { resolution } = player;
+
+    return playerIndex === index && resolution !== null
+      ? {
+          ...player,
+          resolution: { ...resolution, clarificationMessage },
+        }
+      : player;
+  }),
 });
 
 const applyConfirmedCandidateSelection = (
@@ -641,12 +640,7 @@ const retryIdentityLookup = async (
   lookup: ReferenceIdentityLookup
 ): Promise<RequestState> => {
   if (player.attempts >= 1) {
-    return {
-      ...request,
-      clarificationMessage:
-        "我仍无法确认你指的球员。请用完整姓名重新提出请求。",
-      status: "clarification_exhausted",
-    };
+    return request;
   }
 
   const cleanedAnswer = cleanReferenceAnswer(answer);
@@ -681,24 +675,15 @@ const retryIdentityLookup = async (
 
   return {
     ...updated,
-    activePlayerIndex: index,
-    clarificationMessage:
-      resolution.clarificationMessage ?? "请回复候选编号或完整球员姓名。",
-    status: "needs_confirmation",
   };
 };
 
 const applyPlayerAnswer = (
   request: RequestState,
+  index: number,
   answer: string,
   lookup: ReferenceIdentityLookup
 ): RequestState | Promise<RequestState> => {
-  const index = request.activePlayerIndex;
-
-  if (index === null) {
-    return request;
-  }
-
   const player = request.players[index];
   const current = player?.resolution;
 
@@ -731,6 +716,26 @@ const applyPlayerAnswer = (
 
 const defaultClarification = (player: RequestPlayerState): string =>
   `我无法确认“${player.mention}”指哪位球员。请提供完整姓名或球队线索。`;
+
+const identityClarificationQuestion = (player: RequestPlayerState): string => {
+  const candidates = player.resolution?.candidates ?? [];
+
+  const includesTentativeGroup = candidates.some(
+    (candidate) =>
+      candidate.identityBasis === "thread_candidate" ||
+      (candidate.identityBasis === undefined &&
+        !candidate.identityVerified &&
+        candidate.records.length > 1)
+  );
+
+  if (includesTentativeGroup) {
+    return `“${player.mention}”有跨来源的待确认候选组。确认后只在当前 thread 将这些来源记录视为同一人；若只选一个来源，请说明 FM only 或 Understat only。`;
+  }
+
+  return (
+    player.resolution?.clarificationMessage ?? defaultClarification(player)
+  );
+};
 
 const uniqueConversationPlayers = (
   references: ConversationPlayerReference[]
@@ -981,8 +986,7 @@ const uniqueConversationAliases = (
 
 const conversationContextFromRequest = (
   request: RequestState,
-  previousContext: ConversationContext,
-  isCorrection: boolean
+  previousContext: ConversationContext
 ): ConversationContext => {
   const resolvedPlayers = request.players.flatMap((player) => {
     const { resolution } = player;
@@ -1015,21 +1019,9 @@ const conversationContextFromRequest = (
     reference,
   }));
 
-  const correctedFocus =
-    isCorrection && explicitResolvedPlayers.length === 1
-      ? [explicitResolvedPlayers[0].reference]
-      : null;
-
-  const focusPlayers =
-    request.kind === "player_lookup"
-      ? uniqueConversationPlayers(
-          resolvedPlayers.map(({ reference }) => reference)
-        )
-      : (correctedFocus ?? previousContext.focusPlayers);
-
   return {
     ...previousContext,
-    focusPlayers,
+    focusPlayers: previousContext.focusPlayers,
     playerAliases: uniqueConversationAliases([
       ...aliasesAfterConfirmation,
       ...addedAliases,
@@ -1038,7 +1030,7 @@ const conversationContextFromRequest = (
 };
 
 type EntityResolutionOutcome = {
-  activePlayerIndex: number | null;
+  unresolvedPlayerIndex: number | null;
   request: RequestState;
 };
 
@@ -1103,7 +1095,7 @@ const resolvePlayersInOrder = async (
   playerIndex = 0
 ): Promise<EntityResolutionOutcome> => {
   if (scopeIndex >= resolutionOrder.length) {
-    return { activePlayerIndex: null, request };
+    return { request, unresolvedPlayerIndex: null };
   }
 
   if (playerIndex >= request.players.length) {
@@ -1133,7 +1125,7 @@ const resolvePlayersInOrder = async (
   }
 
   if (player.resolution !== null) {
-    return { activePlayerIndex: playerIndex, request };
+    return { request, unresolvedPlayerIndex: playerIndex };
   }
 
   const resolution = await resolveRequestPlayer(
@@ -1151,7 +1143,7 @@ const resolvePlayersInOrder = async (
   };
 
   if (resolution.status !== "resolved") {
-    return { activePlayerIndex: playerIndex, request: updatedRequest };
+    return { request: updatedRequest, unresolvedPlayerIndex: playerIndex };
   }
 
   return await resolvePlayersInOrder(
@@ -1161,6 +1153,92 @@ const resolvePlayersInOrder = async (
     scopeIndex,
     playerIndex + 1
   );
+};
+
+const resumePendingIdentity = async (
+  request: RequestState,
+  pending: AgentStateType["pendingClarification"],
+  lookup: ReferenceIdentityLookup
+): Promise<{
+  pendingClarification: AgentStateType["pendingClarification"];
+  request: RequestState;
+  shouldStop: boolean;
+}> => {
+  if (pending?.kind !== "identity" || pending.answer === null) {
+    return { pendingClarification: null, request, shouldStop: false };
+  }
+
+  const resumedRequest = await applyPlayerAnswer(
+    request,
+    pending.playerIndex,
+    pending.answer,
+    lookup
+  );
+
+  const resumedPlayer = resumedRequest.players[pending.playerIndex];
+
+  if (resumedPlayer?.resolution?.status === "resolved") {
+    return {
+      pendingClarification: null,
+      request: resumedRequest,
+      shouldStop: false,
+    };
+  }
+
+  if (resumedPlayer === undefined || resumedPlayer.attempts >= 1) {
+    return {
+      pendingClarification: null,
+      request: resumedRequest,
+      shouldStop: true,
+    };
+  }
+
+  return {
+    pendingClarification: {
+      answer: null,
+      kind: "identity",
+      playerIndex: pending.playerIndex,
+      question: identityClarificationQuestion(resumedPlayer),
+    },
+    request: resumedRequest,
+    shouldStop: true,
+  };
+};
+
+const recommendationClarificationForRequest = (
+  request: RequestState
+): AgentStateType["pendingClarification"] => {
+  if (request.kind !== "player_recommendation") {
+    return null;
+  }
+
+  const ambiguousIndex = request.players.findIndex(
+    (player) => player.recommendationRole === "ambiguous"
+  );
+
+  if (ambiguousIndex !== -1) {
+    const mention = request.players[ambiguousIndex]?.mention ?? "这位球员";
+
+    return {
+      answer: null,
+      kind: "recommendation_role",
+      playerIndex: ambiguousIndex,
+      question: `“${mention}”要作为能力参考球员，还是从候选中排除？请回复“参考”或“排除”。`,
+    };
+  }
+
+  if (
+    request.recommendation.needsAgeClarification &&
+    request.recommendation.maxAge === null
+  ) {
+    return {
+      answer: null,
+      kind: "age",
+      question: "请给出高潜候选的具体年龄上限，例如 23 岁以下。",
+    };
+  }
+
+  return null;
 };
 
 const createEntityResolutionNode =
@@ -1182,21 +1260,19 @@ const createEntityResolutionNode =
     const conversationContext =
       state.conversationContext ?? createInitialConversationContext();
 
-    const latestUserMessage = latestHumanMessage(state.messages);
+    const resumedIdentity = await resumePendingIdentity(
+      request,
+      state.pendingClarification,
+      lookup
+    );
 
-    const currentMessage = latestUserMessage
-      ? messageText(latestUserMessage)
-      : "";
+    ({ request } = resumedIdentity);
 
-    if (state.requestAnswer !== null && request.activePlayerIndex !== null) {
-      request = await applyPlayerAnswer(request, state.requestAnswer, lookup);
-
-      if (
-        request.status === "clarification_exhausted" ||
-        request.status === "needs_confirmation"
-      ) {
-        return { request, requestAnswer: null };
-      }
+    if (resumedIdentity.shouldStop) {
+      return {
+        pendingClarification: resumedIdentity.pendingClarification,
+        request,
+      };
     }
 
     const outcome = await resolvePlayersInOrder(
@@ -1207,38 +1283,40 @@ const createEntityResolutionNode =
 
     ({ request } = outcome);
 
-    if (outcome.activePlayerIndex !== null) {
-      const player = request.players[outcome.activePlayerIndex];
+    if (outcome.unresolvedPlayerIndex !== null) {
+      const player = request.players[outcome.unresolvedPlayerIndex];
+
+      const hasResolvedParticipants = request.players.some(
+        (requestPlayer) => requestPlayer.resolution?.status === "resolved"
+      );
+
+      const contextWithConfirmedAliases = hasResolvedParticipants
+        ? conversationContextFromRequest(request, conversationContext)
+        : conversationContext;
 
       return {
-        request: {
-          ...request,
-          activePlayerIndex: outcome.activePlayerIndex,
-          clarificationMessage:
-            player.resolution?.clarificationMessage ??
-            defaultClarification(player),
-          status: "needs_confirmation",
+        conversationContext: contextWithConfirmedAliases,
+        pendingClarification: {
+          answer: null,
+          kind: "identity",
+          playerIndex: outcome.unresolvedPlayerIndex,
+          question: identityClarificationQuestion(player),
         },
+        request,
       };
     }
 
-    const resolvedRequest = {
-      ...request,
-      activePlayerIndex: null,
-      clarificationMessage: null,
-      status: "ready" as const,
-    };
+    const pendingClarification = recommendationClarificationForRequest(request);
 
     const update: Partial<AgentStateType> = {
-      request: resolvedRequest,
-      requestAnswer: null,
+      pendingClarification,
+      request,
     };
 
     if (request.players.length > 0) {
       update.conversationContext = conversationContextFromRequest(
-        resolvedRequest,
-        conversationContext,
-        playerIdentityCorrectionPattern.test(currentMessage)
+        request,
+        conversationContext
       );
     }
 

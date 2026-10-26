@@ -1,0 +1,422 @@
+{
+  "version": "fm-position-features-v1",
+  "status": "frozen-for-experiment",
+  "snapshotManifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
+  "scale": "raw-1-100",
+  "positionEligibility": "positions.rating >= 15",
+  "positionRatingIsNotScored": true,
+  "attributeWeighting": "equal total weight per group; equal weight within a group",
+  "scope": "General FM position-level ability similarity; not a tactical-role suitability model",
+  "sourcePolicy": "Feature groups are documented project hypotheses informed by position and role descriptions; official documentation does not provide a full position-to-raw-attribute scoring formula.",
+  "excludedFromDistance": [
+    "age",
+    "currentAbility",
+    "potentialAbility",
+    "positionRating",
+    "heightCm",
+    "name",
+    "identity"
+  ],
+  "positions": {
+    "gk": {
+      "groups": {
+        "goalkeeping": [
+          "aerial_reach",
+          "command_of_area",
+          "communication",
+          "handling",
+          "kicking",
+          "one_on_ones",
+          "punching",
+          "reflexes",
+          "rushing_out",
+          "throwing"
+        ],
+        "judgment": [
+          "anticipation",
+          "bravery",
+          "composure",
+          "concentration",
+          "decisions",
+          "positioning",
+          "consistency"
+        ],
+        "mobility": [
+          "acceleration",
+          "agility",
+          "balance",
+          "jumping_reach",
+          "pace",
+          "strength"
+        ],
+        "distribution": ["first_touch", "passing", "technique", "vision"]
+      }
+    },
+    "dc": {
+      "groups": {
+        "defending": [
+          "aggression",
+          "anticipation",
+          "concentration",
+          "decisions",
+          "marking",
+          "positioning",
+          "tackling",
+          "teamwork"
+        ],
+        "aerial_physical": [
+          "acceleration",
+          "balance",
+          "bravery",
+          "heading",
+          "jumping_reach",
+          "pace",
+          "strength"
+        ],
+        "distribution": [
+          "composure",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision"
+        ]
+      }
+    },
+    "dl": {
+      "groups": {
+        "defending": [
+          "anticipation",
+          "concentration",
+          "decisions",
+          "marking",
+          "positioning",
+          "tackling",
+          "teamwork"
+        ],
+        "wide_attack": [
+          "crossing",
+          "dribbling",
+          "first_touch",
+          "off_the_ball",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "engine": [
+          "acceleration",
+          "agility",
+          "balance",
+          "pace",
+          "stamina",
+          "strength",
+          "work_rate"
+        ]
+      }
+    },
+    "dr": {
+      "groups": {
+        "defending": [
+          "anticipation",
+          "concentration",
+          "decisions",
+          "marking",
+          "positioning",
+          "tackling",
+          "teamwork"
+        ],
+        "wide_attack": [
+          "crossing",
+          "dribbling",
+          "first_touch",
+          "off_the_ball",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "engine": [
+          "acceleration",
+          "agility",
+          "balance",
+          "pace",
+          "stamina",
+          "strength",
+          "work_rate"
+        ]
+      }
+    },
+    "wbl": {
+      "groups": {
+        "defending": [
+          "anticipation",
+          "concentration",
+          "decisions",
+          "marking",
+          "positioning",
+          "tackling",
+          "teamwork"
+        ],
+        "wide_attack": [
+          "crossing",
+          "dribbling",
+          "first_touch",
+          "flair",
+          "off_the_ball",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "engine": [
+          "acceleration",
+          "agility",
+          "balance",
+          "pace",
+          "stamina",
+          "strength",
+          "work_rate"
+        ]
+      }
+    },
+    "wbr": {
+      "groups": {
+        "defending": [
+          "anticipation",
+          "concentration",
+          "decisions",
+          "marking",
+          "positioning",
+          "tackling",
+          "teamwork"
+        ],
+        "wide_attack": [
+          "crossing",
+          "dribbling",
+          "first_touch",
+          "flair",
+          "off_the_ball",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "engine": [
+          "acceleration",
+          "agility",
+          "balance",
+          "pace",
+          "stamina",
+          "strength",
+          "work_rate"
+        ]
+      }
+    },
+    "dm": {
+      "groups": {
+        "screening": [
+          "aggression",
+          "anticipation",
+          "concentration",
+          "decisions",
+          "marking",
+          "positioning",
+          "strength",
+          "tackling"
+        ],
+        "circulation": ["first_touch", "passing", "technique", "vision"],
+        "work": [
+          "balance",
+          "bravery",
+          "stamina",
+          "teamwork",
+          "work_rate",
+          "determination"
+        ]
+      }
+    },
+    "mc": {
+      "groups": {
+        "circulation": [
+          "composure",
+          "decisions",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "movement": [
+          "agility",
+          "anticipation",
+          "balance",
+          "off_the_ball",
+          "stamina",
+          "teamwork",
+          "work_rate"
+        ],
+        "two_way": [
+          "concentration",
+          "determination",
+          "marking",
+          "positioning",
+          "strength",
+          "tackling"
+        ]
+      }
+    },
+    "ml": {
+      "groups": {
+        "wide_delivery": [
+          "crossing",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "carrying": [
+          "acceleration",
+          "agility",
+          "balance",
+          "dribbling",
+          "flair",
+          "pace"
+        ],
+        "contribution": [
+          "anticipation",
+          "decisions",
+          "off_the_ball",
+          "stamina",
+          "teamwork",
+          "work_rate"
+        ]
+      }
+    },
+    "mr": {
+      "groups": {
+        "wide_delivery": [
+          "crossing",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "carrying": [
+          "acceleration",
+          "agility",
+          "balance",
+          "dribbling",
+          "flair",
+          "pace"
+        ],
+        "contribution": [
+          "anticipation",
+          "decisions",
+          "off_the_ball",
+          "stamina",
+          "teamwork",
+          "work_rate"
+        ]
+      }
+    },
+    "aml": {
+      "groups": {
+        "creation": [
+          "crossing",
+          "dribbling",
+          "flair",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "threat": [
+          "acceleration",
+          "agility",
+          "anticipation",
+          "composure",
+          "decisions",
+          "finishing",
+          "off_the_ball",
+          "pace"
+        ],
+        "support": ["balance", "stamina", "teamwork", "work_rate"]
+      }
+    },
+    "amr": {
+      "groups": {
+        "creation": [
+          "crossing",
+          "dribbling",
+          "flair",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "threat": [
+          "acceleration",
+          "agility",
+          "anticipation",
+          "composure",
+          "decisions",
+          "finishing",
+          "off_the_ball",
+          "pace"
+        ],
+        "support": ["balance", "stamina", "teamwork", "work_rate"]
+      }
+    },
+    "amc": {
+      "groups": {
+        "creation": [
+          "composure",
+          "decisions",
+          "first_touch",
+          "flair",
+          "passing",
+          "technique",
+          "vision"
+        ],
+        "progression": [
+          "agility",
+          "anticipation",
+          "balance",
+          "dribbling",
+          "off_the_ball"
+        ],
+        "threat": ["acceleration", "finishing", "long_shots", "pace"]
+      }
+    },
+    "stc": {
+      "groups": {
+        "physical": [
+          "acceleration",
+          "pace",
+          "strength",
+          "jumping_reach",
+          "stamina"
+        ],
+        "finishing_movement": [
+          "finishing",
+          "off_the_ball",
+          "heading",
+          "composure",
+          "anticipation"
+        ],
+        "link": [
+          "decisions",
+          "first_touch",
+          "passing",
+          "technique",
+          "vision",
+          "teamwork",
+          "dribbling",
+          "work_rate"
+        ]
+      }
+    }
+  },
+  "unsupportedPositions": {
+    "sw": "No local FM profile has positions.rating >= 15 for this position."
+  },
+  "references": [
+    "https://www.footballmanager.com/fm26/features/possession-out-possession-fm26s-new-tactical-evolution",
+    "https://www.footballmanager.com/the-dugout/dominate-with-dual-strikers-fm26"
+  ]
+}
