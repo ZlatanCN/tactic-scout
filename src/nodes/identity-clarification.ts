@@ -3,6 +3,7 @@ import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { mergeComparisonConstraints } from "../comparison-context.js";
+import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type {
   AgentState,
   AgentStateType,
@@ -286,11 +287,9 @@ const clarifyFmProfile = (
     );
   }
 
-  const selectedCandidate = resolution.candidates.find(
-    (candidate) => candidate.candidateId === resolution.selectedCandidateId
-  );
+  const selectedCandidate = selectedReferenceCandidate(resolution);
 
-  if (selectedCandidate === undefined) {
+  if (selectedCandidate === null) {
     return invalidAnswer(pending, "已确认身份中没有可选的 FM 画像记录。");
   }
 

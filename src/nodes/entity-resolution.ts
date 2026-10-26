@@ -1,5 +1,6 @@
 import type { GraphNode } from "@langchain/langgraph";
 
+import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { ReferenceIdentityLookup } from "../player-data/resolve-reference.js";
 import {
   isPlayerReferenceMention,
@@ -817,9 +818,7 @@ const refreshKnownAliasForComparison = async (
   resolution: PlayerResolutionState,
   lookup: ReferenceIdentityLookup
 ): Promise<PlayerResolutionState> => {
-  const selectedCandidate = resolution.candidates.find(
-    (candidate) => candidate.candidateId === resolution.selectedCandidateId
-  );
+  const selectedCandidate = selectedReferenceCandidate(resolution);
 
   const providerCount = new Set(
     selectedCandidate?.records.map((record) => record.provider)
@@ -877,11 +876,9 @@ const refreshKnownAliasForComparison = async (
 const conversationPlayerFromResolution = (
   resolution: PlayerResolutionState
 ): ConversationPlayerReference | null => {
-  const candidate = resolution.candidates.find(
-    (item) => item.candidateId === resolution.selectedCandidateId
-  );
+  const candidate = selectedReferenceCandidate(resolution);
 
-  if (candidate !== undefined) {
+  if (candidate !== null) {
     return {
       candidate,
       referenceId: candidate.canonicalIdentityId ?? candidate.candidateId,

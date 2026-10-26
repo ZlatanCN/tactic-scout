@@ -79,10 +79,25 @@ type PlayerSearchQuery = {
   seasonStartYear?: number;
 };
 
+const selectedReferenceCandidate = (
+  resolution: PlayerResolutionState | null
+): ReferenceCandidate | null => {
+  if (resolution?.status !== "resolved") {
+    return null;
+  }
+
+  return (
+    resolution.candidates.find(
+      (candidate) => candidate.candidateId === resolution.selectedCandidateId
+    ) ?? null
+  );
+};
+
 export {
   PlayerResolutionSchema,
   ReferenceCandidateSchema,
   ReferenceSourceRecordSchema,
+  selectedReferenceCandidate,
 };
 
 export type {

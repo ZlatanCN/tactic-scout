@@ -8,6 +8,7 @@ import {
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
 import type {
   AgentState,
@@ -41,15 +42,7 @@ const currentTurnMessages = (messages: AgentStateType["messages"]) => {
 };
 
 const resolvedRecords = (player: RequestPlayerState) => {
-  const { resolution } = player;
-
-  if (resolution?.status !== "resolved") {
-    return [];
-  }
-
-  const candidate = resolution.candidates.find(
-    (item) => item.candidateId === resolution.selectedCandidateId
-  );
+  const candidate = selectedReferenceCandidate(player.resolution);
 
   return (
     candidate?.records.map(({ provider, sourceId }) => ({
@@ -62,17 +55,9 @@ const resolvedRecords = (player: RequestPlayerState) => {
 const resolvedReference = (
   player: RequestPlayerState
 ): ConversationPlayerReference | null => {
-  const { resolution } = player;
+  const candidate = selectedReferenceCandidate(player.resolution);
 
-  if (resolution?.status !== "resolved") {
-    return null;
-  }
-
-  const candidate = resolution.candidates.find(
-    (item) => item.candidateId === resolution.selectedCandidateId
-  );
-
-  return candidate === undefined
+  return candidate === null
     ? null
     : {
         candidate,

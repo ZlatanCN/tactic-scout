@@ -2,6 +2,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type {
   AgentState,
   ConversationPlayerReference,
@@ -13,20 +14,6 @@ import type { RecommendationIdentityGroup } from "../tools/recommend-player-cand
 
 const recommendationResultSchema = z.object({ status: z.string() });
 
-const selectedCandidate = (player: RequestPlayerState) => {
-  const { resolution } = player;
-
-  if (resolution?.status !== "resolved") {
-    return null;
-  }
-
-  return (
-    resolution.candidates.find(
-      (candidate) => candidate.candidateId === resolution.selectedCandidateId
-    ) ?? null
-  );
-};
-
 const recommendationGroups = (
   players: RequestPlayerState[],
   role: "exclude" | "reference"
@@ -36,7 +23,7 @@ const recommendationGroups = (
   for (const player of players.filter(
     (item) => item.recommendationRole === role
   )) {
-    const candidate = selectedCandidate(player);
+    const candidate = selectedReferenceCandidate(player.resolution);
 
     if (candidate !== null) {
       const identityKey =
@@ -83,7 +70,7 @@ const referenceProfileClarification = (
       return false;
     }
 
-    const candidate = selectedCandidate(player);
+    const candidate = selectedReferenceCandidate(player.resolution);
 
     return (
       candidate !== null &&
@@ -156,7 +143,7 @@ const constraintIsApplied = (
 const referenceFromPlayer = (
   player: RequestPlayerState
 ): ConversationPlayerReference | null => {
-  const candidate = selectedCandidate(player);
+  const candidate = selectedReferenceCandidate(player.resolution);
 
   return candidate === null
     ? null

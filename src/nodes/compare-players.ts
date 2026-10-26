@@ -3,6 +3,7 @@ import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { comparisonContextFromRequest } from "../comparison-context.js";
+import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { AgentState, RequestPlayerState, RequestState } from "../state.js";
 
 const seasonPattern = /\b(?<start>20\d{2})\s*\/\s*(?<end>\d{2}|20\d{2})\b/u;
@@ -12,22 +13,8 @@ const comparisonResultSchema = z.object({
   status: z.string(),
 });
 
-const selectedCandidate = (player: RequestPlayerState) => {
-  const { resolution } = player;
-
-  if (resolution?.status !== "resolved") {
-    return null;
-  }
-
-  return (
-    resolution.candidates.find(
-      (candidate) => candidate.candidateId === resolution.selectedCandidateId
-    ) ?? null
-  );
-};
-
 const comparisonPlayer = (player: RequestPlayerState) => {
-  const candidate = selectedCandidate(player);
+  const candidate = selectedReferenceCandidate(player.resolution);
 
   return candidate === null
     ? null
