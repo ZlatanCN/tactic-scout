@@ -381,7 +381,7 @@ const toolCallId = (call: ToolCallIdentity): string =>
   toolCallIdSchema.parse(call).id;
 
 const createLookupToolGuardNode =
-  (): GraphNode<typeof AgentState> => (state) => {
+  (): GraphNode<typeof AgentState> => (state, runtime) => {
     const lastMessage = state.messages.at(-1);
 
     if (!(lastMessage instanceof AIMessage)) {
@@ -397,13 +397,28 @@ const createLookupToolGuardNode =
 
     const blockedCalls = toolCalls.slice(remaining);
 
+    const executions =
+      state.faultTolerance.lookupSearchExecutions +
+      Math.min(toolCalls.length, remaining);
+
+    if (blockedCalls.length > 0) {
+      logFaultEvent({
+        attempt: executions,
+        category: "attempt_limit",
+        durationMs: 0,
+        event: "exhausted",
+        executionCount: executions,
+        node: "lookup_tools_guard",
+        runId: runtime.executionInfo?.runId,
+        threadId: runtime.executionInfo?.threadId,
+      });
+    }
+
     return {
       faultTolerance: {
         ...state.faultTolerance,
         lookupLimitReached: blockedCalls.length > 0,
-        lookupSearchExecutions:
-          state.faultTolerance.lookupSearchExecutions +
-          Math.min(toolCalls.length, remaining),
+        lookupSearchExecutions: executions,
         lookupToolCallIds: blockedCalls.map((call) =>
           z.string().min(1).parse(call.id)
         ),

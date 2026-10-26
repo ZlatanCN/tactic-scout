@@ -1,19 +1,12 @@
 import type { GraphNode } from "@langchain/langgraph";
 
-import {
-  logFaultEvent,
-  maxExternalRequests,
-  maxRateLimitWaitMs,
-} from "../fault-tolerance.js";
-import type { FaultExecutionContext } from "../fault-tolerance.js";
+import { createApiFailureTransition } from "../api-fault-recovery.js";
 import { supportedPositionCodes } from "../player-data/position-features.js";
 import type { AgentState, AgentStateType, RequestState } from "../state.js";
 import type {
   ApiFootballClient,
-  ApiFootballFailure,
   ApiFootballTeam,
 } from "../team-data/api-football.js";
-import { apiFootballFailureCategory } from "../team-data/api-football.js";
 
 const teamPositionClarification = {
   answer: null,
@@ -24,72 +17,6 @@ const teamPositionClarification = {
 
 const normalizeTeamName = (value: string): string =>
   value.normalize("NFKC").trim().toLocaleLowerCase();
-
-const teamProviderFailure = (
-  result: ApiFootballFailure,
-  requestsUsed: number,
-  runtime: FaultExecutionContext
-): Partial<AgentStateType> => {
-  logFaultEvent({
-    attempt: requestsUsed,
-    category: apiFootballFailureCategory(result.reason),
-    durationMs: result.durationMs,
-    event: "exhausted",
-    node: "resolve_team",
-    runId: runtime.executionInfo?.runId,
-    threadId: runtime.executionInfo?.threadId,
-  });
-
-  return {
-    outcome: {
-      kind: "team_recommendation",
-      resultJson: JSON.stringify(result),
-      status: "team_provider_error",
-    },
-  };
-};
-
-const handleTeamSearchFailure = (
-  state: AgentStateType,
-  result: ApiFootballFailure,
-  requestsUsed: number,
-  runtime: FaultExecutionContext
-): Partial<AgentStateType> => {
-  const wait = result.retryAfterMs;
-
-  if (result.reason !== "rate_limit") {
-    return teamProviderFailure(result, requestsUsed, runtime);
-  }
-
-  if (state.faultTolerance.apiRateLimitRetried || wait === undefined) {
-    return teamProviderFailure(result, requestsUsed, runtime);
-  }
-
-  if (wait > maxRateLimitWaitMs || requestsUsed >= maxExternalRequests) {
-    return teamProviderFailure(result, requestsUsed, runtime);
-  }
-
-  logFaultEvent({
-    attempt: requestsUsed,
-    category: "rate_limit",
-    durationMs: result.durationMs,
-    event: "rate_limit_retry",
-    node: "resolve_team",
-    runId: runtime.executionInfo?.runId,
-    threadId: runtime.executionInfo?.threadId,
-  });
-
-  return {
-    faultTolerance: {
-      ...state.faultTolerance,
-      apiOperation: "team_search",
-      apiRateLimitRetried: true,
-      apiRequestsUsed: requestsUsed,
-      apiRetryAfterMs: wait,
-    },
-    outcome: null,
-  };
-};
 
 const teamSelectionPatch = (
   teams: ApiFootballTeam[],
@@ -240,7 +167,14 @@ const createResolveTeamNode =
     if (result.status === "error") {
       const requestsUsed = result.requestsUsed ?? requestsBefore + attempt;
 
-      return handleTeamSearchFailure(state, result, requestsUsed, runtime);
+      return createApiFailureTransition({
+        faultTolerance: state.faultTolerance,
+        node: "resolve_team",
+        operation: "team_search",
+        requestsUsed,
+        result,
+        runtime,
+      });
     }
 
     return teamSelectionPatch(

@@ -4,8 +4,10 @@ import { HumanMessage } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
-import { MemorySaver } from "@langchain/langgraph";
+import { MemorySaver, NodeTimeoutError } from "@langchain/langgraph";
+import { ChatOpenAI } from "@langchain/openai";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 
 import { modelRequestTimeoutMs } from "../src/fault-tolerance.js";
 import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
@@ -63,6 +65,105 @@ describe("request understanding extraction", () => {
       comparisonAction: "add",
       kind: "player_comparison",
       players: [{ lookupName: "Erling Haaland", mention: "哈兰德" }],
+    });
+  });
+
+  it("keeps real ChatOpenAI SDK retries inside the graph's physical request budget", async () => {
+    const requestSchema = z.looseObject({
+      tools: z.array(
+        z.looseObject({
+          function: z.looseObject({ name: z.string() }),
+        })
+      ),
+    });
+
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      await delay(0);
+      const requestInit = z.object({ body: z.string() }).parse(init);
+      const request = requestSchema.parse(JSON.parse(requestInit.body));
+      const functionName = request.tools[0]?.function.name;
+
+      if (functionName === undefined) {
+        throw new Error(
+          "The request did not include the structured-output tool."
+        );
+      }
+
+      if (fetcher.mock.calls.length === 1) {
+        return Response.json(
+          { error: { message: "temporary upstream error" } },
+          { status: 503 }
+        );
+      }
+
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            index: 0,
+            message: {
+              content: null,
+              role: "assistant",
+              tool_calls: [
+                {
+                  function: {
+                    arguments: JSON.stringify({
+                      constraints: [],
+                      kind: "other",
+                      players: [],
+                      teams: [],
+                    }),
+                    name: functionName,
+                  },
+                  id: "structured-request-1",
+                  type: "function",
+                },
+              ],
+            },
+          },
+        ],
+        created: 1_700_000_000,
+        id: "chatcmpl-fault-test",
+        model: "fault-test",
+        object: "chat.completion",
+        usage: {
+          completion_tokens: 1,
+          prompt_tokens: 1,
+          total_tokens: 2,
+        },
+      });
+    });
+
+    const model = new ChatOpenAI({
+      apiKey: "test-key",
+      configuration: {
+        baseURL: "https://gateway.test/v1",
+        fetch: fetcher,
+      },
+      maxRetries: 0,
+      model: "fault-test",
+      temperature: 0,
+    });
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "chat-openai-physical-budget" } }
+    );
+
+    expect({
+      kind: result.request.kind,
+      physicalRequests: fetcher.mock.calls.length,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      kind: "other",
+      physicalRequests: 2,
+      response:
+        "当前版本支持查询、比较和推荐球员资料。请说明你要完成哪一种任务。",
     });
   });
 
@@ -316,6 +417,106 @@ describe("request understanding extraction", () => {
     }).toStrictEqual({ kind: "other", outputCalls: 2 });
   });
 
+  it("does not restart a model node after a timeout following an internal 429 retry", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => {
+        calls += 1;
+
+        if (calls === 1) {
+          throw Object.assign(new Error("short rate limit"), {
+            code: "rate_limit_exceeded",
+            headers: new Headers({
+              "retry-after": "0",
+              "x-ratelimit-remaining-requests": "5",
+            }),
+            status: 429,
+          });
+        }
+
+        throw new NodeTimeoutError({
+          elapsed: 60_000,
+          kind: "run",
+          node: "understand_request",
+          runTimeout: 60_000,
+        });
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-rate-timeout-budget" } }
+    );
+
+    expect({
+      calls,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      calls: 2,
+      response:
+        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
+    });
+  });
+
+  it("uses the final physical request after a short-429 retry has a transient failure", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => {
+        calls += 1;
+
+        if (calls === 1) {
+          throw Object.assign(new Error("short rate limit"), {
+            code: "rate_limit_exceeded",
+            headers: new Headers({
+              "retry-after": "0",
+              "x-ratelimit-remaining-requests": "5",
+            }),
+            status: 429,
+          });
+        }
+
+        if (calls === 2) {
+          throw Object.assign(new Error("temporary network failure"), {
+            code: "ECONNRESET",
+          });
+        }
+
+        return {
+          constraints: [],
+          kind: "other",
+          players: [],
+          teams: [],
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-429-then-transient" } }
+    );
+
+    expect({ calls, kind: result.request.kind }).toStrictEqual({
+      calls: 3,
+      kind: "other",
+    });
+  });
+
   it("does not retry a model 429 that reports exhausted quota", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");
@@ -352,6 +553,81 @@ describe("request understanding extraction", () => {
       outputCalls: 1,
       response:
         "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+    });
+  });
+
+  it("does not retry a model 429 without positive remaining-quota evidence", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => {
+        calls += 1;
+        throw Object.assign(new Error("rate limit without quota evidence"), {
+          code: "rate_limit_exceeded",
+          headers: new Headers({ "retry-after": "0" }),
+          status: 429,
+        });
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-model-429-no-quota-evidence" } }
+    );
+
+    expect({
+      calls,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      calls: 1,
+      response:
+        "模型服务正在限流。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+    });
+  });
+
+  it("does not wait beyond the model rate-limit wait bound", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => {
+        calls += 1;
+        throw Object.assign(new Error("long rate limit"), {
+          code: "rate_limit_exceeded",
+          headers: new Headers({
+            "retry-after": "20",
+            "x-ratelimit-remaining-requests": "5",
+          }),
+          status: 429,
+        });
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-model-long-rate-limit" } }
+    );
+
+    expect({
+      calls,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      calls: 1,
+      response:
+        "模型服务正在限流。本次请求没有完成，已确认的数据和之前的结果仍保留。",
     });
   });
 
@@ -395,7 +671,7 @@ describe("request understanding extraction", () => {
     });
   });
 
-  it("limits timed-out physical model requests to the shared three-request budget", async () => {
+  it("ignores late model responses and caps timed-out physical requests at three", async () => {
     const timeoutSpy = mockShortModelTimeout();
 
     const model = fakeModel();
@@ -403,9 +679,9 @@ describe("request understanding extraction", () => {
     let calls = 0;
 
     structuredOutput.mockReturnValue(
-      RunnableLambda.from(async (_input, options: RunnableConfig) => {
+      RunnableLambda.from(async () => {
         calls += 1;
-        await delay(1000, undefined, { signal: options.signal });
+        await delay(20);
 
         return {
           constraints: [],

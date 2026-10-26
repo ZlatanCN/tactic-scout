@@ -214,6 +214,38 @@ describe("API-Football client", () => {
     });
   });
 
+  it("does not infer a retryable short limit from an ambiguous 429", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 429 }));
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const result = await client.searchTeams("Arsenal");
+
+    expect(result).toMatchObject({
+      reason: "provider",
+      status: "error",
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it("treats API authentication failures as permanent", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const result = await client.searchTeams("Arsenal");
+
+    expect(result).toMatchObject({
+      reason: "configuration",
+      status: "error",
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("parses an HTTP-date Retry-After using the injected clock", async () => {
     const now = new Date("2026-01-01T12:00:00.000Z");
 

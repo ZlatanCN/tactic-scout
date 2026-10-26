@@ -49,10 +49,11 @@ type ExternalFault = z.infer<typeof externalFaultSchema>;
 type ExternalFaultError = Error & { fault: ExternalFault };
 
 type FaultLogEvent = {
-  attempt?: number;
+  attempt?: number | "unavailable";
   category: FaultCategory;
   durationMs?: number;
   event: z.infer<typeof faultLogEventSchema>;
+  executionCount?: number;
   node: string;
   runId?: string;
   threadId?: string;
@@ -77,7 +78,13 @@ const isExternalFaultError = (error: Error): error is ExternalFaultError =>
 const logFaultEvent = (event: FaultLogEvent): void => {
   try {
     console.info(
-      JSON.stringify({ component: "tactiscout", type: "fault", ...event })
+      JSON.stringify({
+        component: "tactiscout",
+        type: "fault",
+        ...event,
+        runId: event.runId ?? "unavailable",
+        threadId: event.threadId ?? "unavailable",
+      })
     );
   } catch {
     // Logging is best-effort and cannot replace the original outcome.
@@ -109,9 +116,11 @@ const createNodeRetryPolicy = (
 
     if (retryable) {
       logFaultEvent({
-        attempt: fault?.requestsUsed,
+        attempt:
+          fault?.requestsUsed ?? (nodeTimedOut ? "unavailable" : undefined),
         category: fault?.category ?? "timeout",
-        durationMs: fault?.durationMs,
+        durationMs:
+          fault?.durationMs ?? (nodeTimedOut ? error.elapsed : undefined),
         event: "retry",
         node: fault?.node ?? node,
         runId: fault?.runId,

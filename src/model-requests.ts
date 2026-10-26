@@ -303,6 +303,51 @@ const createModelRequestBudget = (
     }
   };
 
+  const finishRateLimitRetry = async <Value>(
+    request: (signal?: AbortSignal) => Promise<Value>,
+    retry: ModelCall<Value>
+  ): Promise<Value> => {
+    if ("value" in retry) {
+      return retry.value;
+    }
+
+    if (retry.failure.retryable && requests < maxExternalRequests) {
+      await waitForRetryDelay(250 + Math.random() * 1000, runtime.signal);
+
+      const finalAttempt = await callOnce(request);
+
+      if ("value" in finalAttempt) {
+        return finalAttempt.value;
+      }
+
+      throw createExternalFaultError({
+        category: finalAttempt.failure.category,
+        durationMs: finalAttempt.durationMs,
+        message: finalAttempt.failure.message,
+        node,
+        provider: "model",
+        providerCode: finalAttempt.failure.providerCode,
+        requestsUsed: requests,
+        retryable: false,
+        runId: runtime.executionInfo?.runId,
+        threadId: runtime.executionInfo?.threadId,
+      });
+    }
+
+    throw createExternalFaultError({
+      category: retry.failure.category,
+      durationMs: retry.durationMs,
+      message: retry.failure.message,
+      node,
+      provider: "model",
+      providerCode: retry.failure.providerCode,
+      requestsUsed: requests,
+      retryable: false,
+      runId: runtime.executionInfo?.runId,
+      threadId: runtime.executionInfo?.threadId,
+    });
+  };
+
   const invoke = async <Value>(
     request: (signal?: AbortSignal) => Promise<Value>,
     options: { allowRateLimitRetry?: boolean } = {}
@@ -346,24 +391,7 @@ const createModelRequestBudget = (
       });
       await waitForRetryDelay(rateLimit.retryAfterMs, runtime.signal);
 
-      const retry = await callOnce(request);
-
-      if ("value" in retry) {
-        return retry.value;
-      }
-
-      throw createExternalFaultError({
-        category: retry.failure.category,
-        durationMs: retry.durationMs,
-        message: retry.failure.message,
-        node,
-        provider: "model",
-        providerCode: retry.failure.providerCode,
-        requestsUsed: requests,
-        retryable: false,
-        runId: runtime.executionInfo?.runId,
-        threadId: runtime.executionInfo?.threadId,
-      });
+      return await finishRateLimitRetry(request, await callOnce(request));
     }
 
     throw createExternalFaultError({
