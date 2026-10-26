@@ -118,6 +118,11 @@ const createCommitLookupResultsNode =
           ...state.faultTolerance,
           lookupToolStartedAt: null,
         },
+        outcome: {
+          kind: "player_lookup",
+          resultJson: null,
+          status: "data_unavailable",
+        },
       };
     }
 

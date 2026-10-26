@@ -739,10 +739,15 @@ describe("LangGraph player workflows", () => {
     expect({
       activeLookup: second.conversationContext.activeLookup,
       answer: second.messages.at(-1)?.content,
+      modelCalls: model.callCount,
+      outcomeStatus: second.outcome?.status,
       searchCalls,
     }).toStrictEqual({
       activeLookup: previousLookup,
-      answer: "The local source could not be refreshed.",
+      answer:
+        "本地球员数据源无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+      modelCalls: 3,
+      outcomeStatus: "data_unavailable",
       searchCalls: 2,
     });
   });

@@ -46,6 +46,8 @@ const reepBridgeRowSchema = z.object({
   redirect_status: z.string(),
 });
 
+const reepRegistryReadErrorMessage = "Reep 身份注册表无法读取。";
+
 const searchRecordReferences = (
   provider: CandidateSourceRecord["provider"],
   result: UnderstatReadResult | FmReadResult | null
@@ -116,7 +118,7 @@ const openIdentityRegistry = (databasePath: string): DatabaseSync | null => {
     }
 
     if (error instanceof Error && isLocalDataFailure(error)) {
-      throw createLocalDataError("Reep 身份注册表无法读取。");
+      throw createLocalDataError(reepRegistryReadErrorMessage);
     }
 
     throw error;
@@ -128,52 +130,64 @@ const resolveReepRecord = (
   provider: CandidateSourceRecord["provider"],
   sourceId: string
 ): ReepRecordResolution => {
-  const rows = z.array(reepBridgeRowSchema).parse(
-    database
-      .prepare(
-        `SELECT canonical_reep_id, redirect_status
+  try {
+    const rows = z.array(reepBridgeRowSchema).parse(
+      database
+        .prepare(
+          `SELECT canonical_reep_id, redirect_status
      FROM bridges
      WHERE provider = ? AND namespace = 'player' AND external_id = ?`
-      )
-      .all(provider, sourceId)
-  );
+        )
+        .all(provider, sourceId)
+    );
 
-  if (!rows.length) {
-    return { canonicalIdentityId: null, status: "unresolved" };
-  }
-
-  const canonicalIds = new Set<string>();
-  let hasBlockedBridge = false;
-
-  for (const row of rows) {
-    if (row.redirect_status !== "resolved") {
-      hasBlockedBridge = true;
-      continue;
+    if (!rows.length) {
+      return { canonicalIdentityId: null, status: "unresolved" };
     }
 
-    if (row.canonical_reep_id !== null) {
-      canonicalIds.add(row.canonical_reep_id);
+    const canonicalIds = new Set<string>();
+    let hasBlockedBridge = false;
+
+    for (const row of rows) {
+      if (row.redirect_status !== "resolved") {
+        hasBlockedBridge = true;
+        continue;
+      }
+
+      if (row.canonical_reep_id !== null) {
+        canonicalIds.add(row.canonical_reep_id);
+      }
     }
+
+    const [canonicalIdentityId] = canonicalIds;
+
+    if (
+      canonicalIds.size === 1 &&
+      !hasBlockedBridge &&
+      canonicalIdentityId !== undefined &&
+      canonicalIdentityId.length > 0
+    ) {
+      return { canonicalIdentityId, status: "resolved" };
+    }
+
+    const status =
+      rows.length > 1 || canonicalIds.size > 1 ? "ambiguous" : "unresolved";
+
+    return {
+      canonicalIdentityId: null,
+      status,
+    };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      throw error;
+    }
+
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError(reepRegistryReadErrorMessage);
+    }
+
+    throw error;
   }
-
-  const [canonicalIdentityId] = canonicalIds;
-
-  if (
-    canonicalIds.size === 1 &&
-    !hasBlockedBridge &&
-    canonicalIdentityId !== undefined &&
-    canonicalIdentityId.length > 0
-  ) {
-    return { canonicalIdentityId, status: "resolved" };
-  }
-
-  const status =
-    rows.length > 1 || canonicalIds.size > 1 ? "ambiguous" : "unresolved";
-
-  return {
-    canonicalIdentityId: null,
-    status,
-  };
 };
 
 const resolveApiFootballPlayerFmIds = (
@@ -257,7 +271,7 @@ const resolveApiFootballPlayerFmIds = (
     }
 
     if (error instanceof Error && isLocalDataFailure(error)) {
-      throw createLocalDataError("Reep 身份注册表无法读取。");
+      throw createLocalDataError(reepRegistryReadErrorMessage);
     }
 
     throw error;

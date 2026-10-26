@@ -370,10 +370,14 @@ const createModelRequestBudget = (
 
     const { rateLimit } = first.failure;
 
+    const hasRetryableRateLimit =
+      first.failure.category === "rate_limit" &&
+      rateLimit !== undefined &&
+      rateLimit.retryAfterMs <= maxRateLimitWaitMs;
+
     const canRetryRateLimit =
       options.allowRateLimitRetry !== false &&
-      rateLimit !== undefined &&
-      rateLimit.retryAfterMs <= maxRateLimitWaitMs &&
+      hasRetryableRateLimit &&
       requests < maxExternalRequests;
 
     if (canRetryRateLimit && rateLimit !== undefined) {

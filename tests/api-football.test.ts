@@ -154,6 +154,28 @@ describe("API-Football client", () => {
     });
   });
 
+  it("does not retry a quota error returned with a server status", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          code: "daily_request_limit_reached",
+          errors: [],
+          response: [],
+        },
+        { status: 503 }
+      )
+    );
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    await expect(client.searchTeams("Arsenal")).resolves.toMatchObject({
+      providerCode: "daily_request_limit_reached",
+      reason: "quota",
+      status: "error",
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("does not cache a roster response after a failed fetch", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -224,6 +246,29 @@ describe("API-Football client", () => {
     const result = await client.searchTeams("Arsenal");
 
     expect(result).toMatchObject({
+      reason: "provider",
+      status: "error",
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it("rejects fractional Retry-After values as invalid retry evidence", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        { code: "rate_limit_exceeded", errors: [], response: [] },
+        {
+          headers: {
+            "retry-after": "1.5",
+            "x-ratelimit-requests-remaining": "4",
+          },
+          status: 429,
+        }
+      )
+    );
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    await expect(client.searchTeams("Arsenal")).resolves.toMatchObject({
       reason: "provider",
       status: "error",
     });

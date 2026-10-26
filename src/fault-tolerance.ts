@@ -175,13 +175,19 @@ const retryAfterMs = (headers: Headers, now = Date.now()): number | null => {
     return null;
   }
 
-  const seconds = Number(retryAfter.trim());
+  const value = retryAfter.trim();
 
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.ceil(seconds * 1000);
+  if (/^\d+$/u.test(value)) {
+    const milliseconds = Number(value) * 1000;
+
+    return Number.isSafeInteger(milliseconds) ? milliseconds : null;
   }
 
-  const timestamp = Date.parse(retryAfter);
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu.test(value)) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
 
   return Number.isFinite(timestamp) ? Math.max(0, timestamp - now) : null;
 };

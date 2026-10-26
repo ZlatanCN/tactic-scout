@@ -471,6 +471,20 @@ const createApiFootballClient = (
     }
 
     if (response.status >= 500 && response.status <= 599) {
+      const payload = await jsonFromResponse(response, requestOptions.signal);
+      abortIfCancelled(requestOptions.signal);
+
+      if (isDailyQuotaError(payload)) {
+        return withDuration(
+          failure("quota", "API-Football 每日请求额度已用完。", {
+            providerCode: payload === null ? undefined : providerCode(payload),
+            requestsUsed,
+            statusCode: response.status,
+          }),
+          startedAt
+        );
+      }
+
       throw createExternalFaultError({
         category: "server",
         durationMs: Date.now() - startedAt,

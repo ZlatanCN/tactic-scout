@@ -556,6 +556,45 @@ describe("request understanding extraction", () => {
     });
   });
 
+  it("does not retry a model 429 with a non-standard quota code", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => {
+        calls += 1;
+        throw Object.assign(new Error("organization quota exhausted"), {
+          code: "organization_quota_exceeded",
+          headers: new Headers({
+            "retry-after": "0",
+            "x-ratelimit-remaining-requests": "5",
+          }),
+          status: 429,
+        });
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-model-organization-quota" } }
+    );
+
+    expect({
+      calls,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      calls: 1,
+      response:
+        "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+    });
+  });
+
   it("does not retry a model 429 without positive remaining-quota evidence", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");

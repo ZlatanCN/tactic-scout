@@ -591,7 +591,14 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     ])
     .addEdge("lookup_tools_guard", "lookup_tools")
     .addEdge("lookup_tools", "commit_lookup")
-    .addEdge("commit_lookup", "lookup_player")
+    .addConditionalEdges(
+      "commit_lookup",
+      (state) =>
+        state.outcome?.status === "data_unavailable"
+          ? "answer"
+          : "lookup_player",
+      ["answer", "lookup_player"]
+    )
     .addConditionalEdges(
       "compare_players",
       (state) =>
