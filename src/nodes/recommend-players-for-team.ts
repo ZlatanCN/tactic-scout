@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { supportedPositionCodes } from "../player-data/position-features.js";
 import { recommendationConstraintIsApplied } from "../recommendation-constraints.js";
+import { conversationReferenceFromPlayer } from "../recommendation-references.js";
 import type {
   AgentState,
   ConversationPlayerReference,
@@ -22,19 +23,6 @@ const fmIdsForPlayer = (player: RequestPlayerState): string[] => {
     : candidate.records.flatMap((record) =>
         record.provider === "fm" ? [record.sourceId] : []
       );
-};
-
-const referenceForPlayer = (
-  player: RequestPlayerState
-): ConversationPlayerReference | null => {
-  const candidate = selectedReferenceCandidate(player.resolution);
-
-  return candidate === null
-    ? null
-    : {
-        candidate,
-        referenceId: candidate.canonicalIdentityId ?? candidate.candidateId,
-      };
 };
 
 const uniqueSorted = (values: string[]): string[] =>
@@ -72,7 +60,7 @@ const referencesFromPlayers = (
   players: RequestPlayerState[]
 ): ConversationPlayerReference[] =>
   players.flatMap((player) => {
-    const reference = referenceForPlayer(player);
+    const reference = conversationReferenceFromPlayer(player);
 
     return reference === null ? [] : [reference];
   });

@@ -6,6 +6,7 @@ import type {
   ApiFootballRosterPlayer,
 } from "../team-data/api-football.js";
 import type { TeamRosterSnapshot } from "../team-data/contracts.js";
+import { teamRosterCoverage } from "../team-data/roster-coverage.js";
 import type {
   TeamRosterIdentityLookup,
   TeamRosterIdentityResolution,
@@ -83,22 +84,6 @@ const requestWithRoster = (
 ) => ({
   ...request,
   teamRecommendation: { ...request.teamRecommendation, roster },
-});
-
-const rosterMappingCoverage = (roster: TeamRosterSnapshot) => ({
-  mappedMembers: roster.members.filter(
-    (member) => member.mappingStatus === "resolved"
-  ).length,
-  noLocalProfileMembers: roster.members.filter(
-    (member) => member.mappingStatus === "no_profile"
-  ).length,
-  reepBridgeMappings: roster.members.filter(
-    (member) => member.mappingMethod === "reep_bridge"
-  ).length,
-  totalMembers: roster.members.length,
-  userConfirmedMappings: roster.members.filter(
-    (member) => member.mappingMethod === "user_confirmation"
-  ).length,
 });
 
 const createResolveTeamRosterNode =
@@ -219,7 +204,7 @@ const createResolveTeamRosterNode =
           kind: "team_recommendation",
           resultJson: JSON.stringify({
             apiFootballPlayerId: noProfileMember.apiFootballPlayerId,
-            mappingCoverage: rosterMappingCoverage(resolvedRoster),
+            mappingCoverage: teamRosterCoverage(resolvedRoster),
             playerName: noProfileMember.name,
           }),
           status: "team_roster_member_unmapped",

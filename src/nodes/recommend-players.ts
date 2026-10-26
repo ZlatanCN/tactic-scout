@@ -4,9 +4,9 @@ import { z } from "zod/v4";
 
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { recommendationConstraintIsApplied } from "../recommendation-constraints.js";
+import { conversationReferenceFromPlayer } from "../recommendation-references.js";
 import type {
   AgentState,
-  ConversationPlayerReference,
   PendingClarification,
   RequestPlayerState,
 } from "../state.js";
@@ -94,19 +94,6 @@ const referenceProfileClarification = (
       "、"
     )}。`,
   };
-};
-
-const referenceFromPlayer = (
-  player: RequestPlayerState
-): ConversationPlayerReference | null => {
-  const candidate = selectedReferenceCandidate(player.resolution);
-
-  return candidate === null
-    ? null
-    : {
-        candidate,
-        referenceId: candidate.canonicalIdentityId ?? candidate.candidateId,
-      };
 };
 
 const createRecommendPlayersNode =
@@ -234,7 +221,7 @@ const createRecommendPlayersNode =
           return [];
         }
 
-        const reference = referenceFromPlayer(player);
+        const reference = conversationReferenceFromPlayer(player);
 
         return reference === null ? [] : [reference];
       });
@@ -244,7 +231,7 @@ const createRecommendPlayersNode =
           return [];
         }
 
-        const reference = referenceFromPlayer(player);
+        const reference = conversationReferenceFromPlayer(player);
 
         return reference === null ? [] : [reference];
       });

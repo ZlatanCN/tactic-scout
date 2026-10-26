@@ -8,6 +8,7 @@ import type {
   TeamIdentity,
   TeamRosterSnapshot,
 } from "../team-data/contracts.js";
+import { teamRosterCoverage } from "../team-data/roster-coverage.js";
 
 type RecommendTeamPlayerCandidatesInput = {
   includePotential: boolean;
@@ -73,22 +74,6 @@ const teamRecommendationInputSchema = z.object({
   team: teamIdentitySchema,
 });
 
-const rosterCoverage = (roster: TeamRosterSnapshot) => ({
-  mappedMembers: roster.members.filter(
-    (member) => member.mappingStatus === "resolved"
-  ).length,
-  noLocalProfileMembers: roster.members.filter(
-    (member) => member.mappingStatus === "no_profile"
-  ).length,
-  reepBridgeMappings: roster.members.filter(
-    (member) => member.mappingMethod === "reep_bridge"
-  ).length,
-  totalMembers: roster.members.length,
-  userConfirmedMappings: roster.members.filter(
-    (member) => member.mappingMethod === "user_confirmation"
-  ).length,
-});
-
 const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
   input
 ) => {
@@ -120,7 +105,7 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
     source
   );
 
-  const coverage = rosterCoverage(input.roster);
+  const coverage = teamRosterCoverage(input.roster);
 
   if (calculation.status === "team_position_unavailable") {
     return JSON.stringify({
