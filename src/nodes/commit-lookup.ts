@@ -1,9 +1,10 @@
-import { HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { ToolMessage } from "@langchain/core/messages";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
+import { messagesInCurrentTurn } from "../player-mentions.js";
 import type {
   AgentState,
   AgentStateType,
@@ -14,21 +15,6 @@ const lookupResultSchema = z.object({
   fm: z.object({ status: z.string() }).optional(),
   understat: z.object({ status: z.string() }).optional(),
 });
-
-const currentTurnMessages = (messages: AgentStateType["messages"]) => {
-  let latestUserMessageIndex = -1;
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index] instanceof HumanMessage) {
-      latestUserMessageIndex = index;
-      break;
-    }
-  }
-
-  return latestUserMessageIndex < 0
-    ? messages
-    : messages.slice(latestUserMessageIndex);
-};
 
 const lookupResultFromToolMessage = (message: ToolMessage) => {
   const content = z.string().safeParse(message.content);
@@ -76,7 +62,7 @@ const createCommitLookupResultsNode =
       return {};
     }
 
-    const latestSearchResult = currentTurnMessages(state.messages).findLast(
+    const latestSearchResult = messagesInCurrentTurn(state.messages).findLast(
       (message): message is ToolMessage =>
         message instanceof ToolMessage &&
         message.name === "search_player_records" &&

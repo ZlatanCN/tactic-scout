@@ -6,6 +6,16 @@ import type { AgentStateType, ConversationContext } from "./state.js";
 const latestHumanMessage = (messages: AgentStateType["messages"]) =>
   [...messages].toReversed().find((message) => message instanceof HumanMessage);
 
+const messagesInCurrentTurn = (messages: AgentStateType["messages"]) => {
+  const latestHumanMessageIndex = messages.findLastIndex(
+    (message) => message instanceof HumanMessage
+  );
+
+  return latestHumanMessageIndex === -1
+    ? messages
+    : messages.slice(latestHumanMessageIndex);
+};
+
 const messageText = (message: HumanMessage): string => {
   const content = z.string().safeParse(message.content);
 
@@ -171,6 +181,7 @@ export {
   findPlayerReferenceMention,
   isPlayerReferenceMention,
   latestHumanMessage,
+  messagesInCurrentTurn,
   messageText,
   normalizeMentionText,
 };

@@ -4,11 +4,16 @@ import type { RetryPolicy } from "@langchain/langgraph";
 import { isNodeTimeoutError } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { faultCategoryValues } from "./fault-categories.js";
+import type { FaultCategory } from "./fault-categories.js";
+
 const maxExternalRequests = 3;
 const modelTimeoutMs = 60_000;
 const modelRequestTimeoutMs = modelTimeoutMs - 1000;
 const apiTimeoutMs = 15_000;
 const maxRateLimitWaitMs = 10_000;
+
+const imfFixdatePattern = /^\w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/u;
 
 const transientNetworkCodes = new Set([
   "EAI_AGAIN",
@@ -23,19 +28,6 @@ const transientNetworkCodes = new Set([
   "UND_ERR_SOCKET",
 ]);
 
-const faultCategorySchema = z.enum([
-  "network",
-  "server",
-  "timeout",
-  "rate_limit",
-  "quota",
-  "authentication",
-  "configuration",
-  "invalid_response",
-  "attempt_limit",
-  "local_data",
-]);
-
 const faultLogEventSchema = z.enum([
   "retry",
   "repair",
@@ -44,7 +36,7 @@ const faultLogEventSchema = z.enum([
 ]);
 
 const externalFaultSchema = z.object({
-  category: faultCategorySchema,
+  category: z.enum(faultCategoryValues),
   durationMs: z.number().nonnegative().optional(),
   message: z.string(),
   node: z.string().optional(),
@@ -55,8 +47,6 @@ const externalFaultSchema = z.object({
   runId: z.string().optional(),
   threadId: z.string().optional(),
 });
-
-type FaultCategory = z.infer<typeof faultCategorySchema>;
 
 type ExternalFault = z.infer<typeof externalFaultSchema>;
 
@@ -183,13 +173,16 @@ const retryAfterMs = (headers: Headers, now = Date.now()): number | null => {
     return Number.isSafeInteger(milliseconds) ? milliseconds : null;
   }
 
-  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu.test(value)) {
+  if (!imfFixdatePattern.test(value)) {
     return null;
   }
 
   const timestamp = Date.parse(value);
 
-  return Number.isFinite(timestamp) ? Math.max(0, timestamp - now) : null;
+  return Number.isFinite(timestamp) &&
+    new Date(timestamp).toUTCString() === value
+    ? Math.max(0, timestamp - now)
+    : null;
 };
 
 const remainingRequests = (headers: Headers): number | null => {
@@ -246,4 +239,6 @@ export {
   waitForRetryDelay,
 };
 
-export type { ExternalFault, FaultCategory, FaultExecutionContext };
+export type { ExternalFault, FaultExecutionContext };
+
+export type { FaultCategory } from "./fault-categories.js";

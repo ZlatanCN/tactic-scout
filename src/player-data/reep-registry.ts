@@ -48,6 +48,18 @@ const reepBridgeRowSchema = z.object({
 
 const reepRegistryReadErrorMessage = "Reep 身份注册表无法读取。";
 
+const rethrowIdentityRegistryReadError = (error: Error): never => {
+  if (isLocalDataError(error)) {
+    throw error;
+  }
+
+  if (isLocalDataFailure(error)) {
+    throw createLocalDataError(reepRegistryReadErrorMessage);
+  }
+
+  throw error;
+};
+
 const searchRecordReferences = (
   provider: CandidateSourceRecord["provider"],
   result: UnderstatReadResult | FmReadResult | null
@@ -113,12 +125,8 @@ const openIdentityRegistry = (databasePath: string): DatabaseSync | null => {
   } catch (error) {
     database?.close();
 
-    if (error instanceof Error && isLocalDataError(error)) {
-      throw error;
-    }
-
-    if (error instanceof Error && isLocalDataFailure(error)) {
-      throw createLocalDataError(reepRegistryReadErrorMessage);
+    if (error instanceof Error) {
+      return rethrowIdentityRegistryReadError(error);
     }
 
     throw error;
@@ -178,12 +186,8 @@ const resolveReepRecord = (
       status,
     };
   } catch (error) {
-    if (error instanceof Error && isLocalDataError(error)) {
-      throw error;
-    }
-
-    if (error instanceof Error && isLocalDataFailure(error)) {
-      throw createLocalDataError(reepRegistryReadErrorMessage);
+    if (error instanceof Error) {
+      return rethrowIdentityRegistryReadError(error);
     }
 
     throw error;
@@ -266,12 +270,8 @@ const resolveApiFootballPlayerFmIds = (
       status: "resolved",
     };
   } catch (error) {
-    if (error instanceof Error && isLocalDataError(error)) {
-      throw error;
-    }
-
-    if (error instanceof Error && isLocalDataFailure(error)) {
-      throw createLocalDataError(reepRegistryReadErrorMessage);
+    if (error instanceof Error) {
+      return rethrowIdentityRegistryReadError(error);
     }
 
     throw error;

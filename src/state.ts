@@ -1,6 +1,7 @@
 import { MessagesZodState } from "@langchain/langgraph";
 import { z } from "zod/v3";
 
+import { faultCategoryValues } from "./fault-categories.js";
 import {
   PlayerResolutionSchema,
   ReferenceCandidateSchema,
@@ -254,18 +255,7 @@ const FaultToleranceSchema = z.object({
   apiRetryAfterMs: z.number().int().nonnegative().nullable(),
   failure: z
     .object({
-      category: z.enum([
-        "network",
-        "server",
-        "timeout",
-        "rate_limit",
-        "quota",
-        "authentication",
-        "configuration",
-        "invalid_response",
-        "attempt_limit",
-        "local_data",
-      ]),
+      category: z.enum(faultCategoryValues),
       node: z.enum([
         "understand_request",
         "lookup_player",

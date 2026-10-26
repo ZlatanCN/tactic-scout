@@ -275,6 +275,35 @@ describe("API-Football client", () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
+  it("rejects ISO timestamps as invalid HTTP-date retry evidence", async () => {
+    const now = new Date("2026-01-01T12:00:00.000Z");
+
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        { code: "rate_limit_exceeded", errors: [], response: [] },
+        {
+          headers: {
+            "retry-after": "2026-01-01T12:00:03.000Z",
+            "x-ratelimit-requests-remaining": "4",
+          },
+          status: 429,
+        }
+      )
+    );
+
+    const client = createApiFootballClient({
+      apiKey: "test-key",
+      fetcher,
+      now: () => now,
+    });
+
+    await expect(client.searchTeams("Arsenal")).resolves.toMatchObject({
+      reason: "provider",
+      status: "error",
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("treats API authentication failures as permanent", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
