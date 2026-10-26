@@ -1,9 +1,12 @@
+import { setTimeout as delay } from "node:timers/promises";
+
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
+import { createLocalDataError } from "../src/player-data/shared.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
 import type {
@@ -528,6 +531,46 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("shares one request budget across network, short-429, then server failure", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("temporary connection failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .mockResolvedValueOnce(shortRateLimitResponse())
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() => "{}");
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-api-shared-request-budget" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "API-Football 服务暂时返回 HTTP 503。",
+      fetchCalls: 3,
+      recommendationCalls: 0,
+    });
+  });
+
   it("does not retry early when Retry-After exceeds the bounded wait", async () => {
     const message = "Recommend a striker for Arsenal.";
 
@@ -569,6 +612,51 @@ describe("team recommendation graph", () => {
       fetchCalls: 1,
       recommendationCalls: 0,
     });
+  });
+
+  it("retries a team-search node timeout three times and passes cancellation to fetch", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      await delay(60_000, undefined, { signal: init?.signal ?? undefined });
+
+      return Response.json({ errors: [], response: [] });
+    });
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() => "{}");
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    vi.useFakeTimers();
+
+    try {
+      const pending = graph.invoke(
+        { messages: [new HumanMessage(message)] },
+        { configurable: { thread_id: "team-search-node-timeout" } }
+      );
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      const result = await pending;
+
+      expect({
+        answer: result.messages.at(-1)?.content,
+        fetchCalls: fetcher.mock.calls.length,
+        recommendationCalls: recommend.mock.calls.length,
+      }).toStrictEqual({
+        answer: "外部服务请求超时，本次任务没有完成。",
+        fetchCalls: 3,
+        recommendationCalls: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("confirms a translated provider search before accepting the team identity", async () => {
@@ -698,6 +786,45 @@ describe("team recommendation graph", () => {
       recommendCalls: 1,
       searchCalls: [["Paris FC"]],
       wasInterrupted: [true, true, true],
+    });
+  });
+
+  it("reports local identity-data failure without retrying the roster fetch", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 1001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() => "{}");
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup: () => {
+        throw createLocalDataError("fixture identity data unavailable");
+      },
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-local-identity-failure" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: directory.getSquad.mock.calls.length,
+      outcome: result.outcome?.status,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "读取本地 Reep 或 FM 身份资料失败，本次没有生成团队推荐。",
+      fetchCalls: 1,
+      outcome: "team_identity_error",
+      recommendationCalls: 0,
     });
   });
 

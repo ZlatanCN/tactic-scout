@@ -271,6 +271,7 @@ const FaultToleranceSchema = z.object({
         "answer",
         "resolve_team",
         "resolve_team_roster",
+        "fetch_team_roster",
       ]),
     })
     .nullable(),

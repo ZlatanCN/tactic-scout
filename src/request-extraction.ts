@@ -311,9 +311,13 @@ const requestValidationFeedback = (error: Error): string => {
   return "结构化输出未通过 request schema 校验。请根据原始请求重新输出完整、符合 schema 的结构化结果，不要补猜。";
 };
 
-const invalidRequestOutputFailure = (requestsUsed: number) =>
+const invalidRequestOutputFailure = (
+  requestsUsed: number,
+  durationMs?: number
+) =>
   createExternalFaultError({
     category: "invalid_response",
+    durationMs,
     message: "模型未能返回有效的请求结构，本轮没有执行任何数据操作。",
     provider: "model",
     requestsUsed,
@@ -444,8 +448,13 @@ const createRequestUnderstandingExtractor = (
       }
 
       if (budget === undefined || !budget.canMakeRequest()) {
-        throw invalidRequestOutputFailure(budget?.requestsUsed() ?? 0);
+        throw invalidRequestOutputFailure(
+          budget?.requestsUsed() ?? 0,
+          budget?.lastRequestDurationMs()
+        );
       }
+
+      budget.logRepair();
 
       try {
         return normalizeRequestExtraction(
@@ -468,7 +477,10 @@ const createRequestUnderstandingExtractor = (
         }
 
         if (isRequestOutputValidationError(repairError)) {
-          throw invalidRequestOutputFailure(budget.requestsUsed());
+          throw invalidRequestOutputFailure(
+            budget.requestsUsed(),
+            budget.lastRequestDurationMs()
+          );
         }
 
         throw repairError;

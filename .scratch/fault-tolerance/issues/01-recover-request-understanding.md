@@ -5,7 +5,6 @@
 **Blocked by:** None (can start immediately).
 
 **Status:** resolved
-**Labels:** ready-for-human
 
 - [ ] Use native LangGraph retry, timeout, and error-handler behavior at the request-understanding external boundary, following ADR-0008. Include only the minimal budget, safe-failure outcome, model-client configuration, and logging prefactoring needed to deliver this complete path; do not create a separate general retry engine.
 - [ ] Recognized network/server failures may retry with bounded exponential backoff and jitter. One logical request-understanding activation makes at most three physical model requests, including the first call, transport retries, a short-rate-limit retry, and any structured-output repair.

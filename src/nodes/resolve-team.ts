@@ -5,10 +5,7 @@ import {
   maxExternalRequests,
   maxRateLimitWaitMs,
 } from "../fault-tolerance.js";
-import type {
-  FaultCategory,
-  FaultExecutionContext,
-} from "../fault-tolerance.js";
+import type { FaultExecutionContext } from "../fault-tolerance.js";
 import { supportedPositionCodes } from "../player-data/position-features.js";
 import type { AgentState, AgentStateType, RequestState } from "../state.js";
 import type {
@@ -16,6 +13,7 @@ import type {
   ApiFootballFailure,
   ApiFootballTeam,
 } from "../team-data/api-football.js";
+import { apiFootballFailureCategory } from "../team-data/api-football.js";
 
 const teamPositionClarification = {
   answer: null,
@@ -27,19 +25,6 @@ const teamPositionClarification = {
 const normalizeTeamName = (value: string): string =>
   value.normalize("NFKC").trim().toLocaleLowerCase();
 
-const teamFailureCategory = (
-  reason: ApiFootballFailure["reason"]
-): FaultCategory =>
-  (
-    {
-      attempt_limit: "attempt_limit",
-      configuration: "configuration",
-      provider: "invalid_response",
-      quota: "quota",
-      rate_limit: "rate_limit",
-    } as const
-  )[reason];
-
 const teamProviderFailure = (
   result: ApiFootballFailure,
   requestsUsed: number,
@@ -47,7 +32,8 @@ const teamProviderFailure = (
 ): Partial<AgentStateType> => {
   logFaultEvent({
     attempt: requestsUsed,
-    category: teamFailureCategory(result.reason),
+    category: apiFootballFailureCategory(result.reason),
+    durationMs: result.durationMs,
     event: "exhausted",
     node: "resolve_team",
     runId: runtime.executionInfo?.runId,
@@ -86,6 +72,7 @@ const handleTeamSearchFailure = (
   logFaultEvent({
     attempt: requestsUsed,
     category: "rate_limit",
+    durationMs: result.durationMs,
     event: "rate_limit_retry",
     node: "resolve_team",
     runId: runtime.executionInfo?.runId,

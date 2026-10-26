@@ -6,6 +6,7 @@ import {
   logFaultEvent,
   maxExternalRequests,
   maxRateLimitWaitMs,
+  modelRequestTimeoutMs,
   remainingRequests,
   retryAfterMs,
   waitForRetryDelay,
@@ -59,6 +60,8 @@ type ModelCall<Value> =
 
 type ModelRequestBudget = {
   canMakeRequest: () => boolean;
+  lastRequestDurationMs: () => number | undefined;
+  logRepair: () => void;
   invoke: <Value>(
     request: (signal?: AbortSignal) => Promise<Value>,
     options?: { allowRateLimitRetry?: boolean }
@@ -231,20 +234,62 @@ const createModelRequestBudget = (
   node: string
 ): ModelRequestBudget => {
   let requests = Math.max(0, (runtime.executionInfo?.nodeAttempt ?? 1) - 1);
+  let latestDurationMs: number | undefined;
 
   const callOnce = async <Value>(
     request: (signal?: AbortSignal) => Promise<Value>
   ): Promise<ModelCall<Value>> => {
     requests += 1;
     const startedAt = Date.now();
+    const timeoutSignal = AbortSignal.timeout(modelRequestTimeoutMs);
+
+    const signal =
+      runtime.signal === undefined
+        ? timeoutSignal
+        : AbortSignal.any([runtime.signal, timeoutSignal]);
 
     try {
-      return { value: await request(runtime.signal) };
+      const value = await request(signal);
+      latestDurationMs = Date.now() - startedAt;
+
+      if (runtime.signal !== undefined && runtime.signal.aborted) {
+        throw (
+          runtime.signal.reason ??
+          new DOMException("The operation was aborted.", "AbortError")
+        );
+      }
+
+      if (timeoutSignal.aborted) {
+        return {
+          durationMs: latestDurationMs,
+          failure: {
+            category: "timeout",
+            message: failureMessage("timeout"),
+            retryable: true,
+          },
+        };
+      }
+
+      return { value };
     } catch (error) {
-      if (
-        (runtime.signal !== undefined && runtime.signal.aborted) ||
-        !(error instanceof Error)
-      ) {
+      latestDurationMs = Date.now() - startedAt;
+
+      if (runtime.signal !== undefined && runtime.signal.aborted) {
+        throw error;
+      }
+
+      if (timeoutSignal.aborted) {
+        return {
+          durationMs: latestDurationMs,
+          failure: {
+            category: "timeout",
+            message: failureMessage("timeout"),
+            retryable: true,
+          },
+        };
+      }
+
+      if (!(error instanceof Error)) {
         throw error;
       }
 
@@ -338,6 +383,18 @@ const createModelRequestBudget = (
   return {
     canMakeRequest: () => requests < maxExternalRequests,
     invoke,
+    lastRequestDurationMs: () => latestDurationMs,
+    logRepair: () => {
+      logFaultEvent({
+        attempt: requests,
+        category: "invalid_response",
+        durationMs: latestDurationMs,
+        event: "repair",
+        node,
+        runId: runtime.executionInfo?.runId,
+        threadId: runtime.executionInfo?.threadId,
+      });
+    },
     requestsUsed: () => requests,
   };
 };

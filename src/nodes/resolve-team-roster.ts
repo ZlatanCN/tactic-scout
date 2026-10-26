@@ -1,20 +1,7 @@
 import type { GraphNode } from "@langchain/langgraph";
 
-import {
-  logFaultEvent,
-  maxExternalRequests,
-  maxRateLimitWaitMs,
-} from "../fault-tolerance.js";
-import type {
-  FaultCategory,
-  FaultExecutionContext,
-} from "../fault-tolerance.js";
 import { isLocalDataError } from "../player-data/shared.js";
-import type { AgentState, AgentStateType, RequestState } from "../state.js";
-import type {
-  ApiFootballClient,
-  ApiFootballRosterPlayer,
-} from "../team-data/api-football.js";
+import type { AgentState, RequestState } from "../state.js";
 import type { TeamRosterSnapshot } from "../team-data/contracts.js";
 import { teamRosterCoverage } from "../team-data/roster-coverage.js";
 import type {
@@ -23,39 +10,8 @@ import type {
 } from "../team-data/roster-identity.js";
 
 type ResolveTeamRosterOptions = {
-  getSquad: ApiFootballClient["getSquad"];
   resolvePlayer: TeamRosterIdentityLookup;
 };
-
-type ApiFootballErrorResult = Extract<
-  Awaited<ReturnType<ApiFootballClient["getSquad"]>>,
-  { status: "error" }
->;
-
-const rosterFailureCategory = (
-  reason: ApiFootballErrorResult["reason"]
-): FaultCategory =>
-  (
-    {
-      attempt_limit: "attempt_limit",
-      configuration: "configuration",
-      provider: "invalid_response",
-      quota: "quota",
-      rate_limit: "rate_limit",
-    } as const
-  )[reason];
-
-const rosterMemberFromProvider = (
-  player: ApiFootballRosterPlayer
-): TeamRosterSnapshot["members"][number] => ({
-  apiFootballPlayerId: player.id,
-  fmCandidates: [],
-  fmId: null,
-  mappingMethod: null,
-  mappingStatus: "pending",
-  name: player.name,
-  position: player.position,
-});
 
 const applyIdentityResolution = (
   member: TeamRosterSnapshot["members"][number],
@@ -114,73 +70,9 @@ const requestWithRoster = (
   teamRecommendation: { ...request.teamRecommendation, roster },
 });
 
-const rosterProviderFailure = (
-  result: ApiFootballErrorResult,
-  requestsUsed: number,
-  runtime: FaultExecutionContext
-): Partial<AgentStateType> => {
-  logFaultEvent({
-    attempt: requestsUsed,
-    category: rosterFailureCategory(result.reason),
-    event: "exhausted",
-    node: "resolve_team_roster",
-    runId: runtime.executionInfo?.runId,
-    threadId: runtime.executionInfo?.threadId,
-  });
-
-  return {
-    outcome: {
-      kind: "team_recommendation",
-      resultJson: JSON.stringify(result),
-      status: "team_provider_error",
-    },
-  };
-};
-
-const handleRosterFetchFailure = (
-  state: AgentStateType,
-  result: ApiFootballErrorResult,
-  requestsUsed: number,
-  runtime: FaultExecutionContext
-): Partial<AgentStateType> => {
-  const wait = result.retryAfterMs;
-
-  if (result.reason !== "rate_limit") {
-    return rosterProviderFailure(result, requestsUsed, runtime);
-  }
-
-  if (state.faultTolerance.apiRateLimitRetried || wait === undefined) {
-    return rosterProviderFailure(result, requestsUsed, runtime);
-  }
-
-  if (wait > maxRateLimitWaitMs || requestsUsed >= maxExternalRequests) {
-    return rosterProviderFailure(result, requestsUsed, runtime);
-  }
-
-  logFaultEvent({
-    attempt: requestsUsed,
-    category: "rate_limit",
-    event: "rate_limit_retry",
-    node: "resolve_team_roster",
-    runId: runtime.executionInfo?.runId,
-    threadId: runtime.executionInfo?.threadId,
-  });
-
-  return {
-    faultTolerance: {
-      ...state.faultTolerance,
-      apiOperation: "team_roster",
-      apiRateLimitRetried: true,
-      apiRequestsUsed: requestsUsed,
-      apiRetryAfterMs: wait,
-    },
-    outcome: null,
-  };
-};
-
 const createResolveTeamRosterNode =
   (options: ResolveTeamRosterOptions): GraphNode<typeof AgentState> =>
-  async (state, runtime) => {
+  async (state) => {
     const { request } = state;
 
     if (request.kind !== "team_recommendation") {
@@ -193,9 +85,9 @@ const createResolveTeamRosterNode =
       };
     }
 
-    const { team } = request.teamRecommendation;
+    const { roster, team } = request.teamRecommendation;
 
-    if (team === null) {
+    if (team === null || roster === null) {
       return {
         outcome: {
           kind: "team_recommendation",
@@ -205,54 +97,7 @@ const createResolveTeamRosterNode =
       };
     }
 
-    let { roster } = request.teamRecommendation;
-
-    if (roster === null) {
-      const requestsBefore =
-        state.faultTolerance.apiOperation === "team_roster"
-          ? state.faultTolerance.apiRequestsUsed
-          : 0;
-
-      const attempt = runtime.executionInfo?.nodeAttempt ?? 1;
-
-      const result = await options.getSquad(team.id, {
-        attempt,
-        node: "resolve_team_roster",
-        requestsBefore,
-        runId: runtime.executionInfo?.runId,
-        signal: runtime.signal,
-        threadId: runtime.executionInfo?.threadId,
-      });
-
-      if (result.status === "error") {
-        return handleRosterFetchFailure(
-          state,
-          result,
-          result.requestsUsed ?? requestsBefore + attempt,
-          runtime
-        );
-      }
-
-      if (result.data.players.length === 0) {
-        return {
-          outcome: {
-            kind: "team_recommendation",
-            resultJson: JSON.stringify({ team }),
-            status: "team_roster_empty",
-          },
-        };
-      }
-
-      roster = {
-        members: result.data.players.map(rosterMemberFromProvider),
-        retrievedAt: result.data.retrievedAt,
-        team: result.data.team,
-      };
-    }
-
-    const initialRoster = roster;
-
-    const pendingMembers = initialRoster.members.filter(
+    const pendingMembers = roster.members.filter(
       (member) =>
         member.mappingStatus === "pending" && member.fmCandidates.length === 0
     );
@@ -283,7 +128,7 @@ const createResolveTeamRosterNode =
           resultJson: null,
           status: "team_identity_error",
         },
-        request: requestWithRoster(request, initialRoster),
+        request: requestWithRoster(request, roster),
       };
     }
 
@@ -292,8 +137,8 @@ const createResolveTeamRosterNode =
     );
 
     const resolvedRoster = {
-      ...initialRoster,
-      members: initialRoster.members.map((member) => {
+      ...roster,
+      members: roster.members.map((member) => {
         const resolution = resolutionByPlayerId.get(member.apiFootballPlayerId);
 
         return resolution === undefined
@@ -302,11 +147,9 @@ const createResolveTeamRosterNode =
       }),
     };
 
-    const noProfileIndex = resolvedRoster.members.findIndex(
+    const noProfileMember = resolvedRoster.members.find(
       (member) => member.mappingStatus === "no_profile"
     );
-
-    const noProfileMember = resolvedRoster.members[noProfileIndex];
 
     if (noProfileMember !== undefined) {
       return {

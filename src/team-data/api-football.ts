@@ -6,6 +6,7 @@ import {
   remainingRequests,
   retryAfterMs,
 } from "../fault-tolerance.js";
+import type { FaultCategory } from "../fault-tolerance.js";
 
 const apiBaseUrl = "https://v3.football.api-sports.io";
 const rosterCacheTtlMs = 7 * 24 * 60 * 60 * 1000;
@@ -65,6 +66,7 @@ type ApiFootballRoster = {
 };
 
 type ApiFootballFailure = {
+  durationMs?: number;
   message: string;
   providerCode?: string;
   reason: z.infer<typeof apiFailureReasonSchema>;
@@ -75,8 +77,15 @@ type ApiFootballFailure = {
   status: "error";
 };
 
+type ApiFootballFailureReason = ApiFootballFailure["reason"];
+
 type ApiFootballResult<Value> =
-  | { data: Value; status: "ok" }
+  | {
+      cached?: boolean;
+      data: Value;
+      durationMs?: number;
+      status: "ok";
+    }
   | ApiFootballFailure;
 
 type ApiFootballClient = {
@@ -111,7 +120,11 @@ type RosterCacheEntry = {
 };
 
 type EnvelopeReadResult =
-  | { data: z.output<typeof apiEnvelopeSchema>; status: "ok" }
+  | {
+      data: z.output<typeof apiEnvelopeSchema>;
+      durationMs: number;
+      status: "ok";
+    }
   | ApiFootballFailure;
 
 const toApiFootballTeam = (
@@ -127,6 +140,24 @@ const failure = (
   message: string,
   details: Omit<ApiFootballFailure, "message" | "reason" | "status"> = {}
 ): ApiFootballFailure => ({ message, reason, status: "error", ...details });
+
+const withDuration = (
+  result: ApiFootballFailure,
+  startedAt: number
+): ApiFootballFailure => ({ ...result, durationMs: Date.now() - startedAt });
+
+const apiFootballFailureCategory = (
+  reason: ApiFootballFailureReason
+): FaultCategory =>
+  (
+    {
+      attempt_limit: "attempt_limit",
+      configuration: "configuration",
+      provider: "invalid_response",
+      quota: "quota",
+      rate_limit: "rate_limit",
+    } as const
+  )[reason];
 
 const quotaErrorPatterns = [
   "quota",
@@ -298,7 +329,8 @@ const rateLimitFailure = async (
   response: Response,
   signal: AbortSignal | undefined,
   now: () => Date,
-  requestsUsed: number
+  requestsUsed: number,
+  startedAt: number
 ): Promise<ApiFootballFailure> => {
   const payload = await jsonFromResponse(response, signal);
   abortIfCancelled(signal);
@@ -307,58 +339,70 @@ const rateLimitFailure = async (
   const wait = retryAfterMs(response.headers, now().getTime());
 
   if (remaining === 0 || isDailyQuotaError(payload)) {
-    return failure("quota", "API-Football 每日请求额度已用完。", {
-      providerCode: payload === null ? undefined : providerCode(payload),
-      remainingRequests: remaining ?? undefined,
-      requestsUsed,
-      statusCode: 429,
-    });
+    return withDuration(
+      failure("quota", "API-Football 每日请求额度已用完。", {
+        providerCode: payload === null ? undefined : providerCode(payload),
+        remainingRequests: remaining ?? undefined,
+        requestsUsed,
+        statusCode: 429,
+      }),
+      startedAt
+    );
   }
 
   if (remaining !== null && remaining > 0 && wait !== null) {
-    return failure("rate_limit", "API-Football 正在短时限流。", {
-      providerCode: payload === null ? undefined : providerCode(payload),
-      remainingRequests: remaining,
-      requestsUsed,
-      retryAfterMs: wait,
-      statusCode: 429,
-    });
+    return withDuration(
+      failure("rate_limit", "API-Football 正在短时限流。", {
+        providerCode: payload === null ? undefined : providerCode(payload),
+        remainingRequests: remaining,
+        requestsUsed,
+        retryAfterMs: wait,
+        statusCode: 429,
+      }),
+      startedAt
+    );
   }
 
-  return failure(
-    "provider",
-    "API-Football 返回了无法确认可重试性的 429 响应。",
-    {
+  return withDuration(
+    failure("provider", "API-Football 返回了无法确认可重试性的 429 响应。", {
       providerCode: payload === null ? undefined : providerCode(payload),
       remainingRequests: remaining ?? undefined,
       requestsUsed,
       statusCode: 429,
-    }
+    }),
+    startedAt
   );
 };
 
 const envelopeFromResponse = async (
   response: Response,
   signal: AbortSignal | undefined,
-  requestsUsed: number
+  requestsUsed: number,
+  startedAt: number
 ): Promise<EnvelopeReadResult> => {
   const payload = await jsonFromResponse(response, signal);
   abortIfCancelled(signal);
 
   if (payload === null) {
-    return failure("provider", "API-Football 返回了无法解析的数据。", {
-      requestsUsed,
-      statusCode: response.status,
-    });
+    return withDuration(
+      failure("provider", "API-Football 返回了无法解析的数据。", {
+        requestsUsed,
+        statusCode: response.status,
+      }),
+      startedAt
+    );
   }
 
   const parsed = apiEnvelopeSchema.safeParse(payload);
 
   if (!parsed.success) {
-    return failure("provider", "API-Football 返回的数据格式无法识别。", {
-      requestsUsed,
-      statusCode: response.status,
-    });
+    return withDuration(
+      failure("provider", "API-Football 返回的数据格式无法识别。", {
+        requestsUsed,
+        statusCode: response.status,
+      }),
+      startedAt
+    );
   }
 
   const { errors } = parsed.data;
@@ -369,14 +413,21 @@ const envelopeFromResponse = async (
     JSON.stringify(errors) !== "{}" &&
     JSON.stringify(errors) !== "[]"
   ) {
-    return {
-      ...providerFailure(errors),
-      requestsUsed,
-      statusCode: response.status,
-    };
+    return withDuration(
+      {
+        ...providerFailure(errors),
+        requestsUsed,
+        statusCode: response.status,
+      },
+      startedAt
+    );
   }
 
-  return { data: parsed.data, status: "ok" };
+  return {
+    data: parsed.data,
+    durationMs: Date.now() - startedAt,
+    status: "ok",
+  };
 };
 
 const createApiFootballClient = (
@@ -427,7 +478,8 @@ const createApiFootballClient = (
         response,
         requestOptions.signal,
         now,
-        requestsUsed
+        requestsUsed,
+        startedAt
       );
     }
 
@@ -446,21 +498,25 @@ const createApiFootballClient = (
     }
 
     if (!response.ok) {
-      return failure(
-        response.status === 401 || response.status === 403
-          ? "configuration"
-          : "provider",
-        response.status === 401 || response.status === 403
-          ? "API-Football 凭据或访问权限无效。"
-          : `API-Football 请求失败（HTTP ${response.status}）。`,
-        { requestsUsed, statusCode: response.status }
+      return withDuration(
+        failure(
+          response.status === 401 || response.status === 403
+            ? "configuration"
+            : "provider",
+          response.status === 401 || response.status === 403
+            ? "API-Football 凭据或访问权限无效。"
+            : `API-Football 请求失败（HTTP ${response.status}）。`,
+          { requestsUsed, statusCode: response.status }
+        ),
+        startedAt
       );
     }
 
     return await envelopeFromResponse(
       response,
       requestOptions.signal,
-      requestsUsed
+      requestsUsed,
+      startedAt
     );
   };
 
@@ -488,7 +544,12 @@ const createApiFootballClient = (
       .safeParse(result.data.response);
 
     if (!parsedTeams.success) {
-      return failure("provider", "API-Football 返回的球队列表无法识别。");
+      return failure("provider", "API-Football 返回的球队列表无法识别。", {
+        durationMs: result.durationMs,
+        requestsUsed:
+          (requestOptions?.requestsBefore ?? 0) +
+          (requestOptions?.attempt ?? 1),
+      });
     }
 
     const teams = new Map<number, ApiFootballTeam>();
@@ -508,7 +569,7 @@ const createApiFootballClient = (
     const currentTime = now().getTime();
 
     if (cacheEntry !== undefined && cacheEntry.expiresAt > currentTime) {
-      return { data: cacheEntry.roster, status: "ok" };
+      return { cached: true, data: cacheEntry.roster, status: "ok" };
     }
 
     const result = await getJson(
@@ -525,13 +586,23 @@ const createApiFootballClient = (
       .safeParse(result.data.response);
 
     if (!parsedSquads.success || parsedSquads.data.length !== 1) {
-      return failure("provider", "API-Football 返回的球队阵容无法识别。");
+      return failure("provider", "API-Football 返回的球队阵容无法识别。", {
+        durationMs: result.durationMs,
+        requestsUsed:
+          (requestOptions?.requestsBefore ?? 0) +
+          (requestOptions?.attempt ?? 1),
+      });
     }
 
     const [squad] = parsedSquads.data;
 
     if (squad === undefined || squad.team.id !== teamId) {
-      return failure("provider", "API-Football 阵容与所选球队不一致。");
+      return failure("provider", "API-Football 阵容与所选球队不一致。", {
+        durationMs: result.durationMs,
+        requestsUsed:
+          (requestOptions?.requestsBefore ?? 0) +
+          (requestOptions?.attempt ?? 1),
+      });
     }
 
     const retrievedAt = now();
@@ -577,7 +648,12 @@ const getApiFootballSquad = async (
   requestOptions?: ApiFootballRequestOptions
 ) => await getDefaultApiFootballClient().getSquad(teamId, requestOptions);
 
-export { createApiFootballClient, getApiFootballSquad, searchApiFootballTeams };
+export {
+  apiFootballFailureCategory,
+  createApiFootballClient,
+  getApiFootballSquad,
+  searchApiFootballTeams,
+};
 
 export type {
   ApiFootballClient,

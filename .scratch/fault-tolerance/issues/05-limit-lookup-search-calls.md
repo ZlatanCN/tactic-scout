@@ -5,7 +5,6 @@
 **Blocked by:** None (can start immediately).
 
 **Status:** resolved
-**Labels:** ready-for-human
 
 - [ ] Enforce a maximum of three actual search tool executions per user turn at the graph/tool-dispatch boundary. The guard acts before a fourth execution, rather than relying on the graph-wide recursion limit.
 - [ ] Count each individual search call, including calls batched into one model response and failed executions. A batch that exceeds the remaining allowance reaches explicit limit handling before excess calls execute; AI/tool message relationships remain valid and omitted work is not silently presented as successful.

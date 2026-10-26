@@ -37,6 +37,7 @@ import {
 import { createCommitLookupResultsNode } from "./nodes/commit-lookup.js";
 import { createComparePlayersNode } from "./nodes/compare-players.js";
 import { createEntityResolutionNode } from "./nodes/entity-resolution.js";
+import { createFetchTeamRosterNode } from "./nodes/fetch-team-roster.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
@@ -252,8 +253,11 @@ const routeTeamRecommendation = (state: AgentStateType): string => {
     return "resolve_team";
   }
 
+  if (recommendation.roster === null) {
+    return "fetch_team_roster";
+  }
+
   if (
-    recommendation.roster === null ||
     recommendation.roster.members.some(
       (member) => member.mappingStatus !== "resolved" || member.fmId === null
     )
@@ -488,7 +492,7 @@ const createBoundedLookupToolsNode = (
 const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
   state.faultTolerance.apiOperation === "team_search"
     ? "resolve_team"
-    : "resolve_team_roster";
+    : "fetch_team_roster";
 
 const routeAfterTeamResolution = (state: AgentStateType): string => {
   if (state.faultTolerance.apiRetryAfterMs !== null) {
@@ -503,14 +507,18 @@ const routeAfterTeamResolution = (state: AgentStateType): string => {
     return "answer";
   }
 
-  return "resolve_team_roster";
+  return "fetch_team_roster";
 };
 
-const routeAfterTeamRosterResolution = (state: AgentStateType): string => {
+const routeAfterTeamRosterFetch = (state: AgentStateType): string => {
   if (state.faultTolerance.apiRetryAfterMs !== null) {
     return "wait_api_rate_limit";
   }
 
+  return state.outcome === null ? "resolve_team_roster" : "answer";
+};
+
+const routeAfterTeamRosterResolution = (state: AgentStateType): string => {
   if (state.pendingClarification !== null) {
     return "clarify";
   }
@@ -583,8 +591,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
 
   const resolveTeam = createResolveTeamNode(teamDirectory.searchTeams);
 
+  const fetchTeamRoster = createFetchTeamRosterNode(teamDirectory.getSquad);
+
   const resolveTeamRoster = createResolveTeamRosterNode({
-    getSquad: teamDirectory.getSquad,
     resolvePlayer:
       options.teamRosterIdentityLookup ?? resolveTeamRosterIdentity,
   });
@@ -606,7 +615,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const graph = new StateGraph(AgentState)
     .addNode("understand_request", understandRequest, {
       errorHandler: modelFailureHandler("understand_request"),
-      retryPolicy: createNodeRetryPolicy("understand_request"),
+      retryPolicy: createNodeRetryPolicy("understand_request", {
+        retryNodeTimeout: false,
+      }),
       timeout: modelTimeoutMs,
     })
     .addNode("resolve_entities", resolveEntities)
@@ -616,7 +627,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       createLookupPlayerNode(modelWithLookupTool, lookupTool !== undefined),
       {
         errorHandler: modelFailureHandler("lookup_player"),
-        retryPolicy: createNodeRetryPolicy("lookup_player"),
+        retryPolicy: createNodeRetryPolicy("lookup_player", {
+          retryNodeTimeout: false,
+        }),
         timeout: modelTimeoutMs,
       }
     )
@@ -630,16 +643,19 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       retryPolicy: createNodeRetryPolicy("resolve_team"),
       timeout: apiTimeoutMs,
     })
-    .addNode("resolve_team_roster", resolveTeamRoster, {
-      errorHandler: teamProviderFailureHandler("resolve_team_roster"),
-      retryPolicy: createNodeRetryPolicy("resolve_team_roster"),
+    .addNode("fetch_team_roster", fetchTeamRoster, {
+      errorHandler: teamProviderFailureHandler("fetch_team_roster"),
+      retryPolicy: createNodeRetryPolicy("fetch_team_roster"),
       timeout: apiTimeoutMs,
     })
+    .addNode("resolve_team_roster", resolveTeamRoster)
     .addNode("recommend_players_for_team", recommendPlayersForTeam)
     .addNode("wait_api_rate_limit", waitForApiRateLimitNode)
     .addNode("answer", createAnswerNode(model), {
       errorHandler: modelFailureHandler("answer"),
-      retryPolicy: createNodeRetryPolicy("answer"),
+      retryPolicy: createNodeRetryPolicy("answer", {
+        retryNodeTimeout: false,
+      }),
       timeout: modelTimeoutMs,
     })
     .addNode("answer_failure", createFaultAnswerNode())
@@ -654,6 +670,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "compare_players",
         "recommend_players",
         "resolve_team",
+        "fetch_team_roster",
         "resolve_team_roster",
         "recommend_players_for_team",
         "answer",
@@ -679,6 +696,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "compare_players",
         "recommend_players",
         "resolve_team",
+        "fetch_team_roster",
         "resolve_team_roster",
         "recommend_players_for_team",
         "answer",
@@ -709,16 +727,21 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addConditionalEdges(
       "resolve_team",
       (state) => routeAfterTeamResolution(state),
-      ["clarify", "resolve_team_roster", "wait_api_rate_limit", "answer"]
+      ["clarify", "fetch_team_roster", "wait_api_rate_limit", "answer"]
     )
+    .addConditionalEdges("fetch_team_roster", routeAfterTeamRosterFetch, [
+      "resolve_team_roster",
+      "wait_api_rate_limit",
+      "answer",
+    ])
     .addConditionalEdges(
       "resolve_team_roster",
       (state) => routeAfterTeamRosterResolution(state),
-      ["clarify", "recommend_players_for_team", "wait_api_rate_limit", "answer"]
+      ["clarify", "recommend_players_for_team", "answer"]
     )
     .addConditionalEdges("wait_api_rate_limit", routeAfterApiRateLimitWait, [
       "resolve_team",
-      "resolve_team_roster",
+      "fetch_team_roster",
     ])
     .addConditionalEdges(
       "recommend_players_for_team",

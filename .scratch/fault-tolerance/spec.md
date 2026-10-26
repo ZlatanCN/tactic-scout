@@ -1,7 +1,6 @@
 # Project-wide LangGraph fault tolerance v1
 
 Status: resolved
-Labels: ready-for-human
 
 ## Problem Statement
 

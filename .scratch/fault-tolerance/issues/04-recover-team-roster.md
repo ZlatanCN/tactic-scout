@@ -5,7 +5,6 @@
 **Blocked by:** 03: Recover API-Football team searches.
 
 **Status:** resolved
-**Labels:** ready-for-human
 
 - [ ] Apply the API error evidence, native recovery, physical-request accounting, and cancellation contract established in 03 to current-squad acquisition and its graph task boundary.
 - [ ] Each logical roster-fetch activation makes at most three physical requests, each capped at 15 seconds. Network/server failures use bounded backoff and jitter; eligible short 429 recovery happens at most once within the same budget. Permanent/configuration/quota/bad-data failures do not retry.

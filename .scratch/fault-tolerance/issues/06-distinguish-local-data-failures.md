@@ -5,7 +5,6 @@
 **Blocked by:** None (can start immediately).
 
 **Status:** resolved
-**Labels:** ready-for-human
 
 - [ ] Audit the current local identity/source-reading, comparison, player recommendation, team-ranking, and related graph/tool failure boundaries as one scoped behavior change. Perform only the classification/prefactoring required to distinguish recognized data-boundary failures from bugs.
 - [ ] Recognized missing/unreadable/corrupt SQLite snapshots and provider-payload parsing/schema failures produce explicit safe data-unavailable outcomes where applicable. Preserve the distinction between unavailable data and a valid search with no matching record.

@@ -7,6 +7,7 @@ import { fakeModel } from "@langchain/core/testing";
 import { MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
 
+import { modelRequestTimeoutMs } from "../src/fault-tolerance.js";
 import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
 import { createInitialConversationContext } from "../src/state.js";
 
@@ -17,6 +18,16 @@ vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
 vi.stubEnv("OPENAI_BASE_URL", "");
 
 const { createAgent } = await import("../src/agent.js");
+
+const mockShortModelTimeout = () => {
+  const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
+
+  return vi
+    .spyOn(AbortSignal, "timeout")
+    .mockImplementation((milliseconds) =>
+      originalTimeout(milliseconds === modelRequestTimeoutMs ? 5 : milliseconds)
+    );
+};
 
 describe("request understanding extraction", () => {
   it("uses tool calling and recognizes a request to add a player to the active comparison", async () => {
@@ -209,6 +220,57 @@ describe("request understanding extraction", () => {
     expect(result).not.toHaveProperty("request");
   });
 
+  it("stops after a timed-out structured repair instead of restarting extraction", async () => {
+    const timeoutSpy = mockShortModelTimeout();
+
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(async (_input, options: RunnableConfig) => {
+        calls += 1;
+
+        if (calls === 1) {
+          throw Object.assign(new Error("Invalid structured request."), {
+            name: "OutputParserException",
+          });
+        }
+
+        await delay(1000, undefined, { signal: options.signal });
+
+        return {
+          constraints: [],
+          kind: "other",
+          players: [],
+          teams: [],
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-repair-timeout" } }
+    );
+
+    timeoutSpy.mockRestore();
+
+    expect({
+      calls,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      calls: 2,
+      response:
+        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
+    });
+    expect(result).not.toHaveProperty("request");
+  });
+
   it("retries a short model 429 only with delay and remaining-quota evidence", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");
@@ -290,6 +352,89 @@ describe("request understanding extraction", () => {
       outputCalls: 1,
       response:
         "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+    });
+  });
+
+  it("retries a recognized model-attempt timeout", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => {
+        calls += 1;
+
+        if (calls === 1) {
+          throw Object.assign(new Error("model request timed out"), {
+            name: "TimeoutError",
+          });
+        }
+
+        return {
+          constraints: [],
+          kind: "other",
+          players: [],
+          teams: [],
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-model-attempt-timeout" } }
+    );
+
+    expect({ calls, kind: result.request.kind }).toStrictEqual({
+      calls: 2,
+      kind: "other",
+    });
+  });
+
+  it("limits timed-out physical model requests to the shared three-request budget", async () => {
+    const timeoutSpy = mockShortModelTimeout();
+
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let calls = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(async (_input, options: RunnableConfig) => {
+        calls += 1;
+        await delay(1000, undefined, { signal: options.signal });
+
+        return {
+          constraints: [],
+          kind: "other",
+          players: [],
+          teams: [],
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Help me with a football question.")] },
+      { configurable: { thread_id: "request-model-timeout-budget" } }
+    );
+
+    timeoutSpy.mockRestore();
+
+    expect({
+      calls,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      calls: 3,
+      response:
+        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
     });
   });
 

@@ -79,7 +79,16 @@ describe("API-Football client", () => {
       },
       status: "ok",
     });
-    expect(cachedResult).toStrictEqual(firstResult);
+
+    if (firstResult.status !== "ok") {
+      throw new Error("The first roster fetch should succeed.");
+    }
+
+    expect(cachedResult).toStrictEqual({
+      cached: true,
+      data: firstResult.data,
+      status: "ok",
+    });
     expect(refreshedResult).toMatchObject({ status: "ok" });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });

@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 
 const maxExternalRequests = 3;
 const modelTimeoutMs = 60_000;
+const modelRequestTimeoutMs = modelTimeoutMs - 1000;
 const apiTimeoutMs = 15_000;
 const maxRateLimitWaitMs = 10_000;
 
@@ -19,6 +20,13 @@ const faultCategorySchema = z.enum([
   "configuration",
   "invalid_response",
   "attempt_limit",
+]);
+
+const faultLogEventSchema = z.enum([
+  "retry",
+  "repair",
+  "exhausted",
+  "rate_limit_retry",
 ]);
 
 const externalFaultSchema = z.object({
@@ -44,7 +52,7 @@ type FaultLogEvent = {
   attempt?: number;
   category: FaultCategory;
   durationMs?: number;
-  event: "retry" | "exhausted" | "rate_limit_retry";
+  event: z.infer<typeof faultLogEventSchema>;
   node: string;
   runId?: string;
   threadId?: string;
@@ -76,7 +84,10 @@ const logFaultEvent = (event: FaultLogEvent): void => {
   }
 };
 
-const createNodeRetryPolicy = (node: string): RetryPolicy => ({
+const createNodeRetryPolicy = (
+  node: string,
+  options: { retryNodeTimeout?: boolean } = {}
+): RetryPolicy => ({
   backoffFactor: 2,
   initialInterval: 250,
   jitter: true,
@@ -85,12 +96,16 @@ const createNodeRetryPolicy = (node: string): RetryPolicy => ({
   maxInterval: 2000,
   retryOn: (error: Error) => {
     const fault = externalFaultFrom(error);
+    const nodeTimedOut = isNodeTimeoutError(error);
 
-    const retryable =
-      isNodeTimeoutError(error) ||
-      (fault !== null &&
-        fault.retryable &&
-        fault.requestsUsed < maxExternalRequests);
+    const retryableTimeout = nodeTimedOut && options.retryNodeTimeout !== false;
+
+    const retryableFault =
+      fault !== null &&
+      fault.retryable &&
+      fault.requestsUsed < maxExternalRequests;
+
+    const retryable = retryableTimeout || retryableFault;
 
     if (retryable) {
       logFaultEvent({
@@ -171,6 +186,7 @@ export {
   logFaultEvent,
   maxExternalRequests,
   maxRateLimitWaitMs,
+  modelRequestTimeoutMs,
   modelTimeoutMs,
   remainingRequests,
   retryAfterMs,
