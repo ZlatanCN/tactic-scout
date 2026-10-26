@@ -1,11 +1,7 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AIMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
-import type {
-  BaseCheckpointSaver,
-  GraphNode,
-  NodeError,
-} from "@langchain/langgraph";
+import type { BaseCheckpointSaver, NodeError } from "@langchain/langgraph";
 import {
   Command,
   END,
@@ -14,7 +10,6 @@ import {
   START,
   StateGraph,
 } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod/v4";
 import "dotenv/config";
@@ -27,7 +22,6 @@ import {
   logFaultEvent,
   modelTimeoutMs,
   apiTimeoutMs,
-  waitForRetryDelay,
 } from "./fault-tolerance.js";
 import {
   createAnswerNode,
@@ -37,13 +31,17 @@ import {
 import { createCommitLookupResultsNode } from "./nodes/commit-lookup.js";
 import { createComparePlayersNode } from "./nodes/compare-players.js";
 import { createEntityResolutionNode } from "./nodes/entity-resolution.js";
+import { createExecuteLookupToolsNode } from "./nodes/execute-lookup-tools.js";
 import { createFetchTeamRosterNode } from "./nodes/fetch-team-roster.js";
+import { createGuardLookupSearchNode } from "./nodes/guard-lookup-search.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
 import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
 import { createResolveTeamRosterNode } from "./nodes/resolve-team-roster.js";
 import { createResolveTeamNode } from "./nodes/resolve-team.js";
+import { createUnavailableTaskNode } from "./nodes/unavailable-task.js";
+import { createWaitForApiRateLimitNode } from "./nodes/wait-api-rate-limit.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
 import type { ReferenceIdentityLookup } from "./player-data/resolve-reference.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
@@ -81,8 +79,42 @@ type ErrorHandlerConfig = {
 
 type FaultFailureNode = NonNullable<FaultToleranceState["failure"]>["node"];
 
+const nodeTimeoutAttempt = (
+  node: string,
+  state: AgentStateType,
+  error: Error,
+  config: ErrorHandlerConfig | undefined
+): number | "unavailable" | null => {
+  if (!isNodeTimeoutError(error)) {
+    return null;
+  }
+
+  if (
+    node === "resolve_team" &&
+    state.faultTolerance.apiOperation === "team_search"
+  ) {
+    return (
+      state.faultTolerance.apiRequestsUsed +
+      (config?.executionInfo?.nodeAttempt ?? 1)
+    );
+  }
+
+  if (
+    node === "fetch_team_roster" &&
+    state.faultTolerance.apiOperation === "team_roster"
+  ) {
+    return (
+      state.faultTolerance.apiRequestsUsed +
+      (config?.executionInfo?.nodeAttempt ?? 1)
+    );
+  }
+
+  return "unavailable";
+};
+
 const logTerminalFailure = (
   node: string,
+  state: AgentStateType,
   error: NodeError,
   config: ErrorHandlerConfig | undefined
 ): void => {
@@ -91,11 +123,13 @@ const logTerminalFailure = (
   const fault = externalFaultFrom(error.error);
   const timeout = isNodeTimeoutError(error.error) ? error.error : null;
 
+  const attempt =
+    fault?.requestsUsed ??
+    nodeTimeoutAttempt(node, state, error.error, config) ??
+    config?.executionInfo?.nodeAttempt;
+
   logFaultEvent({
-    attempt:
-      fault?.requestsUsed ??
-      config?.executionInfo?.nodeAttempt ??
-      (timeout === null ? undefined : 3),
+    attempt,
     category: faultCategory(error.error),
     durationMs: fault?.durationMs ?? timeout?.elapsed,
     event: "exhausted",
@@ -114,7 +148,7 @@ const modelFailureHandler =
       throw error.error;
     }
 
-    logTerminalFailure(node, error, config);
+    logTerminalFailure(node, state, error, config);
 
     return new Command({
       goto: "answer_failure",
@@ -136,7 +170,7 @@ const teamProviderFailureHandler =
       throw error.error;
     }
 
-    logTerminalFailure(node, error, config);
+    logTerminalFailure(node, state, error, config);
 
     return new Command({
       goto: "answer",
@@ -156,26 +190,6 @@ const teamProviderFailureHandler =
       },
     });
   };
-
-const waitForApiRateLimitNode = async (
-  state: AgentStateType,
-  runtime: { signal?: AbortSignal }
-) => {
-  const wait = state.faultTolerance.apiRetryAfterMs;
-
-  if (wait === null) {
-    return {};
-  }
-
-  await waitForRetryDelay(wait, runtime.signal);
-
-  return {
-    faultTolerance: {
-      ...state.faultTolerance,
-      apiRetryAfterMs: null,
-    },
-  };
-};
 
 const configuredModel = (): ChatOpenAI => {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -367,143 +381,6 @@ const routeLookupResponse = (state: AgentStateType): string => {
     : "answer";
 };
 
-const lookupSearchLimit = 3;
-
-const toolNodeResultSchema = z.object({
-  messages: z.array(z.instanceof(ToolMessage)),
-});
-
-const toolCallIdSchema = z.object({ id: z.string().min(1) });
-
-type ToolCallIdentity = { id?: string };
-
-const toolCallId = (call: ToolCallIdentity): string =>
-  toolCallIdSchema.parse(call).id;
-
-const createLookupToolGuardNode =
-  (): GraphNode<typeof AgentState> => (state, runtime) => {
-    const lastMessage = state.messages.at(-1);
-
-    if (!(lastMessage instanceof AIMessage)) {
-      return {};
-    }
-
-    const toolCalls = lastMessage.tool_calls ?? [];
-
-    const remaining = Math.max(
-      0,
-      lookupSearchLimit - state.faultTolerance.lookupSearchExecutions
-    );
-
-    const blockedCalls = toolCalls.slice(remaining);
-
-    const executions =
-      state.faultTolerance.lookupSearchExecutions +
-      Math.min(toolCalls.length, remaining);
-
-    if (blockedCalls.length > 0) {
-      logFaultEvent({
-        attempt: executions,
-        category: "attempt_limit",
-        durationMs: 0,
-        event: "exhausted",
-        executionCount: executions,
-        node: "lookup_tools_guard",
-        runId: runtime.executionInfo?.runId,
-        threadId: runtime.executionInfo?.threadId,
-      });
-    }
-
-    return {
-      faultTolerance: {
-        ...state.faultTolerance,
-        lookupLimitReached: blockedCalls.length > 0,
-        lookupSearchExecutions: executions,
-        lookupToolCallIds: blockedCalls.map((call) =>
-          z.string().min(1).parse(call.id)
-        ),
-      },
-    };
-  };
-
-const createBoundedLookupToolsNode = (
-  lookupTool: StructuredToolInterface | undefined
-): GraphNode<typeof AgentState> => {
-  const toolNode = new ToolNode(lookupTool === undefined ? [] : [lookupTool], {
-    handleToolErrors: false,
-  });
-
-  return async (state, runtime) => {
-    const lastMessage = state.messages.at(-1);
-
-    if (!(lastMessage instanceof AIMessage)) {
-      throw new TypeError(
-        "lookup_tools requires the model's tool-call message."
-      );
-    }
-
-    const blockedCallIds = new Set(state.faultTolerance.lookupToolCallIds);
-    const toolCalls = lastMessage.tool_calls ?? [];
-
-    const allowedCalls = toolCalls.filter(
-      (call) => !blockedCallIds.has(toolCallId(call))
-    );
-
-    let toolMessages: ToolMessage[] = [];
-
-    if (allowedCalls.length > 0) {
-      const parsedToolResult = toolNodeResultSchema.safeParse(
-        await toolNode.invoke(
-          {
-            ...state,
-            messages: [
-              ...state.messages.slice(0, -1),
-              new AIMessage({
-                content: lastMessage.content,
-                id: lastMessage.id,
-                tool_calls: allowedCalls,
-              }),
-            ],
-          },
-          { signal: runtime.signal }
-        )
-      );
-
-      if (!parsedToolResult.success) {
-        throw new Error("LangGraph ToolNode returned an invalid result.");
-      }
-
-      toolMessages = parsedToolResult.data.messages;
-    }
-
-    const resultByCallId = new Map(
-      toolMessages.map((message) => [message.tool_call_id, message])
-    );
-
-    return {
-      messages: toolCalls.map((call) => {
-        const id = toolCallId(call);
-        const result = resultByCallId.get(id);
-
-        if (result !== undefined) {
-          return result;
-        }
-
-        if (blockedCallIds.has(id)) {
-          return new ToolMessage({
-            content: "本轮搜索次数已达上限，该搜索未执行。",
-            name: call.name,
-            status: "error",
-            tool_call_id: id,
-          });
-        }
-
-        throw new Error(`lookup_tools did not return ${id}.`);
-      }),
-    };
-  };
-};
-
 const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
   state.faultTolerance.apiOperation === "team_search"
     ? "resolve_team"
@@ -544,23 +421,6 @@ const routeAfterTeamRosterResolution = (state: AgentStateType): string => {
 
   return "recommend_players_for_team";
 };
-
-const unavailableTaskNode =
-  (
-    kind: "player_comparison" | "player_recommendation" | "team_recommendation"
-  ) =>
-  (state: { request: RequestState }) => ({
-    outcome: {
-      kind,
-      resultJson: null,
-      status: {
-        player_comparison: "comparison_tool_unavailable",
-        player_recommendation: "recommendation_tool_unavailable",
-        team_recommendation: "team_recommendation_tool_unavailable",
-      }[kind],
-    },
-    request: state.request,
-  });
 
 const createAgent = (options: CreateAgentOptions = {}) => {
   const tools = options.tools ?? createTools();
@@ -615,17 +475,17 @@ const createAgent = (options: CreateAgentOptions = {}) => {
 
   const comparePlayers = comparisonTool
     ? createComparePlayersNode(comparisonTool)
-    : unavailableTaskNode("player_comparison");
+    : createUnavailableTaskNode("player_comparison");
 
   const recommendPlayers = recommendationTool
     ? createRecommendPlayersNode(recommendationTool)
-    : unavailableTaskNode("player_recommendation");
+    : createUnavailableTaskNode("player_recommendation");
 
   const recommendPlayersForTeam = teamRecommendationTool
     ? createRecommendPlayersForTeamNode(teamRecommendationTool)
-    : unavailableTaskNode("team_recommendation");
+    : createUnavailableTaskNode("team_recommendation");
 
-  const boundedLookupTools = createBoundedLookupToolsNode(lookupTool);
+  const boundedLookupTools = createExecuteLookupToolsNode(lookupTool);
 
   const graph = new StateGraph(AgentState)
     .addNode("understand_request", understandRequest, {
@@ -648,7 +508,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         timeout: modelTimeoutMs,
       }
     )
-    .addNode("lookup_tools_guard", createLookupToolGuardNode())
+    .addNode("lookup_tools_guard", createGuardLookupSearchNode())
     .addNode("lookup_tools", boundedLookupTools)
     .addNode("commit_lookup", createCommitLookupResultsNode())
     .addNode("compare_players", comparePlayers)
@@ -665,7 +525,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     })
     .addNode("resolve_team_roster", resolveTeamRoster)
     .addNode("recommend_players_for_team", recommendPlayersForTeam)
-    .addNode("wait_api_rate_limit", waitForApiRateLimitNode)
+    .addNode("wait_api_rate_limit", createWaitForApiRateLimitNode())
     .addNode("answer", createAnswerNode(model), {
       errorHandler: modelFailureHandler("answer"),
       retryPolicy: createNodeRetryPolicy("answer", {
