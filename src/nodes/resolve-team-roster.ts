@@ -1,5 +1,6 @@
 import type { GraphNode } from "@langchain/langgraph";
 
+import { logLocalDataFailure } from "../fault-tolerance.js";
 import { isLocalDataError } from "../player-data/shared.js";
 import type { AgentState, RequestState } from "../state.js";
 import type { TeamRosterSnapshot } from "../team-data/contracts.js";
@@ -72,7 +73,7 @@ const requestWithRoster = (
 
 const createResolveTeamRosterNode =
   (options: ResolveTeamRosterOptions): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     const { request } = state;
 
     if (request.kind !== "team_recommendation") {
@@ -107,6 +108,8 @@ const createResolveTeamRosterNode =
       resolution: Awaited<ReturnType<TeamRosterIdentityLookup>>;
     }[];
 
+    const mappingStartedAt = Date.now();
+
     try {
       resolutions = await Promise.all(
         pendingMembers.map(async (member) => ({
@@ -121,6 +124,13 @@ const createResolveTeamRosterNode =
       if (!(error instanceof Error) || !isLocalDataError(error)) {
         throw error;
       }
+
+      logLocalDataFailure(
+        "resolve_team_roster",
+        runtime,
+        Date.now() - mappingStartedAt,
+        1
+      );
 
       return {
         outcome: {

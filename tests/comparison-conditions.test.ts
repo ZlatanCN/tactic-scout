@@ -342,6 +342,47 @@ describe("comparison workflow state", () => {
     });
   });
 
+  it("reports an unavailable local comparison source instead of empty evidence", async () => {
+    const kane = candidate("Harry Kane", "kane");
+    const mbappe = candidate("Kylian Mbappé", "mbappe");
+    const message = "Compare Harry Kane and Kylian Mbappé.";
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { reason: "FM snapshot missing", status: "unavailable" },
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: createLookup([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: compareRequest(["Harry Kane", "Kylian Mbappé"]),
+      }),
+      tools: createTools(search),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "comparison-source-unavailable" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      outcome: result.outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      answer:
+        "本地球员数据源无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+      outcome: "data_unavailable",
+      searchCalls: 2,
+    });
+  });
+
   it("does not reconstruct a comparison from historical tool messages without saved thread context", async () => {
     const parrott = candidate("Troy Parrott", "parrott");
     const addMessage = "Add Troy Parrott to the comparison.";

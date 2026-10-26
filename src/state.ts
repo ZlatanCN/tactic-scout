@@ -264,6 +264,7 @@ const FaultToleranceSchema = z.object({
         "configuration",
         "invalid_response",
         "attempt_limit",
+        "local_data",
       ]),
       node: z.enum([
         "understand_request",
@@ -278,6 +279,7 @@ const FaultToleranceSchema = z.object({
   lookupLimitReached: z.boolean(),
   lookupSearchExecutions: z.number().int().nonnegative(),
   lookupToolCallIds: z.array(z.string()),
+  lookupToolStartedAt: z.number().nullable(),
 });
 
 const createInitialFaultToleranceState = () => ({
@@ -289,6 +291,7 @@ const createInitialFaultToleranceState = () => ({
   lookupLimitReached: false,
   lookupSearchExecutions: 0,
   lookupToolCallIds: [],
+  lookupToolStartedAt: null,
 });
 
 const AgentState = MessagesZodState.extend({

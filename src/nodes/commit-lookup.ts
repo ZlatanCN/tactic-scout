@@ -2,6 +2,7 @@ import { HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type {
   AgentState,
@@ -29,11 +30,11 @@ const currentTurnMessages = (messages: AgentStateType["messages"]) => {
     : messages.slice(latestUserMessageIndex);
 };
 
-const hasSearchData = (message: ToolMessage): boolean => {
+const lookupResultFromToolMessage = (message: ToolMessage) => {
   const content = z.string().safeParse(message.content);
 
   if (!content.success) {
-    return false;
+    return null;
   }
 
   let parsedJson: unknown;
@@ -41,16 +42,15 @@ const hasSearchData = (message: ToolMessage): boolean => {
   try {
     parsedJson = JSON.parse(content.data);
   } catch {
-    return false;
+    return null;
   }
 
   const result = lookupResultSchema.safeParse(parsedJson);
 
-  return (
-    result.success &&
-    (result.data.fm?.status === "found" ||
-      result.data.understat?.status === "found")
-  );
+  return result.success &&
+    (result.data.fm !== undefined || result.data.understat !== undefined)
+    ? result.data
+    : null;
 };
 
 const resolvedReference = (
@@ -71,16 +71,46 @@ const resolvedReference = (
 };
 
 const createCommitLookupResultsNode =
-  (): GraphNode<typeof AgentState> => (state) => {
+  (): GraphNode<typeof AgentState> => (state, runtime) => {
+    if (state.faultTolerance.lookupToolStartedAt === null) {
+      return {};
+    }
+
     const latestSearchResult = currentTurnMessages(state.messages).findLast(
       (message): message is ToolMessage =>
         message instanceof ToolMessage &&
         message.name === "search_player_records" &&
-        hasSearchData(message)
+        lookupResultFromToolMessage(message) !== null
     );
 
     if (latestSearchResult === undefined) {
-      return {};
+      return {
+        faultTolerance: {
+          ...state.faultTolerance,
+          lookupToolStartedAt: null,
+        },
+      };
+    }
+
+    const lookupResult = lookupResultFromToolMessage(latestSearchResult);
+
+    if (lookupResult === null) {
+      throw new Error("The completed lookup result failed validation.");
+    }
+
+    if (
+      lookupResult.fm?.status === "unavailable" ||
+      lookupResult.understat?.status === "unavailable"
+    ) {
+      logLocalDataFailure(
+        "commit_lookup",
+        runtime,
+        state.faultTolerance.lookupToolStartedAt === null
+          ? 0
+          : Date.now() - state.faultTolerance.lookupToolStartedAt,
+        state.faultTolerance.lookupSearchExecutions,
+        state.faultTolerance.lookupSearchExecutions
+      );
     }
 
     const lookupReference =
@@ -107,6 +137,10 @@ const createCommitLookupResultsNode =
         ...state.conversationContext,
         activeLookup,
         focusPlayers,
+      },
+      faultTolerance: {
+        ...state.faultTolerance,
+        lookupToolStartedAt: null,
       },
     };
   };

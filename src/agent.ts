@@ -139,46 +139,53 @@ const logTerminalFailure = (
   });
 };
 
+const faultToleranceAfterNodeFailure = (
+  node: FaultFailureNode,
+  state: AgentStateType,
+  error: NodeError,
+  config: ErrorHandlerConfig | undefined
+): FaultToleranceState => {
+  const fault = externalFaultFrom(error.error);
+
+  if (fault === null && !isNodeTimeoutError(error.error)) {
+    throw error.error;
+  }
+
+  logTerminalFailure(node, state, error, config);
+
+  return {
+    ...(state.faultTolerance ?? createInitialFaultToleranceState()),
+    failure: { category: faultCategory(error.error), node },
+  };
+};
+
 const modelFailureHandler =
   (node: FaultFailureNode) =>
-  (state: AgentStateType, error: NodeError, config?: ErrorHandlerConfig) => {
-    const fault = externalFaultFrom(error.error);
-
-    if (fault === null && !isNodeTimeoutError(error.error)) {
-      throw error.error;
-    }
-
-    logTerminalFailure(node, state, error, config);
-
-    return new Command({
+  (state: AgentStateType, error: NodeError, config?: ErrorHandlerConfig) =>
+    new Command({
       goto: "answer_failure",
       update: {
-        faultTolerance: {
-          ...(state.faultTolerance ?? createInitialFaultToleranceState()),
-          failure: { category: faultCategory(error.error), node },
-        },
+        faultTolerance: faultToleranceAfterNodeFailure(
+          node,
+          state,
+          error,
+          config
+        ),
       },
     });
-  };
 
 const teamProviderFailureHandler =
   (node: FaultFailureNode) =>
-  (state: AgentStateType, error: NodeError, config?: ErrorHandlerConfig) => {
-    const fault = externalFaultFrom(error.error);
-
-    if (fault === null && !isNodeTimeoutError(error.error)) {
-      throw error.error;
-    }
-
-    logTerminalFailure(node, state, error, config);
-
-    return new Command({
+  (state: AgentStateType, error: NodeError, config?: ErrorHandlerConfig) =>
+    new Command({
       goto: "answer",
       update: {
-        faultTolerance: {
-          ...(state.faultTolerance ?? createInitialFaultToleranceState()),
-          failure: { category: faultCategory(error.error), node },
-        },
+        faultTolerance: faultToleranceAfterNodeFailure(
+          node,
+          state,
+          error,
+          config
+        ),
         outcome: {
           kind: "team_recommendation" as const,
           resultJson: JSON.stringify({
@@ -189,7 +196,6 @@ const teamProviderFailureHandler =
         },
       },
     });
-  };
 
 const configuredModel = (): ChatOpenAI => {
   const apiKey = process.env.OPENAI_API_KEY?.trim();

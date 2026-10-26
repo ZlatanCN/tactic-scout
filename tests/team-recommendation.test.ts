@@ -1042,7 +1042,7 @@ describe("team recommendation graph", () => {
     expect(
       first.conversationContext.activeTeamRecommendation?.resultJson
     ).toContain('"result":1');
-    expect(failed.messages.at(-1)?.content).toContain("本地 FM 快照无法读取");
+    expect(failed.messages.at(-1)?.content).toContain("本地球员数据源无法读取");
   });
 
   it("resets filters and roster when the scout names another team", async () => {

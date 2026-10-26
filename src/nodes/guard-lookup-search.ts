@@ -23,10 +23,10 @@ const createGuardLookupSearchNode =
     );
 
     const blockedCalls = toolCalls.slice(remaining);
+    const allowedCount = Math.min(toolCalls.length, remaining);
 
     const executions =
-      state.faultTolerance.lookupSearchExecutions +
-      Math.min(toolCalls.length, remaining);
+      state.faultTolerance.lookupSearchExecutions + allowedCount;
 
     if (blockedCalls.length > 0) {
       logFaultEvent({
@@ -47,6 +47,7 @@ const createGuardLookupSearchNode =
         lookupLimitReached: blockedCalls.length > 0,
         lookupSearchExecutions: executions,
         lookupToolCallIds: blockedCalls.map(lookupToolCallId),
+        lookupToolStartedAt: allowedCount > 0 ? Date.now() : null,
       },
     };
   };

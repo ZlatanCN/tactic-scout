@@ -429,4 +429,4 @@ export {
   modelFailureCategory,
 };
 
-export type { ModelRequestBudget };
+export type { ModelRequestBudget, ModelRuntime };

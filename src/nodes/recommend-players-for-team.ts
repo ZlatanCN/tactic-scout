@@ -2,6 +2,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { supportedPositionCodes } from "../player-data/position-features.js";
 import { recommendationConstraintIsApplied } from "../recommendation-constraints.js";
@@ -67,7 +68,7 @@ const referencesFromPlayers = (
 
 const createRecommendPlayersForTeamNode =
   (recommendationTool: StructuredToolInterface): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     const { request } = state;
 
     if (request.kind !== "team_recommendation") {
@@ -158,6 +159,8 @@ const createRecommendPlayersForTeamNode =
       };
     }
 
+    const startedAt = Date.now();
+
     const rawResult: unknown = await recommendationTool.invoke({
       includePotential: recommendation.includePotential,
       maxAge: recommendation.maxAge,
@@ -180,6 +183,15 @@ const createRecommendPlayersForTeamNode =
     const resultJson = parsedString.data;
     const parsedResult: unknown = JSON.parse(resultJson);
     const result = teamRecommendationEnvelopeSchema.parse(parsedResult);
+
+    if (result.status === "data_unavailable") {
+      logLocalDataFailure(
+        "recommend_players_for_team",
+        runtime,
+        Date.now() - startedAt,
+        1
+      );
+    }
 
     if (result.status === "team_position_unavailable") {
       return {

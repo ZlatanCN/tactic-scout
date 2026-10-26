@@ -9,6 +9,7 @@ import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { createModelRequestBudget } from "../model-requests.js";
+import type { ModelRuntime } from "../model-requests.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
 import type {
@@ -178,7 +179,7 @@ const requestBoundaryAnswer = (state: AgentStateType): string => {
 const fixedOutcomeMessages = new Map<string, string>([
   [
     "data_unavailable",
-    "本地 FM 快照无法读取。本次请求没有执行，之前完成的推荐仍然保留。",
+    "本地球员数据源无法读取。本次请求没有执行，之前完成的结果仍然保留。",
   ],
   [
     "identity_data_unavailable",
@@ -470,9 +471,21 @@ const createLookupPlayerNode =
     };
   };
 
-const createAnswerNode =
-  (model: LanguageModelLike): GraphNode<typeof AgentState> =>
-  async (state, runtime) => {
+const createAnswerNode = (
+  model: LanguageModelLike
+): GraphNode<typeof AgentState> => {
+  const invokeAnswerModel = async (
+    messages: BaseMessage[],
+    runtime: ModelRuntime
+  ) => {
+    const budget = createModelRequestBudget(runtime, "answer");
+
+    return await budget.invoke(
+      async (signal) => await model.invoke(messages, { signal })
+    );
+  };
+
+  return async (state, runtime) => {
     const { outcome } = state;
 
     if (outcome === null) {
@@ -490,21 +503,16 @@ const createAnswerNode =
           ? messageText(latestUserMessage)
           : "";
 
-        const budget = createModelRequestBudget(runtime, "answer");
-
-        const response = await budget.invoke(
-          async (signal) =>
-            await model.invoke(
-              [
-                new SystemMessage(lookupFollowUpPrompt),
-                new HumanMessage(
-                  `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${
-                    outcome.resultJson
-                  }`
-                ),
-              ],
-              { signal }
-            )
+        const response = await invokeAnswerModel(
+          [
+            new SystemMessage(lookupFollowUpPrompt),
+            new HumanMessage(
+              `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${
+                outcome.resultJson
+              }`
+            ),
+          ],
+          runtime
         );
 
         return { messages: [response] };
@@ -546,22 +554,18 @@ const createAnswerNode =
     const latestUserMessage = latestHumanMessage(state.messages);
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
 
-    const budget = createModelRequestBudget(runtime, "answer");
-
-    const response = await budget.invoke(
-      async (signal) =>
-        await model.invoke(
-          [
-            new SystemMessage(prompt),
-            new HumanMessage(
-              `用户请求：${requestText}\n\n结构化工具结果：\n${outcome.resultJson}`
-            ),
-          ],
-          { signal }
-        )
+    const response = await invokeAnswerModel(
+      [
+        new SystemMessage(prompt),
+        new HumanMessage(
+          `用户请求：${requestText}\n\n结构化工具结果：\n${outcome.resultJson}`
+        ),
+      ],
+      runtime
     );
 
     return { messages: [response] };
   };
+};
 
 export { createAnswerNode, createFaultAnswerNode, createLookupPlayerNode };

@@ -2,6 +2,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { recommendationConstraintIsApplied } from "../recommendation-constraints.js";
 import { conversationReferenceFromPlayer } from "../recommendation-references.js";
@@ -98,7 +99,7 @@ const referenceProfileClarification = (
 
 const createRecommendPlayersNode =
   (recommendationTool: StructuredToolInterface): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     const { request } = state;
 
     if (request.kind !== "player_recommendation") {
@@ -161,6 +162,7 @@ const createRecommendPlayersNode =
       resultLimit: recommendation.resultLimit,
     };
 
+    const startedAt = Date.now();
     const rawResult: unknown = await recommendationTool.invoke(toolInput);
     const parsedString = z.string().safeParse(rawResult);
 
@@ -171,6 +173,15 @@ const createRecommendPlayersNode =
     const resultJson = parsedString.data;
     const parsedResult: unknown = JSON.parse(resultJson);
     const result = recommendationResultSchema.parse(parsedResult);
+
+    if (result.status === "data_unavailable") {
+      logLocalDataFailure(
+        "recommend_players",
+        runtime,
+        Date.now() - startedAt,
+        1
+      );
+    }
 
     if (result.status === "position_required") {
       const positionClarification = z

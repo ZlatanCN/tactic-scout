@@ -1,5 +1,6 @@
 import type { GraphNode } from "@langchain/langgraph";
 
+import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { ReferenceIdentityLookup } from "../player-data/resolve-reference.js";
 import {
@@ -1269,7 +1270,8 @@ const identityDataUnavailable = (request: RequestState): boolean =>
 
 const createEntityResolutionNode =
   (lookup: ReferenceIdentityLookup): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
+    const startedAt = Date.now();
     let request = state.request ?? createInitialRequestState();
     request = {
       ...request,
@@ -1296,6 +1298,13 @@ const createEntityResolutionNode =
 
     if (resumedIdentity.shouldStop) {
       if (identityDataUnavailable(request)) {
+        logLocalDataFailure(
+          "resolve_entities",
+          runtime,
+          Date.now() - startedAt,
+          1
+        );
+
         return {
           conversationContext: conversationContextFromRequest(
             request,
@@ -1333,6 +1342,13 @@ const createEntityResolutionNode =
         : conversationContext;
 
       if (identityDataUnavailable(request)) {
+        logLocalDataFailure(
+          "resolve_entities",
+          runtime,
+          Date.now() - startedAt,
+          1
+        );
+
         return {
           conversationContext: contextWithConfirmedAliases,
           outcome: dataUnavailableOutcome(request),

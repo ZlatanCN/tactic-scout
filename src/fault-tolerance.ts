@@ -33,6 +33,7 @@ const faultCategorySchema = z.enum([
   "configuration",
   "invalid_response",
   "attempt_limit",
+  "local_data",
 ]);
 
 const faultLogEventSchema = z.enum([
@@ -105,6 +106,25 @@ const logFaultEvent = (event: FaultLogEvent): void => {
   } catch {
     // Logging is best-effort and cannot replace the original outcome.
   }
+};
+
+const logLocalDataFailure = (
+  node: string,
+  runtime: FaultExecutionContext,
+  durationMs: number,
+  attempt?: number,
+  executionCount?: number
+): void => {
+  logFaultEvent({
+    attempt,
+    category: "local_data",
+    durationMs,
+    event: "exhausted",
+    executionCount,
+    node,
+    runId: runtime.executionInfo?.runId,
+    threadId: runtime.executionInfo?.threadId,
+  });
 };
 
 const createNodeRetryPolicy = (
@@ -210,6 +230,7 @@ export {
   isExternalFaultError,
   isTransientNetworkCode,
   logFaultEvent,
+  logLocalDataFailure,
   maxExternalRequests,
   maxRateLimitWaitMs,
   modelRequestTimeoutMs,

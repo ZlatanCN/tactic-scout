@@ -202,10 +202,22 @@ describe("LangGraph player workflows", () => {
       tools: [createSearchTool(search)],
     });
 
+    const faultLog = vi.spyOn(console, "info").mockImplementation(() => {});
+
     const result = await graph.invoke(
       { messages: [new HumanMessage(message)] },
       { configurable: { thread_id: "identity-data-unavailable" } }
     );
+
+    const logOutput = faultLog.mock.calls
+      .flatMap(([entry]) => {
+        const parsed = z.string().safeParse(entry);
+
+        return parsed.success ? [parsed.data] : [];
+      })
+      .join("\n");
+
+    faultLog.mockRestore();
 
     expect({
       answer: result.messages.at(-1)?.content,
@@ -219,6 +231,8 @@ describe("LangGraph player workflows", () => {
       searchCalls: 0,
       status: "identity_data_unavailable",
     });
+    expect(logOutput).toContain('"category":"local_data"');
+    expect(logOutput).not.toContain("Harry Kane");
   });
 
   it("preserves the previous lookup result after model retry exhaustion", async () => {
@@ -610,9 +624,16 @@ describe("LangGraph player workflows", () => {
     );
   });
 
-  it("does not change conversation focus when the confirmed identity has no local data", async () => {
+  it("commits a valid empty lookup result to the active lookup context", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
-    const search = vi.fn<PlayerSearch>(emptySearchResult);
+
+    const sourceRecords = [
+      { provider: "fm" as const, sourceId: "kane-fm" },
+      { provider: "understat" as const, sourceId: "kane-understat" },
+    ];
+
+    const lookupResult = emptySearchResult({ sourceRecords });
+    const search = vi.fn<PlayerSearch>(() => lookupResult);
 
     const model = fakeModel()
       .respondWithTools([
@@ -640,14 +661,15 @@ describe("LangGraph player workflows", () => {
     );
 
     expect({
-      focusPlayers: result.conversationContext.focusPlayers,
+      activeLookup: result.conversationContext.activeLookup?.resultJson,
+      focusPlayers: result.conversationContext.focusPlayers.map(
+        ({ referenceId }) => referenceId
+      ),
       sourceRecords: search.mock.calls[0]?.[0].sourceRecords,
     }).toStrictEqual({
-      focusPlayers: [],
-      sourceRecords: [
-        { provider: "fm", sourceId: "kane-fm" },
-        { provider: "understat", sourceId: "kane-understat" },
-      ],
+      activeLookup: lookupResult,
+      focusPlayers: ["canonical-kane"],
+      sourceRecords,
     });
   });
 
