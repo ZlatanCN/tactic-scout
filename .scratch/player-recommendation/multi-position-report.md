@@ -9,7 +9,7 @@ Labels: ready-for-agent
 
 ## 数据和覆盖
 
-FM manifest：`431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb`；快照日期 `2025-11-23`；有效 FM IDs 102,706。Feature-map SHA256：`37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20`。
+FM manifest：`431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb`；快照日期 `2025-11-23`；有效 FM IDs 102,706。Feature-map 当前序列化 SHA256：`de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88`。它与实验时文件的字节哈希不同是因为后续只规范化了 JSON 空白；语义映射逐项保持一致，详见 [实现记录](plan.md)。
 
 | 位置 | 候选评分≥15 | feature数 | 拟合 | 开发 query | 测试 query |
 | --- | ---: | ---: | ---: | ---: | ---: |

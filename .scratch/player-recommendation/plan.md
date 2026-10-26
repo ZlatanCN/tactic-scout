@@ -46,7 +46,9 @@ Labels: ready-for-human
 
 本地快照有 52 项完整的 `raw_attributes_*` 属性，含门将专用属性。为每个有数据的 FM 位置建立单独的版本化属性清单，并把属性分成可解释的组，以便解释距离和执行消融。左右镜像位置可以使用相同属性清单，但仍分别报告实验结果。
 
-属性清单已在公式实验前冻结为 `fm-position-features-v1`，SHA256 `37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20`，包含每项选择理由和来源。它是透明的领域先验，不是从现有 `role_scores` 反推；该字段没有可审计的计算来源。没有战术角色输入，因此产品文案只能说“位置级 FM 能力相似”，不能说某个战术角色适配度高。
+属性清单已在公式实验前冻结为 `fm-position-features-v1`，SHA256 `de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88`，包含每项选择理由和来源。它是透明的领域先验，不是从现有 `role_scores` 反推；该字段没有可审计的计算来源。没有战术角色输入，因此产品文案只能说“位置级 FM 能力相似”，不能说某个战术角色适配度高。
+
+实现提交时，pre-commit formatter 仅规范化了 JSON 空白，导致原始字节哈希从实验时的 `37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20` 变为当前值。位置、属性分组及顺序的测试逐项一致；实验结果未因序列化空白变化而重跑，实验元数据和后续复现配置已同步当前文件哈希。
 
 映射覆盖 14 个有候选的位置；`SW` 因没有评分至少 15 的候选不进入映射，也不进入全局选型平均值。完整映射见 [JSON](position-feature-map.json) 和[说明](position-feature-map.md)。
 
@@ -101,9 +103,9 @@ flowchart TD
 
 `request-understanding` 产出按任务区分的 typed request，为推荐参与者标记 `reference`、`exclude` 或 `ambiguous`，并提取用户明确提出的条件。所有提及经过身份解析；数据读取只使用选定的 provider source IDs，同名不会自动合并。
 
-state 只保留一个 `pendingClarification`，用 kind 表示 identity、position、age、role 或 season。位置和年龄答案补进同一请求后继续对应任务；身份答案回到 resolver 继续处理尚未解析的参与者。request 不再保存重复的 status、activePlayerIndex 或 requestAnswer。
+state 只保留一个 `pendingClarification`，用 kind 表示 identity、FM profile、position、age、role 或 season。位置、画像和年龄答案补进同一请求后继续对应任务；身份答案回到 resolver 继续处理尚未解析的参与者。request 不再保存重复的 status、activePlayerIndex 或 requestAnswer。
 
-`conversationContext.activeRecommendation` 保存最近成功推荐的参考和排除身份、位置、有效条件、TopK 结果与结果状态；它与 `focusPlayers` 和 `activeComparison` 分离。
+`conversationContext.activeLookup` 保存最近成功单球员查询的精确 source 结果和 resolved player，供“哪个赛季”等事实追问使用；它只在数据命中后更新。`activeRecommendation` 保存最近成功推荐的参考和排除身份、位置、有效条件、TopK 结果与结果状态；它与 `focusPlayers`、`activeComparison` 分离。
 
 - 条件字段省略表示继承，显式 null 表示清除，具体值表示设置；state 只保存合并后的有效请求。
 - 只改年龄、CA、PA、潜力名单或结果数的后续消息继承上次成功推荐的参考集合和位置。
@@ -135,9 +137,9 @@ state 只保留一个 `pendingClarification`，用 kind 表示 identity、positi
 1. **数据与属性清单**：完成；冻结 14 个位置的 feature map 与解释组。
 2. **全位置公式实验**：完成；保留脚本、配置、原始结果、全局选择记录与独立核验。运行实现时公式未改变，因此未重跑实验。
 3. **确定性推荐数据层**：完成；覆盖 manifest JSON 文本、缺失 FM ID、FM/Understat 精确 source ID、PA 缺失统计与 feature map 同步。
-4. **LangGraph 工作流**：完成；查询保留原生工具循环，比较和推荐由专属业务节点直接执行，澄清通过一个 interrupt 节点续接。
+4. **LangGraph 工作流**：完成；查询保留原生工具循环，比较和推荐由专属业务节点直接执行，澄清通过一个 interrupt 节点续接，多个 FM 画像会先由用户选定。
 5. **推荐上下文**：完成；支持位置澄清、条件细化、身份继承、数据失败保护和 thread 隔离。
-6. **Vitest 验收**：完成；Fake model、独立 `MemorySaver`、精确 ID、alias role、否定 PA、赛季/位置 interrupt、空结果、失败保护和历史消息不恢复均有覆盖；测试不访问网关。
+6. **Vitest 验收**：完成；Fake model、独立 `MemorySaver`、精确 ID、alias role、否定 PA、lookup 结果追问、赛季/位置/FM 画像/年龄 interrupt、空结果、失败保护、逐步身份确认和 thread 隔离均有覆盖；测试不访问网关。
 
 ## 10. 验收标准
 

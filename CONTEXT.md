@@ -34,6 +34,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Thread-confirmed source group**: A set of provider source records the user explicitly confirms as one player in a thread. It keeps each record's provider and Reep-link status; it does not claim that unlinked records share a canonical Reep ID.
 
+**Active lookup**: The exact source-tagged result from the latest successful single-player lookup, associated with its resolved player. A factual follow-up may use that saved result without rerunning name resolution or querying a different identity.
+
 **Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
 
 **Active recommendation**: The confirmed reference and excluded identities, target position, effective filters, result limit, and completed result from the latest successful recommendation in a thread. Condition refinements inherit this context; failed or interrupted attempts do not replace it.
@@ -52,8 +54,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - A completed comparison stores its participants and conditions together. Additions inherit conditions, explicit current conditions override matching previous conditions, and a new comparison resets them. An omitted season in a new comparison selects the latest local snapshot.
 - Player-search tools read only the provider source IDs selected by identity resolution. The model cannot substitute another name or source record.
 - The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Only lookup enters the model/tool loop; comparison and recommendation nodes directly invoke their deterministic tools. Team recommendations remain unsupported.
-- One typed pending clarification resumes identity, position, age, role, or season questions within the same request. Request state does not duplicate that lifecycle with status flags or an active player index.
-- Completed comparison and recommendation contexts are committed with their data outcomes before answer generation. Historical tool messages do not reconstruct missing context.
+- One typed pending clarification resumes identity, FM profile, position, age, role, or season questions within the same request. Request state does not duplicate that lifecycle with status flags or an active player index.
+- Successful lookup, comparison, and recommendation contexts are committed with their data outcomes before answer generation. Historical tool messages do not reconstruct missing context.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
 - Thread checkpointing uses LangGraph's in-memory saver. There is no Store. Restarting the process loses thread state.
 - There is no frontend, RAG pipeline, or application database in this branch.

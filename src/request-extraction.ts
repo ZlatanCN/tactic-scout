@@ -168,8 +168,9 @@ const addToComparisonPattern =
 const addToRecommendationPattern =
   /(?:加入|加上|添加|纳入).{0,12}(?:参考|参考球员|推荐参考)|\b(?:add|include)\b.{0,80}\b(?:reference|recommendation reference)\b/iu;
 
-const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定、当前比较对象和最近一次成功推荐。
+const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定、最近一次成功球员查询和最近一次成功推荐。
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；other：其他请求。
+如果用户在追问最近成功球员查询中的赛季、赛事或来源，仍分类为 player_lookup；引用之前结果时不要要求用户重报球员。
 comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补语义时一律 replace。add 时 players 仍只列本轮新增的称呼，已有比较对象会由程序从 thread 状态合并，不要重复输出。
 recommendationAction 仅在 player_recommendation 时有意义。明确给出新参考名单时用 replace；明确要求把新球员加入最近成功推荐的参考名单时用 add；只修改最近成功推荐的条件、位置或结果数且没有新球员时用 refine。refine 时 players 为空，程序会继承最近成功推荐的已确认参考和排除身份。
 constraints 只提取本轮原文明确指定的条件，不要复制 activeComparison.constraints；程序负责继承。赛季条件的 name 统一用 season，value 保留用户指定的赛季。
@@ -281,6 +282,13 @@ const createRequestUnderstandingExtractor = (
           })
         ),
       },
+      activeLookup:
+        context.activeLookup === null
+          ? null
+          : {
+              playerName: context.activeLookup.player.candidate.name,
+              referenceId: context.activeLookup.player.referenceId,
+            },
       activeRecommendation:
         context.activeRecommendation === null
           ? null

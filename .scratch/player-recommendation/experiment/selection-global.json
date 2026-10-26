@@ -29,7 +29,7 @@
   },
   "snapshotDate": "2025-11-23",
   "manifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
-  "featureMapSha256": "37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20",
+  "featureMapSha256": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88",
   "protocolConfigSha256": "d27c8a7f7c776d40d1341748b61a3f76eed2c304077a67a18cc916cb3bc31abe",
   "developmentSelected": "rmse",
   "testConfirmed": true,

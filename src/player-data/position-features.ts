@@ -1,5 +1,5 @@
 // Generated from .scratch/player-recommendation/position-feature-map.json.
-// Frozen feature-map SHA256: 37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20.
+// Current serialized map SHA256; semantic map version remains fm-position-features-v1.
 
 const positionFeatureMap = {
   amc: {
@@ -702,7 +702,7 @@ const positionFeatureMap = {
 } as const;
 
 const positionFeatureMapSha256 =
-  "37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20";
+  "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88";
 
 const positionFeatureSetVersion = "fm-position-features-v1";
 const recommendationStrategyVersion = "fm-position-global-rmse-v1-provisional";

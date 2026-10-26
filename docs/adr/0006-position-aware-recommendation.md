@@ -33,6 +33,8 @@ The accepted behavior and work plan are detailed in [the player-recommendation p
 - The current and potential lists have different ranking semantics and must be labeled separately.
 - A reference set with no unique shared natural position requires an interrupt. A reference with target-position rating below 15 cannot be used for that target.
 - A failed, unsupported, or interrupted request does not replace the last successful recommendation context. An empty but completed result can be refined in the same thread.
+- If one confirmed identity has multiple FM source profiles, the clarification node asks the user to select the exact profile before ranking.
+- A successful single-player lookup stores its exact source-tagged result for factual follow-ups in the same thread; failed lookups leave the previous result and player focus intact.
 - Recommendation refinements inherit omitted fields; an explicit null clears an optional condition. Unsupported hard conditions stop execution rather than disappear from the effective request.
 - The thread checkpointer is the only persistence mechanism in this branch. No LangGraph Store or history-message reconstruction is used.
 - The system cannot claim the candidates are purchasable, active, tactically suitable for a specific role, or likely to reach their PA.

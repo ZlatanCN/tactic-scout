@@ -33,6 +33,24 @@ type RecommendationAction = "replace" | "add" | "refine";
 const youthRecommendationPattern =
   /年轻|青年|青少年|小将|\bu(?:1[5-9]|2\d)\b|\byoung\b|\byouth\b/iu;
 
+const lookupFollowUpPattern =
+  /\b(?:which|what)\s+(?:season|league|source)\b|哪个赛季|什么赛季|哪个联赛|什么联赛|刚才(?:查到|的).{0,8}(?:赛季|数据|资料)/iu;
+
+const isLookupFollowUpRequest = (
+  extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
+  text: string,
+  context: ConversationContext
+): boolean => {
+  if (context.activeLookup === null || !lookupFollowUpPattern.test(text)) {
+    return false;
+  }
+
+  return (
+    extracted.kind === "other" ||
+    (extracted.kind === "player_lookup" && extracted.players.length === 0)
+  );
+};
+
 const youthNegationPatterns = [
   /不要年轻|不要青年|不需要年轻|不需要青年|不考虑年轻|不考虑青年|排除年轻|排除青年/iu,
   /no young|no youth|not interested in young/iu,
@@ -357,6 +375,20 @@ const createRequestUnderstandingNode =
     const text = messageText(latestUserMessage);
     const extracted = await extractRequest(text, contextWithComparison);
 
+    const isLookupFollowUp = isLookupFollowUpRequest(
+      extracted,
+      text,
+      contextWithComparison
+    );
+
+    const outcome = isLookupFollowUp
+      ? {
+          kind: "player_lookup" as const,
+          resultJson: contextWithComparison.activeLookup?.resultJson ?? null,
+          status: "lookup_follow_up",
+        }
+      : null;
+
     const confirmedAliases = findConfirmedPlayerAliasesInMessage(
       text,
       contextWithComparison
@@ -440,7 +472,7 @@ const createRequestUnderstandingNode =
 
     return {
       conversationContext: contextWithComparison,
-      outcome: null,
+      outcome,
       pendingClarification: null,
       request,
     };

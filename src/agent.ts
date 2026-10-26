@@ -93,6 +93,13 @@ const recommendationIsReady = (request: RequestState): boolean => {
 const routeResolvedRequest = (state: AgentStateType): string => {
   const { request } = state;
 
+  if (
+    state.outcome?.kind === "player_lookup" &&
+    state.outcome.status === "lookup_follow_up"
+  ) {
+    return "answer";
+  }
+
   if (identityResolutionExhausted(request)) {
     return "answer";
   }
@@ -267,7 +274,10 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addConditionalEdges(
       "recommend_players",
       (state) =>
-        state.pendingClarification?.kind === "position" ? "clarify" : "answer",
+        state.pendingClarification?.kind === "position" ||
+        state.pendingClarification?.kind === "fm_profile"
+          ? "clarify"
+          : "answer",
       ["clarify", "answer"]
     )
     .addEdge("answer", END);

@@ -207,6 +207,62 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("answers a lookup follow-up from the saved result without rerunning the search", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Look up Harry Kane.";
+    const followUp = "Which season was it?";
+
+    const lookupResult = JSON.stringify({
+      fm: { records: [], status: "found" },
+      identityGroups: { canonicalGroups: [] },
+      query: [],
+      understat: { records: [], status: "found" },
+    });
+
+    const search = vi.fn<PlayerSearch>(() => lookupResult);
+
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          args: { sourceRecords: [] },
+          name: "search_player_records",
+        },
+      ])
+      .respond(new AIMessage("The local records are loaded."))
+      .respond(new AIMessage("The saved result covers the 2025/26 season."));
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [followUp]: requestForPlayers("player_lookup", []),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-follow-up-thread" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const followUpResult = await graph.invoke(
+      { messages: [new HumanMessage(followUp)] },
+      config
+    );
+
+    expect({
+      activeLookup: followUpResult.conversationContext.activeLookup?.resultJson,
+      followUpAnswer: followUpResult.messages.at(-1)?.content,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activeLookup: lookupResult,
+      followUpAnswer: "The saved result covers the 2025/26 season.",
+      searchCalls: 1,
+    });
+  });
+
   it("remembers a confirmed Chinese alias and resolves it without another identity lookup", async () => {
     const kimmich = playerCandidate("Joshua Kimmich", "kimmich");
 
@@ -494,6 +550,64 @@ describe("LangGraph player workflows", () => {
       },
       resumedPosition: "stc",
       toolCalls: 3,
+    });
+  });
+
+  it("asks the user to choose a source profile when one identity has multiple FM records", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+
+    const firstFmRecord = kane.records.find(
+      (record) => record.provider === "fm"
+    );
+
+    if (firstFmRecord === undefined) {
+      throw new Error("The Kane fixture needs an FM profile.");
+    }
+
+    const multiProfileKane: ReferenceCandidate = {
+      ...kane,
+      records: [...kane.records, { ...firstFmRecord, sourceId: "kane-fm-alt" }],
+    };
+
+    const recommend = vi.fn<RecommendPlayerCandidates>(() =>
+      JSON.stringify({ position: "stc", status: "no_candidates" })
+    );
+
+    const message = "Find STC alternatives to Kane.";
+
+    const graph = createAgent({
+      model: fakeModel().respond(new AIMessage("No candidates were found.")),
+      playerIdentityLookup: resolvedLookup(multiProfileKane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_recommendation", ["Kane"], {
+          recommendation: { includePotential: false, position: "stc" },
+        }),
+      }),
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "ambiguous-fm-profile" } }
+    );
+
+    const resumed = await graph.invoke(new Command({ resume: "2" }), {
+      configurable: { thread_id: "ambiguous-fm-profile" },
+    });
+
+    expect({
+      interrupted: Object.hasOwn(interrupted, "__interrupt__"),
+      savedFmIds:
+        resumed.conversationContext.activeRecommendation?.referencePlayers[0]?.candidate.records
+          .filter((record) => record.provider === "fm")
+          .map((record) => record.sourceId),
+      selectedFmIds: recommend.mock.calls[0]?.[0].referenceGroups[0]?.fmIds,
+      toolCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      interrupted: true,
+      savedFmIds: ["kane-fm-alt"],
+      selectedFmIds: ["kane-fm-alt"],
+      toolCalls: 1,
     });
   });
 

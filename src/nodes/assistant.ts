@@ -18,6 +18,9 @@ import type {
 
 const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。只依据工具结果作答，不要把同名记录当作同一人。保留 Understat 和 Football Manager 各自的数据与来源，不要把不同含义的字段混成一个指标。不要补猜缺失值、当前球队、合同、身价或转会可行性。说明来源、赛事和赛季；没有证据时明确说未知。`;
 
+const lookupFollowUpPrompt =
+  "你在回答对最近一次球员资料查询的追问。只能依据提供的已保存查询结果 JSON 作答；如果结果里没有用户问的字段，要明确说资料未包含。不得补猜、改写来源或引入外部事实。";
+
 const comparisonPrompt = `你是一个足球资料助手。当前请求是多人球员比较，只能依据下面提供的结构化比较结果作答。优先用表格逐项呈现全部已确认球员。Understat 表现数据只能在相同赛事和赛季内比较；共享范围缺少球员记录时要标明，不得据此给所有球员排名。Football Manager 的能力值和属性单独呈现，不要把它们说成比赛表现，也不要与 Understat 指标合并成综合分。没有共同赛事和赛季时，说明资料覆盖不足。不要补猜缺失值、当前球队、合同、身价、转会可行性或谁整体更强。`;
 
 const recommendationPrompt = `你是一个足球资料助手。当前请求是 FM 球员能力推荐，只能依据下面提供的结构化推荐结果作答，不得自行重排、补算或引入外部资料。当前能力相似名单按目标位置属性 RMSE 排序；高潜名单若出现，则按 PA 降序，当前属性距离只用于并列。两份名单回答不同问题，不要合并成一个综合分。PA 是潜力信号，不是未来 CA 预测或保证。高潜榜描述该位置的高潜球员，不代表他们都像参考球员。说明多参考平均画像代表接近算术平均，不保证同时接近每位参考球员。只展示工具结果中的姓名、数值、位置、快照和特征差；不要补猜当前球队、合同、费用、转会可行性、表现或未来属性。`;
@@ -318,6 +321,26 @@ const createLookupPlayerNode =
     );
 
     const { conversationContext } = state;
+    const [resolvedPlayer] = state.request.players;
+
+    const lookupReference =
+      state.request.players.length === 1 && resolvedPlayer !== undefined
+        ? resolvedReference(resolvedPlayer)
+        : null;
+
+    let { activeLookup } = conversationContext;
+
+    if (
+      latestSearchResult !== undefined &&
+      hasSearchData(latestSearchResult) &&
+      lookupReference !== null
+    ) {
+      const resultJson = z.string().safeParse(latestSearchResult.content);
+
+      if (resultJson.success) {
+        activeLookup = { player: lookupReference, resultJson: resultJson.data };
+      }
+    }
 
     const focusPlayers =
       latestSearchResult !== undefined && hasSearchData(latestSearchResult)
@@ -330,9 +353,10 @@ const createLookupPlayerNode =
 
     return {
       conversationContext:
-        focusPlayers === conversationContext.focusPlayers
+        focusPlayers === conversationContext.focusPlayers &&
+        activeLookup === conversationContext.activeLookup
           ? conversationContext
-          : { ...conversationContext, focusPlayers },
+          : { ...conversationContext, activeLookup, focusPlayers },
       messages: [assistantMessage],
       outcome:
         response instanceof AIMessage && (response.tool_calls ?? []).length > 0
@@ -355,6 +379,28 @@ const createAnswerNode =
     }
 
     if (outcome.kind === "player_lookup") {
+      if (
+        outcome.status === "lookup_follow_up" &&
+        outcome.resultJson !== null
+      ) {
+        const latestUserMessage = latestHumanMessage(state.messages);
+
+        const requestText = latestUserMessage
+          ? messageText(latestUserMessage)
+          : "";
+
+        const response = await model.invoke([
+          new SystemMessage(lookupFollowUpPrompt),
+          new HumanMessage(
+            `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${
+              outcome.resultJson
+            }`
+          ),
+        ]);
+
+        return { messages: [response] };
+      }
+
       if (outcome.status === "answer_ready") {
         return {};
       }

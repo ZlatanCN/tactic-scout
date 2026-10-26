@@ -389,7 +389,7 @@ describe("player recommendation data invariants", () => {
 
     const digest = createHash("sha256").update(bytes).digest("hex");
 
-    expect(digest).toBe(positionFeatureMapSha256);
     expect(positionFeatureMap).toStrictEqual(runtimeMap);
+    expect(digest).toBe(positionFeatureMapSha256);
   });
 });

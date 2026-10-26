@@ -4,7 +4,7 @@
   "seed": 20261025,
   "expectedManifestSha256": "431eecb0a892bf7be8e056832a6fd9e553f461d1b629fdd080ea31e847bd85eb",
   "featureMapPath": ".scratch/player-recommendation/position-feature-map.json",
-  "expectedFeatureMapSha256": "37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20",
+  "expectedFeatureMapSha256": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88",
   "positionRatingMinimum": 15,
   "correlationConstantVectorPolicy": "both constant => distance 0; exactly one constant => distance 1",
   "fitFraction": 0.7,

@@ -46,6 +46,11 @@ const ActiveComparisonSchema = z.object({
   players: z.array(ConversationPlayerReferenceSchema),
 });
 
+const ActiveLookupSchema = z.object({
+  player: ConversationPlayerReferenceSchema,
+  resultJson: z.string(),
+});
+
 const ActiveRecommendationSchema = z.object({
   excludePlayers: z.array(ConversationPlayerReferenceSchema),
   includePotential: z.boolean(),
@@ -61,6 +66,7 @@ const ActiveRecommendationSchema = z.object({
 
 const createInitialConversationContext = () => ({
   activeComparison: { constraints: [], players: [] },
+  activeLookup: null,
   activeRecommendation: null,
   focusPlayers: [],
   playerAliases: [],
@@ -71,6 +77,7 @@ const ConversationContextSchema = z.object({
     constraints: [],
     players: [],
   })),
+  activeLookup: ActiveLookupSchema.nullable().default(null),
   activeRecommendation: ActiveRecommendationSchema.nullable().default(null),
   focusPlayers: z.array(ConversationPlayerReferenceSchema),
   playerAliases: z.array(ConversationPlayerAliasSchema).default([]),
@@ -140,6 +147,13 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     answer: z.string().nullable(),
+    kind: z.literal("fm_profile"),
+    options: z.array(z.string()),
+    playerIndex: z.number().int().nonnegative(),
+    question: z.string(),
+  }),
+  z.object({
+    answer: z.string().nullable(),
     kind: z.literal("age"),
     question: z.string(),
   }),
@@ -173,6 +187,8 @@ const AgentState = MessagesZodState.extend({
 
 type ActiveComparison = z.infer<typeof ActiveComparisonSchema>;
 
+type ActiveLookup = z.infer<typeof ActiveLookupSchema>;
+
 type ActiveRecommendation = z.infer<typeof ActiveRecommendationSchema>;
 
 type AgentStateType = z.infer<typeof AgentState>;
@@ -205,6 +221,7 @@ type TurnOutcome = z.infer<typeof TurnOutcomeSchema>;
 
 export {
   ActiveComparisonSchema,
+  ActiveLookupSchema,
   ActiveRecommendationSchema,
   AgentState,
   RecommendationPlayerRoleSchema,
@@ -216,6 +233,7 @@ export {
 
 export type {
   ActiveComparison,
+  ActiveLookup,
   ActiveRecommendation,
   AgentStateType,
   ComparisonAction,

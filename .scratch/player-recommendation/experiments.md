@@ -13,7 +13,7 @@ Labels: ready-for-agent
 
 ## 2. 冻结数据和位置特征
 
-运行前已冻结 [position-feature-map v1](position-feature-map.json)，SHA256 为 `37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20`。每个具体位置都有 raw 属性、解释组、选择理由、字段完整性和快照哈希。位置 feature list 不从 `role_scores` 逆向推导，因为其公式来源不可审计；也不让模型临场挑属性。
+运行前已冻结 [position-feature-map v1](position-feature-map.json)，SHA256 为 `de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88`。每个具体位置都有 raw 属性、解释组、选择理由、字段完整性和快照哈希。位置 feature list 不从 `role_scores` 逆向推导，因为其公式来源不可审计；也不让模型临场挑属性。
 
 本地快照包含 52 项完整的 raw 属性。候选和每个参考人的位置资格都固定为该位置评分 `>=15`。位置分仅作过滤条件和结果说明，不参与相似度分数。
 

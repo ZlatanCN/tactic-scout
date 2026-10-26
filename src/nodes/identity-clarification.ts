@@ -65,10 +65,7 @@ const identityCandidates = (state: AgentStateType) => {
   );
 };
 
-const answerForPosition = (
-  answer: string,
-  options: string[]
-): string | null => {
+const answerForOptions = (answer: string, options: string[]): string | null => {
   const normalized = answer.trim().toLocaleLowerCase();
   const number = Number(normalized);
 
@@ -228,7 +225,7 @@ const interruptForAnswer = (
   };
 
   const rawResume: unknown =
-    pending.kind === "position"
+    pending.kind === "position" || pending.kind === "fm_profile"
       ? interrupt({ ...payload, options: pending.options })
       : interrupt(payload);
 
@@ -246,7 +243,7 @@ const clarifyPosition = (
   pending: Extract<PendingClarification, { kind: "position" }>,
   answer: string
 ) => {
-  const position = answerForPosition(answer, pending.options);
+  const position = answerForOptions(answer, pending.options);
 
   if (position === null || state.request.kind !== "player_recommendation") {
     return invalidAnswer(
@@ -262,6 +259,75 @@ const clarifyPosition = (
       ...state.request,
       recommendation: { ...state.request.recommendation, position },
     },
+  };
+};
+
+const clarifyFmProfile = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "fm_profile" }>,
+  answer: string
+) => {
+  const sourceId = answerForOptions(answer, pending.options);
+
+  if (sourceId === null || state.request.kind !== "player_recommendation") {
+    return invalidAnswer(
+      pending,
+      `请选择一个有效 FM source ID：${pending.options.join("、")}。`
+    );
+  }
+
+  const player = state.request.players[pending.playerIndex];
+  const resolution = player?.resolution;
+
+  if (player === undefined || resolution?.status !== "resolved") {
+    return invalidAnswer(
+      pending,
+      "参考球员身份状态已变化，请重新发起推荐请求。"
+    );
+  }
+
+  const selectedCandidate = resolution.candidates.find(
+    (candidate) => candidate.candidateId === resolution.selectedCandidateId
+  );
+
+  if (selectedCandidate === undefined) {
+    return invalidAnswer(pending, "已确认身份中没有可选的 FM 画像记录。");
+  }
+
+  const selectedFmRecord = selectedCandidate.records.find(
+    (record) => record.provider === "fm" && record.sourceId === sourceId
+  );
+
+  if (selectedFmRecord === undefined) {
+    return invalidAnswer(pending, "所选 FM source ID 不属于已确认的球员身份。");
+  }
+
+  const candidateWithSelectedFmRecord = {
+    ...selectedCandidate,
+    records: selectedCandidate.records.filter(
+      (record) => record.provider !== "fm" || record.sourceId === sourceId
+    ),
+  };
+
+  const candidates = resolution.candidates.map((candidate) =>
+    candidate.candidateId === candidateWithSelectedFmRecord.candidateId
+      ? candidateWithSelectedFmRecord
+      : candidate
+  );
+
+  const players = state.request.players.map((requestPlayer, index) =>
+    index === pending.playerIndex
+      ? {
+          ...requestPlayer,
+          resolution: { ...resolution, candidates },
+        }
+      : requestPlayer
+  );
+
+  return {
+    outcome: null,
+    pendingClarification: null,
+    request: { ...state.request, players },
   };
 };
 
@@ -358,6 +424,10 @@ const resumeClarification = (
 
   if (pending.kind === "position") {
     return clarifyPosition(state, pending, answer);
+  }
+
+  if (pending.kind === "fm_profile") {
+    return clarifyFmProfile(state, pending, answer);
   }
 
   if (pending.kind === "age") {

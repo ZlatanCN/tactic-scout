@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import type {
   AgentState,
   ConversationPlayerReference,
+  PendingClarification,
   RequestConstraint,
   RequestPlayerState,
 } from "../state.js";
@@ -65,6 +66,47 @@ const recommendationGroups = (
       identityKey,
       name: [...group.names].toSorted()[0] ?? identityKey,
     }));
+};
+
+const referenceProfileClarification = (
+  players: RequestPlayerState[],
+  groups: RecommendationIdentityGroup[]
+): PendingClarification | null => {
+  const ambiguousGroup = groups.find((group) => group.fmIds.length > 1);
+
+  if (ambiguousGroup === undefined) {
+    return null;
+  }
+
+  const playerIndex = players.findIndex((player) => {
+    if (player.recommendationRole !== "reference") {
+      return false;
+    }
+
+    const candidate = selectedCandidate(player);
+
+    return (
+      candidate !== null &&
+      (candidate.canonicalIdentityId ?? candidate.candidateId) ===
+        ambiguousGroup.identityKey
+    );
+  });
+
+  if (playerIndex === -1) {
+    return null;
+  }
+
+  return {
+    answer: null,
+    kind: "fm_profile",
+    options: ambiguousGroup.fmIds,
+    playerIndex,
+    question: `${
+      ambiguousGroup.name
+    }对应多个 FM 画像。请选择 source ID，或回复候选编号：${ambiguousGroup.fmIds.join(
+      "、"
+    )}。`,
+  };
 };
 
 const normalizedConstraintName = (name: string): string =>
@@ -164,6 +206,15 @@ const createRecommendPlayersNode =
           status: "reference_required",
         },
       };
+    }
+
+    const profileClarification = referenceProfileClarification(
+      request.players,
+      referenceGroups
+    );
+
+    if (profileClarification !== null) {
+      return { pendingClarification: profileClarification };
     }
 
     try {

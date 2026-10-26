@@ -25,4 +25,4 @@ Create the versioned `position-feature-map` needed before full-position formula 
 - `SW` is recorded as unavailable because it has no eligible local profiles.
 - A frozen manifest hash and reproducible coverage summary are attached to the artifact.
 
-Completed: [frozen map](../position-feature-map.json), SHA256 `37f9719a4ef2ab2242da622e716bfa0f36d1be6d8cb2468db477005b15f54e20`.
+Completed: [frozen map](../position-feature-map.json), SHA256 `de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88`.
