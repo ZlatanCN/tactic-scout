@@ -673,6 +673,80 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("preserves the previous Active lookup when a later source result is unavailable", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Look up Harry Kane.";
+    const secondMessage = "Refresh Harry Kane's local lookup.";
+
+    const firstLookupResult = JSON.stringify({
+      fm: { records: [], status: "found" },
+      identityGroups: { canonicalGroups: [] },
+      query: [],
+      understat: { records: [], status: "not_found" },
+    });
+
+    const unavailableResult = JSON.stringify({
+      fm: { reason: "FM snapshot unavailable", status: "unavailable" },
+      identityGroups: { canonicalGroups: [] },
+      query: [],
+      understat: { records: [], status: "not_found" },
+    });
+
+    let searchCalls = 0;
+
+    const search = vi.fn<PlayerSearch>(() => {
+      searchCalls += 1;
+
+      return searchCalls === 1 ? firstLookupResult : unavailableResult;
+    });
+
+    const model = fakeModel()
+      .respondWithTools([
+        { args: { sourceRecords: [] }, name: "search_player_records" },
+      ])
+      .respond(new AIMessage("The first lookup is complete."))
+      .respondWithTools([
+        { args: { sourceRecords: [] }, name: "search_player_records" },
+      ])
+      .respond(new AIMessage("The local source could not be refreshed."));
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [secondMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-local-source-unavailable" },
+    };
+
+    const first = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      config
+    );
+
+    const previousLookup = first.conversationContext.activeLookup;
+
+    const second = await graph.invoke(
+      { messages: [new HumanMessage(secondMessage)] },
+      config
+    );
+
+    expect({
+      activeLookup: second.conversationContext.activeLookup,
+      answer: second.messages.at(-1)?.content,
+      searchCalls,
+    }).toStrictEqual({
+      activeLookup: previousLookup,
+      answer: "The local source could not be refreshed.",
+      searchCalls: 2,
+    });
+  });
+
   it("answers a lookup follow-up from the saved result without rerunning the search", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const firstMessage = "Look up Harry Kane.";

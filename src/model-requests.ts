@@ -300,6 +300,15 @@ const createModelRequestBudget = (
     }
 
     if (retry.failure.retryable && requests < maxExternalRequests) {
+      logFaultEvent({
+        attempt: requests,
+        category: retry.failure.category,
+        durationMs: retry.durationMs,
+        event: "retry",
+        node,
+        runId: runtime.executionInfo?.runId,
+        threadId: runtime.executionInfo?.threadId,
+      });
       await waitForRetryDelay(250 + Math.random() * 1000, runtime.signal);
 
       const finalAttempt = await callOnce(request);

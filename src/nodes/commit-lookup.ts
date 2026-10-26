@@ -98,10 +98,11 @@ const createCommitLookupResultsNode =
       throw new Error("The completed lookup result failed validation.");
     }
 
-    if (
+    const localDataUnavailable =
       lookupResult.fm?.status === "unavailable" ||
-      lookupResult.understat?.status === "unavailable"
-    ) {
+      lookupResult.understat?.status === "unavailable";
+
+    if (localDataUnavailable) {
       logLocalDataFailure(
         "commit_lookup",
         runtime,
@@ -111,6 +112,13 @@ const createCommitLookupResultsNode =
         state.faultTolerance.lookupSearchExecutions,
         state.faultTolerance.lookupSearchExecutions
       );
+
+      return {
+        faultTolerance: {
+          ...state.faultTolerance,
+          lookupToolStartedAt: null,
+        },
+      };
     }
 
     const lookupReference =

@@ -79,8 +79,15 @@ type ErrorHandlerConfig = {
 
 type FaultFailureNode = NonNullable<FaultToleranceState["failure"]>["node"];
 
+const apiOperationByFailureNode: Partial<
+  Record<FaultFailureNode, "team_search" | "team_roster">
+> = {
+  fetch_team_roster: "team_roster",
+  resolve_team: "team_search",
+};
+
 const nodeTimeoutAttempt = (
-  node: string,
+  node: FaultFailureNode,
   state: AgentStateType,
   error: Error,
   config: ErrorHandlerConfig | undefined
@@ -89,31 +96,23 @@ const nodeTimeoutAttempt = (
     return null;
   }
 
-  if (
-    node === "resolve_team" &&
-    state.faultTolerance.apiOperation === "team_search"
-  ) {
-    return (
-      state.faultTolerance.apiRequestsUsed +
-      (config?.executionInfo?.nodeAttempt ?? 1)
-    );
-  }
+  const operation = apiOperationByFailureNode[node];
 
   if (
-    node === "fetch_team_roster" &&
-    state.faultTolerance.apiOperation === "team_roster"
+    operation === undefined ||
+    state.faultTolerance.apiOperation !== operation
   ) {
-    return (
-      state.faultTolerance.apiRequestsUsed +
-      (config?.executionInfo?.nodeAttempt ?? 1)
-    );
+    return "unavailable";
   }
 
-  return "unavailable";
+  return (
+    state.faultTolerance.apiRequestsUsed +
+    (config?.executionInfo?.nodeAttempt ?? 1)
+  );
 };
 
 const logTerminalFailure = (
-  node: string,
+  node: FaultFailureNode,
   state: AgentStateType,
   error: NodeError,
   config: ErrorHandlerConfig | undefined
@@ -392,8 +391,11 @@ const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
     ? "resolve_team"
     : "fetch_team_roster";
 
+const apiRateLimitWaitIsPending = (state: AgentStateType): boolean =>
+  state.faultTolerance.apiRetryAfterMs !== null;
+
 const routeAfterTeamResolution = (state: AgentStateType): string => {
-  if (state.faultTolerance.apiRetryAfterMs !== null) {
+  if (apiRateLimitWaitIsPending(state)) {
     return "wait_api_rate_limit";
   }
 
@@ -409,7 +411,7 @@ const routeAfterTeamResolution = (state: AgentStateType): string => {
 };
 
 const routeAfterTeamRosterFetch = (state: AgentStateType): string => {
-  if (state.faultTolerance.apiRetryAfterMs !== null) {
+  if (apiRateLimitWaitIsPending(state)) {
     return "wait_api_rate_limit";
   }
 
