@@ -13,6 +13,12 @@ type ReepRecordResolution = {
   canonicalIdentityId: string | null;
 };
 
+type ApiFootballFmBridgeResolution = {
+  canonicalIdentityId: string | null;
+  fmIds: string[];
+  status: "resolved" | "unresolved" | "ambiguous";
+};
+
 type SearchRecordReference = {
   provider: CandidateSourceRecord["provider"];
   identitySourceId: string;
@@ -158,6 +164,92 @@ const resolveReepRecord = (
   };
 };
 
+const resolveApiFootballPlayerFmIds = (
+  apiFootballPlayerId: string
+): ApiFootballFmBridgeResolution => {
+  const registryPath = resolveDataPath(
+    process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH,
+    ".data/reep/identity-with-fm.sqlite"
+  );
+
+  const registry = openIdentityRegistry(registryPath);
+
+  if (registry === null) {
+    return {
+      canonicalIdentityId: null,
+      fmIds: [],
+      status: "unresolved",
+    };
+  }
+
+  try {
+    const apiRows = z.array(reepBridgeRowSchema).parse(
+      registry
+        .prepare(
+          `SELECT canonical_reep_id, redirect_status
+           FROM bridges
+           WHERE provider = 'api_football' AND namespace = 'player'
+             AND external_id = ?`
+        )
+        .all(apiFootballPlayerId)
+    );
+
+    const canonicalIds = new Set<string>();
+    let hasBlockedBridge = false;
+
+    for (const row of apiRows) {
+      if (row.redirect_status !== "resolved") {
+        hasBlockedBridge = true;
+      } else if (row.canonical_reep_id !== null) {
+        canonicalIds.add(row.canonical_reep_id);
+      }
+    }
+
+    const [canonicalIdentityId] = canonicalIds;
+
+    if (
+      canonicalIds.size !== 1 ||
+      hasBlockedBridge ||
+      canonicalIdentityId === undefined
+    ) {
+      return {
+        canonicalIdentityId: null,
+        fmIds: [],
+        status:
+          canonicalIds.size > 1 || apiRows.length > 1
+            ? "ambiguous"
+            : "unresolved",
+      };
+    }
+
+    const fmRows = z.array(z.object({ external_id: z.string() })).parse(
+      registry
+        .prepare(
+          `SELECT DISTINCT external_id
+           FROM bridges
+           WHERE provider = 'fm' AND namespace = 'player'
+             AND redirect_status = 'resolved' AND canonical_reep_id = ?
+           ORDER BY external_id`
+        )
+        .all(canonicalIdentityId)
+    );
+
+    return {
+      canonicalIdentityId,
+      fmIds: fmRows.map((row) => row.external_id),
+      status: "resolved",
+    };
+  } catch {
+    return {
+      canonicalIdentityId: null,
+      fmIds: [],
+      status: "unresolved",
+    };
+  } finally {
+    registry.close();
+  }
+};
+
 const resolveSearchIdentityGroups = (
   understatResult: UnderstatReadResult | null,
   fmResult: FmReadResult | null
@@ -242,6 +334,11 @@ const resolveSearchIdentityGroups = (
   }
 };
 
-export { openIdentityRegistry, resolveReepRecord, resolveSearchIdentityGroups };
+export {
+  openIdentityRegistry,
+  resolveApiFootballPlayerFmIds,
+  resolveReepRecord,
+  resolveSearchIdentityGroups,
+};
 
 export type { ReepRecordResolution, SearchIdentityGroup };

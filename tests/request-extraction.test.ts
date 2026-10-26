@@ -71,4 +71,34 @@ describe("request understanding extraction", () => {
       recommendation: { maxAge: null },
     });
   });
+
+  it("keeps the user's team mention separate from the provider search name", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "team_recommendation",
+        players: [],
+        recommendation: { position: "stc" },
+        teamSearchName: "Arsenal",
+        teams: ["阿森纳"],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "为阿森纳找一个中锋",
+      createInitialConversationContext()
+    );
+
+    expect(result).toMatchObject({
+      kind: "team_recommendation",
+      recommendation: { position: "stc" },
+      teamSearchName: "Arsenal",
+      teams: ["阿森纳"],
+    });
+  });
 });

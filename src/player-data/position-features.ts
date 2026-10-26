@@ -709,6 +709,8 @@ const recommendationStrategyVersion = "fm-position-global-rmse-v1-provisional";
 
 type SupportedPosition = keyof typeof positionFeatureMap;
 
+const supportedPositionCodes = Object.keys(positionFeatureMap);
+
 type PositionFeature =
   (typeof positionFeatureMap)[SupportedPosition]["features"][number];
 
@@ -730,6 +732,7 @@ export {
   getPositionFeatureDefinition,
   isSupportedPosition,
   positionFeatureMap,
+  supportedPositionCodes,
   positionFeatureMapSha256,
   positionFeatureSetVersion,
   recommendationStrategyVersion,

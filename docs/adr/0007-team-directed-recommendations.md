@@ -1,0 +1,5 @@
+# ADR-0007: Team recommendations use a mapped current roster
+
+Status: accepted
+
+Team recommendation v1 requires a scout-selected team and target position, then builds an equal-weight position profile from current squad members linked to local FM profiles and ranks other FM candidates with the existing RMSE method. API-Football is the roster source because it is listed in Reep Coverage and provides a free current-squad endpoint; team IDs remain API-specific because the local Reep registry has no team bridge, while player links use Reep bridges or explicit user confirmation. The extractor preserves the scout’s original team mention and may supply an API-Football search name for a Chinese name or alias; a translated single match must be confirmed before use. The roster is cached in process memory for seven days, source dates are shown separately, and unresolved roster identity or an empty team-position reference pauses the request; the feature does not infer squad gaps or transfer feasibility.

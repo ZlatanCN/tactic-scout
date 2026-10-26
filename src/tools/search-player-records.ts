@@ -9,6 +9,11 @@ import {
   recommendPlayerCandidates,
 } from "./recommend-player-candidates.js";
 import type { RecommendPlayerCandidates } from "./recommend-player-candidates.js";
+import {
+  createRecommendTeamPlayerCandidatesTool,
+  recommendTeamPlayerCandidates,
+} from "./recommend-team-player-candidates.js";
+import type { RecommendTeamPlayerCandidates } from "./recommend-team-player-candidates.js";
 
 const searchInputSchema = z.object({
   seasonStartYear: z
@@ -33,7 +38,8 @@ type PlayerSearchInput = z.output<typeof searchInputSchema>;
 
 const createTools = (
   search: PlayerSearch = searchPlayerRecords,
-  recommend: RecommendPlayerCandidates = recommendPlayerCandidates
+  recommend: RecommendPlayerCandidates = recommendPlayerCandidates,
+  recommendTeam: RecommendTeamPlayerCandidates = recommendTeamPlayerCandidates
 ) => [
   tool(search, {
     description:
@@ -43,6 +49,7 @@ const createTools = (
   }),
   createComparePlayerRecordsTool(search),
   createRecommendPlayerCandidatesTool(recommend),
+  createRecommendTeamPlayerCandidatesTool(recommendTeam),
 ];
 
 export { createTools };

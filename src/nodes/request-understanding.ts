@@ -21,11 +21,13 @@ import type {
   RecommendationRequestState,
   RequestConstraint,
   RequestPlayerState,
+  TeamRecommendationRequestState,
 } from "../state.js";
 import {
   createInitialConversationContext,
   createInitialRecommendationRequest,
   createInitialRequestState,
+  createInitialTeamRecommendationRequest,
 } from "../state.js";
 
 type RecommendationAction = "replace" | "add" | "refine";
@@ -257,7 +259,8 @@ const requestFromExtraction = (
     processedMessageId: string | null;
     teams: string[];
   },
-  recommendation: ReturnType<typeof recommendationFromText>
+  recommendation: ReturnType<typeof recommendationFromText>,
+  teamRecommendation: TeamRecommendationRequestState
 ) => {
   const requestFields = {
     constraints: fields.constraints,
@@ -276,6 +279,14 @@ const requestFromExtraction = (
 
   if (extracted.kind === "player_recommendation") {
     return { ...requestFields, kind: extracted.kind, recommendation };
+  }
+
+  if (extracted.kind === "team_recommendation") {
+    return {
+      ...requestFields,
+      kind: extracted.kind,
+      teamRecommendation,
+    };
   }
 
   return { ...requestFields, kind: extracted.kind };
@@ -317,6 +328,111 @@ const recommendationPlayersFromContext = (
       recommendationRole: "exclude" as const,
     })),
   ];
+};
+
+const teamFiltersFromPatch = (
+  baseline: Pick<
+    TeamRecommendationRequestState,
+    | "includePotential"
+    | "maxAge"
+    | "minimumCurrentAbility"
+    | "minimumPotentialAbility"
+    | "resultLimit"
+  >,
+  patch: Awaited<ReturnType<RequestUnderstandingExtractor>>["recommendation"]
+) => {
+  let { maxAge, minimumCurrentAbility, minimumPotentialAbility, resultLimit } =
+    baseline;
+
+  let includePotential = patch?.includePotential ?? baseline.includePotential;
+
+  if (patchHasField(patch, "maxAge")) {
+    maxAge = patch?.maxAge ?? null;
+  }
+
+  if (patchHasField(patch, "minimumCurrentAbility")) {
+    minimumCurrentAbility = patch?.minimumCurrentAbility ?? null;
+  }
+
+  if (patchHasField(patch, "minimumPotentialAbility")) {
+    minimumPotentialAbility = patch?.minimumPotentialAbility ?? null;
+
+    if (
+      patch?.includePotential === undefined &&
+      minimumPotentialAbility !== null
+    ) {
+      includePotential = true;
+    }
+  }
+
+  if (patchHasField(patch, "resultLimit")) {
+    resultLimit = patch?.resultLimit ?? null;
+  }
+
+  return {
+    includePotential,
+    maxAge,
+    minimumCurrentAbility,
+    minimumPotentialAbility,
+    resultLimit,
+  };
+};
+
+const teamRecommendationFromText = (
+  extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
+  context: ConversationContext
+): TeamRecommendationRequestState => {
+  const existing = context.activeTeamRecommendation;
+  const teamNames = uniqueText(extracted.teams);
+  const hasNewTeam = teamNames.length > 0;
+  const patch = extracted.recommendation;
+
+  const baseline =
+    existing !== null && !hasNewTeam
+      ? existing
+      : createInitialTeamRecommendationRequest();
+
+  let position = hasNewTeam ? null : baseline.position;
+
+  let teamSearchName: string | null = existing?.team.name ?? null;
+
+  if (patchHasField(patch, "position")) {
+    position = patch?.position ?? null;
+  }
+
+  if (hasNewTeam) {
+    const extractedSearchName = extracted.teamSearchName?.trim() ?? "";
+    teamSearchName =
+      extractedSearchName.length > 0
+        ? extractedSearchName
+        : (teamNames[0] ?? null);
+  }
+
+  return {
+    ...teamFiltersFromPatch(baseline, patch),
+    position,
+    referenceMode: baseline.referenceMode,
+    roster: hasNewTeam ? null : baseline.roster,
+    team: hasNewTeam ? null : baseline.team,
+    teamName: teamNames[0] ?? existing?.team.name ?? null,
+    teamSearchName,
+  };
+};
+
+const teamRecommendationPlayersFromContext = (
+  context: ConversationContext,
+  request: TeamRecommendationRequestState
+): RequestPlayerState[] => {
+  if (
+    request.referenceMode !== "named" ||
+    context.activeTeamRecommendation === null
+  ) {
+    return [];
+  }
+
+  return context.activeTeamRecommendation.referencePlayers.map(
+    requestPlayerFromReference
+  );
 };
 
 const constraintsForRequest = (
@@ -416,6 +532,11 @@ const createRequestUnderstandingNode =
       recommendationAction
     );
 
+    const teamRecommendation = teamRecommendationFromText(
+      extracted,
+      contextWithComparison
+    );
+
     const isComparisonAddition =
       extracted.kind === "player_comparison" &&
       extracted.comparisonAction === "add";
@@ -437,6 +558,14 @@ const createRequestUnderstandingNode =
         )
       : [];
 
+    const inheritedTeamPlayers =
+      extracted.kind === "team_recommendation"
+        ? teamRecommendationPlayersFromContext(
+            contextWithComparison,
+            teamRecommendation
+          )
+        : [];
+
     const constraints = constraintsForRequest(
       extracted,
       contextWithComparison,
@@ -444,18 +573,19 @@ const createRequestUnderstandingNode =
       isComparisonAddition
     );
 
-    const currentTurnPlayers = normalizeExtractedPlayers(
-      text,
-      extractedPlayers
-    ).map((player) => ({
-      ...player,
-      attempts: 0,
-      resolution: null,
-    }));
+    const currentTurnPlayers =
+      extracted.kind === "team_recommendation"
+        ? []
+        : normalizeExtractedPlayers(text, extractedPlayers).map((player) => ({
+            ...player,
+            attempts: 0,
+            resolution: null,
+          }));
 
     const players = [
       ...inheritedComparisonPlayers,
       ...inheritedRecPlayers,
+      ...inheritedTeamPlayers,
       ...currentTurnPlayers,
     ];
 
@@ -467,7 +597,8 @@ const createRequestUnderstandingNode =
         processedMessageId: messageId,
         teams: uniqueText(extracted.teams),
       },
-      recommendation
+      recommendation,
+      teamRecommendation
     );
 
     return {

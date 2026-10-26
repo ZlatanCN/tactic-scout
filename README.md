@@ -1,48 +1,49 @@
 # TactiScout LangGraph Core
 
-这是一个从零重建的足球资料 Agent。每轮先把请求整理成结构化任务和实体，再解析所有球员身份。当前支持单球员查询和多人球员比较；球员推荐与球队推荐暂未接通。
+这是一个从零重建的足球资料 Agent。每轮先把请求整理成结构化任务，再按任务进入查询、比较、球员推荐或球队定向推荐工作流。
 
 ```text
 用户消息 → 请求理解 → 球员身份解析 → 任务分流
                               ├─ 单球员查询 → assistant ↔ search tool → 回答
-                              ├─ 多人比较 → compare tool → assistant 总结
-                              ├─ 身份不明 → interrupt → Command 恢复
-                              └─ 未接通任务 → 说明当前边界
+                              ├─ 多人比较 → compare node → compare tool → 总结
+                              ├─ 球员推荐 → recommendation node → FM ranker → 总结
+                              ├─ 球队推荐 → resolve_team → resolve_team_roster
+                              │                 → recommend_players_for_team → 总结
+                              └─ 需要确认 → interrupt → Command 恢复后继续原请求
 ```
 
 ## 代码结构
 
 ```text
 src/
-├── agent.ts                 # 组装请求理解、身份解析、分流与工具循环
-├── state.ts                 # messages、结构化请求与身份状态
+├── agent.ts                 # 组装图、路由条件边并编译
+├── state.ts                 # messages、请求、确认中断与 thread 上下文
 ├── request-extraction.ts    # 结构化请求模型与提取规则
 ├── player-mentions.ts       # 对话中的已确认中文别名识别
 ├── nodes/                   # 实际加入 LangGraph 的节点
-├── player-data/             # 来源读取、身份解析、查询与比较
-└── tools/                   # 单球员查询和图驱动的多人比较工具
+├── player-data/             # FM/Understat 读取、身份解析与排序
+├── team-data/               # API-Football 适配器与阵容身份映射
+└── tools/                   # 图节点调用的数据工具
 ```
 
-请求理解节点提取任务类型、所有球员与球队提及，以及用户明确给出的条件。它只负责结构化请求，不规划执行步骤。所有球员提及都先经过本地身份解析；短称或多个候选会通过 `interrupt()` 请求确认，调用方用同一个 `thread_id` 和 `Command({ resume })` 恢复。Reep 已关联的来源记录自动归为同一身份；名字相近但未关联的跨来源记录会作为待确认组合展示。确认组合只写入当前 thread，不会改共享身份注册表。同名但 Reep ID 不同的候选仍需分别消歧。
+请求理解节点提取任务类型、球员和球队提及，以及用户明确给出的条件。它只负责结构化请求，不规划执行步骤。需要确认身份时，图通过 `interrupt()` 暂停；调用方用同一个 `thread_id` 和 `Command({ resume })` 恢复。
 
-`search_player_records` 分别查询 Understat 赛季表现与 Football Manager 能力画像。工具用本地身份注册表把能映射到同一 canonical Reep ID 的来源记录放入同一 `identityGroups`；无确切关联的记录保留在 `unlinkedRecords`，不会凭同名合并。来源指标始终分开呈现。
+`player_lookup` 进入模型和 `ToolNode` 循环。`player_comparison` 和球员推荐由确定性图节点直接调用对应工具。球员推荐按目标位置属性 RMSE 排名；高潜名单单独按 PA 排序。
 
-`player_lookup` 进入模型和 `ToolNode` 循环。`player_comparison` 由图按已解析的全部球员身份调用比较工具，再让模型总结结果；不限定比较人数。Understat 只在相同赛事和赛季内比较。Football Manager 能力画像单独呈现，不与比赛表现混成综合分。球员推荐和球队推荐仍未接通。
+球队推荐要求用户指定球队和 FM 位置。图通过 `resolve_team` 唯一识别 API-Football 球队，再由 `resolve_team_roster` 读取当前阵容并逐个映射到本地 FM 画像。中文名或简称可以先转换成 API-Football 搜索词；如果搜索词和用户原名不同，图会先请用户确认命中的球队。精确 Reep bridge 可自动映射；无 bridge 的同名画像必须由用户确认。任何队员无法映射时暂停推荐，避免把队内球员误报为候选。至少一名位置评分达到 15 且特征完整的队员才能形成团队参考画像；队员属性等权平均后复用现有 RMSE 排序，并排除全部已映射队员。结果分别显示阵容获取时间和 FM 快照日期。
 
-同一 thread 会保存最近一次完成比较的球员和条件。追加球员时继承原赛季，明确指定新赛季时覆盖；发起全新的比较时重新建立条件。身份确认中断或资料查询失败时保留上一次完成的比较。
+球队阵容在进程内缓存七天。`API_FOOTBALL_KEY` 从本地 `.env` 读取，不要提交密钥；首版仅供本地或私有演示，不公开分发原始 API-Football 阵容数据。
 
-thread checkpoint 使用 `MemorySaver`，跨 thread Store 使用 `InMemoryStore`；两者都只在进程内有效，重启后会丢失。首版没有前端、RAG 或图状态持久化数据库。
-
-`player-data/` 读取 Git 忽略的 `.data/` 本地 SQLite 数据快照。未确认来源允许模型处理时，只允许配置在回环地址的模型端点接收这些数据。
+同一 thread 会保存最近一次成功的球员和球队推荐。只改筛选条件时继承成功请求的球队、位置与映射；失败或中断不会覆盖最近成功结果。`MemorySaver` 只在进程内保存 thread checkpoint，重启后状态会丢失。项目没有 Store、前端、RAG 或应用数据库。
 
 ## 启动
 
-需要 Node.js 22.13+、pnpm，以及已配置的 OpenAI 兼容模型网关。
+需要 Node.js 22.13+、pnpm，以及已配置的 OpenAI 兼容模型网关。球队推荐还需要 API-Football API key。
 
 ```bash
 pnpm install
 if [ ! -f .env ]; then cp .env.example .env; fi
-# 首次配置时，在 .env 中填入 OPENAI_API_KEY，并设置模型网关地址
+# 在 .env 中配置 OPENAI_API_KEY、模型网关和可选的 API_FOOTBALL_KEY
 pnpm dev
 ```
 
@@ -55,4 +56,4 @@ pnpm test
 pnpm build
 ```
 
-Vitest 使用假模型和固定结果，不调用外部模型，也不读取本机球员数据库。
+Vitest 使用假模型、模拟 API-Football 响应和固定 FM 数据，不调用真实外部 API 或消耗配额。

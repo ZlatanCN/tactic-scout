@@ -124,6 +124,18 @@ type RecommendationPositionResolution =
     }
   | { position: string; status: "unsupported_position" };
 
+type TeamRecommendationCalculation =
+  | {
+      recommendation: RecommendationResult;
+      referenceFmIds: string[];
+      status: "calculated";
+    }
+  | {
+      position: string;
+      snapshotDate: string;
+      status: "team_position_unavailable";
+    };
+
 type NormalizedRequest = {
   excludeFmIds: string[];
   includePotential: boolean;
@@ -818,7 +830,54 @@ const recommendPlayers = (
   };
 };
 
+const recommendTeamPlayers = (
+  request: RecommendationRequest,
+  source: FmRecommendationReadResult
+): TeamRecommendationCalculation => {
+  if (source.status !== "ready" || !isSupportedPosition(request.position)) {
+    return {
+      recommendation: recommendPlayers(request, source),
+      referenceFmIds: request.referenceFmIds,
+      status: "calculated",
+    };
+  }
+
+  const { features } = getPositionFeatureDefinition(request.position);
+
+  const references = source.references.filter(
+    (profile) =>
+      profile.positionRating !== null &&
+      profile.positionRating >= 15 &&
+      features.every((feature) => {
+        const value = profile.attributes[feature];
+
+        return value !== null && value !== undefined && Number.isFinite(value);
+      })
+  );
+
+  const referenceFmIds = references
+    .map((profile) => profile.fmId)
+    .toSorted(compareFmIds);
+
+  if (referenceFmIds.length === 0) {
+    return {
+      position: request.position,
+      snapshotDate: source.snapshotDate,
+      status: "team_position_unavailable",
+    };
+  }
+
+  const recommendation = recommendPlayers(
+    { ...request, referenceFmIds },
+    { ...source, references }
+  );
+
+  return { recommendation, referenceFmIds, status: "calculated" };
+};
+
 export { recommendPlayers, resolveRecommendationPosition };
+
+export { recommendTeamPlayers };
 
 export type {
   RecommendationAttributeDifference,
@@ -829,4 +888,5 @@ export type {
   RecommendationPositionResolution,
   RecommendationRequest,
   RecommendationResult,
+  TeamRecommendationCalculation,
 };

@@ -22,6 +22,16 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Position-capable candidate**: An FM profile with a rating of at least 15 for the recommendation target position.
 
+**Team identity**: A team selected by its provider-specific identifier. In the team recommendation workflow, the API-Football team ID identifies the team; it is not a canonical Reep team identity.
+
+**Team roster snapshot**: The provider-reported set of current squad members captured at retrieval time. Its date is distinct from the FM ability snapshot date.
+
+**Team-position reference profile**: The equal-weight mean of the target-position attributes for mapped roster FM profiles with a position rating of at least 15 and complete required features. It describes the existing team profile at that position, not an inferred squad gap or tactical style.
+
+**Team-directed recommendation**: Candidates for a scout-selected team and target position, ranked by distance from the team-position reference profile. Exact mapped current roster profiles are excluded from the candidate set.
+
+**Roster FM profile mapping**: A link from a provider roster player to one exact local FM profile, established by a Reep bridge or explicit user confirmation. Matching names alone do not establish the mapping.
+
 **Agent loop**: The repeated path from model node to a LangGraph `ToolNode` when the model returns tool calls, then back to the model. The loop ends when the model returns a response without tool calls.
 
 **Structured request**: A bounded extraction of the user's task kind, all named players and teams, and explicitly stated constraints. It routes work; it does not invent a plan or evidence.
@@ -38,7 +48,9 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
 
-**Active recommendation**: The confirmed reference and excluded identities, target position, effective filters, result limit, and completed result from the latest successful recommendation in a thread. Condition refinements inherit this context; failed or interrupted attempts do not replace it.
+**Active recommendation**: The confirmed reference and excluded identities, target position, effective filters, result limit, and completed result from the latest successful player recommendation in a thread. Condition refinements inherit this context; failed or interrupted attempts do not replace it.
+
+**Active team recommendation**: The selected API-Football team, mapped roster snapshot, target position, effective filters, named reference if used, and completed result from the latest successful team recommendation in a thread. Filter refinements inherit this context; selecting another team starts a fresh team request, and failed or interrupted attempts do not replace it.
 
 ## Boundaries
 
@@ -53,9 +65,11 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - Per-turn request participants, per-thread conversation focus, active comparison, and active recommendation are separate. A successful single-player data lookup updates the focus; identity resolution alone does not.
 - A completed comparison stores its participants and conditions together. Additions inherit conditions, explicit current conditions override matching previous conditions, and a new comparison resets them. An omitted season in a new comparison selects the latest local snapshot.
 - Player-search tools read only the provider source IDs selected by identity resolution. The model cannot substitute another name or source record.
-- The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Only lookup enters the model/tool loop; comparison and recommendation nodes directly invoke their deterministic tools. Team recommendations remain unsupported.
+- The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Only lookup enters the model/tool loop; comparison and recommendation workflows invoke deterministic tools directly.
+- Team-directed recommendation requires a user-selected team and target position; it does not infer weak positions or formations from squad data. API-Football teams use their provider IDs, roster snapshots are cached in process for seven days, and roster players map to FM only through a Reep bridge or explicit user confirmation. A provider search name translated from the user's original team mention must be confirmed even when it yields one result.
+- Team roster source dates and FM ability snapshot dates are shown separately. Incomplete roster-to-FM identity resolution pauses the request rather than guessing.
 - One typed pending clarification resumes identity, FM profile, position, age, role, or season questions within the same request. Request state does not duplicate that lifecycle with status flags or an active player index.
-- Successful lookup, comparison, and recommendation contexts are committed with their data outcomes before answer generation. Historical tool messages do not reconstruct missing context.
+- Successful lookup, comparison, player recommendation, and team recommendation contexts are committed with their data outcomes before answer generation. Historical tool messages do not reconstruct missing context.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
 - Thread checkpointing uses LangGraph's in-memory saver. There is no Store. Restarting the process loses thread state.
 - There is no frontend, RAG pipeline, or application database in this branch.

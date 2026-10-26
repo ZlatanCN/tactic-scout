@@ -66,6 +66,38 @@ const identityCandidates = (state: AgentStateType) => {
   );
 };
 
+const candidatesForClarification = (
+  state: AgentStateType,
+  pending: PendingClarification
+) => {
+  if (pending.kind === "identity") {
+    return identityCandidates(state);
+  }
+
+  if (pending.kind === "team") {
+    return pending.candidates.map((candidate, index) => ({
+      country: candidate.country,
+      id: candidate.id,
+      name: candidate.name,
+      number: index + 1,
+    }));
+  }
+
+  if (pending.kind === "team_roster_profile") {
+    return pending.candidates.map((candidate, index) => ({
+      birthDate: candidate.birthDate ?? null,
+      currentAbility: candidate.currentAbility ?? null,
+      fmId: candidate.fmId,
+      name: candidate.name,
+      naturalPositions: candidate.naturalPositions ?? null,
+      number: index + 1,
+      potentialAbility: candidate.potentialAbility ?? null,
+    }));
+  }
+
+  return [];
+};
+
 const answerForOptions = (answer: string, options: string[]): string | null => {
   const normalized = answer.trim().toLocaleLowerCase();
   const number = Number(normalized);
@@ -122,6 +154,41 @@ const answerForOptions = (answer: string, options: string[]): string | null => {
   return selectedPosition !== undefined && options.includes(selectedPosition)
     ? selectedPosition
     : null;
+};
+
+const teamFromAnswer = (
+  answer: string,
+  candidates: Extract<PendingClarification, { kind: "team" }>["candidates"]
+) => {
+  const normalized = answer.trim().toLocaleLowerCase();
+  const number = Number(normalized);
+
+  if (Number.isInteger(number) && number >= 1 && number <= candidates.length) {
+    return candidates[number - 1] ?? null;
+  }
+
+  const matchingTeams = candidates.filter(
+    (team) => team.name.toLocaleLowerCase() === normalized
+  );
+
+  return matchingTeams.length === 1 ? (matchingTeams[0] ?? null) : null;
+};
+
+const fmCandidateFromAnswer = (
+  answer: string,
+  candidates: Extract<
+    PendingClarification,
+    { kind: "team_roster_profile" }
+  >["candidates"]
+) => {
+  const selectedFmId = answerForOptions(
+    answer,
+    candidates.map((candidate) => candidate.fmId)
+  );
+
+  return (
+    candidates.find((candidate) => candidate.fmId === selectedFmId) ?? null
+  );
 };
 
 const answerForAge = (answer: string): number | null => {
@@ -210,11 +277,16 @@ const interruptForAnswer = (
     ? (state.request.players[pending.playerIndex] ?? null)
     : null;
 
-  const candidates = isIdentity ? identityCandidates(state) : [];
+  const candidates = candidatesForClarification(state, pending);
+  let kind = `recommendation_${pending.kind}_clarification`;
 
-  const kind = isIdentity
-    ? "player_identity_confirmation"
-    : `recommendation_${pending.kind}_clarification`;
+  if (pending.kind === "identity") {
+    kind = "player_identity_confirmation";
+  } else if (pending.kind === "team") {
+    kind = "team_identity_confirmation";
+  } else if (pending.kind === "team_roster_profile") {
+    kind = "team_roster_profile_confirmation";
+  }
 
   const payload = {
     candidates,
@@ -225,10 +297,19 @@ const interruptForAnswer = (
     requestKind: state.request.kind,
   };
 
-  const rawResume: unknown =
-    pending.kind === "position" || pending.kind === "fm_profile"
-      ? interrupt({ ...payload, options: pending.options })
-      : interrupt(payload);
+  let rawResume: unknown;
+
+  if (
+    pending.kind === "position" ||
+    pending.kind === "fm_profile" ||
+    pending.kind === "team_position"
+  ) {
+    rawResume = interrupt({ ...payload, options: pending.options });
+  } else if (pending.kind === "team_roster_profile") {
+    rawResume = interrupt({ ...payload, rosterIndex: pending.rosterIndex });
+  } else {
+    rawResume = interrupt(payload);
+  }
 
   const parsedResume = resumeValueSchema.safeParse(rawResume);
 
@@ -263,21 +344,198 @@ const clarifyPosition = (
   };
 };
 
+const clarifyTeam = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "team" }>,
+  answer: string
+) => {
+  if (state.request.kind !== "team_recommendation") {
+    return invalidAnswer(
+      pending,
+      "球队请求状态已变化，请重新描述球队推荐需求。"
+    );
+  }
+
+  const team = teamFromAnswer(answer, pending.candidates);
+
+  if (team === null) {
+    const teamName = answer.trim();
+
+    if (Number.isFinite(Number(teamName)) || teamName.length < 3) {
+      return invalidAnswer(
+        pending,
+        "请回复一个有效球队编号，或输入至少三个字符的另一个球队全名。"
+      );
+    }
+
+    return {
+      outcome: null,
+      pendingClarification: null,
+      request: {
+        ...state.request,
+        teamRecommendation: {
+          ...state.request.teamRecommendation,
+          roster: null,
+          team: null,
+          teamName,
+          teamSearchName: teamName,
+        },
+        teams: [teamName],
+      },
+    };
+  }
+
+  return {
+    outcome: null,
+    pendingClarification: null,
+    request: {
+      ...state.request,
+      teamRecommendation: {
+        ...state.request.teamRecommendation,
+        roster: null,
+        team,
+        teamName: team.name,
+        teamSearchName: team.name,
+      },
+    },
+  };
+};
+
+const clarifyTeamPosition = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "team_position" }>,
+  answer: string
+) => {
+  if (state.request.kind !== "team_recommendation") {
+    return invalidAnswer(
+      pending,
+      "球队请求状态已变化，请重新描述球队推荐需求。"
+    );
+  }
+
+  const position = answerForOptions(answer, pending.options);
+
+  if (position !== null) {
+    return {
+      outcome: null,
+      pendingClarification: null,
+      request: {
+        ...state.request,
+        teamRecommendation: {
+          ...state.request.teamRecommendation,
+          position,
+        },
+      },
+    };
+  }
+
+  const mention = answer.trim();
+
+  if (mention.length < 2) {
+    return invalidAnswer(
+      pending,
+      "请回复一个位置代码，或输入完整的参考球员姓名。"
+    );
+  }
+
+  const player: RequestPlayerState = {
+    attempts: 0,
+    lookupName: null,
+    mention,
+    recommendationRole: "reference",
+    referenceScope: "explicit",
+    referenceTargetMention: null,
+    resolution: null,
+  };
+
+  return {
+    outcome: null,
+    pendingClarification: null,
+    request: {
+      ...state.request,
+      players: [player],
+      teamRecommendation: {
+        ...state.request.teamRecommendation,
+        referenceMode: "named",
+      },
+    },
+  };
+};
+
+const clarifyTeamRosterProfile = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "team_roster_profile" }>,
+  answer: string
+) => {
+  if (
+    state.request.kind !== "team_recommendation" ||
+    state.request.teamRecommendation.roster === null
+  ) {
+    return invalidAnswer(pending, "球队阵容状态已变化，请重新发起球队推荐。");
+  }
+
+  const selectedCandidate = fmCandidateFromAnswer(answer, pending.candidates);
+
+  const member =
+    state.request.teamRecommendation.roster.members[pending.rosterIndex];
+
+  if (selectedCandidate === null || member === undefined) {
+    return invalidAnswer(
+      pending,
+      `请选择一个有效的 FM 画像编号：${pending.question}`
+    );
+  }
+
+  const members = state.request.teamRecommendation.roster.members.map(
+    (rosterMember, index) =>
+      index === pending.rosterIndex
+        ? {
+            ...rosterMember,
+            fmCandidates: [],
+            fmId: selectedCandidate.fmId,
+            mappingMethod: "user_confirmation" as const,
+            mappingStatus: "resolved" as const,
+          }
+        : rosterMember
+  );
+
+  return {
+    outcome: null,
+    pendingClarification: null,
+    request: {
+      ...state.request,
+      teamRecommendation: {
+        ...state.request.teamRecommendation,
+        roster: {
+          ...state.request.teamRecommendation.roster,
+          members,
+        },
+      },
+    },
+  };
+};
+
 const clarifyFmProfile = (
   state: AgentStateType,
   pending: Extract<PendingClarification, { kind: "fm_profile" }>,
   answer: string
 ) => {
   const sourceId = answerForOptions(answer, pending.options);
+  const { request } = state;
 
-  if (sourceId === null || state.request.kind !== "player_recommendation") {
+  const canChooseFmProfile =
+    request.kind === "player_recommendation" ||
+    (request.kind === "team_recommendation" &&
+      request.teamRecommendation.referenceMode === "named");
+
+  if (sourceId === null || !canChooseFmProfile) {
     return invalidAnswer(
       pending,
       `请选择一个有效 FM source ID：${pending.options.join("、")}。`
     );
   }
 
-  const player = state.request.players[pending.playerIndex];
+  const player = request.players[pending.playerIndex];
   const resolution = player?.resolution;
 
   if (player === undefined || resolution?.status !== "resolved") {
@@ -314,7 +572,7 @@ const clarifyFmProfile = (
       : candidate
   );
 
-  const players = state.request.players.map((requestPlayer, index) =>
+  const players = request.players.map((requestPlayer, index) =>
     index === pending.playerIndex
       ? {
           ...requestPlayer,
@@ -326,7 +584,7 @@ const clarifyFmProfile = (
   return {
     outcome: null,
     pendingClarification: null,
-    request: { ...state.request, players },
+    request: { ...request, players },
   };
 };
 
@@ -435,6 +693,18 @@ const resumeClarification = (
 
   if (pending.kind === "season") {
     return clarifySeason(state, pending, answer);
+  }
+
+  if (pending.kind === "team") {
+    return clarifyTeam(state, pending, answer);
+  }
+
+  if (pending.kind === "team_position") {
+    return clarifyTeamPosition(state, pending, answer);
+  }
+
+  if (pending.kind === "team_roster_profile") {
+    return clarifyTeamRosterProfile(state, pending, answer);
   }
 
   return clarifyRole(state, pending, answer);

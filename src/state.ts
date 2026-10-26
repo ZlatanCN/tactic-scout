@@ -5,6 +5,12 @@ import {
   PlayerResolutionSchema,
   ReferenceCandidateSchema,
 } from "./player-data/contracts.js";
+import {
+  TeamFmProfileCandidateSchema,
+  TeamIdentitySchema,
+  TeamRecommendationFiltersSchema,
+  TeamRosterSnapshotSchema,
+} from "./team-data/contracts.js";
 
 const RequestConstraintSchema = z.object({
   name: z.string(),
@@ -29,6 +35,29 @@ const createInitialRecommendationRequest = () => ({
   needsAgeClarification: false,
   position: null,
   resultLimit: null,
+});
+
+const TeamRecommendationRequestSchema = TeamRecommendationFiltersSchema.extend({
+  position: z.string().nullable(),
+  referenceMode: z.enum(["squad", "named"]),
+  roster: TeamRosterSnapshotSchema.nullable(),
+  team: TeamIdentitySchema.nullable(),
+  teamName: z.string().nullable(),
+  teamSearchName: z.string().nullable(),
+});
+
+const createInitialTeamRecommendationRequest = () => ({
+  includePotential: false,
+  maxAge: null,
+  minimumCurrentAbility: null,
+  minimumPotentialAbility: null,
+  position: null,
+  referenceMode: "squad" as const,
+  resultLimit: null,
+  roster: null,
+  team: null,
+  teamName: null,
+  teamSearchName: null,
 });
 
 const ConversationPlayerReferenceSchema = z.object({
@@ -64,10 +93,22 @@ const ActiveRecommendationSchema = z.object({
   status: z.enum(["ready", "no_candidates"]),
 });
 
+const ActiveTeamRecommendationSchema = TeamRecommendationFiltersSchema.extend({
+  position: z.string(),
+  referenceMode: z.enum(["squad", "named"]),
+  referencePlayers: z.array(ConversationPlayerReferenceSchema),
+  resultJson: z.string(),
+  resultLimit: z.number().int(),
+  roster: TeamRosterSnapshotSchema,
+  status: z.enum(["ready", "no_candidates"]),
+  team: TeamIdentitySchema,
+});
+
 const createInitialConversationContext = () => ({
   activeComparison: { constraints: [], players: [] },
   activeLookup: null,
   activeRecommendation: null,
+  activeTeamRecommendation: null,
   focusPlayers: [],
   playerAliases: [],
 });
@@ -79,6 +120,8 @@ const ConversationContextSchema = z.object({
   })),
   activeLookup: ActiveLookupSchema.nullable().default(null),
   activeRecommendation: ActiveRecommendationSchema.nullable().default(null),
+  activeTeamRecommendation:
+    ActiveTeamRecommendationSchema.nullable().default(null),
   focusPlayers: z.array(ConversationPlayerReferenceSchema),
   playerAliases: z.array(ConversationPlayerAliasSchema).default([]),
 });
@@ -120,7 +163,11 @@ const RequestStateSchema = z.discriminatedUnion("kind", [
     kind: z.literal("player_recommendation"),
     recommendation: RecommendationRequestSchema,
   }),
-  z.object({ ...requestFields, kind: z.literal("team_recommendation") }),
+  z.object({
+    ...requestFields,
+    kind: z.literal("team_recommendation"),
+    teamRecommendation: TeamRecommendationRequestSchema,
+  }),
   z.object({ ...requestFields, kind: z.literal("other") }),
 ]);
 
@@ -168,10 +215,34 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("season"),
     question: z.string(),
   }),
+  z.object({
+    answer: z.string().nullable(),
+    candidates: z.array(TeamIdentitySchema),
+    kind: z.literal("team"),
+    question: z.string(),
+  }),
+  z.object({
+    answer: z.string().nullable(),
+    kind: z.literal("team_position"),
+    options: z.array(z.string()),
+    question: z.string(),
+  }),
+  z.object({
+    answer: z.string().nullable(),
+    candidates: z.array(TeamFmProfileCandidateSchema),
+    kind: z.literal("team_roster_profile"),
+    question: z.string(),
+    rosterIndex: z.number().int().nonnegative(),
+  }),
 ]);
 
 const TurnOutcomeSchema = z.object({
-  kind: z.enum(["player_lookup", "player_comparison", "player_recommendation"]),
+  kind: z.enum([
+    "player_lookup",
+    "player_comparison",
+    "player_recommendation",
+    "team_recommendation",
+  ]),
   resultJson: z.string().nullable(),
   status: z.string(),
 });
@@ -191,6 +262,8 @@ type ActiveLookup = z.infer<typeof ActiveLookupSchema>;
 
 type ActiveRecommendation = z.infer<typeof ActiveRecommendationSchema>;
 
+type ActiveTeamRecommendation = z.infer<typeof ActiveTeamRecommendationSchema>;
+
 type AgentStateType = z.infer<typeof AgentState>;
 
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
@@ -209,6 +282,10 @@ type RequestKind = z.infer<typeof RequestStateSchema>["kind"];
 
 type RequestPlayerState = z.infer<typeof RequestPlayerSchema>;
 
+type TeamRecommendationRequestState = z.infer<
+  typeof TeamRecommendationRequestSchema
+>;
+
 type RecommendationPlayerRole = z.infer<typeof RecommendationPlayerRoleSchema>;
 
 type RecommendationRequestState = z.infer<typeof RecommendationRequestSchema>;
@@ -223,18 +300,21 @@ export {
   ActiveComparisonSchema,
   ActiveLookupSchema,
   ActiveRecommendationSchema,
+  ActiveTeamRecommendationSchema,
   AgentState,
   RecommendationPlayerRoleSchema,
   RecommendationRequestSchema,
   createInitialRecommendationRequest,
   createInitialConversationContext,
   createInitialRequestState,
+  createInitialTeamRecommendationRequest,
 };
 
 export type {
   ActiveComparison,
   ActiveLookup,
   ActiveRecommendation,
+  ActiveTeamRecommendation,
   AgentStateType,
   ComparisonAction,
   ConversationContext,
@@ -247,6 +327,7 @@ export type {
   RequestKind,
   RequestPlayerState,
   RequestState,
+  TeamRecommendationRequestState,
   TurnOutcome,
 };
 

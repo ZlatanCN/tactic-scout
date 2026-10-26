@@ -1,0 +1,681 @@
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { fakeModel } from "@langchain/core/testing";
+import { Command, MemorySaver } from "@langchain/langgraph";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
+import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
+import type { ReferenceCandidate } from "../src/state.js";
+import type {
+  ApiFootballClient,
+  ApiFootballRosterPlayer,
+} from "../src/team-data/api-football.js";
+import type { TeamIdentity } from "../src/team-data/contracts.js";
+import type { TeamRosterIdentityLookup } from "../src/team-data/roster-identity.js";
+import type { RecommendTeamPlayerCandidates } from "../src/tools/recommend-team-player-candidates.js";
+import { createRecommendTeamPlayerCandidatesTool } from "../src/tools/recommend-team-player-candidates.js";
+
+vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
+
+vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
+
+vi.stubEnv("OPENAI_BASE_URL", "");
+
+const { createAgent } = await import("../src/agent.js");
+
+type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
+
+const arsenal: TeamIdentity = {
+  country: "England",
+  id: 42,
+  name: "Arsenal",
+};
+
+const teamRequest = (
+  teamName: string | null,
+  position: string | null,
+  recommendation?: ExtractedRequest["recommendation"],
+  teamSearchName: string | null = null
+): ExtractedRequest => {
+  const request: ExtractedRequest = {
+    constraints: [],
+    kind: "team_recommendation",
+    players: [],
+    teamSearchName,
+    teams: teamName === null ? [] : [teamName],
+  };
+
+  if (recommendation !== undefined || position !== null) {
+    const patch = { ...recommendation };
+
+    if (position !== null) {
+      patch.position = position;
+    }
+
+    request.recommendation = patch;
+  }
+
+  return request;
+};
+
+const createExtractor =
+  (requests: Record<string, ExtractedRequest>): RequestUnderstandingExtractor =>
+  async (message) => {
+    const request = requests[message];
+
+    if (request === undefined) {
+      throw new Error(`Unexpected test message: ${message}`);
+    }
+
+    return await Promise.resolve(request);
+  };
+
+const createDirectory = (
+  teams: TeamIdentity[],
+  players: ApiFootballRosterPlayer[]
+) => {
+  const searchTeams = vi
+    .fn<ApiFootballClient["searchTeams"]>()
+    .mockResolvedValue({ data: teams, status: "ok" });
+
+  const getSquad = vi.fn<ApiFootballClient["getSquad"]>(async (teamId) => {
+    const team = teams.find((candidate) => candidate.id === teamId);
+
+    return await Promise.resolve({
+      data: {
+        players,
+        retrievedAt: "2026-10-26T10:00:00.000Z",
+        team: team ?? arsenal,
+      },
+      status: "ok",
+    });
+  });
+
+  return { getSquad, searchTeams };
+};
+
+const bridgeIdentityLookup: TeamRosterIdentityLookup = (
+  apiFootballPlayerId,
+  playerName
+) => ({
+  candidate: { fmId: `fm-${apiFootballPlayerId}`, name: playerName },
+  method: "reep_bridge",
+  status: "resolved",
+});
+
+const kaneCandidate: ReferenceCandidate = {
+  candidateId: "source:fm:kane-fm",
+  canonicalIdentityId: null,
+  exactNameMatch: true,
+  identityVerified: false,
+  name: "Harry Kane",
+  records: [
+    {
+      canonicalIdentityId: null,
+      competition: null,
+      identityVerified: false,
+      name: "Harry Kane",
+      provider: "fm",
+      season: null,
+      sourceId: "kane-fm",
+      team: null,
+    },
+  ],
+};
+
+const resolvedKane: ReferenceIdentityLookup = (mention) => ({
+  candidateCount: 1,
+  candidates: [kaneCandidate],
+  candidatesTruncated: false,
+  canonicalIdentityId: null,
+  clarificationMessage: null,
+  mention,
+  selectedCandidateId: kaneCandidate.candidateId,
+  selectedName: kaneCandidate.name,
+  status: "resolved",
+});
+
+const createTeamAgent = (options: {
+  directory: Pick<ApiFootballClient, "getSquad" | "searchTeams">;
+  extractor: RequestUnderstandingExtractor;
+  identityLookup?: TeamRosterIdentityLookup;
+  model?: ReturnType<typeof fakeModel>;
+  playerIdentityLookup?: ReferenceIdentityLookup;
+  recommend: RecommendTeamPlayerCandidates;
+}) =>
+  createAgent({
+    checkpointer: new MemorySaver(),
+    model:
+      options.model ??
+      fakeModel().respond(new AIMessage("Team results are ready.")),
+    playerIdentityLookup: options.playerIdentityLookup,
+    requestUnderstandingExtractor: options.extractor,
+    teamDirectory: options.directory,
+    teamRosterIdentityLookup: options.identityLookup ?? bridgeIdentityLookup,
+    tools: [createRecommendTeamPlayerCandidatesTool(options.recommend)],
+  });
+
+const readRosterMember = (
+  result: Awaited<ReturnType<ReturnType<typeof createTeamAgent>["invoke"]>>
+) => {
+  const { request } = result;
+
+  if (request.kind !== "team_recommendation") {
+    throw new Error("Expected a team recommendation request.");
+  }
+
+  return request.teamRecommendation.roster?.members ?? [];
+};
+
+describe("team recommendation graph", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("resolves a unique team, maps its roster, and commits the ranked result", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 1001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({
+        recommendation: { currentCandidates: [{ fmId: "candidate-1" }] },
+        status: "ready",
+      })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-recommendation-unique" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      getSquadCalls: directory.getSquad.mock.calls,
+      input: recommend.mock.calls[0]?.[0],
+      searchCalls: directory.searchTeams.mock.calls,
+      storedTeam: result.conversationContext.activeTeamRecommendation?.team,
+    }).toMatchObject({
+      answer: "Team results are ready.",
+      getSquadCalls: [[42]],
+      input: {
+        position: "stc",
+        referenceFmIds: [],
+        referenceMode: "squad",
+        roster: {
+          members: [
+            {
+              fmId: "fm-1001",
+              mappingMethod: "reep_bridge",
+              mappingStatus: "resolved",
+            },
+          ],
+        },
+        team: arsenal,
+      },
+      searchCalls: [["Arsenal"]],
+      storedTeam: arsenal,
+    });
+  });
+
+  it("confirms a translated provider search before accepting the team identity", async () => {
+    const message = "为阿森纳找一个中锋";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 1101, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({ status: "ready" })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("阿森纳", "stc", { position: "stc" }, "Arsenal"),
+      }),
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-translated-name" },
+    };
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const completed = await graph.invoke(new Command({ resume: "1" }), config);
+
+    expect({
+      completedTeam:
+        completed.conversationContext.activeTeamRecommendation?.team,
+      searchCalls: directory.searchTeams.mock.calls,
+      wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toStrictEqual({
+      completedTeam: arsenal,
+      searchCalls: [["Arsenal"]],
+      wasInterrupted: true,
+    });
+  });
+
+  it("resumes ambiguous team selection and maps each unmatched FM profile once", async () => {
+    const message = "Recommend a striker for Paris FC.";
+
+    const teams: TeamIdentity[] = [
+      { country: "France", id: 51, name: "Paris FC" },
+      { country: "United States", id: 52, name: "Paris FC" },
+    ];
+
+    const directory = createDirectory(teams, [
+      { id: 2001, name: "First Squad Player", position: "Attacker" },
+      { id: 2002, name: "Second Squad Player", position: "Attacker" },
+    ]);
+
+    const identityLookup = vi.fn<TeamRosterIdentityLookup>((id, name) => ({
+      candidates: [
+        { fmId: `first-${id}`, name: `${name} First FM Match` },
+        { fmId: `second-${id}`, name: `${name} Second FM Match` },
+      ],
+      status: "needs_confirmation",
+    }));
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({ status: "no_candidates" })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Paris FC", "stc", { position: "stc" }),
+      }),
+      identityLookup,
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-roster-resolution" },
+    };
+
+    const teamInterrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const profileInterrupted = await graph.invoke(
+      new Command({ resume: "2" }),
+      config
+    );
+
+    const nextProfileInterrupted = await graph.invoke(
+      new Command({ resume: "1" }),
+      config
+    );
+
+    const completed = await graph.invoke(new Command({ resume: "2" }), config);
+
+    expect({
+      completed: completed.conversationContext.activeTeamRecommendation,
+      getSquadCalls: directory.getSquad.mock.calls,
+      identityLookups: identityLookup.mock.calls,
+      mappedRoster: readRosterMember(completed).map((member) => ({
+        fmId: member.fmId,
+        mappingMethod: member.mappingMethod,
+      })),
+      recommendCalls: recommend.mock.calls.length,
+      searchCalls: directory.searchTeams.mock.calls,
+      wasInterrupted: [
+        teamInterrupted,
+        profileInterrupted,
+        nextProfileInterrupted,
+      ].map((result) => Object.hasOwn(result, "__interrupt__")),
+    }).toMatchObject({
+      completed: { status: "no_candidates", team: teams[1] },
+      getSquadCalls: [[52]],
+      identityLookups: [
+        [2001, "First Squad Player"],
+        [2002, "Second Squad Player"],
+      ],
+      mappedRoster: [
+        { fmId: "first-2001", mappingMethod: "user_confirmation" },
+        { fmId: "second-2002", mappingMethod: "user_confirmation" },
+      ],
+      recommendCalls: 1,
+      searchCalls: [["Paris FC"]],
+      wasInterrupted: [true, true, true],
+    });
+  });
+
+  it("stops when a roster member has no local FM profile", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 3001, name: "Unmapped Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({ status: "ready" })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup: () => ({ status: "no_profile" }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-no-fm-profile" } }
+    );
+
+    expect({
+      activeTeamRecommendation:
+        result.conversationContext.activeTeamRecommendation,
+      answer: result.messages.at(-1)?.content,
+      recommendCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      activeTeamRecommendation: null,
+      answer:
+        "阵容成员“Unmapped Player”（API-Football ID 3001）没有可确认的本地 FM 画像，因此已暂停推荐。当前已映射 0/1 人（Reep 0，人工确认 0），无本地画像 1 人。",
+      recommendCalls: 0,
+    });
+  });
+
+  it("inherits filters, preserves the last success on failure, and clears explicit nulls", async () => {
+    const firstMessage = "Recommend a striker for Arsenal under 25.";
+    const failedRefinement = "Make the age limit 22.";
+    const successfulRefinement = "Require CA of at least 130.";
+    const clearAge = "Remove the age limit.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 4001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi
+      .fn<RecommendTeamPlayerCandidates>()
+      .mockReturnValueOnce(JSON.stringify({ result: 1, status: "ready" }))
+      .mockReturnValueOnce(JSON.stringify({ status: "data_unavailable" }))
+      .mockReturnValueOnce(JSON.stringify({ result: 3, status: "ready" }))
+      .mockReturnValueOnce(JSON.stringify({ result: 4, status: "ready" }));
+
+    const model = fakeModel()
+      .respond(new AIMessage("First team list."))
+      .respond(new AIMessage("Updated team list."))
+      .respond(new AIMessage("Age filter cleared."));
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [clearAge]: teamRequest(null, null, { maxAge: null }),
+        [failedRefinement]: teamRequest(null, null, { maxAge: 22 }),
+        [firstMessage]: teamRequest("Arsenal", "stc", { maxAge: 25 }),
+        [successfulRefinement]: teamRequest(null, null, {
+          minimumCurrentAbility: 130,
+        }),
+      }),
+      model,
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-recommendation-refinement" },
+    };
+
+    const first = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      config
+    );
+
+    const failed = await graph.invoke(
+      { messages: [new HumanMessage(failedRefinement)] },
+      config
+    );
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(successfulRefinement)] },
+      config
+    );
+
+    const cleared = await graph.invoke(
+      { messages: [new HumanMessage(clearAge)] },
+      config
+    );
+
+    expect({
+      activeAfterClear: cleared.conversationContext.activeTeamRecommendation,
+      activeAfterFailure: failed.conversationContext.activeTeamRecommendation,
+      activeAfterRefinement:
+        refined.conversationContext.activeTeamRecommendation,
+      filterInputs: recommend.mock.calls.map(([input]) => ({
+        maxAge: input.maxAge,
+        minimumCurrentAbility: input.minimumCurrentAbility,
+      })),
+      providerCalls: [
+        directory.searchTeams.mock.calls.length,
+        directory.getSquad.mock.calls.length,
+      ],
+    }).toMatchObject({
+      activeAfterClear: {
+        maxAge: null,
+        minimumCurrentAbility: 130,
+        status: "ready",
+      },
+      activeAfterFailure: { maxAge: 25, status: "ready" },
+      activeAfterRefinement: {
+        maxAge: 25,
+        minimumCurrentAbility: 130,
+        status: "ready",
+      },
+      filterInputs: [
+        { maxAge: 25, minimumCurrentAbility: null },
+        { maxAge: 22, minimumCurrentAbility: null },
+        { maxAge: 25, minimumCurrentAbility: 130 },
+        { maxAge: null, minimumCurrentAbility: 130 },
+      ],
+      providerCalls: [1, 1],
+    });
+    expect(
+      first.conversationContext.activeTeamRecommendation?.resultJson
+    ).toContain('"result":1');
+    expect(failed.messages.at(-1)?.content).toContain("本地 FM 快照无法读取");
+  });
+
+  it("resets filters and roster when the scout names another team", async () => {
+    const firstMessage = "Recommend a striker for Arsenal under 25.";
+    const replacementMessage = "Switch the team to Chelsea and find a striker.";
+
+    const chelsea: TeamIdentity = {
+      country: "England",
+      id: 50,
+      name: "Chelsea",
+    };
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 5001, name: "Arsenal Player", position: "Attacker" }]
+    );
+
+    const recommend = vi
+      .fn<RecommendTeamPlayerCandidates>()
+      .mockReturnValue(JSON.stringify({ status: "ready" }));
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [firstMessage]: teamRequest("Arsenal", "stc", { maxAge: 25 }),
+        [replacementMessage]: teamRequest("Chelsea", "stc"),
+      }),
+      model: fakeModel()
+        .respond(new AIMessage("Arsenal list."))
+        .respond(new AIMessage("Chelsea list.")),
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-replacement" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+    directory.searchTeams.mockResolvedValueOnce({
+      data: [chelsea],
+      status: "ok",
+    });
+    directory.getSquad.mockResolvedValueOnce({
+      data: {
+        players: [{ id: 5002, name: "Chelsea Player", position: "Attacker" }],
+        retrievedAt: "2026-10-26T11:00:00.000Z",
+        team: chelsea,
+      },
+      status: "ok",
+    });
+
+    const replaced = await graph.invoke(
+      { messages: [new HumanMessage(replacementMessage)] },
+      config
+    );
+
+    expect({
+      input: recommend.mock.calls[1]?.[0],
+      searchCalls: directory.searchTeams.mock.calls,
+      squadCalls: directory.getSquad.mock.calls,
+      team: replaced.conversationContext.activeTeamRecommendation?.team,
+    }).toMatchObject({
+      input: {
+        maxAge: null,
+        roster: {
+          members: [{ apiFootballPlayerId: 5002, fmId: "fm-5002" }],
+        },
+        team: chelsea,
+      },
+      searchCalls: [["Arsenal"], ["Chelsea"]],
+      squadCalls: [[42], [50]],
+      team: chelsea,
+    });
+  });
+
+  it("uses a named FM profile when the team has no usable profile at that position", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 6001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi
+      .fn<RecommendTeamPlayerCandidates>()
+      .mockReturnValueOnce(
+        JSON.stringify({ status: "team_position_unavailable" })
+      )
+      .mockReturnValueOnce(JSON.stringify({ status: "ready" }));
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc"),
+      }),
+      model: fakeModel().respond(new AIMessage("Named reference list.")),
+      playerIdentityLookup: resolvedKane,
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-named-reference" },
+    };
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const completed = await graph.invoke(
+      new Command({ resume: "Harry Kane" }),
+      config
+    );
+
+    expect({
+      completed: completed.conversationContext.activeTeamRecommendation,
+      inputs: recommend.mock.calls.map(([input]) => ({
+        referenceFmIds: input.referenceFmIds,
+        referenceMode: input.referenceMode,
+      })),
+      wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toMatchObject({
+      completed: {
+        referenceMode: "named",
+        referencePlayers: [{ referenceId: "source:fm:kane-fm" }],
+      },
+      inputs: [
+        { referenceFmIds: [], referenceMode: "squad" },
+        { referenceFmIds: ["kane-fm"], referenceMode: "named" },
+      ],
+      wasInterrupted: true,
+    });
+  });
+
+  it("does not carry team context into another thread", async () => {
+    const firstMessage = "Recommend a striker for Arsenal.";
+    const secondMessage = "Show only three players.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 7001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({ status: "ready" })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [firstMessage]: teamRequest("Arsenal", "stc"),
+        [secondMessage]: teamRequest(null, null, { resultLimit: 3 }),
+      }),
+      model: fakeModel().respond(new AIMessage("Arsenal candidates.")),
+      recommend,
+    });
+
+    const firstThread = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      { configurable: { thread_id: "team-context-first-thread" } }
+    );
+
+    const secondThread = await graph.invoke(
+      { messages: [new HumanMessage(secondMessage)] },
+      { configurable: { thread_id: "team-context-second-thread" } }
+    );
+
+    expect({
+      firstTeam: firstThread.conversationContext.activeTeamRecommendation?.team,
+      searchCalls: directory.searchTeams.mock.calls,
+      secondActiveTeam:
+        secondThread.conversationContext.activeTeamRecommendation,
+      secondAnswer: secondThread.messages.at(-1)?.content,
+      toolCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      firstTeam: arsenal,
+      searchCalls: [["Arsenal"]],
+      secondActiveTeam: null,
+      secondAnswer: "请告诉我球队名称和目标位置，再开始球队推荐。",
+      toolCalls: 1,
+    });
+  });
+});

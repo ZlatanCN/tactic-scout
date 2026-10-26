@@ -38,6 +38,7 @@ type ExtractedRequest = {
   players: ExtractedPlayerMention[];
   recommendationAction?: RecommendationAction;
   recommendation?: RecommendationRequestPatch;
+  teamSearchName?: string | null;
   teams: string[];
   constraints: RequestConstraint[];
 };
@@ -159,6 +160,13 @@ const requestExtractionSchema = z.object({
     .describe(
       "推荐请求：replace 使用本轮完整参考名单；add 明确把本轮球员加入最近成功的推荐参考名单；refine 只修改条件并继承最近成功推荐的身份和条件。"
     ),
+  teamSearchName: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "仅用于 team_recommendation 的 API-Football 搜索词。保留 teams 里的原始称呼；若用户使用中文名或简称，可填对应的 API-Football 常见名称。它只生成搜索候选，不确认球队身份；不确定时留空。"
+    ),
   teams: z.array(z.string()).describe("照抄用户本轮消息里提到的球队名。"),
 });
 
@@ -170,6 +178,7 @@ const addToRecommendationPattern =
 
 const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定、最近一次成功球员查询和最近一次成功推荐。
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；other：其他请求。
+team_recommendation 需要一个明确的球队和一个明确的 FM 位置。球队推荐的 recommendation 字段表示位置、年龄、CA、PA、结果数和高潜名单条件。teams 必须保留用户原话；若用户使用中文球队名或简称，teamSearchName 可给出 API-Football 常用搜索名称，但这只用于查候选，不能据此自动认定球队。用户只修改上次成功团队推荐的筛选条件时，teams 为空；明确换球队时照抄新球队名称，程序会重置旧球队上下文。
 如果用户在追问最近成功球员查询中的赛季、赛事或来源，仍分类为 player_lookup；引用之前结果时不要要求用户重报球员。
 comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补语义时一律 replace。add 时 players 仍只列本轮新增的称呼，已有比较对象会由程序从 thread 状态合并，不要重复输出。
 recommendationAction 仅在 player_recommendation 时有意义。明确给出新参考名单时用 replace；明确要求把新球员加入最近成功推荐的参考名单时用 add；只修改最近成功推荐的条件、位置或结果数且没有新球员时用 refine。refine 时 players 为空，程序会继承最近成功推荐的已确认参考和排除身份。
@@ -317,6 +326,27 @@ const createRequestUnderstandingExtractor = (
                   })
                 ),
             },
+      activeTeamRecommendation:
+        context.activeTeamRecommendation === null
+          ? null
+          : {
+              filters: {
+                includePotential:
+                  context.activeTeamRecommendation.includePotential,
+                maxAge: context.activeTeamRecommendation.maxAge,
+                minimumCurrentAbility:
+                  context.activeTeamRecommendation.minimumCurrentAbility,
+                minimumPotentialAbility:
+                  context.activeTeamRecommendation.minimumPotentialAbility,
+                position: context.activeTeamRecommendation.position,
+                resultLimit: context.activeTeamRecommendation.resultLimit,
+              },
+              team: {
+                country: context.activeTeamRecommendation.team.country,
+                id: context.activeTeamRecommendation.team.id,
+                name: context.activeTeamRecommendation.team.name,
+              },
+            },
       confirmedPlayerAliases: context.playerAliases.map(
         ({ mention, reference }) => ({
           canonicalIdentityId: reference.candidate.canonicalIdentityId,
@@ -374,6 +404,7 @@ const createRequestUnderstandingExtractor = (
         context,
         message
       ),
+      teamSearchName: result.teamSearchName?.trim() ?? null,
       teams: uniqueText(result.teams),
     };
   };

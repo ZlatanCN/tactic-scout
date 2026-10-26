@@ -26,6 +26,8 @@ const comparisonPrompt = `你是一个足球资料助手。当前请求是多人
 
 const recommendationPrompt = `你是一个足球资料助手。当前请求是 FM 球员能力推荐，只能依据下面提供的结构化推荐结果作答，不得自行重排、补算或引入外部资料。当前能力相似名单按目标位置属性 RMSE 排序；高潜名单若出现，则按 PA 降序，当前属性距离只用于并列。两份名单回答不同问题，不要合并成一个综合分。PA 是潜力信号，不是未来 CA 预测或保证。高潜榜描述该位置的高潜球员，不代表他们都像参考球员。说明多参考平均画像代表接近算术平均，不保证同时接近每位参考球员。只展示工具结果中的姓名、数值、位置、快照和特征差；不要补猜当前球队、合同、费用、转会可行性、表现或未来属性。`;
 
+const teamRecommendationPrompt = `你是一个足球资料助手。当前请求是指定球队和位置的 FM 能力推荐，只能依据下面提供的结构化结果作答，不得自行重排、补算或引入外部资料。说明球队、目标位置、阵容数据来源与获取日期、FM 快照日期、已映射人数和映射方式。团队参考画像是位置评分至少 15 且特征完整的队内球员属性等权平均；候选按同一位置属性 RMSE 排序，当前阵容所有已映射 FM 球员都已排除。若提供高潜榜，它按 PA 单独排序，不与当前能力相似度混成综合分。不要推断阵容缺口、战术适配、转会可行性、合同、费用、当前球队或未来属性。`;
+
 const currentTurnMessages = (messages: AgentStateType["messages"]) => {
   let latestUserMessageIndex = -1;
 
@@ -145,6 +147,30 @@ const unresolvedIdentityAnswer = (state: AgentStateType): string => {
     : "我还不能确认所有目标球员的身份，请补充完整姓名或球队线索。";
 };
 
+const teamRequestBoundaryAnswer = (state: AgentStateType): string => {
+  const { request } = state;
+
+  if (request.kind !== "team_recommendation") {
+    return "当前没有有效的球队推荐请求。";
+  }
+
+  if (request.teams.length > 1) {
+    return "一次只能为一支球队生成推荐，请告诉我你要选哪一支。";
+  }
+
+  if (request.teamRecommendation.teamName === null) {
+    return "请告诉我球队名称，例如阿森纳或 Bayern Munich。";
+  }
+
+  if (request.teamRecommendation.position === null) {
+    return "请指定一个 FM 位置，例如 stc（中锋）、dc（中卫）或 dm（后腰）。";
+  }
+
+  return request.teamRecommendation.referenceMode === "named"
+    ? unresolvedIdentityAnswer(state)
+    : "球队推荐请求暂时无法继续，请重新提供一支球队和一个位置。";
+};
+
 const requestBoundaryAnswer = (state: AgentStateType): string => {
   const { request } = state;
 
@@ -185,7 +211,7 @@ const requestBoundaryAnswer = (state: AgentStateType): string => {
   }
 
   if (request.kind === "team_recommendation") {
-    return "我已经识别到这是球队推荐请求；当前版本还没有接通球队推荐流程。";
+    return teamRequestBoundaryAnswer(state);
   }
 
   return "当前版本支持查询、比较和推荐球员资料。请说明你要完成哪一种任务。";
@@ -241,9 +267,112 @@ const fixedOutcomeMessages = new Map<string, string>([
     "unsupported_position",
     "目标位置当前没有可用的 FM 属性映射或符合门槛的候选，请选择其他位置。",
   ],
+  ["team_required", "请告诉我球队名称和目标位置，再开始球队推荐。"],
+  ["one_team_required", "一次只能为一支球队生成推荐，请告诉我你要选哪一支。"],
+  [
+    "team_not_found",
+    "本地球队搜索没有找到匹配结果，请补充球队全名或所在国家。",
+  ],
+  [
+    "team_roster_empty",
+    "API-Football 没有返回这支球队的当前阵容，本次无法生成推荐。",
+  ],
+  [
+    "team_roster_member_unmapped",
+    "当前阵容中至少有一名球员无法映射到本地 FM 画像。为避免把队内球员推荐回来，本次已暂停。",
+  ],
+  [
+    "team_identity_error",
+    "读取本地 Reep 或 FM 身份资料失败，本次没有生成团队推荐。",
+  ],
+  ["reference_required", "请提供一名已确认身份的 FM 球员作为团队参考。"],
+  [
+    "team_recommendation_tool_unavailable",
+    "当前部署没有启用球队推荐所需的数据工具。",
+  ],
 ]);
 
-const fixedOutcomeAnswer = (status: string): string | null => {
+const parseProviderFailure = (value: string) => {
+  try {
+    const parsed = z
+      .object({ message: z.string(), status: z.literal("error") })
+      .safeParse(JSON.parse(value));
+
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+};
+
+const parseUnmappedRosterMember = (value: string) => {
+  try {
+    const parsed = z
+      .object({
+        apiFootballPlayerId: z.number(),
+        mappingCoverage: z
+          .object({
+            mappedMembers: z.number(),
+            noLocalProfileMembers: z.number(),
+            reepBridgeMappings: z.number(),
+            totalMembers: z.number(),
+            userConfirmedMappings: z.number(),
+          })
+          .optional(),
+        playerName: z.string(),
+      })
+      .safeParse(JSON.parse(value));
+
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+};
+
+const teamFailureAnswer = (state: AgentStateType): string | null => {
+  const { outcome } = state;
+
+  if (outcome?.kind !== "team_recommendation" || outcome.resultJson === null) {
+    return null;
+  }
+
+  if (outcome.status === "team_provider_error") {
+    const providerFailure = parseProviderFailure(outcome.resultJson);
+
+    if (providerFailure === null) {
+      return "API-Football 阵容服务暂时不可用，本次推荐没有覆盖旧结果。";
+    }
+
+    return providerFailure.message;
+  }
+
+  if (outcome.status === "team_roster_member_unmapped") {
+    const rosterMember = parseUnmappedRosterMember(outcome.resultJson);
+
+    if (rosterMember === null) {
+      return "当前阵容中有球员无法映射到本地 FM 画像，因此已暂停推荐。";
+    }
+
+    const coverage = rosterMember.mappingCoverage;
+
+    const coverageSummary =
+      coverage === undefined
+        ? ""
+        : `当前已映射 ${coverage.mappedMembers}/${coverage.totalMembers} 人（Reep ${coverage.reepBridgeMappings}，人工确认 ${coverage.userConfirmedMappings}），无本地画像 ${coverage.noLocalProfileMembers} 人。`;
+
+    return `阵容成员“${rosterMember.playerName}”（API-Football ID ${rosterMember.apiFootballPlayerId}）没有可确认的本地 FM 画像，因此已暂停推荐。${coverageSummary}`;
+  }
+
+  return null;
+};
+
+const fixedOutcomeAnswer = (state: AgentStateType): string | null => {
+  const status = state.outcome?.status ?? "";
+  const teamFailure = teamFailureAnswer(state);
+
+  if (teamFailure !== null) {
+    return teamFailure;
+  }
+
   const knownMessage = fixedOutcomeMessages.get(status);
 
   if (knownMessage !== undefined) {
@@ -393,13 +522,13 @@ const createAnswerNode =
       const message =
         outcome.status === "no_confirmed_source_records"
           ? "身份已确认，但本地数据源中没有与该身份绑定的可读记录。"
-          : (fixedOutcomeAnswer(outcome.status) ??
+          : (fixedOutcomeAnswer(state) ??
             "当前请求无法完成球员资料查询。请检查已确认的身份和数据源记录。");
 
       return { messages: [new AIMessage(message)] };
     }
 
-    const fixedAnswer = fixedOutcomeAnswer(outcome.status);
+    const fixedAnswer = fixedOutcomeAnswer(state);
 
     if (fixedAnswer !== null) {
       return { messages: [new AIMessage(fixedAnswer)] };
@@ -411,10 +540,13 @@ const createAnswerNode =
       };
     }
 
-    const prompt =
-      outcome.kind === "player_comparison"
-        ? comparisonPrompt
-        : recommendationPrompt;
+    let prompt = recommendationPrompt;
+
+    if (outcome.kind === "player_comparison") {
+      prompt = comparisonPrompt;
+    } else if (outcome.kind === "team_recommendation") {
+      prompt = teamRecommendationPrompt;
+    }
 
     const latestUserMessage = latestHumanMessage(state.messages);
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";

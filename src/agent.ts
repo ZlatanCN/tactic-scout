@@ -11,14 +11,24 @@ import { createAnswerNode, createLookupPlayerNode } from "./nodes/assistant.js";
 import { createComparePlayersNode } from "./nodes/compare-players.js";
 import { createEntityResolutionNode } from "./nodes/entity-resolution.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
+import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
 import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
+import { createResolveTeamRosterNode } from "./nodes/resolve-team-roster.js";
+import { createResolveTeamNode } from "./nodes/resolve-team.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
 import type { ReferenceIdentityLookup } from "./player-data/resolve-reference.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
 import { createRequestUnderstandingExtractor } from "./request-extraction.js";
 import type { AgentStateType, RequestState } from "./state.js";
 import { AgentState } from "./state.js";
+import {
+  getApiFootballSquad,
+  searchApiFootballTeams,
+} from "./team-data/api-football.js";
+import type { ApiFootballClient } from "./team-data/api-football.js";
+import { resolveTeamRosterIdentity } from "./team-data/roster-identity.js";
+import type { TeamRosterIdentityLookup } from "./team-data/roster-identity.js";
 import { createTools } from "./tools/search-player-records.js";
 
 type CreateAgentOptions = {
@@ -26,6 +36,8 @@ type CreateAgentOptions = {
   tools?: StructuredToolInterface[];
   requestUnderstandingExtractor?: RequestUnderstandingExtractor;
   playerIdentityLookup?: ReferenceIdentityLookup;
+  teamDirectory?: Pick<ApiFootballClient, "getSquad" | "searchTeams">;
+  teamRosterIdentityLookup?: TeamRosterIdentityLookup;
   checkpointer?: BaseCheckpointSaver;
 };
 
@@ -90,6 +102,40 @@ const recommendationIsReady = (request: RequestState): boolean => {
   );
 };
 
+const routeTeamRecommendation = (state: AgentStateType): string => {
+  const { request } = state;
+
+  if (request.kind !== "team_recommendation") {
+    return "answer";
+  }
+
+  const recommendation = request.teamRecommendation;
+
+  if (recommendation.team === null || recommendation.position === null) {
+    return "resolve_team";
+  }
+
+  if (
+    recommendation.roster === null ||
+    recommendation.roster.members.some(
+      (member) => member.mappingStatus !== "resolved" || member.fmId === null
+    )
+  ) {
+    return "resolve_team_roster";
+  }
+
+  if (
+    recommendation.referenceMode === "named" &&
+    (!playersAreResolved(request) || request.players.length === 0)
+  ) {
+    return request.players.some((player) => player.attempts > 0)
+      ? "answer"
+      : "resolve_entities";
+  }
+
+  return "recommend_players_for_team";
+};
+
 const routeResolvedRequest = (state: AgentStateType): string => {
   const { request } = state;
 
@@ -100,7 +146,11 @@ const routeResolvedRequest = (state: AgentStateType): string => {
     return "answer";
   }
 
-  if (identityResolutionExhausted(request)) {
+  if (
+    identityResolutionExhausted(request) &&
+    (request.kind !== "team_recommendation" ||
+      request.teamRecommendation.referenceMode === "named")
+  ) {
     return "answer";
   }
 
@@ -124,11 +174,21 @@ const routeResolvedRequest = (state: AgentStateType): string => {
     return recommendationIsReady(request) ? "recommend_players" : "answer";
   }
 
+  if (request.kind === "team_recommendation") {
+    return routeTeamRecommendation(state);
+  }
+
   return "answer";
 };
 
-const routeAfterClarification = (request: RequestState): string => {
-  if (identityResolutionExhausted(request)) {
+const routeAfterClarification = (state: AgentStateType): string => {
+  const { request } = state;
+
+  if (
+    identityResolutionExhausted(request) &&
+    (request.kind !== "team_recommendation" ||
+      request.teamRecommendation.referenceMode === "named")
+  ) {
     return "answer";
   }
 
@@ -146,6 +206,10 @@ const routeAfterClarification = (request: RequestState): string => {
       : "resolve_entities";
   }
 
+  if (request.kind === "team_recommendation") {
+    return routeTeamRecommendation(state);
+  }
+
   return "answer";
 };
 
@@ -158,16 +222,43 @@ const routeLookupResponse = (state: AgentStateType): string => {
     : "answer";
 };
 
+const routeAfterTeamResolution = (state: AgentStateType): string => {
+  if (state.pendingClarification !== null) {
+    return "clarify";
+  }
+
+  if (state.outcome !== null) {
+    return "answer";
+  }
+
+  return "resolve_team_roster";
+};
+
+const routeAfterTeamRosterResolution = (state: AgentStateType): string => {
+  if (state.pendingClarification !== null) {
+    return "clarify";
+  }
+
+  if (state.outcome !== null) {
+    return "answer";
+  }
+
+  return "recommend_players_for_team";
+};
+
 const unavailableTaskNode =
-  (kind: "player_comparison" | "player_recommendation") =>
+  (
+    kind: "player_comparison" | "player_recommendation" | "team_recommendation"
+  ) =>
   (state: { request: RequestState }) => ({
     outcome: {
       kind,
       resultJson: null,
-      status:
-        kind === "player_comparison"
-          ? "comparison_tool_unavailable"
-          : "recommendation_tool_unavailable",
+      status: {
+        player_comparison: "comparison_tool_unavailable",
+        player_recommendation: "recommendation_tool_unavailable",
+        team_recommendation: "team_recommendation_tool_unavailable",
+      }[kind],
     },
     request: state.request,
   });
@@ -188,6 +279,10 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     (item) => item.name === "recommend_player_candidates"
   );
 
+  const teamRecommendationTool = tools.find(
+    (item) => item.name === "recommend_team_player_candidates"
+  );
+
   const modelWithLookupTool = model.bindTools?.(
     lookupTool === undefined ? [] : [lookupTool]
   );
@@ -205,6 +300,19 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     options.playerIdentityLookup ?? resolvePlayerReference
   );
 
+  const teamDirectory = options.teamDirectory ?? {
+    getSquad: getApiFootballSquad,
+    searchTeams: searchApiFootballTeams,
+  };
+
+  const resolveTeam = createResolveTeamNode(teamDirectory.searchTeams);
+
+  const resolveTeamRoster = createResolveTeamRosterNode({
+    getSquad: teamDirectory.getSquad,
+    resolvePlayer:
+      options.teamRosterIdentityLookup ?? resolveTeamRosterIdentity,
+  });
+
   const comparePlayers = comparisonTool
     ? createComparePlayersNode(comparisonTool)
     : unavailableTaskNode("player_comparison");
@@ -212,6 +320,10 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const recommendPlayers = recommendationTool
     ? createRecommendPlayersNode(recommendationTool)
     : unavailableTaskNode("player_recommendation");
+
+  const recommendPlayersForTeam = teamRecommendationTool
+    ? createRecommendPlayersForTeamNode(teamRecommendationTool)
+    : unavailableTaskNode("team_recommendation");
 
   const graph = new StateGraph(AgentState)
     .addNode("understand_request", understandRequest)
@@ -224,6 +336,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("lookup_tools", new ToolNode(lookupTool ? [lookupTool] : []))
     .addNode("compare_players", comparePlayers)
     .addNode("recommend_players", recommendPlayers)
+    .addNode("resolve_team", resolveTeam)
+    .addNode("resolve_team_roster", resolveTeamRoster)
+    .addNode("recommend_players_for_team", recommendPlayersForTeam)
     .addNode("answer", createAnswerNode(model))
     .addEdge(START, "understand_request")
     .addEdge("understand_request", "resolve_entities")
@@ -235,6 +350,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "lookup_player",
         "compare_players",
         "recommend_players",
+        "resolve_team",
+        "resolve_team_roster",
+        "recommend_players_for_team",
         "answer",
       ]
     )
@@ -248,7 +366,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         }
 
         return state.pendingClarification === null
-          ? routeAfterClarification(state.request)
+          ? routeAfterClarification(state)
           : "clarify";
       },
       [
@@ -257,6 +375,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "lookup_player",
         "compare_players",
         "recommend_players",
+        "resolve_team",
+        "resolve_team_roster",
+        "recommend_players_for_team",
         "answer",
       ]
     )
@@ -278,6 +399,21 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         state.pendingClarification?.kind === "fm_profile"
           ? "clarify"
           : "answer",
+      ["clarify", "answer"]
+    )
+    .addConditionalEdges(
+      "resolve_team",
+      (state) => routeAfterTeamResolution(state),
+      ["clarify", "resolve_team_roster", "answer"]
+    )
+    .addConditionalEdges(
+      "resolve_team_roster",
+      (state) => routeAfterTeamRosterResolution(state),
+      ["clarify", "recommend_players_for_team", "answer"]
+    )
+    .addConditionalEdges(
+      "recommend_players_for_team",
+      (state) => (state.pendingClarification === null ? "answer" : "clarify"),
       ["clarify", "answer"]
     )
     .addEdge("answer", END);
