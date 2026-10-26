@@ -5,6 +5,7 @@
 **Blocked by:** 01: Safely recover request understanding.
 
 **Status:** resolved
+**Labels:** ready-for-agent
 
 - [ ] Reuse the proven model-request configuration, physical-request accounting, safe failure contract, and local logging from 01 at every remaining model boundary: lookup model steps, lookup follow-ups, and final explanations for comparison, player recommendation, and team-directed recommendation.
 - [ ] Each logical model activation has at most three physical requests and a 60-second limit per request. Recognized network/server failures and eligible short rate limits follow the shared policy; permanent errors, caller cancellation, and programming errors do not receive inappropriate retries.

@@ -1,6 +1,7 @@
 # Project-wide LangGraph fault tolerance v1
 
 Status: resolved
+Labels: ready-for-agent
 
 ## Problem Statement
 

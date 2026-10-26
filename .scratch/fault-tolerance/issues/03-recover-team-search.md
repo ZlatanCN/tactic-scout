@@ -5,6 +5,7 @@
 **Blocked by:** None (can start immediately).
 
 **Status:** resolved
+**Labels:** ready-for-agent
 
 - [ ] Deliver the complete team-name → API-Football search → unique selection, clarification, or safe failure path. Include the minimal API error/attempt/cancellation/logging contract required by that path; do not publish an infrastructure-only slice.
 - [ ] Preserve safe HTTP status, provider error code, retry delay, and quota evidence so recognized transport/server errors, short throttling, exhausted quota, authentication/configuration errors, and invalid responses are distinguishable.
