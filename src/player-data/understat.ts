@@ -9,6 +9,8 @@ import {
   matchReferenceName,
 } from "./name-matching.js";
 import {
+  createLocalDataError,
+  isLocalDataFailure,
   numeric,
   parseJson,
   resolveDataPath,
@@ -84,13 +86,7 @@ const recordsFromSnapshotRow = (
   const payload = parseJson(row.payload_json, understatPayloadSchema);
 
   return (payload.players ?? []).flatMap((unparsedPlayer) => {
-    const parsedPlayer = understatPlayerSchema.safeParse(unparsedPlayer);
-
-    if (!parsedPlayer.success) {
-      return [];
-    }
-
-    const player = parsedPlayer.data;
+    const player = understatPlayerSchema.parse(unparsedPlayer);
     const sourcePlayerId = sourceValueToString(player.id);
 
     return selectedIds.has(sourcePlayerId)
@@ -134,8 +130,12 @@ const readUnderstatBySourceIds = (
 
   try {
     database = new DatabaseSync(databasePath, { readOnly: true });
-  } catch {
-    return { reason: "Understat 本地快照无法打开。", status: "unavailable" };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      return { reason: "Understat 本地快照无法打开。", status: "unavailable" };
+    }
+
+    throw error;
   }
 
   try {
@@ -183,7 +183,11 @@ const readUnderstatBySourceIds = (
       ),
       status: records.length > 0 ? "found" : "not_found",
     };
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error) || !isLocalDataFailure(error)) {
+      throw error;
+    }
+
     return {
       reason: "Understat 本地快照包含无法读取的球员资料。",
       status: "unavailable",
@@ -202,10 +206,20 @@ const readUnderstatReferenceRecords = (
   );
 
   if (!existsSync(databasePath)) {
-    return [];
+    throw createLocalDataError("Understat 本地快照不存在。");
   }
 
-  const database = new DatabaseSync(databasePath, { readOnly: true });
+  let database: DatabaseSync;
+
+  try {
+    database = new DatabaseSync(databasePath, { readOnly: true });
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError("Understat 本地快照无法打开。");
+    }
+
+    throw error;
+  }
 
   try {
     const rows = z.array(understatSnapshotRowSchema).parse(
@@ -240,29 +254,31 @@ const readUnderstatReferenceRecords = (
       const payload = parseJson(row.payload_json, understatPayloadSchema);
 
       for (const unparsedPlayer of payload.players ?? []) {
-        const result = understatPlayerSchema.safeParse(unparsedPlayer);
+        const player = understatPlayerSchema.parse(unparsedPlayer);
+        const name = player.player_name ?? "";
+        const match = matchReferenceName(mention, [name]);
 
-        if (result.success) {
-          const player = result.data;
-          const name = player.player_name ?? "";
-          const match = matchReferenceName(mention, [name]);
-
-          if (match.matches) {
-            records.push({
-              competition: row.resource_id,
-              exactNameMatch: match.exact,
-              name,
-              provider: "understat",
-              season,
-              sourceId: sourceValueToString(player.id),
-              team: player.team_title ?? "",
-            });
-          }
+        if (match.matches) {
+          records.push({
+            competition: row.resource_id,
+            exactNameMatch: match.exact,
+            name,
+            provider: "understat",
+            season,
+            sourceId: sourceValueToString(player.id),
+            team: player.team_title ?? "",
+          });
         }
       }
     }
 
     return deduplicateSourceRecords(records);
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError("Understat 本地身份搜索资料无法读取。");
+    }
+
+    throw error;
   } finally {
     database.close();
   }

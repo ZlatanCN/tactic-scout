@@ -158,90 +158,80 @@ const createRecommendPlayersForTeamNode =
       };
     }
 
-    try {
-      const rawResult: unknown = await recommendationTool.invoke({
-        includePotential: recommendation.includePotential,
-        maxAge: recommendation.maxAge,
-        minimumCurrentAbility: recommendation.minimumCurrentAbility,
-        minimumPotentialAbility: recommendation.minimumPotentialAbility,
-        position: recommendation.position,
-        referenceFmIds,
-        referenceMode: recommendation.referenceMode,
-        resultLimit: recommendation.resultLimit,
-        roster,
-        team,
-      });
+    const rawResult: unknown = await recommendationTool.invoke({
+      includePotential: recommendation.includePotential,
+      maxAge: recommendation.maxAge,
+      minimumCurrentAbility: recommendation.minimumCurrentAbility,
+      minimumPotentialAbility: recommendation.minimumPotentialAbility,
+      position: recommendation.position,
+      referenceFmIds,
+      referenceMode: recommendation.referenceMode,
+      resultLimit: recommendation.resultLimit,
+      roster,
+      team,
+    });
 
-      const parsedString = z.string().safeParse(rawResult);
+    const parsedString = z.string().safeParse(rawResult);
 
-      if (!parsedString.success) {
-        throw new Error("球队推荐工具没有返回 JSON 文本。");
-      }
+    if (!parsedString.success) {
+      throw new Error("球队推荐工具没有返回 JSON 文本。");
+    }
 
-      const resultJson = parsedString.data;
-      const parsedResult: unknown = JSON.parse(resultJson);
-      const result = teamRecommendationEnvelopeSchema.parse(parsedResult);
+    const resultJson = parsedString.data;
+    const parsedResult: unknown = JSON.parse(resultJson);
+    const result = teamRecommendationEnvelopeSchema.parse(parsedResult);
 
-      if (result.status === "team_position_unavailable") {
-        return {
-          outcome: null,
-          pendingClarification: {
-            answer: null,
-            kind: "team_position",
-            options: supportedPositionCodes,
-            question: `${team.name} 在 FM 快照中没有足够的 ${recommendation.position} 画像来形成团队参考。请换一个位置，或输入一名 FM 参考球员姓名。`,
-          },
-        };
-      }
-
-      if (result.status !== "ready" && result.status !== "no_candidates") {
-        return {
-          outcome: {
-            kind: "team_recommendation",
-            resultJson,
-            status: result.status,
-          },
-        };
-      }
-
-      const referencePlayers =
-        recommendation.referenceMode === "named"
-          ? referencesFromPlayers(request.players)
-          : [];
-
+    if (result.status === "team_position_unavailable") {
       return {
-        conversationContext: {
-          ...state.conversationContext,
-          activeTeamRecommendation: {
-            includePotential: recommendation.includePotential,
-            maxAge: recommendation.maxAge,
-            minimumCurrentAbility: recommendation.minimumCurrentAbility,
-            minimumPotentialAbility: recommendation.minimumPotentialAbility,
-            position: recommendation.position,
-            referenceMode: recommendation.referenceMode,
-            referencePlayers,
-            resultJson,
-            resultLimit: recommendation.resultLimit ?? 5,
-            roster,
-            status: result.status,
-            team,
-          },
+        outcome: null,
+        pendingClarification: {
+          answer: null,
+          kind: "team_position",
+          options: supportedPositionCodes,
+          question: `${team.name} 在 FM 快照中没有足够的 ${recommendation.position} 画像来形成团队参考。请换一个位置，或输入一名 FM 参考球员姓名。`,
         },
+      };
+    }
+
+    if (result.status !== "ready" && result.status !== "no_candidates") {
+      return {
         outcome: {
           kind: "team_recommendation",
           resultJson,
           status: result.status,
         },
       };
-    } catch {
-      return {
-        outcome: {
-          kind: "team_recommendation",
-          resultJson: null,
-          status: "tool_error",
-        },
-      };
     }
+
+    const referencePlayers =
+      recommendation.referenceMode === "named"
+        ? referencesFromPlayers(request.players)
+        : [];
+
+    return {
+      conversationContext: {
+        ...state.conversationContext,
+        activeTeamRecommendation: {
+          includePotential: recommendation.includePotential,
+          maxAge: recommendation.maxAge,
+          minimumCurrentAbility: recommendation.minimumCurrentAbility,
+          minimumPotentialAbility: recommendation.minimumPotentialAbility,
+          position: recommendation.position,
+          referenceMode: recommendation.referenceMode,
+          referencePlayers,
+          resultJson,
+          resultLimit: recommendation.resultLimit ?? 5,
+          roster,
+          status: result.status,
+          team,
+        },
+      },
+      outcome: {
+        kind: "team_recommendation",
+        resultJson,
+        status: result.status,
+      },
+    };
   };
 
 export { createRecommendPlayersForTeamNode };

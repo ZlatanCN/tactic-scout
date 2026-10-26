@@ -5,6 +5,7 @@ import {
   mergeComparisonConstraints,
   requestPlayerFromReference,
 } from "../comparison-context.js";
+import { createModelRequestBudget } from "../model-requests.js";
 import {
   findConfirmedPlayerAliasesInMessage,
   latestHumanMessage,
@@ -25,6 +26,7 @@ import type {
 } from "../state.js";
 import {
   createInitialConversationContext,
+  createInitialFaultToleranceState,
   createInitialRecommendationRequest,
   createInitialRequestState,
   createInitialTeamRecommendationRequest,
@@ -465,7 +467,7 @@ const createRequestUnderstandingNode =
   (
     extractRequest: RequestUnderstandingExtractor
   ): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     const currentRequest = state.request ?? createInitialRequestState();
 
     const conversationContext =
@@ -489,7 +491,8 @@ const createRequestUnderstandingNode =
     }
 
     const text = messageText(latestUserMessage);
-    const extracted = await extractRequest(text, contextWithComparison);
+    const budget = createModelRequestBudget(runtime, "understand_request");
+    const extracted = await extractRequest(text, contextWithComparison, budget);
 
     const isLookupFollowUp = isLookupFollowUpRequest(
       extracted,
@@ -603,6 +606,7 @@ const createRequestUnderstandingNode =
 
     return {
       conversationContext: contextWithComparison,
+      faultTolerance: createInitialFaultToleranceState(),
       outcome,
       pendingClarification: null,
       request,

@@ -1238,6 +1238,35 @@ const recommendationClarificationForRequest = (
   return null;
 };
 
+const outcomeKindForRequest = (
+  request: RequestState
+): Extract<AgentStateType["outcome"], { kind: string }>["kind"] => {
+  if (request.kind === "player_comparison") {
+    return "player_comparison";
+  }
+
+  if (request.kind === "player_recommendation") {
+    return "player_recommendation";
+  }
+
+  if (request.kind === "team_recommendation") {
+    return "team_recommendation";
+  }
+
+  return "player_lookup";
+};
+
+const dataUnavailableOutcome = (request: RequestState) => ({
+  kind: outcomeKindForRequest(request),
+  resultJson: null,
+  status: "identity_data_unavailable",
+});
+
+const identityDataUnavailable = (request: RequestState): boolean =>
+  request.players.some(
+    (player) => player.resolution?.status === "data_unavailable"
+  );
+
 const createEntityResolutionNode =
   (lookup: ReferenceIdentityLookup): GraphNode<typeof AgentState> =>
   async (state) => {
@@ -1266,6 +1295,18 @@ const createEntityResolutionNode =
     ({ request } = resumedIdentity);
 
     if (resumedIdentity.shouldStop) {
+      if (identityDataUnavailable(request)) {
+        return {
+          conversationContext: conversationContextFromRequest(
+            request,
+            conversationContext
+          ),
+          outcome: dataUnavailableOutcome(request),
+          pendingClarification: null,
+          request,
+        };
+      }
+
       return {
         pendingClarification: resumedIdentity.pendingClarification,
         request,
@@ -1290,6 +1331,15 @@ const createEntityResolutionNode =
       const contextWithConfirmedAliases = hasResolvedParticipants
         ? conversationContextFromRequest(request, conversationContext)
         : conversationContext;
+
+      if (identityDataUnavailable(request)) {
+        return {
+          conversationContext: contextWithConfirmedAliases,
+          outcome: dataUnavailableOutcome(request),
+          pendingClarification: null,
+          request,
+        };
+      }
 
       return {
         conversationContext: contextWithConfirmedAliases,

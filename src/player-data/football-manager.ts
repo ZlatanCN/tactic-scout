@@ -15,6 +15,8 @@ import {
 } from "./position-features.js";
 import type { SupportedPosition } from "./position-features.js";
 import {
+  createLocalDataError,
+  isLocalDataFailure,
   normalizePlayerName,
   numeric,
   parseJson,
@@ -210,8 +212,12 @@ const readFmRecommendationReferenceMetadata = (
 
   try {
     database = new DatabaseSync(databasePath, { readOnly: true });
-  } catch {
-    return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+    }
+
+    throw error;
   }
 
   try {
@@ -279,8 +285,12 @@ const readFmRecommendationReferenceMetadata = (
       snapshotDate: manifestPayload.inGameDate,
       status: "ready",
     };
-  } catch {
-    return { reason: "FM 本地身份位置资料无法读取。", status: "unavailable" };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      return { reason: "FM 本地身份位置资料无法读取。", status: "unavailable" };
+    }
+
+    throw error;
   } finally {
     database.close();
   }
@@ -347,8 +357,12 @@ const readFmRecommendationProfiles = (
 
   try {
     database = new DatabaseSync(databasePath, { readOnly: true });
-  } catch {
-    return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+    }
+
+    throw error;
   }
 
   try {
@@ -431,7 +445,11 @@ const readFmRecommendationProfiles = (
       snapshotDate: manifestPayload.inGameDate,
       status: "ready",
     };
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error) || !isLocalDataFailure(error)) {
+      throw error;
+    }
+
     return {
       reason: "FM 本地画像快照包含无法读取的推荐字段。",
       status: "unavailable",
@@ -468,8 +486,12 @@ const readFmProfilesBySourceIds = (sourceIds: string[]): FmReadResult => {
 
   try {
     database = new DatabaseSync(databasePath, { readOnly: true });
-  } catch {
-    return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      return { reason: fmDatabaseOpenErrorMessage, status: "unavailable" };
+    }
+
+    throw error;
   }
 
   try {
@@ -511,7 +533,11 @@ const readFmProfilesBySourceIds = (sourceIds: string[]): FmReadResult => {
     });
 
     return { records, status: records.length > 0 ? "found" : "not_found" };
-  } catch {
+  } catch (error) {
+    if (!(error instanceof Error) || !isLocalDataFailure(error)) {
+      throw error;
+    }
+
     return {
       reason: "FM 本地画像快照包含无法读取的球员资料。",
       status: "unavailable",
@@ -528,10 +554,20 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
   );
 
   if (!existsSync(databasePath)) {
-    return [];
+    throw createLocalDataError(fmDatabaseMissingMessage);
   }
 
-  const database = new DatabaseSync(databasePath, { readOnly: true });
+  let database: DatabaseSync;
+
+  try {
+    database = new DatabaseSync(databasePath, { readOnly: true });
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError(fmDatabaseOpenErrorMessage);
+    }
+
+    throw error;
+  }
 
   try {
     const pattern = `%${normalizePlayerName(mention)}%`;
@@ -582,6 +618,12 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
     }
 
     return deduplicateSourceRecords(records);
+  } catch (error) {
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError("FM 本地身份搜索资料无法读取。");
+    }
+
+    throw error;
   } finally {
     database.close();
   }

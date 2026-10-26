@@ -9,6 +9,7 @@ import { readFmReferenceRecords } from "./football-manager.js";
 import { openIdentityRegistry, resolveReepRecord } from "./reep-registry.js";
 import {
   assertModelProcessingAllowed,
+  isLocalDataError,
   normalizePlayerName,
   resolveDataPath,
 } from "./shared.js";
@@ -308,13 +309,36 @@ const clarificationForCandidates = (
     : `“${mention}”不是唯一的完整姓名匹配，请确认候选是否正确。`;
 };
 
+const dataUnavailableReference = (mention: string): ReferenceLookupResult => ({
+  candidateCount: 0,
+  candidates: [],
+  candidatesTruncated: false,
+  canonicalIdentityId: null,
+  clarificationMessage:
+    "本地球员身份资料无法读取，本次请求没有执行。请检查本地数据后重试。",
+  mention,
+  selectedCandidateId: null,
+  selectedName: null,
+  status: "data_unavailable",
+});
+
 const resolvePlayerReference = (mention: string): ReferenceLookupResult => {
   assertModelProcessingAllowed("both");
 
-  const records = [
-    ...readUnderstatReferenceRecords(mention),
-    ...readFmReferenceRecords(mention),
-  ];
+  let records: CandidateSourceRecord[];
+
+  try {
+    records = [
+      ...readUnderstatReferenceRecords(mention),
+      ...readFmReferenceRecords(mention),
+    ];
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      return dataUnavailableReference(mention);
+    }
+
+    throw error;
+  }
 
   if (!records.length) {
     return {
@@ -335,7 +359,17 @@ const resolvePlayerReference = (mention: string): ReferenceLookupResult => {
     ".data/reep/identity-with-fm.sqlite"
   );
 
-  const registry = openIdentityRegistry(registryPath);
+  let registry: DatabaseSync | null;
+
+  try {
+    registry = openIdentityRegistry(registryPath);
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      return dataUnavailableReference(mention);
+    }
+
+    throw error;
+  }
 
   if (registry === null) {
     const limited = limitReferenceCandidates(
@@ -398,6 +432,12 @@ const resolvePlayerReference = (mention: string): ReferenceLookupResult => {
       status: "needs_confirmation",
       ...limited,
     };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      return dataUnavailableReference(mention);
+    }
+
+    throw error;
   } finally {
     registry.close();
   }

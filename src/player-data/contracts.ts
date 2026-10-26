@@ -41,6 +41,7 @@ const PlayerResolutionSchema = z.object({
   status: z.enum([
     "resolved",
     "needs_confirmation",
+    "data_unavailable",
     "not_found",
     "registry_unavailable",
   ]),

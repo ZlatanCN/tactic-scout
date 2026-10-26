@@ -66,6 +66,40 @@ const resolveDataPath = (
   defaultPath: string
 ): string => path.resolve(projectRoot, configuredPath?.trim() ?? defaultPath);
 
+const isLocalDataFailure = (error: Error): boolean => {
+  if (error instanceof SyntaxError || error instanceof z.ZodError) {
+    return true;
+  }
+
+  const parsed = z
+    .looseObject({
+      cause: z.looseObject({ code: z.string().optional() }).optional(),
+      code: z.string().optional(),
+    })
+    .safeParse(error);
+
+  if (!parsed.success) {
+    return false;
+  }
+
+  const code = parsed.data.code ?? parsed.data.cause?.code;
+
+  return (
+    code?.startsWith("ERR_SQLITE_") === true ||
+    code?.startsWith("SQLITE_") === true ||
+    code?.startsWith("Z_") === true ||
+    ["EACCES", "EIO", "ENOENT", "ENOTDIR"].includes(code ?? "")
+  );
+};
+
+type LocalDataError = Error & { localDataFailure: true };
+
+const createLocalDataError = (message: string): LocalDataError =>
+  Object.assign(new Error(message), { localDataFailure: true as const });
+
+const isLocalDataError = (error: Error): error is LocalDataError =>
+  z.object({ localDataFailure: z.literal(true) }).safeParse(error).success;
+
 const numeric = (value: z.input<typeof sourceValueSchema>): number | null => {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -104,7 +138,10 @@ const firstNonEmptyString = (
 
 export {
   assertModelProcessingAllowed,
+  createLocalDataError,
   firstNonEmptyString,
+  isLocalDataFailure,
+  isLocalDataError,
   normalizePlayerName,
   nullableString,
   numeric,

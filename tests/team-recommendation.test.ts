@@ -10,6 +10,7 @@ import type {
   ApiFootballClient,
   ApiFootballRosterPlayer,
 } from "../src/team-data/api-football.js";
+import { createApiFootballClient } from "../src/team-data/api-football.js";
 import type { TeamIdentity } from "../src/team-data/contracts.js";
 import type { TeamRosterIdentityLookup } from "../src/team-data/roster-identity.js";
 import type { RecommendTeamPlayerCandidates } from "../src/tools/recommend-team-player-candidates.js";
@@ -167,6 +168,18 @@ const readRosterMember = (
   return request.teamRecommendation.roster?.members ?? [];
 };
 
+const shortRateLimitResponse = () =>
+  Response.json(
+    { errors: [], response: [] },
+    {
+      headers: {
+        "retry-after": "0",
+        "x-ratelimit-requests-remaining": "4",
+      },
+      status: 429,
+    }
+  );
+
 describe("team recommendation graph", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -202,9 +215,9 @@ describe("team recommendation graph", () => {
 
     expect({
       answer: result.messages.at(-1)?.content,
-      getSquadCalls: directory.getSquad.mock.calls,
+      getSquadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
       input: recommend.mock.calls[0]?.[0],
-      searchCalls: directory.searchTeams.mock.calls,
+      searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
       storedTeam: result.conversationContext.activeTeamRecommendation?.team,
     }).toMatchObject({
       answer: "Team results are ready.",
@@ -226,6 +239,335 @@ describe("team recommendation graph", () => {
       },
       searchCalls: [["Arsenal"]],
       storedTeam: arsenal,
+    });
+  });
+
+  it("uses the native graph retry for an API-Football server error", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [{ team: arsenal, venue: { name: "Emirates" } }],
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Squad Player", position: "Attacker" },
+              ],
+              team: arsenal,
+            },
+          ],
+        })
+      );
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({
+        recommendation: { currentCandidates: [] },
+        status: "ready",
+      })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-api-server-retry" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "Team results are ready.",
+      fetchCalls: 3,
+      recommendationCalls: 1,
+    });
+  });
+
+  it("retries roster acquisition before mapping and ranking the roster", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [{ team: arsenal, venue: { name: "Emirates" } }],
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Squad Player", position: "Attacker" },
+              ],
+              team: arsenal,
+            },
+          ],
+        })
+      );
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({
+        recommendation: { currentCandidates: [] },
+        status: "ready",
+      })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-roster-server-retry" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      mappedRoster: readRosterMember(result).map((member) => member.fmId),
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "Team results are ready.",
+      fetchCalls: 3,
+      mappedRoster: ["fm-1001"],
+      recommendationCalls: 1,
+    });
+  });
+
+  it("recovers one short 429 while acquiring a team roster", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [{ team: arsenal, venue: { name: "Emirates" } }],
+        })
+      )
+      .mockResolvedValueOnce(shortRateLimitResponse())
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Squad Player", position: "Attacker" },
+              ],
+              team: arsenal,
+            },
+          ],
+        })
+      );
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({
+        recommendation: { currentCandidates: [] },
+        status: "ready",
+      })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-roster-rate-limit-retry" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      mappedRoster: readRosterMember(result).map((member) => member.fmId),
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "Team results are ready.",
+      fetchCalls: 3,
+      mappedRoster: ["fm-1001"],
+      recommendationCalls: 1,
+    });
+  });
+
+  it("waits and retries one short 429 without exceeding the request budget", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { errors: [], response: [] },
+          {
+            headers: {
+              "retry-after": "0",
+              "x-ratelimit-requests-remaining": "4",
+            },
+            status: 429,
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [{ team: arsenal, venue: { name: "Emirates" } }],
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Squad Player", position: "Attacker" },
+              ],
+              team: arsenal,
+            },
+          ],
+        })
+      );
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({
+        recommendation: { currentCandidates: [] },
+        status: "ready",
+      })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-api-rate-limit-retry" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "Team results are ready.",
+      fetchCalls: 3,
+      recommendationCalls: 1,
+    });
+  });
+
+  it("does not retry a second short 429 in the same team lookup", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(shortRateLimitResponse())
+      .mockResolvedValueOnce(shortRateLimitResponse());
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() => "{}");
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-api-rate-limit-once" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "API-Football 正在短时限流。",
+      fetchCalls: 2,
+      recommendationCalls: 0,
+    });
+  });
+
+  it("does not retry early when Retry-After exceeds the bounded wait", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        { errors: [], response: [] },
+        {
+          headers: {
+            "retry-after": "20",
+            "x-ratelimit-requests-remaining": "4",
+          },
+          status: 429,
+        }
+      )
+    );
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() => "{}");
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-api-long-retry-after" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      fetchCalls: fetcher.mock.calls.length,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "API-Football 正在短时限流。",
+      fetchCalls: 1,
+      recommendationCalls: 0,
     });
   });
 
@@ -263,7 +605,7 @@ describe("team recommendation graph", () => {
     expect({
       completedTeam:
         completed.conversationContext.activeTeamRecommendation?.team,
-      searchCalls: directory.searchTeams.mock.calls,
+      searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
       wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
     }).toStrictEqual({
       completedTeam: arsenal,
@@ -329,14 +671,14 @@ describe("team recommendation graph", () => {
 
     expect({
       completed: completed.conversationContext.activeTeamRecommendation,
-      getSquadCalls: directory.getSquad.mock.calls,
+      getSquadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
       identityLookups: identityLookup.mock.calls,
       mappedRoster: readRosterMember(completed).map((member) => ({
         fmId: member.fmId,
         mappingMethod: member.mappingMethod,
       })),
       recommendCalls: recommend.mock.calls.length,
-      searchCalls: directory.searchTeams.mock.calls,
+      searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
       wasInterrupted: [
         teamInterrupted,
         profileInterrupted,
@@ -554,8 +896,8 @@ describe("team recommendation graph", () => {
 
     expect({
       input: recommend.mock.calls[1]?.[0],
-      searchCalls: directory.searchTeams.mock.calls,
-      squadCalls: directory.getSquad.mock.calls,
+      searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
+      squadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
       team: replaced.conversationContext.activeTeamRecommendation?.team,
     }).toMatchObject({
       input: {
@@ -665,7 +1007,7 @@ describe("team recommendation graph", () => {
 
     expect({
       firstTeam: firstThread.conversationContext.activeTeamRecommendation?.team,
-      searchCalls: directory.searchTeams.mock.calls,
+      searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
       secondActiveTeam:
         secondThread.conversationContext.activeTeamRecommendation,
       secondAnswer: secondThread.messages.at(-1)?.content,
@@ -676,6 +1018,69 @@ describe("team recommendation graph", () => {
       secondActiveTeam: null,
       secondAnswer: "请告诉我球队名称和目标位置，再开始球队推荐。",
       toolCalls: 1,
+    });
+  });
+
+  it("retains a completed team recommendation when its final explanation fails", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 1001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommendation = JSON.stringify({
+      recommendation: { currentCandidates: [] },
+      status: "ready",
+    });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(
+      () => recommendation
+    );
+
+    const model = fakeModel()
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      model,
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-recommendation-explanation-outage" } }
+    );
+
+    expect({
+      activeRecommendation:
+        result.conversationContext.activeTeamRecommendation?.resultJson,
+      answer: result.messages.at(-1)?.content,
+      outcome: result.outcome?.status,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      activeRecommendation: recommendation,
+      answer:
+        "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。",
+      outcome: "ready",
+      recommendationCalls: 1,
     });
   });
 });

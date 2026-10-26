@@ -4,6 +4,7 @@ import {
   readFmReferenceRecords,
 } from "../player-data/football-manager.js";
 import { resolveApiFootballPlayerFmIds } from "../player-data/reep-registry.js";
+import { createLocalDataError } from "../player-data/shared.js";
 import type { TeamFmProfileCandidate } from "./contracts.js";
 
 type TeamRosterIdentityResolution =
@@ -45,7 +46,7 @@ const enrichProfileCandidates = (
   );
 
   if (profiles.status === "unavailable") {
-    throw new Error(profiles.reason);
+    throw createLocalDataError("Football Manager 本地画像资料无法读取。");
   }
 
   const profileById = new Map(
@@ -79,7 +80,7 @@ const candidatesFromReepBridge = (
   const metadata = readFmRecommendationReferenceMetadata(fmIds);
 
   if (metadata.status === "unavailable") {
-    throw new Error(metadata.reason);
+    throw createLocalDataError("Football Manager 本地身份资料无法读取。");
   }
 
   const candidates = enrichProfileCandidates(

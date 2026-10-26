@@ -139,55 +139,45 @@ const createComparePlayersNode =
       };
     }
 
-    try {
-      const toolInput =
-        season.kind === "valid"
-          ? { players, seasonStartYear: season.year }
-          : { players };
+    const toolInput =
+      season.kind === "valid"
+        ? { players, seasonStartYear: season.year }
+        : { players };
 
-      const rawResult: unknown = await compareTool.invoke(toolInput);
-      const parsedString = z.string().safeParse(rawResult);
+    const rawResult: unknown = await compareTool.invoke(toolInput);
+    const parsedString = z.string().safeParse(rawResult);
 
-      if (!parsedString.success) {
-        throw new Error("比较工具未返回 JSON 文本。");
-      }
+    if (!parsedString.success) {
+      throw new Error("比较工具未返回 JSON 文本。");
+    }
 
-      const jsonValue: unknown = JSON.parse(parsedString.data);
-      const result = comparisonResultSchema.parse(jsonValue);
+    const jsonValue: unknown = JSON.parse(parsedString.data);
+    const result = comparisonResultSchema.parse(jsonValue);
 
-      if (result.status !== "ready" && result.status !== "no_comparable_data") {
-        return {
-          outcome: {
-            kind: "player_comparison",
-            resultJson: parsedString.data,
-            status: result.status,
-          },
-        };
-      }
-
-      const previousContext = state.conversationContext;
-      const activeComparison = comparisonContextFromRequest(request);
-
+    if (result.status !== "ready" && result.status !== "no_comparable_data") {
       return {
-        conversationContext:
-          activeComparison.players.length >= 2
-            ? { ...previousContext, activeComparison }
-            : previousContext,
         outcome: {
           kind: "player_comparison",
           resultJson: parsedString.data,
           status: result.status,
         },
       };
-    } catch {
-      return {
-        outcome: {
-          kind: "player_comparison",
-          resultJson: null,
-          status: "tool_error",
-        },
-      };
     }
+
+    const previousContext = state.conversationContext;
+    const activeComparison = comparisonContextFromRequest(request);
+
+    return {
+      conversationContext:
+        activeComparison.players.length >= 2
+          ? { ...previousContext, activeComparison }
+          : previousContext,
+      outcome: {
+        kind: "player_comparison",
+        resultJson: parsedString.data,
+        status: result.status,
+      },
+    };
   };
 
 export { createComparePlayersNode };

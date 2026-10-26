@@ -1,19 +1,19 @@
 import type { LanguageModelLike } from "@langchain/core/language_models/base";
 import {
   AIMessage,
+  BaseMessage,
   HumanMessage,
   SystemMessage,
-  ToolMessage,
 } from "@langchain/core/messages";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { createModelRequestBudget } from "../model-requests.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
 import type {
   AgentState,
   AgentStateType,
-  ConversationPlayerReference,
   RequestPlayerState,
 } from "../state.js";
 
@@ -51,48 +51,6 @@ const resolvedRecords = (player: RequestPlayerState) => {
       provider,
       sourceId,
     })) ?? []
-  );
-};
-
-const resolvedReference = (
-  player: RequestPlayerState
-): ConversationPlayerReference | null => {
-  const candidate = selectedReferenceCandidate(player.resolution);
-
-  return candidate === null
-    ? null
-    : {
-        candidate,
-        referenceId: candidate.canonicalIdentityId ?? candidate.candidateId,
-      };
-};
-
-const lookupResultSchema = z.object({
-  fm: z.object({ status: z.string() }).optional(),
-  understat: z.object({ status: z.string() }).optional(),
-});
-
-const hasSearchData = (message: ToolMessage): boolean => {
-  const content = z.string().safeParse(message.content);
-
-  if (!content.success) {
-    return false;
-  }
-
-  let parsedJson: unknown;
-
-  try {
-    parsedJson = JSON.parse(content.data);
-  } catch {
-    return false;
-  }
-
-  const result = lookupResultSchema.safeParse(parsedJson);
-
-  return (
-    result.success &&
-    (result.data.fm?.status === "found" ||
-      result.data.understat?.status === "found")
   );
 };
 
@@ -223,6 +181,10 @@ const fixedOutcomeMessages = new Map<string, string>([
     "本地 FM 快照无法读取。本次请求没有执行，之前完成的推荐仍然保留。",
   ],
   [
+    "identity_data_unavailable",
+    "本地球员身份资料无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+  ],
+  [
     "excluded_profile_missing",
     "要排除的球员没有对应的 FM source ID，无法可靠应用排除条件。",
   ],
@@ -254,6 +216,10 @@ const fixedOutcomeMessages = new Map<string, string>([
   [
     "reference_required",
     "请提供至少一名身份已确认的参考球员，再进行能力推荐。",
+  ],
+  [
+    "lookup_search_limit",
+    "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
   ],
   [
     "tool_error",
@@ -384,12 +350,58 @@ const fixedOutcomeAnswer = (state: AgentStateType): string | null => {
     : null;
 };
 
+const faultFailureAnswer = (state: AgentStateType): string => {
+  const { failure } = state.faultTolerance;
+
+  if (failure === null) {
+    return "本次请求没有完成，请重新描述你的问题。";
+  }
+
+  if (
+    failure.node === "understand_request" &&
+    failure.category === "invalid_response"
+  ) {
+    return "我没能可靠理解这条新请求，因此没有执行任何球员或球队操作。请换个说法重试。";
+  }
+
+  if (
+    failure.category === "authentication" ||
+    failure.category === "configuration"
+  ) {
+    return "模型服务凭据或配置无效，请检查模型网关配置后重试。";
+  }
+
+  if (failure.category === "quota") {
+    return "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。";
+  }
+
+  if (failure.category === "rate_limit") {
+    return "模型服务正在限流。本次请求没有完成，已确认的数据和之前的结果仍保留。";
+  }
+
+  if (failure.node === "understand_request") {
+    return "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。";
+  }
+
+  if (failure.node === "lookup_player") {
+    return "球员查询模型暂时不可用，本次没有完成查询或切换已确认的球员身份。请稍后重试。";
+  }
+
+  return state.outcome === null
+    ? "模型服务暂时不可用，本次请求没有完成。已确认的数据身份和之前的结果仍保留。"
+    : "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。";
+};
+
+const createFaultAnswerNode = (): GraphNode<typeof AgentState> => (state) => ({
+  messages: [new AIMessage(faultFailureAnswer(state))],
+});
+
 const createLookupPlayerNode =
   (
     modelWithTools: LanguageModelLike,
     hasSearchTool = true
   ): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     if (!hasSearchTool) {
       return {
         outcome: {
@@ -416,64 +428,39 @@ const createLookupPlayerNode =
 
     const messages = currentTurnMessages(state.messages);
 
-    const response = await modelWithTools.invoke([
-      new SystemMessage(lookupPrompt),
-      ...messages,
-    ]);
-
-    const assistantMessage =
-      response instanceof AIMessage && player !== undefined
-        ? pinSearchToResolvedIdentity(response, player)
-        : response;
-
-    const currentMessages = [...messages, assistantMessage];
-
-    const latestSearchResult = currentMessages.findLast(
-      (message): message is ToolMessage =>
-        message instanceof ToolMessage &&
-        message.name === "search_player_records"
-    );
-
-    const { conversationContext } = state;
-    const [resolvedPlayer] = state.request.players;
-
-    const lookupReference =
-      state.request.players.length === 1 && resolvedPlayer !== undefined
-        ? resolvedReference(resolvedPlayer)
-        : null;
-
-    let { activeLookup } = conversationContext;
-
-    if (
-      latestSearchResult !== undefined &&
-      hasSearchData(latestSearchResult) &&
-      lookupReference !== null
-    ) {
-      const resultJson = z.string().safeParse(latestSearchResult.content);
-
-      if (resultJson.success) {
-        activeLookup = { player: lookupReference, resultJson: resultJson.data };
-      }
+    if (state.faultTolerance.lookupLimitReached) {
+      return {
+        outcome: {
+          kind: "player_lookup",
+          resultJson: null,
+          status: "lookup_search_limit",
+        },
+      };
     }
 
-    const focusPlayers =
-      latestSearchResult !== undefined && hasSearchData(latestSearchResult)
-        ? state.request.players.flatMap((requestPlayer) => {
-            const reference = resolvedReference(requestPlayer);
+    const budget = createModelRequestBudget(runtime, "lookup_player");
 
-            return reference === null ? [] : [reference];
-          })
-        : conversationContext.focusPlayers;
+    const response = await budget.invoke(
+      async (signal) =>
+        await modelWithTools.invoke(
+          [new SystemMessage(lookupPrompt), ...messages],
+          { signal }
+        )
+    );
+
+    const modelMessage =
+      response instanceof BaseMessage ? response : new AIMessage(response);
+
+    const assistantMessage =
+      modelMessage instanceof AIMessage && player !== undefined
+        ? pinSearchToResolvedIdentity(modelMessage, player)
+        : modelMessage;
 
     return {
-      conversationContext:
-        focusPlayers === conversationContext.focusPlayers &&
-        activeLookup === conversationContext.activeLookup
-          ? conversationContext
-          : { ...conversationContext, activeLookup, focusPlayers },
       messages: [assistantMessage],
       outcome:
-        response instanceof AIMessage && (response.tool_calls ?? []).length > 0
+        assistantMessage instanceof AIMessage &&
+        (assistantMessage.tool_calls ?? []).length > 0
           ? state.outcome
           : {
               kind: "player_lookup",
@@ -485,7 +472,7 @@ const createLookupPlayerNode =
 
 const createAnswerNode =
   (model: LanguageModelLike): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     const { outcome } = state;
 
     if (outcome === null) {
@@ -503,14 +490,22 @@ const createAnswerNode =
           ? messageText(latestUserMessage)
           : "";
 
-        const response = await model.invoke([
-          new SystemMessage(lookupFollowUpPrompt),
-          new HumanMessage(
-            `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${
-              outcome.resultJson
-            }`
-          ),
-        ]);
+        const budget = createModelRequestBudget(runtime, "answer");
+
+        const response = await budget.invoke(
+          async (signal) =>
+            await model.invoke(
+              [
+                new SystemMessage(lookupFollowUpPrompt),
+                new HumanMessage(
+                  `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${
+                    outcome.resultJson
+                  }`
+                ),
+              ],
+              { signal }
+            )
+        );
 
         return { messages: [response] };
       }
@@ -551,14 +546,22 @@ const createAnswerNode =
     const latestUserMessage = latestHumanMessage(state.messages);
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
 
-    const response = await model.invoke([
-      new SystemMessage(prompt),
-      new HumanMessage(
-        `用户请求：${requestText}\n\n结构化工具结果：\n${outcome.resultJson}`
-      ),
-    ]);
+    const budget = createModelRequestBudget(runtime, "answer");
+
+    const response = await budget.invoke(
+      async (signal) =>
+        await model.invoke(
+          [
+            new SystemMessage(prompt),
+            new HumanMessage(
+              `用户请求：${requestText}\n\n结构化工具结果：\n${outcome.resultJson}`
+            ),
+          ],
+          { signal }
+        )
+    );
 
     return { messages: [response] };
   };
 
-export { createAnswerNode, createLookupPlayerNode };
+export { createAnswerNode, createFaultAnswerNode, createLookupPlayerNode };

@@ -3,6 +3,12 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
 
 import {
+  createExternalFaultError,
+  externalFaultFrom,
+} from "./fault-tolerance.js";
+import { isRequestOutputValidationError } from "./model-requests.js";
+import type { ModelRequestBudget } from "./model-requests.js";
+import {
   findPlayerReferenceMention,
   isPlayerReferenceMention,
   normalizeMentionText,
@@ -56,7 +62,8 @@ type RecommendationRequestPatch = {
 
 type RequestUnderstandingExtractor = (
   message: string,
-  context: ConversationContext
+  context: ConversationContext,
+  budget?: ModelRequestBudget
 ) => Promise<ExtractedRequest>;
 
 type NormalizedExtractedPlayerMention = {
@@ -209,42 +216,6 @@ const uniqueText = (values: string[]): string[] => {
   });
 };
 
-const recommendationPatchFromResult = (
-  patch: z.output<typeof recommendationExtractionSchema> | undefined
-): RecommendationRequestPatch | undefined => {
-  if (patch === undefined) {
-    return undefined;
-  }
-
-  const normalized: RecommendationRequestPatch = {};
-
-  if (patch.includePotential !== undefined) {
-    normalized.includePotential = patch.includePotential;
-  }
-
-  if (patch.maxAge !== undefined) {
-    normalized.maxAge = patch.maxAge;
-  }
-
-  if (patch.minimumCurrentAbility !== undefined) {
-    normalized.minimumCurrentAbility = patch.minimumCurrentAbility;
-  }
-
-  if (patch.minimumPotentialAbility !== undefined) {
-    normalized.minimumPotentialAbility = patch.minimumPotentialAbility;
-  }
-
-  if (patch.position !== undefined) {
-    normalized.position = patch.position;
-  }
-
-  if (patch.resultLimit !== undefined) {
-    normalized.resultLimit = patch.resultLimit;
-  }
-
-  return normalized;
-};
-
 const recommendationActionFromResult = (
   result: {
     kind: RequestKind;
@@ -272,6 +243,83 @@ const recommendationActionFromResult = (
   return undefined;
 };
 
+const normalizeRequestExtraction = (
+  result: ExtractedRequest,
+  message: string,
+  context: ConversationContext
+): ExtractedRequest => ({
+  comparisonAction:
+    result.comparisonAction === "add" || addToComparisonPattern.test(message)
+      ? "add"
+      : "replace",
+  constraints: result.constraints.flatMap((constraint) => {
+    const name = constraint.name.trim();
+    const value = constraint.value.trim();
+
+    return name && value ? [{ name, value }] : [];
+  }),
+  kind: result.kind,
+  players: result.players.flatMap((player) => {
+    const mention = player.mention.trim();
+
+    return mention
+      ? [
+          {
+            lookupName: player.lookupName?.trim() ?? null,
+            mention,
+            recommendationRole: player.recommendationRole ?? "reference",
+            referenceScope: player.referenceScope ?? "explicit",
+            referenceTargetMention:
+              player.referenceTargetMention?.trim() ?? null,
+          },
+        ]
+      : [];
+  }),
+  recommendation: result.recommendation,
+  recommendationAction: recommendationActionFromResult(
+    result,
+    context,
+    message
+  ),
+  teamSearchName: result.teamSearchName?.trim() ?? null,
+  teams: uniqueText(result.teams),
+});
+
+const requestValidationFeedback = (error: Error): string => {
+  const issueSchema = z.looseObject({
+    issues: z.array(
+      z.looseObject({
+        path: z.array(z.union([z.string(), z.number()])).optional(),
+      })
+    ),
+  });
+
+  const parsed = issueSchema.safeParse(error);
+
+  if (parsed.success) {
+    const paths = parsed.data.issues.flatMap((issue) => {
+      const path = issue.path?.join(".") ?? "";
+
+      return path.length > 0 ? [path] : [];
+    });
+
+    if (paths.length > 0) {
+      return `结构化输出未通过校验。请修正这些字段后重新输出：${[...new Set(paths)].join("、")}。`;
+    }
+  }
+
+  return "结构化输出未通过 request schema 校验。请根据原始请求重新输出完整、符合 schema 的结构化结果，不要补猜。";
+};
+
+const invalidRequestOutputFailure = (requestsUsed: number) =>
+  createExternalFaultError({
+    category: "invalid_response",
+    message: "模型未能返回有效的请求结构，本轮没有执行任何数据操作。",
+    provider: "model",
+    requestsUsed,
+    retryable: false,
+  });
+
 const createRequestUnderstandingExtractor = (
   model: BaseChatModel
 ): RequestUnderstandingExtractor => {
@@ -279,7 +327,7 @@ const createRequestUnderstandingExtractor = (
     method: "functionCalling",
   });
 
-  return async (message, context) => {
+  return async (message, context, budget) => {
     const contextInput = {
       activeComparison: {
         constraints: context.activeComparison.constraints,
@@ -364,49 +412,68 @@ const createRequestUnderstandingExtractor = (
       })),
     };
 
-    const result = await structuredModel.invoke([
-      new SystemMessage(requestExtractionPrompt),
-      new HumanMessage(JSON.stringify(contextInput)),
-    ]);
+    const invokeStructuredOutput = async (feedback?: string) => {
+      const input =
+        feedback === undefined
+          ? contextInput
+          : { ...contextInput, validationFeedback: feedback };
 
-    return {
-      comparisonAction:
-        result.comparisonAction === "add" ||
-        addToComparisonPattern.test(message)
-          ? "add"
-          : "replace",
-      constraints: result.constraints.flatMap((constraint) => {
-        const name = constraint.name.trim();
-        const value = constraint.value.trim();
+      const messages = [
+        new SystemMessage(requestExtractionPrompt),
+        new HumanMessage(JSON.stringify(input)),
+      ];
 
-        return name && value ? [{ name, value }] : [];
-      }),
-      kind: result.kind,
-      players: result.players.flatMap((player) => {
-        const mention = player.mention.trim();
-
-        return mention
-          ? [
-              {
-                lookupName: player.lookupName?.trim() ?? null,
-                mention,
-                recommendationRole: player.recommendationRole,
-                referenceScope: player.referenceScope,
-                referenceTargetMention:
-                  player.referenceTargetMention?.trim() ?? null,
-              },
-            ]
-          : [];
-      }),
-      recommendation: recommendationPatchFromResult(result.recommendation),
-      recommendationAction: recommendationActionFromResult(
-        result,
-        context,
-        message
-      ),
-      teamSearchName: result.teamSearchName?.trim() ?? null,
-      teams: uniqueText(result.teams),
+      return budget === undefined
+        ? await structuredModel.invoke(messages)
+        : await budget.invoke(
+            async (signal) =>
+              await structuredModel.invoke(messages, { signal }),
+            { allowRateLimitRetry: feedback === undefined }
+          );
     };
+
+    try {
+      return normalizeRequestExtraction(
+        await invokeStructuredOutput(),
+        message,
+        context
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !isRequestOutputValidationError(error)) {
+        throw error;
+      }
+
+      if (budget === undefined || !budget.canMakeRequest()) {
+        throw invalidRequestOutputFailure(budget?.requestsUsed() ?? 0);
+      }
+
+      try {
+        return normalizeRequestExtraction(
+          await invokeStructuredOutput(requestValidationFeedback(error)),
+          message,
+          context
+        );
+      } catch (repairError) {
+        if (!(repairError instanceof Error)) {
+          throw repairError;
+        }
+
+        const previousFault = externalFaultFrom(repairError);
+
+        if (previousFault !== null) {
+          throw createExternalFaultError({
+            ...previousFault,
+            retryable: false,
+          });
+        }
+
+        if (isRequestOutputValidationError(repairError)) {
+          throw invalidRequestOutputFailure(budget.requestsUsed());
+        }
+
+        throw repairError;
+      }
+    }
   };
 };
 

@@ -2,12 +2,16 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod/v3";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
-import { createInitialConversationContext } from "../src/state.js";
+import {
+  ActiveRecommendationSchema,
+  createInitialConversationContext,
+} from "../src/state.js";
 import type { RecommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
 
@@ -108,6 +112,446 @@ const emptySearch: PlayerSearch = (input) => emptySearchResult(input);
 const createSearchTool = (search: PlayerSearch) => createTools(search)[0];
 
 describe("LangGraph player workflows", () => {
+  it("retries a recognized transient model failure before executing the lookup tool", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [], status: "found" },
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const model = fakeModel()
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respondWithTools([
+        { args: { sourceRecords: [] }, name: "search_player_records" },
+      ])
+      .respond(new AIMessage("The lookup recovered."));
+
+    const message = "Look up Harry Kane.";
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const faultLog = vi.spyOn(console, "info").mockImplementation(() => {});
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "transient-model-retry" } }
+    );
+
+    const logOutput = faultLog.mock.calls
+      .flatMap(([logEntry]) => {
+        const parsed = z.string().safeParse(logEntry);
+
+        return parsed.success ? [parsed.data] : [];
+      })
+      .join("\n");
+
+    faultLog.mockRestore();
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      modelCalls: model.callCount,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      answer: "The lookup recovered.",
+      modelCalls: 3,
+      searchCalls: 1,
+    });
+    expect(logOutput).toContain('"type":"fault"');
+    expect(logOutput).toContain('"node":"lookup_player"');
+    expect(logOutput).toContain('"threadId":"transient-model-retry"');
+    expect(logOutput).not.toContain("Look up Harry Kane.");
+  });
+
+  it("reports unavailable identity data instead of asking the scout to clarify", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const search = vi.fn<PlayerSearch>(emptySearchResult);
+    const message = "Look up Harry Kane.";
+
+    const graph = createAgent({
+      model: fakeModel(),
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "identity-data-unavailable" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      pendingClarification: result.pendingClarification,
+      searchCalls: search.mock.calls.length,
+      status: result.outcome?.status,
+    }).toStrictEqual({
+      answer:
+        "本地球员身份资料无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+      pendingClarification: null,
+      searchCalls: 0,
+      status: "identity_data_unavailable",
+    });
+  });
+
+  it("preserves the previous lookup result after model retry exhaustion", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Look up Harry Kane.";
+    const secondMessage = "Look up Harry Kane again.";
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [], status: "found" },
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const model = fakeModel()
+      .respondWithTools([
+        { args: { sourceRecords: [] }, name: "search_player_records" },
+      ])
+      .respond(new AIMessage("The first lookup is complete."))
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      );
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [secondMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "model-failure-preserves-lookup" },
+    };
+
+    const firstResult = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      config
+    );
+
+    const previousLookup = firstResult.conversationContext.activeLookup;
+
+    const failed = await graph.invoke(
+      { messages: [new HumanMessage(secondMessage)] },
+      config
+    );
+
+    expect({
+      activeLookup: failed.conversationContext.activeLookup,
+      answer: failed.messages.at(-1)?.content,
+      modelCalls: model.callCount,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activeLookup: previousLookup,
+      answer:
+        "球员查询模型暂时不可用，本次没有完成查询或切换已确认的球员身份。请稍后重试。",
+      modelCalls: 5,
+      searchCalls: 1,
+    });
+  });
+
+  it("retains a completed player recommendation when its final explanation fails", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const message = "Find striker alternatives to Kane.";
+    const recommendation = JSON.stringify({ position: "stc", status: "ready" });
+    const recommend = vi.fn<RecommendPlayerCandidates>(() => recommendation);
+
+    const model = fakeModel()
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      );
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_recommendation", ["Kane"], {
+          recommendation: { includePotential: false, position: "stc" },
+        }),
+      }),
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "recommendation-explanation-outage" } }
+    );
+
+    expect({
+      activeRecommendation:
+        result.conversationContext.activeRecommendation?.resultJson,
+      answer: result.messages.at(-1)?.content,
+      outcome: result.outcome?.status,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      activeRecommendation: recommendation,
+      answer:
+        "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。",
+      outcome: "ready",
+      recommendationCalls: 1,
+    });
+  });
+
+  it("commits a lookup tool result before retrying the next model step", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const message = "Look up Harry Kane.";
+
+    const lookupResult = JSON.stringify({
+      fm: { records: [{ season: "2025/26" }], status: "found" },
+      identityGroups: { canonicalGroups: [] },
+      query: [],
+      understat: { records: [], status: "not_found" },
+    });
+
+    const search = vi.fn<PlayerSearch>(() => lookupResult);
+
+    const model = fakeModel()
+      .respondWithTools([
+        { args: { sourceRecords: [] }, name: "search_player_records" },
+      ])
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      );
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "lookup-result-before-explanation" } }
+    );
+
+    expect({
+      activeLookup: result.conversationContext.activeLookup,
+      answer: result.messages.at(-1)?.content,
+      focus: result.conversationContext.focusPlayers.map(
+        ({ referenceId }) => referenceId
+      ),
+      searchCalls: search.mock.calls.length,
+    }).toMatchObject({
+      activeLookup: {
+        player: { referenceId: "canonical-kane" },
+        resultJson: lookupResult,
+      },
+      answer:
+        "球员查询模型暂时不可用，本次没有完成查询或切换已确认的球员身份。请稍后重试。",
+      focus: ["canonical-kane"],
+      searchCalls: 1,
+    });
+  });
+
+  it("limits batched lookup searches to three and resets the allowance on a new user turn", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Look up Harry Kane.";
+    const secondMessage = "Search for Harry Kane again.";
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [], status: "found" },
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const searchCall = {
+      args: { sourceRecords: [] },
+      name: "search_player_records",
+    };
+
+    const model = fakeModel()
+      .respondWithTools(Array.from({ length: 4 }, () => searchCall))
+      .respondWithTools([searchCall])
+      .respond(new AIMessage("The next turn received a fresh allowance."))
+      .respondWithTools(Array.from({ length: 4 }, () => searchCall));
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [secondMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = { configurable: { thread_id: "lookup-search-limit" } };
+
+    const limited = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      config
+    );
+
+    expect({
+      activeLookup:
+        limited.conversationContext.activeLookup?.player.referenceId,
+      answer: limited.messages.at(-1)?.content,
+      searchCallsAfterLimit: search.mock.calls.length,
+      status: limited.outcome?.status,
+    }).toStrictEqual({
+      activeLookup: "canonical-kane",
+      answer:
+        "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
+      searchCallsAfterLimit: 3,
+      status: "lookup_search_limit",
+    });
+
+    const nextTurn = await graph.invoke(
+      { messages: [new HumanMessage(secondMessage)] },
+      config
+    );
+
+    expect({
+      answer: nextTurn.messages.at(-1)?.content,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      answer: "The next turn received a fresh allowance.",
+      searchCalls: 4,
+    });
+
+    const otherThread = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      { configurable: { thread_id: "lookup-search-limit-other-thread" } }
+    );
+
+    expect({
+      answer: otherThread.messages.at(-1)?.content,
+      searchCalls: search.mock.calls.length,
+      status: otherThread.outcome?.status,
+    }).toStrictEqual({
+      answer:
+        "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
+      searchCalls: 7,
+      status: "lookup_search_limit",
+    });
+  });
+
+  it("lets unexpected search tool errors reject the graph", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const message = "Look up Harry Kane.";
+
+    const search = vi.fn<PlayerSearch>(() => {
+      throw new TypeError("unexpected local search bug");
+    });
+
+    const model = fakeModel().respondWithTools([
+      { args: { sourceRecords: [] }, name: "search_player_records" },
+    ]);
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-tool-programming-error" },
+    };
+
+    await expect(
+      graph.invoke({ messages: [new HumanMessage(message)] }, config)
+    ).rejects.toThrow("unexpected local search bug");
+
+    expect(search).toHaveBeenCalledOnce();
+
+    const checkpoint = z
+      .object({
+        values: z.object({
+          faultTolerance: z.object({ lookupSearchExecutions: z.number() }),
+        }),
+      })
+      .safeParse(structuredClone(await graph.getState(config)));
+
+    expect(checkpoint.success).toBeTruthy();
+
+    if (!checkpoint.success) {
+      throw new Error("The search execution counter was not checkpointed.");
+    }
+
+    expect(checkpoint.data.values.faultTolerance.lookupSearchExecutions).toBe(
+      1
+    );
+  });
+
   it("pins lookup reads to the exact source IDs selected by identity resolution", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
 
@@ -828,7 +1272,7 @@ describe("LangGraph player workflows", () => {
     });
   });
 
-  it("does not replace the last successful recommendation when the next tool call fails", async () => {
+  it("propagates unexpected tool errors without replacing the last successful recommendation", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const firstMessage = "Find striker alternatives to Kane under 23.";
     const refineMessage = "Lower the age limit to 21.";
@@ -882,19 +1326,27 @@ describe("LangGraph player workflows", () => {
     const previousRecommendation =
       first.conversationContext.activeRecommendation;
 
-    const failed = await graph.invoke(
-      { messages: [new HumanMessage(refineMessage)] },
-      config
-    );
+    await expect(
+      graph.invoke({ messages: [new HumanMessage(refineMessage)] }, config)
+    ).rejects.toThrow("Fixture recommendation read failed.");
+
+    const failedState = z
+      .object({
+        values: z.object({
+          conversationContext: z.object({
+            activeRecommendation: ActiveRecommendationSchema.nullable(),
+          }),
+        }),
+      })
+      .safeParse(structuredClone(await graph.getState(config)));
 
     expect({
-      activeRecommendation: failed.conversationContext.activeRecommendation,
-      response: failed.messages.at(-1)?.content,
+      activeRecommendation: failedState.success
+        ? failedState.data.values.conversationContext.activeRecommendation
+        : null,
       toolCalls: recommend.mock.calls.length,
     }).toMatchObject({
       activeRecommendation: previousRecommendation,
-      response:
-        "本次数据计算失败，之前完成的查询结果仍然保留。请检查本地数据后重试。",
       toolCalls: 2,
     });
   });

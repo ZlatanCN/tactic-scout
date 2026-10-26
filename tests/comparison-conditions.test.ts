@@ -2,11 +2,13 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod/v3";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
+import { ActiveComparisonSchema } from "../src/state.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
@@ -216,7 +218,7 @@ describe("comparison workflow state", () => {
     ).toStrictEqual([{ name: "season", value: "2026/27" }]);
   });
 
-  it("preserves the previous completed comparison when a later data query fails", async () => {
+  it("propagates unexpected data-tool errors without replacing the previous comparison", async () => {
     const kane = candidate("Harry Kane", "kane");
     const mbappe = candidate("Kylian Mbappé", "mbappe");
     const parrott = candidate("Troy Parrott", "parrott");
@@ -258,17 +260,86 @@ describe("comparison workflow state", () => {
 
     const remembered = firstResult.conversationContext.activeComparison;
 
-    const failed = await graph.invoke(
-      { messages: [new HumanMessage(addParrott)] },
-      config
+    await expect(
+      graph.invoke({ messages: [new HumanMessage(addParrott)] }, config)
+    ).rejects.toThrow("Fixture data read failed.");
+
+    const failedState = z
+      .object({
+        values: z.object({
+          conversationContext: z.object({
+            activeComparison: ActiveComparisonSchema,
+          }),
+        }),
+      })
+      .safeParse(structuredClone(await graph.getState(config)));
+
+    expect(failedState.success).toBeTruthy();
+
+    if (!failedState.success) {
+      throw new Error("The checkpoint did not retain the previous comparison.");
+    }
+
+    expect(
+      failedState.data.values.conversationContext.activeComparison
+    ).toStrictEqual(remembered);
+  });
+
+  it("retains a completed comparison when its final model explanation fails", async () => {
+    const kane = candidate("Harry Kane", "kane");
+    const mbappe = candidate("Kylian Mbappé", "mbappe");
+    const message = "Compare Harry Kane and Kylian Mbappé.";
+    const search = vi.fn<PlayerSearch>(searchResult);
+
+    const model = fakeModel()
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      )
+      .respond(
+        Object.assign(new Error("temporary network failure"), {
+          code: "ECONNRESET",
+        })
+      );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: createLookup([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: compareRequest(["Harry Kane", "Kylian Mbappé"]),
+      }),
+      tools: createTools(search),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "comparison-explanation-outage" } }
     );
 
-    expect(failed.conversationContext.activeComparison).toStrictEqual(
-      remembered
-    );
-    expect(failed.messages.at(-1)?.content).toContain(
-      "之前完成的查询结果仍然保留"
-    );
+    expect({
+      answer: result.messages.at(-1)?.content,
+      comparisonPlayers:
+        result.conversationContext.activeComparison.players.map(
+          ({ candidate: item }) => item.name
+        ),
+      modelCalls: model.callCount,
+      outcome: result.outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      answer:
+        "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。",
+      comparisonPlayers: ["Harry Kane", "Kylian Mbappé"],
+      modelCalls: 3,
+      outcome: "no_comparable_data",
+      searchCalls: 2,
+    });
   });
 
   it("does not reconstruct a comparison from historical tool messages without saved thread context", async () => {

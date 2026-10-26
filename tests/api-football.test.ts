@@ -127,4 +127,182 @@ describe("API-Football client", () => {
       status: "error",
     });
   });
+
+  it("throws tagged transient failures for upstream server errors", async () => {
+    const client = createApiFootballClient({
+      apiKey: "test-key",
+      fetcher: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 503 })),
+    });
+
+    await expect(client.searchTeams("Arsenal")).rejects.toMatchObject({
+      fault: {
+        category: "server",
+        requestsUsed: 1,
+        retryable: true,
+      },
+    });
+  });
+
+  it("does not cache a roster response after a failed fetch", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Player One", position: "Midfielder" },
+              ],
+              team: { country: "England", id: 42, name: "Arsenal" },
+            },
+          ],
+        })
+      );
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    await expect(client.getSquad(42)).rejects.toMatchObject({
+      fault: { category: "server", retryable: true },
+    });
+
+    const result = await client.getSquad(42);
+
+    expect({
+      fetchCalls: fetcher.mock.calls.length,
+      name: result.status === "ok" ? result.data.players[0]?.name : null,
+    }).toStrictEqual({ fetchCalls: 2, name: "Player One" });
+  });
+
+  it("returns retry metadata only for a short limit with positive daily quota", async () => {
+    const client = createApiFootballClient({
+      apiKey: "test-key",
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          { code: "rate_limit_exceeded", errors: [], response: [] },
+          {
+            headers: {
+              "retry-after": "2",
+              "x-ratelimit-requests-remaining": "4",
+            },
+            status: 429,
+          }
+        )
+      ),
+    });
+
+    const result = await client.searchTeams("Arsenal");
+
+    expect(result).toMatchObject({
+      providerCode: "rate_limit_exceeded",
+      reason: "rate_limit",
+      remainingRequests: 4,
+      retryAfterMs: 2000,
+      status: "error",
+    });
+  });
+
+  it("parses an HTTP-date Retry-After using the injected clock", async () => {
+    const now = new Date("2026-01-01T12:00:00.000Z");
+
+    const client = createApiFootballClient({
+      apiKey: "test-key",
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(null, {
+          headers: {
+            "retry-after": new Date(now.getTime() + 3000).toUTCString(),
+            "x-ratelimit-requests-remaining": "4",
+          },
+          status: 429,
+        })
+      ),
+      now: () => now,
+    });
+
+    await expect(client.searchTeams("Arsenal")).resolves.toMatchObject({
+      reason: "rate_limit",
+      retryAfterMs: 3000,
+      status: "error",
+    });
+  });
+
+  it("checks the remaining HTTP request budget before dispatch", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const result = await client.searchTeams("Arsenal", {
+      attempt: 4,
+    });
+
+    expect(result).toMatchObject({
+      reason: "attempt_limit",
+      status: "error",
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("does not relabel an unexpected fetcher bug as a transient provider failure", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError("fixture programming error"));
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    await expect(client.searchTeams("Arsenal")).rejects.toThrow(
+      "fixture programming error"
+    );
+  });
+
+  it("ignores a late roster response after cancellation and does not cache it", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Late Player", position: "Midfielder" },
+              ],
+              team: { country: "England", id: 42, name: "Arsenal" },
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Player One", position: "Midfielder" },
+              ],
+              team: { country: "England", id: 42, name: "Arsenal" },
+            },
+          ],
+        })
+      );
+
+    const client = createApiFootballClient({ apiKey: "test-key", fetcher });
+    const controller = new AbortController();
+    const pendingRoster = client.getSquad(42, { signal: controller.signal });
+
+    controller.abort();
+
+    await expect(pendingRoster).rejects.toThrow("aborted");
+
+    const nextRoster = await client.getSquad(42);
+
+    expect({
+      fetchCalls: fetcher.mock.calls.length,
+      playerName:
+        nextRoster.status === "ok" ? nextRoster.data.players[0]?.name : null,
+    }).toStrictEqual({
+      fetchCalls: 2,
+      playerName: "Player One",
+    });
+  });
 });

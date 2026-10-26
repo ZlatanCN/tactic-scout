@@ -247,9 +247,55 @@ const TurnOutcomeSchema = z.object({
   status: z.string(),
 });
 
+const FaultToleranceSchema = z.object({
+  apiOperation: z.enum(["team_search", "team_roster"]).nullable(),
+  apiRateLimitRetried: z.boolean(),
+  apiRequestsUsed: z.number().int().nonnegative(),
+  apiRetryAfterMs: z.number().int().nonnegative().nullable(),
+  failure: z
+    .object({
+      category: z.enum([
+        "network",
+        "server",
+        "timeout",
+        "rate_limit",
+        "quota",
+        "authentication",
+        "configuration",
+        "invalid_response",
+        "attempt_limit",
+      ]),
+      node: z.enum([
+        "understand_request",
+        "lookup_player",
+        "answer",
+        "resolve_team",
+        "resolve_team_roster",
+      ]),
+    })
+    .nullable(),
+  lookupLimitReached: z.boolean(),
+  lookupSearchExecutions: z.number().int().nonnegative(),
+  lookupToolCallIds: z.array(z.string()),
+});
+
+const createInitialFaultToleranceState = () => ({
+  apiOperation: null,
+  apiRateLimitRetried: false,
+  apiRequestsUsed: 0,
+  apiRetryAfterMs: null,
+  failure: null,
+  lookupLimitReached: false,
+  lookupSearchExecutions: 0,
+  lookupToolCallIds: [],
+});
+
 const AgentState = MessagesZodState.extend({
   conversationContext: ConversationContextSchema.default(
     createInitialConversationContext
+  ),
+  faultTolerance: FaultToleranceSchema.default(
+    createInitialFaultToleranceState
   ),
   outcome: TurnOutcomeSchema.nullable().default(null),
   pendingClarification: PendingClarificationSchema.nullable().default(null),
@@ -267,6 +313,8 @@ type ActiveTeamRecommendation = z.infer<typeof ActiveTeamRecommendationSchema>;
 type AgentStateType = z.infer<typeof AgentState>;
 
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
+
+type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
 
 type ConversationPlayerAlias = z.infer<typeof ConversationPlayerAliasSchema>;
 
@@ -306,6 +354,7 @@ export {
   RecommendationRequestSchema,
   createInitialRecommendationRequest,
   createInitialConversationContext,
+  createInitialFaultToleranceState,
   createInitialRequestState,
   createInitialTeamRecommendationRequest,
 };
@@ -318,6 +367,7 @@ export type {
   AgentStateType,
   ComparisonAction,
   ConversationContext,
+  FaultToleranceState,
   ConversationPlayerAlias,
   ConversationPlayerReference,
   PendingClarification,

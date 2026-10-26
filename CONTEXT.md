@@ -26,6 +26,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Team roster snapshot**: The provider-reported set of current squad members captured at retrieval time. Its date is distinct from the FM ability snapshot date.
 
+**Transient provider failure**: A temporary network or service-side failure from API-Football or the model provider. A short rate limit is transient only when a retry delay is given and daily quota remains; exhausted quota, authorization errors, malformed data, and unresolved identities are not transient.
+
 **Team-position reference profile**: The equal-weight mean of the target-position attributes for mapped roster FM profiles with a position rating of at least 15 and complete required features. It describes the existing team profile at that position, not an inferred squad gap or tactical style.
 
 **Team-directed recommendation**: Candidates for a scout-selected team and target position, ranked by distance from the team-position reference profile. Exact mapped current roster profiles are excluded from the candidate set.

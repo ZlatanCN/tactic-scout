@@ -5,7 +5,12 @@ import { z } from "zod/v4";
 
 import type { CandidateSourceRecord } from "./contracts.js";
 import type { FmReadResult } from "./football-manager.js";
-import { resolveDataPath } from "./shared.js";
+import {
+  createLocalDataError,
+  isLocalDataError,
+  isLocalDataFailure,
+  resolveDataPath,
+} from "./shared.js";
 import type { UnderstatReadResult } from "./understat.js";
 
 type ReepRecordResolution = {
@@ -99,15 +104,22 @@ const openIdentityRegistry = (databasePath: string): DatabaseSync | null => {
 
     if (!releaseStamp.success || releaseStamp.data.value.length === 0) {
       database.close();
-
-      return null;
+      throw createLocalDataError("Reep 身份注册表格式无法读取。");
     }
 
     return database;
-  } catch {
+  } catch (error) {
     database?.close();
 
-    return null;
+    if (error instanceof Error && isLocalDataError(error)) {
+      throw error;
+    }
+
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError("Reep 身份注册表无法读取。");
+    }
+
+    throw error;
   }
 };
 
@@ -239,12 +251,16 @@ const resolveApiFootballPlayerFmIds = (
       fmIds: fmRows.map((row) => row.external_id),
       status: "resolved",
     };
-  } catch {
-    return {
-      canonicalIdentityId: null,
-      fmIds: [],
-      status: "unresolved",
-    };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      throw error;
+    }
+
+    if (error instanceof Error && isLocalDataFailure(error)) {
+      throw createLocalDataError("Reep 身份注册表无法读取。");
+    }
+
+    throw error;
   } finally {
     registry.close();
   }
@@ -272,17 +288,32 @@ const resolveSearchIdentityGroups = (
     ".data/reep/identity-with-fm.sqlite"
   );
 
-  const registry = openIdentityRegistry(registryPath);
+  const unavailable = () => ({
+    canonicalGroups: [],
+    registryStatus: "unavailable",
+    unlinkedRecords: records.map((record) => ({
+      ...record,
+      reason: "registry_unavailable",
+    })),
+  });
+
+  let registry: DatabaseSync | null;
+
+  try {
+    registry = openIdentityRegistry(registryPath);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (isLocalDataError(error) || isLocalDataFailure(error))
+    ) {
+      return unavailable();
+    }
+
+    throw error;
+  }
 
   if (registry === null) {
-    return {
-      canonicalGroups: [],
-      registryStatus: "unavailable",
-      unlinkedRecords: records.map((record) => ({
-        ...record,
-        reason: "registry_unavailable",
-      })),
-    };
+    return unavailable();
   }
 
   try {
@@ -329,6 +360,15 @@ const resolveSearchIdentityGroups = (
       registryStatus: "available",
       unlinkedRecords,
     };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (isLocalDataError(error) || isLocalDataFailure(error))
+    ) {
+      return unavailable();
+    }
+
+    throw error;
   } finally {
     registry.close();
   }
