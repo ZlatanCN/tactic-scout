@@ -426,6 +426,84 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("gives roster acquisition its own short-429 retry after team clarification", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const anotherArsenal: TeamIdentity = {
+      country: "Brazil",
+      id: 43,
+      name: "Arsenal",
+    };
+
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(shortRateLimitResponse())
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            { team: arsenal, venue: { name: "Emirates" } },
+            { team: anotherArsenal, venue: { name: "" } },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(shortRateLimitResponse())
+      .mockResolvedValueOnce(
+        Response.json({
+          errors: [],
+          response: [
+            {
+              players: [
+                { id: 1001, name: "Squad Player", position: "Attacker" },
+              ],
+              team: arsenal,
+            },
+          ],
+        })
+      );
+
+    const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({
+        recommendation: { currentCandidates: [] },
+        status: "ready",
+      })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-roster-separate-rate-budget" },
+    };
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const completed = await graph.invoke(new Command({ resume: "1" }), config);
+
+    expect({
+      completedTeam:
+        completed.conversationContext.activeTeamRecommendation?.team,
+      fetchCalls: fetcher.mock.calls.length,
+      mapping: readRosterMember(completed).map((member) => member.fmId),
+      wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toStrictEqual({
+      completedTeam: arsenal,
+      fetchCalls: 4,
+      mapping: ["fm-1001"],
+      wasInterrupted: true,
+    });
+  });
+
   it("waits and retries one short 429 without exceeding the request budget", async () => {
     const message = "Recommend a striker for Arsenal.";
 

@@ -4,18 +4,12 @@ import type { GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { z } from "zod/v4";
 
+import { lookupToolCallId } from "../lookup-tool-call-id.js";
 import type { AgentState } from "../state.js";
 
 const toolNodeResultSchema = z.object({
   messages: z.array(z.instanceof(ToolMessage)),
 });
-
-const toolCallIdSchema = z.object({ id: z.string().min(1) });
-
-type ToolCallIdentity = { id?: string };
-
-const toolCallId = (call: ToolCallIdentity): string =>
-  toolCallIdSchema.parse(call).id;
 
 const createExecuteLookupToolsNode = (
   lookupTool: StructuredToolInterface | undefined
@@ -37,7 +31,7 @@ const createExecuteLookupToolsNode = (
     const toolCalls = lastMessage.tool_calls ?? [];
 
     const allowedCalls = toolCalls.filter(
-      (call) => !blockedCallIds.has(toolCallId(call))
+      (call) => !blockedCallIds.has(lookupToolCallId(call))
     );
 
     let toolMessages: ToolMessage[] = [];
@@ -73,7 +67,7 @@ const createExecuteLookupToolsNode = (
 
     return {
       messages: toolCalls.map((call) => {
-        const id = toolCallId(call);
+        const id = lookupToolCallId(call);
         const result = resultByCallId.get(id);
 
         if (result !== undefined) {

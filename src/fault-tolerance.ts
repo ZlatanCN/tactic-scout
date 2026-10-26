@@ -10,6 +10,19 @@ const modelRequestTimeoutMs = modelTimeoutMs - 1000;
 const apiTimeoutMs = 15_000;
 const maxRateLimitWaitMs = 10_000;
 
+const transientNetworkCodes = new Set([
+  "EAI_AGAIN",
+  "ECONNABORTED",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ETIMEDOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+
 const faultCategorySchema = z.enum([
   "network",
   "server",
@@ -65,6 +78,9 @@ type FaultExecutionContext = {
 
 const createExternalFaultError = (fault: ExternalFault): ExternalFaultError =>
   Object.assign(new Error(fault.message), { fault });
+
+const isTransientNetworkCode = (code: string | null): boolean =>
+  code !== null && transientNetworkCodes.has(code);
 
 const externalFaultFrom = (error: Error): ExternalFault | null => {
   const parsed = z.object({ fault: externalFaultSchema }).safeParse(error);
@@ -192,6 +208,7 @@ export {
   faultCategory,
   faultMessage,
   isExternalFaultError,
+  isTransientNetworkCode,
   logFaultEvent,
   maxExternalRequests,
   maxRateLimitWaitMs,

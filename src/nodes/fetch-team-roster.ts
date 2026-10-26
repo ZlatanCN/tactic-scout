@@ -51,10 +51,18 @@ const createFetchTeamRosterNode =
       return {};
     }
 
-    const requestsBefore =
+    const faultTolerance =
       state.faultTolerance.apiOperation === "team_roster"
-        ? state.faultTolerance.apiRequestsUsed
-        : 0;
+        ? state.faultTolerance
+        : {
+            ...state.faultTolerance,
+            apiOperation: "team_roster" as const,
+            apiRateLimitRetried: false,
+            apiRequestsUsed: 0,
+            apiRetryAfterMs: null,
+          };
+
+    const requestsBefore = faultTolerance.apiRequestsUsed;
 
     const attempt = runtime.executionInfo?.nodeAttempt ?? 1;
 
@@ -69,7 +77,7 @@ const createFetchTeamRosterNode =
 
     if (result.status === "error") {
       return createApiFailureTransition({
-        faultTolerance: state.faultTolerance,
+        faultTolerance,
         node: "fetch_team_roster",
         operation: "team_roster",
         requestsUsed: result.requestsUsed ?? requestsBefore + attempt,
@@ -101,7 +109,7 @@ const createFetchTeamRosterNode =
 
     return {
       faultTolerance: {
-        ...state.faultTolerance,
+        ...faultTolerance,
         apiOperation: "team_roster",
         apiRequestsUsed: requestsUsed,
         apiRetryAfterMs: null,

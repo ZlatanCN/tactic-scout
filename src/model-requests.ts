@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import {
   createExternalFaultError,
   externalFaultFrom,
+  isTransientNetworkCode,
   logFaultEvent,
   maxExternalRequests,
   maxRateLimitWaitMs,
@@ -32,19 +33,6 @@ const modelErrorDetailsSchema = z.looseObject({
     .optional(),
   status: z.number().int().nullable().optional(),
 });
-
-const networkErrorCodes = new Set([
-  "EAI_AGAIN",
-  "ECONNABORTED",
-  "ECONNREFUSED",
-  "ECONNRESET",
-  "EHOSTUNREACH",
-  "ENETUNREACH",
-  "ETIMEDOUT",
-  "UND_ERR_CONNECT_TIMEOUT",
-  "UND_ERR_HEADERS_TIMEOUT",
-  "UND_ERR_SOCKET",
-]);
 
 type ModelFailure = {
   category: FaultCategory;
@@ -185,7 +173,7 @@ const transportFailure = (
   code: string | null,
   name: string | undefined
 ): ModelFailure | null => {
-  if (code !== null && networkErrorCodes.has(code)) {
+  if (isTransientNetworkCode(code)) {
     const category = code === "ETIMEDOUT" ? "timeout" : "network";
 
     return {

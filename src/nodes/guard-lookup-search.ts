@@ -1,17 +1,11 @@
 import { AIMessage } from "@langchain/core/messages";
 import type { GraphNode } from "@langchain/langgraph";
-import { z } from "zod/v4";
 
 import { logFaultEvent } from "../fault-tolerance.js";
+import { lookupToolCallId } from "../lookup-tool-call-id.js";
 import type { AgentState } from "../state.js";
 
 const lookupSearchLimit = 3;
-const toolCallIdSchema = z.object({ id: z.string().min(1) });
-
-type ToolCallIdentity = { id?: string };
-
-const toolCallId = (call: ToolCallIdentity): string =>
-  toolCallIdSchema.parse(call).id;
 
 const createGuardLookupSearchNode =
   (): GraphNode<typeof AgentState> => (state, runtime) => {
@@ -52,7 +46,7 @@ const createGuardLookupSearchNode =
         ...state.faultTolerance,
         lookupLimitReached: blockedCalls.length > 0,
         lookupSearchExecutions: executions,
-        lookupToolCallIds: blockedCalls.map(toolCallId),
+        lookupToolCallIds: blockedCalls.map(lookupToolCallId),
       },
     };
   };

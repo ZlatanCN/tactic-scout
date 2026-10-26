@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import {
   createExternalFaultError,
+  isTransientNetworkCode,
   maxExternalRequests,
   remainingRequests,
   retryAfterMs,
@@ -235,21 +236,7 @@ const transientTransportCode = (error: Error): string | null => {
 
   const code = parsed.data.code ?? parsed.data.cause?.code ?? null;
 
-  return code !== null &&
-    [
-      "EAI_AGAIN",
-      "ECONNABORTED",
-      "ECONNREFUSED",
-      "ECONNRESET",
-      "EHOSTUNREACH",
-      "ENETUNREACH",
-      "ETIMEDOUT",
-      "UND_ERR_CONNECT_TIMEOUT",
-      "UND_ERR_HEADERS_TIMEOUT",
-      "UND_ERR_SOCKET",
-    ].includes(code)
-    ? code
-    : null;
+  return isTransientNetworkCode(code) ? code : null;
 };
 
 const abortIfCancelled = (signal: AbortSignal | undefined): void => {
