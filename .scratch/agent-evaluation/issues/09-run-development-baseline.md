@@ -7,7 +7,7 @@
 **Status:** open
 **Labels:** ready-for-agent
 
-- [ ] Verify the completed benchmark, source preparation, model/source-processing configuration, evaluator offline checks, artifact destinations, and exact data/code/prompt/judge versions before any real-model execution.
+- [x] Verify the completed benchmark, source preparation, model/source-processing configuration, evaluator offline checks, artifact destinations, and exact data/code/prompt/judge versions before any real-model execution.
 - [ ] Produce the actual preparation/request-count estimate and use an explicit numeric whole-run model allowance. Honor any separately recorded bounded source-capture allowance; do not choose an unlimited default or hide retries/calibration usage.
 - [ ] Run a small declared development smoke subset covering the four workflows and meaningful clarification behavior through the real gateway model, actual graph/readers/tools/algorithms, and frozen provider evidence.
 - [ ] Record smoke exposure and results as development work. Preserve failures and source/configuration problems; never consume held-out cases to debug the initial run.
@@ -21,3 +21,8 @@
 - [ ] Present baseline evidence and the next threshold/freeze decision without inventing an aggregate accepted/not-accepted quality target. The later threshold choice and actual held-out run do not block this ticket's development-baseline delivery.
 - [ ] Prepare and document the supported held-out operation over 16 cases with three trials each after explicit version/scoring freeze; record prior use if later results influence tuning. Do not run it prematurely or claim universal statistical/general scouting accuracy.
 - [ ] Keep actual live work within the explicit allowances and local/private scope. Validate only new code changes when needed; the live baseline itself supplies quality evidence separately from deterministic Vitest correctness.
+
+## Comments
+
+- The full local inventory is ready: 48 cases, 32 development, 16 held-out, 32 real and 16 synthetic; all evidence hashes validate. The bounded team snapshot capture used four API-Football requests.
+- The four-workflow live smoke subset (`lookup-saka-real-v1`, `compare-add-third-synthetic-v1`, `recommend-add-refine-synthetic-v1`, `team-real-madrid-refine-dev-v1`) previews at 99 total gateway requests with judge calibration enabled. The full 32-case development preview estimates up to 1,235 requests. No live model call has been made; the run awaits an explicit numeric cap.

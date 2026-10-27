@@ -17,6 +17,13 @@ Run one local smoke trial with an explicit whole-run allowance:
 pnpm eval:run --mode smoke --case lookup-smoke-v1 --max-model-requests <N>
 ```
 
+For a first live smoke across all four workflows, preview and run these development cases with the judge enabled. The current preview estimates 99 gateway requests, including anchor calibration; choose an explicit cap before dispatch:
+
+```sh
+pnpm eval:preview --mode smoke --judge --evidence-directory .data/evals/evidence --case lookup-saka-real-v1 --case compare-add-third-synthetic-v1 --case recommend-add-refine-synthetic-v1 --case team-real-madrid-refine-dev-v1
+pnpm eval:run --mode smoke --judge --evidence-directory .data/evals/evidence --case lookup-saka-real-v1 --case compare-add-third-synthetic-v1 --case recommend-add-refine-synthetic-v1 --case team-real-madrid-refine-dev-v1 --max-model-requests <N>
+```
+
 Formal runs repeat each selected case three times. Add `--judge` to run the 32-anchor calibration before semantic scoring. The estimate includes 32 calibration calls and one judge call per trial. The judge defaults to the configured agent model; set `TACTISCOUT_EVAL_JUDGE_MODEL` to choose a separate model through the same gateway.
 
 Run the development split against locally prepared evidence with an explicit budget:
@@ -61,18 +68,20 @@ pnpm eval:preview --mode smoke --case lookup-saka-real-v1 --evidence-directory .
 
 The evaluator rejects missing or mismatched bundles before model dispatch. A trial never falls back to the full local corpus or a live provider.
 
-## Capture API-Football snapshots
+## API-Football roster snapshots
 
-The repository has no real API-Football squad snapshot yet. Team evaluation currently has four explicitly synthetic cases. To prepare real cases, capture two exact teams and their squads with a bounded source allowance:
+The local pack includes frozen Real Madrid (team 541) and Bayer Leverkusen (team 168) squads, captured with four API requests. The current FM snapshot maps 30/38 Real Madrid members and 25/30 Bayer Leverkusen members to local FM profiles. The real team cases verify that the agent stops safely when roster members have no local profile; successful ranking and exclusion remain covered by synthetic team fixtures and the real ranking implementation.
+
+To capture another pair of squads, use a bounded source allowance:
 
 ```sh
 pnpm eval:capture-team-snapshots --team <team-a> --team <team-b> --max-api-requests 4 --output .data/evals/team-source-captures/teams.json
 ```
 
-The capture command requires `API_FOOTBALL_KEY`, writes the raw API response bodies locally with restrictive file permissions, and stops at the specified physical request cap. It does not upload the responses. Once the snapshots and their FM/Reep mappings are inspected, pass the capture file to `eval:prepare-evidence` when generating real team bundles.
+The capture command requires `API_FOOTBALL_KEY`, writes raw API response bodies locally with restrictive file permissions, and stops at the specified physical request cap. It does not upload the responses. After inspecting the snapshots and FM/Reep mappings, pass the capture file to `eval:prepare-evidence` when generating team bundles.
 
-The current case inventory is 40/48. The remaining eight team cases require those real snapshots; `pnpm eval:validate` reports the missing coverage rather than filling it with synthetic records.
+The benchmark now has 48/48 cases: 32 real and 16 synthetic, with 12 cases per workflow. `pnpm eval:validate --evidence-directory .data/evals/evidence` checks the local evidence hashes and split/category counts.
 
 ## Quality gates
 
-Routine Vitest validates the runner, fixtures, scoring contracts, and tool behavior offline. It does not call a real gateway or API-Football. The actual development baseline and held-out run require prepared evidence, a manually selected whole-run model-request allowance, and a qualified judge; do not treat synthetic fixtures as real-source evidence.
+Routine Vitest validates the runner, fixtures, scoring contracts, and tool behavior offline. It does not call a real gateway or API-Football. The current 32-case development preview with the judge estimates up to 1,235 gateway requests. The actual baseline remains a manual run and requires an explicit whole-run allowance and a qualified judge; the preview estimate is not permission to dispatch that workload. Results describe the finite evidence and candidate pools, not general scouting accuracy.

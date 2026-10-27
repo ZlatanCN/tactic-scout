@@ -247,6 +247,8 @@ const fixtureTeamNames = [
   "Synthetic Town FC",
   "Synthetic Town",
   "Unknown City FC",
+  "Real Madrid",
+  "Bayer Leverkusen",
 ];
 
 const recommendationIntentFromText = (text: string): boolean =>
@@ -882,100 +884,18 @@ describe("local scouting evaluation entry", () => {
     }
   });
 
-  it("keeps the 12 lookup cases in the approved category and split counts", () => {
+  it.each([
+    "player_lookup",
+    "player_comparison",
+    "player_recommendation",
+    "team_recommendation",
+  ] as const)("keeps 12 %s cases in the approved split", (workflow) => {
     const development = loadEvaluationCases("development", []).filter(
-      ({ caseDefinition }) => caseDefinition.workflow === "player_lookup"
+      ({ caseDefinition }) => caseDefinition.workflow === workflow
     );
 
     const heldOut = loadEvaluationCases("held_out", []).filter(
-      ({ caseDefinition }) => caseDefinition.workflow === "player_lookup"
-    );
-
-    const scenarioSplits = new Map<string, Set<string>>();
-
-    for (const loadedCase of [...development, ...heldOut]) {
-      const { scenarioFamily, split } = loadedCase.caseDefinition;
-      const splits = scenarioSplits.get(scenarioFamily) ?? new Set<string>();
-      splits.add(split);
-      scenarioSplits.set(scenarioFamily, splits);
-    }
-
-    expect({
-      development: {
-        categories: categoryCounts(development),
-        count: development.length,
-        origins: originCounts(development),
-      },
-      heldOut: {
-        categories: categoryCounts(heldOut),
-        count: heldOut.length,
-        origins: originCounts(heldOut),
-      },
-      scenarioFamiliesStayInOneSplit: [...scenarioSplits.values()].every(
-        (splits) => splits.size === 1
-      ),
-      total: development.length + heldOut.length,
-    }).toStrictEqual({
-      development: {
-        categories: { boundary: 3, multi_turn: 2, ordinary: 3 },
-        count: 8,
-        origins: { real: 4, synthetic: 4 },
-      },
-      heldOut: {
-        categories: { boundary: 1, multi_turn: 2, ordinary: 1 },
-        count: 4,
-        origins: { real: 4, synthetic: 0 },
-      },
-      scenarioFamiliesStayInOneSplit: true,
-      total: 12,
-    });
-  });
-
-  it("keeps the 12 comparison cases in the approved category and split counts", () => {
-    const development = loadEvaluationCases("development", []).filter(
-      ({ caseDefinition }) => caseDefinition.workflow === "player_comparison"
-    );
-
-    const heldOut = loadEvaluationCases("held_out", []).filter(
-      ({ caseDefinition }) => caseDefinition.workflow === "player_comparison"
-    );
-
-    expect({
-      development: {
-        categories: categoryCounts(development),
-        count: development.length,
-        origins: originCounts(development),
-      },
-      heldOut: {
-        categories: categoryCounts(heldOut),
-        count: heldOut.length,
-        origins: originCounts(heldOut),
-      },
-      total: development.length + heldOut.length,
-    }).toStrictEqual({
-      development: {
-        categories: { boundary: 3, multi_turn: 2, ordinary: 3 },
-        count: 8,
-        origins: { real: 4, synthetic: 4 },
-      },
-      heldOut: {
-        categories: { boundary: 1, multi_turn: 2, ordinary: 1 },
-        count: 4,
-        origins: { real: 4, synthetic: 0 },
-      },
-      total: 12,
-    });
-  });
-
-  it("keeps the 12 player-recommendation cases in the approved category and split counts", () => {
-    const development = loadEvaluationCases("development", []).filter(
-      ({ caseDefinition }) =>
-        caseDefinition.workflow === "player_recommendation"
-    );
-
-    const heldOut = loadEvaluationCases("held_out", []).filter(
-      ({ caseDefinition }) =>
-        caseDefinition.workflow === "player_recommendation"
+      ({ caseDefinition }) => caseDefinition.workflow === workflow
     );
 
     const scenarioSplits = new Map<string, Set<string>>();
@@ -2807,6 +2727,131 @@ describe("local scouting evaluation entry", () => {
       refinementRecommendationCalls: 2,
     });
   }, 25_000);
+
+  it.skipIf(
+    !existsSync(
+      path.join(
+        process.cwd(),
+        ".data/evals/evidence/team-real-madrid-development-v1.json"
+      )
+    ) ||
+      !existsSync(
+        path.join(
+          process.cwd(),
+          ".data/evals/evidence/team-bayer-leverkusen-heldout-v1.json"
+        )
+      )
+  )(
+    "runs captured real team cases through the real roster mapper",
+    async () => {
+      let requestCount = 0;
+
+      const gateway = createServer((request, response) => {
+        requestCount += 1;
+        void handleGatewayRequest(request, response, requestCount);
+      });
+
+      servers.push(gateway);
+      gateway.listen(0, "127.0.0.1");
+      await once(gateway, "listening");
+
+      const parsedAddress = z
+        .object({ port: z.number().int().positive() })
+        .safeParse(gateway.address());
+
+      if (!parsedAddress.success) {
+        throw new Error("The fake gateway did not bind to a TCP port.");
+      }
+
+      const workspace = mkdtempSync(
+        path.join(tmpdir(), "tactiscout-real-team-eval-")
+      );
+
+      temporaryDirectories.push(workspace);
+      vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+      vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+      vi.stubEnv(
+        "OPENAI_BASE_URL",
+        `http://127.0.0.1:${parsedAddress.data.port}/v1`
+      );
+
+      const caseIds = [
+        "team-real-madrid-stc-dev-v1",
+        "team-real-madrid-ca-filter-dev-v1",
+        "team-real-madrid-roster-gap-dev-v1",
+        "team-real-madrid-refine-dev-v1",
+        "team-bayer-leverkusen-stc-heldout-v1",
+        "team-bayer-leverkusen-roster-gap-heldout-v1",
+        "team-bayer-leverkusen-ca-filter-heldout-v1",
+        "team-bayer-leverkusen-pa-filter-heldout-v1",
+      ];
+
+      const evidenceDirectory = path.join(
+        process.cwd(),
+        ".data/evals/evidence"
+      );
+
+      const { freezeFingerprint } = previewEvaluation({
+        caseIds,
+        evidenceDirectory,
+        mode: "smoke",
+      });
+
+      if (freezeFingerprint === null) {
+        throw new Error("The real team fixture needs a freeze fingerprint.");
+      }
+
+      const report = await runEvaluation({
+        caseIds,
+        evidenceDirectory,
+        freezeId: freezeFingerprint,
+        maxModelRequests: 400,
+        mode: "smoke",
+        outputDirectory: path.join(workspace, "reports"),
+        workspaceDirectory: path.join(workspace, "workspace"),
+      });
+
+      expect({
+        cases: report.caseCount,
+        preflightErrors: report.preflightErrors,
+        runStatus: report.status,
+        trialCount: report.trials.length,
+      }).toStrictEqual({
+        cases: 8,
+        preflightErrors: [],
+        runStatus: "completed",
+        trialCount: 8,
+      });
+
+      const failedChecks = report.trials.flatMap((trial) =>
+        trial.checks
+          .filter(({ status }) => status === "failed")
+          .map(({ actual, expected, id }) => ({
+            actual,
+            caseId: trial.caseId,
+            expected,
+            id,
+          }))
+      );
+
+      expect(failedChecks).toStrictEqual([]);
+
+      expect(
+        report.trials.map(({ observation }) => observation.outcomeStatus)
+      ).toStrictEqual(
+        Array.from({ length: 8 }, () => "team_roster_member_unmapped")
+      );
+
+      expect(
+        report.trials.flatMap(({ observation }) =>
+          observation.actionEvents.filter(
+            ({ name }) => name === "recommend_team_player_candidates"
+          )
+        )
+      ).toStrictEqual([]);
+    },
+    45_000
+  );
 
   it("records malformed model tool arguments without claiming a search ran", async () => {
     let requestCount = 0;

@@ -605,6 +605,36 @@ const apiFootballPayload = (
   return { ...root.data, response };
 };
 
+const apiFootballTeamIdsFromSearchResponses = (
+  responses: EvaluationEvidenceBundle["apiFootball"]["teamSearchResponses"],
+  allowedIds: Set<string>
+): Set<string> =>
+  new Set(
+    responses.flatMap(({ payload }) => {
+      const root = z.record(z.string(), z.json()).safeParse(payload);
+
+      if (!root.success || !Array.isArray(root.data.response)) {
+        return [];
+      }
+
+      return root.data.response.flatMap((item) => {
+        const wrapper = z.record(z.string(), z.json()).safeParse(item);
+
+        const team = wrapper.success
+          ? z.record(z.string(), z.json()).safeParse(wrapper.data.team)
+          : { success: false as const };
+
+        const teamId = team.success
+          ? z.number().int().positive().safeParse(team.data.id)
+          : { success: false as const };
+
+        return teamId.success && allowedIds.has(String(teamId.data))
+          ? [String(teamId.data)]
+          : [];
+      });
+    })
+  );
+
 const restrictEvidenceBundleToCase = (
   bundle: EvaluationEvidenceBundle,
   caseDefinition: EvaluationCase
@@ -696,9 +726,19 @@ const restrictEvidenceBundleToCase = (
     )
   );
 
+  const apiFootballSearchTeamIds = apiFootballTeamIdsFromSearchResponses(
+    bundle.apiFootball.teamSearchResponses,
+    apiFootballScope
+  );
+
+  const apiFootballTeamScopeIds = new Set([
+    ...apiFootballTeamIds,
+    ...apiFootballSearchTeamIds,
+  ]);
+
   const apiFootballPlayerIds = new Set(
     [...apiFootballScope].filter(
-      (sourceId) => !apiFootballTeamIds.has(sourceId)
+      (sourceId) => !apiFootballTeamScopeIds.has(sourceId)
     )
   );
 
@@ -723,7 +763,7 @@ const restrictEvidenceBundleToCase = (
         ...response,
         payload: apiFootballPayload(
           response.payload,
-          apiFootballTeamIds,
+          apiFootballSearchTeamIds,
           apiFootballPlayerIds
         ),
       })

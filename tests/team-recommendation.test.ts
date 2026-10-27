@@ -245,6 +245,89 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("asks for a position before acquiring a team roster", async () => {
+    const message = "Recommend a player for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 1001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({ status: "ready" })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", null),
+      }),
+      recommend,
+    });
+
+    const config = { configurable: { thread_id: "team-position-required" } };
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const completed = await graph.invoke(
+      new Command({ resume: "stc" }),
+      config
+    );
+
+    expect({
+      completedTeam:
+        completed.conversationContext.activeTeamRecommendation?.team,
+      getSquadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
+      recommendationCalls: recommend.mock.calls.length,
+      resumedWithPosition:
+        completed.conversationContext.activeTeamRecommendation?.position,
+      wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toStrictEqual({
+      completedTeam: arsenal,
+      getSquadCalls: [[42]],
+      recommendationCalls: 1,
+      resumedWithPosition: "stc",
+      wasInterrupted: true,
+    });
+  });
+
+  it("stops safely when the provider returns an empty squad", async () => {
+    const message = "Recommend a striker for Arsenal.";
+    const directory = createDirectory([arsenal], []);
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
+      JSON.stringify({ status: "ready" })
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-empty-roster" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      outcomeStatus: result.outcome?.status,
+      recommendationCalls: recommend.mock.calls.length,
+      squadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
+    }).toStrictEqual({
+      answer: "API-Football 没有返回这支球队的当前阵容，本次无法生成推荐。",
+      outcomeStatus: "team_roster_empty",
+      recommendationCalls: 0,
+      squadCalls: [[42]],
+    });
+  });
+
   it("uses the native graph retry for an API-Football server error", async () => {
     const message = "Recommend a striker for Arsenal.";
 

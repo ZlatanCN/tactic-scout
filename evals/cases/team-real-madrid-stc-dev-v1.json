@@ -1,0 +1,1831 @@
+{
+  "caseId": "team-real-madrid-stc-dev-v1",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "api_football.search_teams",
+        "path": "query",
+        "source": "input",
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+        "value": "Real Madrid"
+      },
+      {
+        "name": "api_football.search_teams",
+        "path": "data.0.id",
+        "source": "result",
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+        "value": 541
+      },
+      {
+        "name": "api_football.get_squad",
+        "path": "teamId",
+        "source": "input",
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+        "value": 541
+      },
+      {
+        "name": "api_football.get_squad",
+        "path": "data.players.0.id",
+        "source": "result",
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+        "value": 730
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "path": "apiFootballPlayerId",
+        "source": "input",
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+        "value": 47400
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "path": "status",
+        "source": "result",
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+        "value": "no_profile"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [],
+    "expectedIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.search_teams",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:541"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:7926"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:9575"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:15224"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:22013"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:22142"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:26996"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.get_squad",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:541"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:730"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47400"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:386872"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:494060"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:460594"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:451355"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:283"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:341640"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:284300"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47380"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:226"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:372"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:561032"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:443595"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:361497"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:1145"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:561033"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:653"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:456014"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:2285"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:129718"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:2207"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:560905"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:744"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:291964"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:518384"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:509470"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:636"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:1271"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:756"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:548685"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:513776"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:377122"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:450497"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:308998"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:278"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:762"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:441497"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:730"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18026122"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47400"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:386872"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000164447"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:494060"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299380"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:460594"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:451355"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299717"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:283"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28104124"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:341640"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000126407"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:284300"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000032706"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47380"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67215284"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:226"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37052843"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:372"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:561032"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:443595"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000293312"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:361497"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:1145"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48037822"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:561033"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:653"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85133751"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:456014"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299823"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:2285"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92023410"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:129718"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29232937"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:2207"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49056243"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:560905"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:744"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106999"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:291964"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000077193"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:518384"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000411997"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:509470"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000310973"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:636"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "55041632"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:1271"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042326"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:756"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "78074594"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:548685"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:513776"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000311833"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:377122"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000220941"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:450497"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299722"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:308998"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000132483"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:278"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85139014"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:762"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19302146"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:441497"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299363"
+          }
+        ],
+        "turnId": "team-real-madrid-stc-dev-v1-turn-1"
+      }
+    ],
+    "outcomeStatus": "team_roster_member_unmapped",
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "Do not rank or recommend players while any current squad member lacks a mapped local FM profile."
+    ],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "api_football",
+        "sourceId": "541"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "7926"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9575"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "15224"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "22013"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "22142"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "26996"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "730"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "47400"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "386872"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "494060"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "460594"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "451355"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "283"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "341640"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "284300"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "47380"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "226"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "372"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "561032"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "443595"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "361497"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "1145"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "561033"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "653"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "456014"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "2285"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "129718"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "2207"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "560905"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "744"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "291964"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "518384"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "509470"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "636"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "1271"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "756"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "548685"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "513776"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "377122"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "450497"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "308998"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "278"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "762"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "441497"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18026122"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000164447"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000299380"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000299717"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28104124"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000126407"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000032706"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67215284"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37052843"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000293312"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48037822"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85133751"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000299823"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92023410"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29232937"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49056243"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28106999"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000077193"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000411997"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000310973"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "55041632"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48042326"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "78074594"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000311833"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000220941"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000299722"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000132483"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85139014"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19302146"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000299363"
+      }
+    ],
+    "taskKind": "team_recommendation",
+    "toolActions": [
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.search_teams",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:541"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:7926"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:9575"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:15224"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:22013"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:22142"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:26996"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.get_squad",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:541"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:730"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47400"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:386872"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:494060"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:460594"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:451355"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:283"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:341640"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:284300"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47380"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:226"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:372"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:561032"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:443595"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:361497"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:1145"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:561033"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:653"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:456014"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:2285"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:129718"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:2207"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:560905"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:744"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:291964"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:518384"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:509470"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:636"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:1271"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:756"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:548685"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:513776"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:377122"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:450497"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:308998"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:278"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:762"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:441497"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:730"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18026122"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47400"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:386872"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000164447"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:494060"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299380"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:460594"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:451355"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299717"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:283"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28104124"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:341640"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000126407"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:284300"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000032706"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47380"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67215284"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:226"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37052843"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:372"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:561032"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:443595"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000293312"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:361497"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:1145"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48037822"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:561033"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:653"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85133751"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:456014"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299823"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:2285"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92023410"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:129718"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29232937"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:2207"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49056243"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:560905"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:744"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106999"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:291964"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000077193"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:518384"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000411997"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:509470"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000310973"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:636"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "55041632"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:1271"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042326"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:756"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "78074594"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:548685"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:513776"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000311833"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:377122"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000220941"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:450497"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299722"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:308998"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000132483"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:278"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85139014"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:762"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19302146"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:441497"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000299363"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "team-real-madrid-development-v1",
+  "evidenceBundleSha256": "da808b2d7d055daa2dba50309d84c9e0f3769d9617804c6d9098e5f41d98ca2b",
+  "origin": "real",
+  "priorTuningExposure": "Authored after the local API-Football capture and Reep-to-FM coverage audit; not evaluated against a live model.",
+  "scenarioFamily": "real-real-madrid-incomplete-fm-roster",
+  "split": "development",
+  "turns": [
+    {
+      "clarificationAlternatives": [],
+      "turnId": "team-real-madrid-stc-dev-v1-turn-1",
+      "userMessage": "为 Real Madrid 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ],
+  "workflow": "team_recommendation"
+}

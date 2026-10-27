@@ -1,0 +1,2643 @@
+{
+  "caseId": "team-bayer-leverkusen-ca-filter-heldout-v1",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "api_football.search_teams",
+        "path": "query",
+        "source": "input",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+        "value": "Bayer Leverkusen"
+      },
+      {
+        "name": "api_football.search_teams",
+        "path": "data.0.id",
+        "source": "result",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+        "value": 168
+      },
+      {
+        "name": "api_football.get_squad",
+        "path": "teamId",
+        "source": "input",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+        "value": 168
+      },
+      {
+        "name": "api_football.get_squad",
+        "path": "data.players.0.id",
+        "source": "result",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+        "value": 37246
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "path": "apiFootballPlayerId",
+        "source": "input",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+        "value": 25168
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "path": "status",
+        "source": "result",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+        "value": "no_profile"
+      },
+      {
+        "name": "api_football.search_teams",
+        "path": "query",
+        "source": "input",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+        "value": "Bayer Leverkusen"
+      },
+      {
+        "name": "api_football.search_teams",
+        "path": "data.0.id",
+        "source": "result",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+        "value": 168
+      },
+      {
+        "name": "api_football.get_squad",
+        "path": "teamId",
+        "source": "input",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+        "value": 168
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "path": "apiFootballPlayerId",
+        "source": "input",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+        "value": 25168
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "path": "status",
+        "source": "result",
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+        "value": "no_profile"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [],
+    "expectedIdentityStatuses": [],
+    "expectedTurnConstraints": [
+      {
+        "constraints": [
+          {
+            "name": "CA",
+            "value": "145"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.search_teams",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:1859"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:7886"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.get_squad",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91017776"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92056834"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "73201428"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276071"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000330883"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14185869"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000070513"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28127161"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13196616"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67135344"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91108805"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000258576"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14247304"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67190888"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92027981"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000193961"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106683"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91187679"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000104892"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53174131"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48044574"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000426277"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000111055"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042204"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.search_teams",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:1859"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:7886"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "cache_hit",
+        "name": "api_football.get_squad",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91017776"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92056834"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "73201428"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276071"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000330883"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14185869"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000070513"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28127161"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13196616"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67135344"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91108805"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000258576"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14247304"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67190888"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92027981"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000193961"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106683"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91187679"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000104892"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53174131"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48044574"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000426277"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000111055"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042204"
+          }
+        ],
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+      }
+    ],
+    "outcomeStatus": "team_roster_member_unmapped",
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "Do not rank or recommend players while any current squad member lacks a mapped local FM profile."
+    ],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "api_football",
+        "sourceId": "168"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "1859"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "7886"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "37246"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "26232"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "25168"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "511930"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "174918"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "161747"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "162032"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "486523"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "6231"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "280091"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "158698"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "41150"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "757"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "24903"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "444961"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "610930"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "237087"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "47516"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "25635"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "568387"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "380587"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "231029"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "162037"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "343320"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "39071"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "277"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "505295"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "345388"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "794"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "663"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91017776"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92056834"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "73201428"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67276071"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000330883"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14185869"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000070513"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28127161"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "13196616"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67135344"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91108805"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000258576"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14247304"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67190888"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92027981"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000193961"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28106683"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91187679"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000104892"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "53174131"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48044574"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000426277"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000111055"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "25042141"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48042204"
+      }
+    ],
+    "taskKind": "team_recommendation",
+    "toolActions": [
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.search_teams",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:1859"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:7886"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.get_squad",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91017776"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92056834"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "73201428"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276071"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000330883"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14185869"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000070513"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28127161"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13196616"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67135344"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91108805"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000258576"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14247304"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67190888"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92027981"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000193961"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106683"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91187679"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000104892"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53174131"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48044574"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000426277"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000111055"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042204"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ok",
+        "name": "api_football.search_teams",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:1859"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:7886"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "cache_hit",
+        "name": "api_football.get_squad",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:37246"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91017776"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:26232"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92056834"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25168"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:511930"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:174918"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:161747"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "73201428"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162032"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276071"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:486523"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000330883"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:6231"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14185869"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:280091"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000070513"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:158698"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28127161"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:41150"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13196616"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:757"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67135344"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:24903"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91108805"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:444961"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000258576"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:610930"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:237087"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14247304"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:47516"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67190888"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:25635"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92027981"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "no_profile",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:568387"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:380587"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000193961"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:231029"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106683"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:162037"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91187679"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:343320"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000104892"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:39071"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53174131"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:277"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48044574"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:505295"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000426277"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:345388"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000111055"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:794"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "resolved",
+        "name": "resolve_team_roster_identity",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:663"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042204"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "team-bayer-leverkusen-heldout-v1",
+  "evidenceBundleSha256": "afb330787d111a6ffc5ab04c6b7e8c024e19deacc742680236a1b46c69080702",
+  "origin": "real",
+  "priorTuningExposure": "Authored after the local API-Football capture and Reep-to-FM coverage audit; not evaluated against a live model.",
+  "scenarioFamily": "real-bayer-leverkusen-incomplete-fm-roster",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAlternatives": [],
+      "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-1",
+      "userMessage": "为 Bayer Leverkusen 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "clarificationAlternatives": [],
+      "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+      "userMessage": "为 Bayer Leverkusen 继续推荐 stc 球员，CA 下限 145。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ],
+  "workflow": "team_recommendation"
+}
