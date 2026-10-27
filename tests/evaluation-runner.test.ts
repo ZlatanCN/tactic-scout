@@ -1057,19 +1057,34 @@ describe("local scouting evaluation entry", () => {
   });
 
   it("allows held-out preview but requires a freeze ID before dispatch", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "evaluation-freeze-test-key");
+    vi.stubEnv("OPENAI_MODEL", "evaluation-freeze-test-model");
+    vi.stubEnv("OPENAI_BASE_URL", "https://gateway.example.test/v1");
+
     const preview = previewEvaluation({
       caseIds: ["recommend-isak-real-heldout-v1"],
       mode: "smoke",
     });
 
     expect(preview.heldOutFreezeReady).toBeFalsy();
+    expect(preview.freezeFingerprint).toMatch(
+      /^scouting-eval-v1-[a-f0-9]{64}$/u
+    );
     expect(
       previewEvaluation({
         caseIds: ["recommend-isak-real-heldout-v1"],
-        freezeId: "reviewed-agent-score-freeze-v1",
+        freezeId: "arbitrary-freeze-name",
+        mode: "smoke",
+      }).heldOutFreezeReady
+    ).toBeFalsy();
+    expect(
+      previewEvaluation({
+        caseIds: ["recommend-isak-real-heldout-v1"],
+        freezeId: preview.freezeFingerprint ?? undefined,
         mode: "smoke",
       }).heldOutFreezeReady
     ).toBeTruthy();
+
     await expect(
       runEvaluation({
         caseIds: ["recommend-isak-real-heldout-v1"],
@@ -1078,7 +1093,31 @@ describe("local scouting evaluation entry", () => {
         outputDirectory: ".data/evals/freeze-gate-test-runs",
         workspaceDirectory: ".data/evals/freeze-gate-test-work",
       })
-    ).rejects.toThrow("Held-out cases require a reviewed freeze ID");
+    ).rejects.toThrow("Held-out cases require --freeze-id to match");
+  });
+
+  it("invalidates a held-out freeze fingerprint when the model changes", () => {
+    vi.stubEnv("OPENAI_MODEL", "freeze-agent-v1");
+    vi.stubEnv("OPENAI_BASE_URL", "https://gateway.example.test/v1");
+
+    const initialPreview = previewEvaluation({
+      caseIds: ["recommend-isak-real-heldout-v1"],
+      mode: "smoke",
+    });
+
+    vi.stubEnv("OPENAI_MODEL", "freeze-agent-v2");
+
+    const changedPreview = previewEvaluation({
+      caseIds: ["recommend-isak-real-heldout-v1"],
+      freezeId: initialPreview.freezeFingerprint ?? undefined,
+      mode: "smoke",
+    });
+
+    expect({
+      fingerprintChanged:
+        changedPreview.freezeFingerprint !== initialPreview.freezeFingerprint,
+      heldOutFreezeReady: changedPreview.heldOutFreezeReady,
+    }).toStrictEqual({ fingerprintChanged: true, heldOutFreezeReady: false });
   });
 
   it("retains three isolated formal trials and compares only compatible report rows", async () => {
@@ -3007,10 +3046,22 @@ describe("local scouting evaluation entry", () => {
         ".data/evals/evidence"
       );
 
+      const { freezeFingerprint } = previewEvaluation({
+        caseIds,
+        evidenceDirectory,
+        mode: "smoke",
+      });
+
+      if (freezeFingerprint === null) {
+        throw new Error(
+          "The real-source fixture test needs a freeze fingerprint."
+        );
+      }
+
       const report = await runEvaluation({
         caseIds,
         evidenceDirectory,
-        freezeId: "vitest-offline-evaluation-fixture",
+        freezeId: freezeFingerprint,
         maxModelRequests: 250,
         mode: "smoke",
         outputDirectory: path.join(workspace, "reports"),

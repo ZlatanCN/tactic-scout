@@ -25,11 +25,11 @@ Run the development split against locally prepared evidence with an explicit bud
 pnpm eval:run --mode development --judge --evidence-directory .data/evals/evidence --max-model-requests <N>
 ```
 
-Held-out cases require an explicit freeze ID after the agent and scoring rules are fixed:
+Before using held-out results, freeze the evaluated code, evidence/case set, dependency lock, agent model, gateway, and judge configuration. Preview prints a `freezeFingerprint` derived from those inputs. Copy that exact fingerprint into `--freeze-id`; any change to the inputs invalidates it.
 
 ```sh
-pnpm eval:preview --mode held_out --judge --freeze-id <freeze-id> --evidence-directory .data/evals/evidence
-pnpm eval:run --mode held_out --judge --freeze-id <freeze-id> --evidence-directory .data/evals/evidence --max-model-requests <N>
+pnpm eval:preview --mode held_out --judge --evidence-directory .data/evals/evidence
+pnpm eval:run --mode held_out --judge --freeze-id <copied-freezeFingerprint> --evidence-directory .data/evals/evidence --max-model-requests <N>
 ```
 
 Reports are written to ignored `.data/evals/runs/` as per-trial JSON and a Markdown summary. Worker databases and inputs remain under ignored `.data/evals/work/`. The report records evidence hashes, model requests by role, source dates, local code and prompt hashes, trial checks, semantic findings, coverage, and incomplete work.

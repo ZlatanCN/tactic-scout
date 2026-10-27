@@ -15,6 +15,11 @@ import type {
   JsonValue,
 } from "./contracts.js";
 import { prepareEvidenceBundle } from "./evidence.js";
+import {
+  captureFreezeConfiguration,
+  captureRunIdentity,
+  freezeFingerprintForEvaluation,
+} from "./run-identity.js";
 
 type EvaluationMode = "development" | "held_out" | "smoke";
 
@@ -41,6 +46,7 @@ type EvaluationPreview = {
   }[];
   estimatedModelRequests: number;
   freezeId: string | null;
+  freezeFingerprint: string | null;
   heldOutFreezeReady: boolean;
   judgeEnabled: boolean;
   modelConfigurationReady: boolean;
@@ -763,6 +769,19 @@ const previewEvaluation = (
   );
 
   const freezeId = options.freezeId?.trim() ?? "";
+  const judgeEnabled = options.includeSemanticJudge === true;
+
+  const freezeFingerprint = freezeFingerprintForEvaluation(
+    captureRunIdentity(),
+    cases.map(({ caseDefinition, caseHash }) => ({
+      caseHash,
+      caseId: caseDefinition.caseId,
+      evidenceBundleSha256: caseDefinition.evidenceBundleSha256,
+      split: caseDefinition.split,
+    })),
+    captureFreezeConfiguration(judgeEnabled)
+  );
+
   const workflows = new Map<EvaluationCase["workflow"], number>();
 
   const evidenceChecks = cases.map(({ caseDefinition }) => {
@@ -835,11 +854,14 @@ const previewEvaluation = (
     estimatedModelRequests: estimateModelRequests(
       cases,
       repetitions,
-      options.includeSemanticJudge
+      judgeEnabled
     ),
+    freezeFingerprint,
     freezeId: freezeId.length > 0 ? freezeId : null,
-    heldOutFreezeReady: !usesHeldOutCases || freezeId.length > 0,
-    judgeEnabled: options.includeSemanticJudge === true,
+    heldOutFreezeReady:
+      !usesHeldOutCases ||
+      (freezeFingerprint !== null && freezeId === freezeFingerprint),
+    judgeEnabled,
     mode: options.mode,
     modelConfigurationReady:
       (process.env.OPENAI_API_KEY?.trim().length ?? 0) > 0 &&

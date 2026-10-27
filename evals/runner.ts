@@ -35,7 +35,11 @@ import {
   validateTrialJudgment,
 } from "./judge.js";
 import { writeEvaluationReport } from "./report.js";
-import { captureRunIdentity } from "./run-identity.js";
+import {
+  captureFreezeConfiguration,
+  captureRunIdentity,
+  freezeFingerprintForEvaluation,
+} from "./run-identity.js";
 import { runIsolatedTrial } from "./trial-process.js";
 
 type RunEvaluationOptions = {
@@ -145,7 +149,8 @@ const signalIsAborted = (signal: AbortSignal | undefined): boolean =>
 
 const freezeIdForCases = (
   cases: LoadedEvaluationCase[],
-  configuredFreezeId: string | undefined
+  configuredFreezeId: string | undefined,
+  freezeFingerprint: string | null
 ): string | null => {
   const freezeId = configuredFreezeId?.trim() ?? "";
 
@@ -153,9 +158,9 @@ const freezeIdForCases = (
     ({ caseDefinition }) => caseDefinition.split === "held_out"
   );
 
-  if (includesHeldOut && freezeId.length === 0) {
+  if (includesHeldOut && freezeId !== freezeFingerprint) {
     throw new Error(
-      "Held-out cases require a reviewed freeze ID. Use --freeze-id after fixing the evaluated version and scoring rules."
+      `Held-out cases require --freeze-id to match the current evaluation fingerprint. Preview the exact case set and use its freezeFingerprint. Expected: ${freezeFingerprint ?? "unavailable; configure the agent model and gateway first"}.`
     );
   }
 
@@ -588,7 +593,20 @@ const runEvaluation = async (
     options.caseDirectory
   );
 
-  const freezeId = freezeIdForCases(cases, options.freezeId);
+  const runIdentity = captureRunIdentity();
+
+  const freezeFingerprint = freezeFingerprintForEvaluation(
+    runIdentity,
+    cases.map(({ caseDefinition, caseHash }) => ({
+      caseHash,
+      caseId: caseDefinition.caseId,
+      evidenceBundleSha256: caseDefinition.evidenceBundleSha256,
+      split: caseDefinition.split,
+    })),
+    captureFreezeConfiguration(options.includeSemanticJudge === true)
+  );
+
+  const freezeId = freezeIdForCases(cases, options.freezeId, freezeFingerprint);
 
   const repetitions = options.mode === "smoke" ? 1 : 3;
   const judgeEnabled = options.includeSemanticJudge === true;
@@ -596,7 +614,6 @@ const runEvaluation = async (
   const startedAt = new Date().toISOString();
   const outputDirectory = path.resolve(options.outputDirectory, runId);
   const workspaceDirectory = path.resolve(options.workspaceDirectory, runId);
-  const runIdentity = captureRunIdentity();
 
   const report: EvaluationReport = {
     agentModel: null,

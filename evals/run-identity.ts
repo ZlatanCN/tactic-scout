@@ -14,6 +14,26 @@ type RunIdentity = {
   workingTreeDirty: boolean | null;
 };
 
+type FreezeCaseIdentity = {
+  caseHash: string;
+  caseId: string;
+  evidenceBundleSha256: string;
+  split: "development" | "held_out";
+};
+
+type FreezeConfiguration = {
+  agentModel: string | null;
+  gatewayBaseUrl: string | null;
+  judgeEnabled: boolean;
+  judgeModel: string | null;
+};
+
+const nonEmptyValue = (value: string | undefined): string | null => {
+  const trimmed = value?.trim() ?? "";
+
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 const recursiveSourceFiles = (
   root: string,
   relativeDirectory: string
@@ -100,6 +120,95 @@ const captureRunIdentity = (root = process.cwd()): RunIdentity => {
   };
 };
 
-export { captureRunIdentity };
+const captureFreezeConfiguration = (
+  judgeEnabled: boolean
+): FreezeConfiguration => {
+  const agentModel = nonEmptyValue(process.env.OPENAI_MODEL);
+  const configuredUrl = nonEmptyValue(process.env.OPENAI_BASE_URL);
 
-export type { RunIdentity };
+  const baseUrl = configuredUrl ?? "https://api.openai.com/v1";
+
+  let gatewayBaseUrl: string | null = null;
+
+  try {
+    const parsedUrl = new URL(baseUrl);
+
+    if (
+      (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") &&
+      parsedUrl.username.length === 0 &&
+      parsedUrl.password.length === 0
+    ) {
+      const pathname = parsedUrl.pathname.endsWith("/")
+        ? parsedUrl.pathname.slice(0, -1)
+        : parsedUrl.pathname;
+
+      gatewayBaseUrl = `${parsedUrl.origin}${pathname}`;
+    }
+  } catch {
+    gatewayBaseUrl = null;
+  }
+
+  const configuredJudgeModel = nonEmptyValue(
+    process.env.TACTISCOUT_EVAL_JUDGE_MODEL
+  );
+
+  return {
+    agentModel,
+    gatewayBaseUrl,
+    judgeEnabled,
+    judgeModel: judgeEnabled ? (configuredJudgeModel ?? agentModel) : null,
+  };
+};
+
+const freezeFingerprintForEvaluation = (
+  identity: RunIdentity,
+  cases: FreezeCaseIdentity[],
+  configuration: FreezeConfiguration
+): string | null => {
+  const missingRunIdentity =
+    identity.dependencyLockSha256 === null ||
+    configuration.agentModel === null ||
+    configuration.gatewayBaseUrl === null;
+
+  const missingJudgeIdentity =
+    configuration.judgeEnabled && configuration.judgeModel === null;
+
+  if (missingRunIdentity || missingJudgeIdentity) {
+    return null;
+  }
+
+  const caseIdentity = cases
+    .map(({ caseHash, caseId, evidenceBundleSha256, split }) => ({
+      caseHash,
+      caseId,
+      evidenceBundleSha256,
+      split,
+    }))
+    .toSorted((left, right) => left.caseId.localeCompare(right.caseId));
+
+  const fingerprint = createHash("sha256")
+    .update(
+      JSON.stringify({
+        agentModel: configuration.agentModel,
+        agentPromptSha256: identity.agentPromptSha256,
+        benchmarkVersion: identity.benchmarkVersion,
+        cases: caseIdentity,
+        dependencyLockSha256: identity.dependencyLockSha256,
+        gatewayBaseUrl: configuration.gatewayBaseUrl,
+        judgeEnabled: configuration.judgeEnabled,
+        judgeModel: configuration.judgeModel,
+        sourceTreeSha256: identity.sourceTreeSha256,
+      })
+    )
+    .digest("hex");
+
+  return `scouting-eval-v1-${fingerprint}`;
+};
+
+export {
+  captureFreezeConfiguration,
+  captureRunIdentity,
+  freezeFingerprintForEvaluation,
+};
+
+export type { FreezeCaseIdentity, RunIdentity };
