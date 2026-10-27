@@ -30,6 +30,17 @@ type FreezeConfiguration = {
   judgeModel: string | null;
 };
 
+const ignoredSourceDirectories = new Set([
+  ".data",
+  ".git",
+  ".vitest",
+  "coverage",
+  "dist",
+  "node_modules",
+  "runs",
+  "work",
+]);
+
 const nonEmptyValue = (value: string | undefined): string | null => {
   const trimmed = value?.trim() ?? "";
 
@@ -42,21 +53,21 @@ const recursiveSourceFiles = (
 ): string[] =>
   readdirSync(path.join(root, relativeDirectory), {
     withFileTypes: true,
-  }).flatMap((entry) => {
-    const relativePath = path.join(relativeDirectory, entry.name);
+  })
+    .toSorted((left, right) => left.name.localeCompare(right.name))
+    .flatMap((entry) => {
+      const relativePath = path.join(relativeDirectory, entry.name);
 
-    if (entry.isDirectory()) {
-      if (["anchors", "cases", "evidence"].includes(entry.name)) {
-        return recursiveSourceFiles(root, relativePath);
+      if (entry.isDirectory()) {
+        return ignoredSourceDirectories.has(entry.name)
+          ? []
+          : recursiveSourceFiles(root, relativePath);
       }
 
-      return [];
-    }
-
-    return entry.isFile() && /\.(?:json|ts)$/u.test(entry.name)
-      ? [relativePath]
-      : [];
-  });
+      return entry.isFile() && /\.(?:json|ts)$/u.test(entry.name)
+        ? [relativePath]
+        : [];
+    });
 
 const sha256 = (content: string | Buffer): string =>
   createHash("sha256").update(content).digest("hex");
