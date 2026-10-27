@@ -2742,24 +2742,29 @@ describe("local scouting evaluation entry", () => {
 
     const evidenceDirectory = path.join(process.cwd(), ".data/evals/evidence");
 
-    const bundlesReady = [
-      "team-real-madrid-development-v1",
-      "team-bayer-leverkusen-heldout-v1",
-    ].every((bundleId) =>
-      existsSync(path.join(evidenceDirectory, `${bundleId}.json`))
-    );
-
     const sourcePreview = previewEvaluation({
       caseIds,
       evidenceDirectory,
       mode: "smoke",
     });
 
+    const expectedEvidenceStatuses = caseIds.map((caseId) => {
+      const bundleId = caseId.startsWith("team-real-madrid-")
+        ? "team-real-madrid-development-v1"
+        : "team-bayer-leverkusen-heldout-v1";
+
+      return existsSync(path.join(evidenceDirectory, `${bundleId}.json`))
+        ? "ready"
+        : "requires_preparation";
+    });
+
     expect(
-      sourcePreview.cases.every(({ evidenceStatus }) =>
-        ["ready", "requires_preparation"].includes(evidenceStatus)
-      )
-    ).toBeTruthy();
+      sourcePreview.cases.map(({ evidenceStatus }) => evidenceStatus)
+    ).toStrictEqual(expectedEvidenceStatuses);
+
+    const bundlesReady = expectedEvidenceStatuses.every(
+      (evidenceStatus) => evidenceStatus === "ready"
+    );
 
     if (!bundlesReady) {
       return;
