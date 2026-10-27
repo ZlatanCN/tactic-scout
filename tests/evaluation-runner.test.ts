@@ -2728,130 +2728,133 @@ describe("local scouting evaluation entry", () => {
     });
   }, 25_000);
 
-  it.skipIf(
-    !existsSync(
-      path.join(
-        process.cwd(),
-        ".data/evals/evidence/team-real-madrid-development-v1.json"
+  it("runs prepared real team cases or reports missing local preparation", async () => {
+    const caseIds = [
+      "team-real-madrid-stc-dev-v1",
+      "team-real-madrid-ca-filter-dev-v1",
+      "team-real-madrid-roster-gap-dev-v1",
+      "team-real-madrid-refine-dev-v1",
+      "team-bayer-leverkusen-stc-heldout-v1",
+      "team-bayer-leverkusen-roster-gap-heldout-v1",
+      "team-bayer-leverkusen-ca-filter-heldout-v1",
+      "team-bayer-leverkusen-pa-filter-heldout-v1",
+    ];
+
+    const evidenceDirectory = path.join(process.cwd(), ".data/evals/evidence");
+
+    const bundlesReady = [
+      "team-real-madrid-development-v1",
+      "team-bayer-leverkusen-heldout-v1",
+    ].every((bundleId) =>
+      existsSync(path.join(evidenceDirectory, `${bundleId}.json`))
+    );
+
+    const sourcePreview = previewEvaluation({
+      caseIds,
+      evidenceDirectory,
+      mode: "smoke",
+    });
+
+    expect(
+      sourcePreview.cases.every(({ evidenceStatus }) =>
+        ["ready", "requires_preparation"].includes(evidenceStatus)
       )
-    ) ||
-      !existsSync(
-        path.join(
-          process.cwd(),
-          ".data/evals/evidence/team-bayer-leverkusen-heldout-v1.json"
+    ).toBeTruthy();
+
+    if (!bundlesReady) {
+      return;
+    }
+
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(request, response, requestCount);
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const parsedAddress = z
+      .object({ port: z.number().int().positive() })
+      .safeParse(gateway.address());
+
+    if (!parsedAddress.success) {
+      throw new Error("The fake gateway did not bind to a TCP port.");
+    }
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-real-team-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv(
+      "OPENAI_BASE_URL",
+      `http://127.0.0.1:${parsedAddress.data.port}/v1`
+    );
+
+    const { freezeFingerprint } = previewEvaluation({
+      caseIds,
+      evidenceDirectory,
+      mode: "smoke",
+    });
+
+    if (freezeFingerprint === null) {
+      throw new Error("The real team fixture needs a freeze fingerprint.");
+    }
+
+    const report = await runEvaluation({
+      caseIds,
+      evidenceDirectory,
+      freezeId: freezeFingerprint,
+      maxModelRequests: 400,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "workspace"),
+    });
+
+    expect({
+      cases: report.caseCount,
+      preflightErrors: report.preflightErrors,
+      runStatus: report.status,
+      trialCount: report.trials.length,
+    }).toStrictEqual({
+      cases: 8,
+      preflightErrors: [],
+      runStatus: "completed",
+      trialCount: 8,
+    });
+
+    const failedChecks = report.trials.flatMap((trial) =>
+      trial.checks
+        .filter(({ status }) => status === "failed")
+        .map(({ actual, expected, id }) => ({
+          actual,
+          caseId: trial.caseId,
+          expected,
+          id,
+        }))
+    );
+
+    expect(failedChecks).toStrictEqual([]);
+
+    expect(
+      report.trials.map(({ observation }) => observation.outcomeStatus)
+    ).toStrictEqual(
+      Array.from({ length: 8 }, () => "team_roster_member_unmapped")
+    );
+
+    expect(
+      report.trials.flatMap(({ observation }) =>
+        observation.actionEvents.filter(
+          ({ name }) => name === "recommend_team_player_candidates"
         )
       )
-  )(
-    "runs captured real team cases through the real roster mapper",
-    async () => {
-      let requestCount = 0;
-
-      const gateway = createServer((request, response) => {
-        requestCount += 1;
-        void handleGatewayRequest(request, response, requestCount);
-      });
-
-      servers.push(gateway);
-      gateway.listen(0, "127.0.0.1");
-      await once(gateway, "listening");
-
-      const parsedAddress = z
-        .object({ port: z.number().int().positive() })
-        .safeParse(gateway.address());
-
-      if (!parsedAddress.success) {
-        throw new Error("The fake gateway did not bind to a TCP port.");
-      }
-
-      const workspace = mkdtempSync(
-        path.join(tmpdir(), "tactiscout-real-team-eval-")
-      );
-
-      temporaryDirectories.push(workspace);
-      vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
-      vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
-      vi.stubEnv(
-        "OPENAI_BASE_URL",
-        `http://127.0.0.1:${parsedAddress.data.port}/v1`
-      );
-
-      const caseIds = [
-        "team-real-madrid-stc-dev-v1",
-        "team-real-madrid-ca-filter-dev-v1",
-        "team-real-madrid-roster-gap-dev-v1",
-        "team-real-madrid-refine-dev-v1",
-        "team-bayer-leverkusen-stc-heldout-v1",
-        "team-bayer-leverkusen-roster-gap-heldout-v1",
-        "team-bayer-leverkusen-ca-filter-heldout-v1",
-        "team-bayer-leverkusen-pa-filter-heldout-v1",
-      ];
-
-      const evidenceDirectory = path.join(
-        process.cwd(),
-        ".data/evals/evidence"
-      );
-
-      const { freezeFingerprint } = previewEvaluation({
-        caseIds,
-        evidenceDirectory,
-        mode: "smoke",
-      });
-
-      if (freezeFingerprint === null) {
-        throw new Error("The real team fixture needs a freeze fingerprint.");
-      }
-
-      const report = await runEvaluation({
-        caseIds,
-        evidenceDirectory,
-        freezeId: freezeFingerprint,
-        maxModelRequests: 400,
-        mode: "smoke",
-        outputDirectory: path.join(workspace, "reports"),
-        workspaceDirectory: path.join(workspace, "workspace"),
-      });
-
-      expect({
-        cases: report.caseCount,
-        preflightErrors: report.preflightErrors,
-        runStatus: report.status,
-        trialCount: report.trials.length,
-      }).toStrictEqual({
-        cases: 8,
-        preflightErrors: [],
-        runStatus: "completed",
-        trialCount: 8,
-      });
-
-      const failedChecks = report.trials.flatMap((trial) =>
-        trial.checks
-          .filter(({ status }) => status === "failed")
-          .map(({ actual, expected, id }) => ({
-            actual,
-            caseId: trial.caseId,
-            expected,
-            id,
-          }))
-      );
-
-      expect(failedChecks).toStrictEqual([]);
-
-      expect(
-        report.trials.map(({ observation }) => observation.outcomeStatus)
-      ).toStrictEqual(
-        Array.from({ length: 8 }, () => "team_roster_member_unmapped")
-      );
-
-      expect(
-        report.trials.flatMap(({ observation }) =>
-          observation.actionEvents.filter(
-            ({ name }) => name === "recommend_team_player_candidates"
-          )
-        )
-      ).toStrictEqual([]);
-    },
-    45_000
-  );
+    ).toStrictEqual([]);
+  }, 45_000);
 
   it("records malformed model tool arguments without claiming a search ran", async () => {
     let requestCount = 0;
@@ -3018,64 +3021,254 @@ describe("local scouting evaluation entry", () => {
     });
   }, 15_000);
 
-  it.skipIf(
-    !existsSync(
-      path.join(
-        process.cwd(),
-        ".data/evals/evidence/lookup-real-development-v1.json"
+  it("runs prepared private real-source cases or reports preparation needs", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(request, response, requestCount);
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const parsedAddress = z
+      .object({ port: z.number().int().positive() })
+      .safeParse(gateway.address());
+
+    if (!parsedAddress.success) {
+      throw new Error("The fake gateway did not bind to a TCP port.");
+    }
+
+    const workspace = mkdtempSync(path.join(tmpdir(), "tactiscout-real-eval-"));
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv(
+      "OPENAI_BASE_URL",
+      `http://127.0.0.1:${parsedAddress.data.port}/v1`
+    );
+
+    const caseIds = [
+      "lookup-saka-real-v1",
+      "lookup-haaland-real-v1",
+      "lookup-bellingham-confirmation-real-v1",
+      "lookup-mbappe-confirmation-real-v1",
+      "lookup-kane-real-heldout-v1",
+      "lookup-raphinha-confirmation-heldout-v1",
+      "lookup-kane-followup-heldout-v1",
+      "lookup-van-dijk-followup-heldout-v1",
+      "compare-saka-haaland-real-v1",
+      "compare-saka-foden-real-v1",
+      "compare-haaland-foden-real-v1",
+      "compare-saka-bellingham-cross-scope-real-v1",
+      "compare-kane-musiala-heldout-v1",
+      "compare-kane-van-dijk-cross-scope-heldout-v1",
+      "compare-add-raphinha-heldout-v1",
+      "compare-season-add-van-dijk-heldout-v1",
+      "recommend-haaland-real-v1",
+      "recommend-kane-real-v1",
+      "recommend-ca-empty-real-v1",
+      "recommend-add-haaland-kane-real-v1",
+      "recommend-isak-real-heldout-v1",
+      "recommend-ca-empty-real-heldout-v1",
+      "recommend-add-isak-watkins-heldout-v1",
+      "recommend-refine-young-isak-heldout-v1",
+    ];
+
+    const evidenceDirectory = path.join(process.cwd(), ".data/evals/evidence");
+
+    const evidencePreview = previewEvaluation({
+      caseIds,
+      evidenceDirectory,
+      mode: "smoke",
+    });
+
+    expect(
+      evidencePreview.cases.every(
+        ({ evidenceStatus }) =>
+          evidenceStatus === "ready" ||
+          evidenceStatus === "requires_preparation"
       )
-    )
-  )(
-    "runs prepared private real-source cases through the real data readers",
-    async () => {
-      let requestCount = 0;
+    ).toBeTruthy();
 
-      const gateway = createServer((request, response) => {
-        requestCount += 1;
-        void handleGatewayRequest(request, response, requestCount);
-      });
+    const requiredBundles = [
+      "lookup-real-development-v1",
+      "lookup-real-heldout-v1",
+      "recommendation-real-development-v1",
+      "recommendation-real-heldout-v1",
+    ];
 
-      servers.push(gateway);
-      gateway.listen(0, "127.0.0.1");
-      await once(gateway, "listening");
+    const bundlesReady = requiredBundles.every((bundleId) =>
+      existsSync(path.join(evidenceDirectory, `${bundleId}.json`))
+    );
 
-      const parsedAddress = z
-        .object({ port: z.number().int().positive() })
-        .safeParse(gateway.address());
+    if (!bundlesReady) {
+      return;
+    }
 
-      if (!parsedAddress.success) {
-        throw new Error("The fake gateway did not bind to a TCP port.");
-      }
+    const { freezeFingerprint } = evidencePreview;
 
-      const workspace = mkdtempSync(
-        path.join(tmpdir(), "tactiscout-real-eval-")
+    if (freezeFingerprint === null) {
+      throw new Error(
+        "The real-source fixture test needs a freeze fingerprint."
       );
+    }
 
-      temporaryDirectories.push(workspace);
-      vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
-      vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
-      vi.stubEnv(
-        "OPENAI_BASE_URL",
-        `http://127.0.0.1:${parsedAddress.data.port}/v1`
-      );
+    const report = await runEvaluation({
+      caseIds,
+      evidenceDirectory,
+      freezeId: freezeFingerprint,
+      maxModelRequests: 250,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "workspace"),
+    });
 
-      const caseIds = [
-        "lookup-saka-real-v1",
-        "lookup-haaland-real-v1",
-        "lookup-bellingham-confirmation-real-v1",
-        "lookup-mbappe-confirmation-real-v1",
-        "lookup-kane-real-heldout-v1",
-        "lookup-raphinha-confirmation-heldout-v1",
-        "lookup-kane-followup-heldout-v1",
-        "lookup-van-dijk-followup-heldout-v1",
-        "compare-saka-haaland-real-v1",
-        "compare-saka-foden-real-v1",
-        "compare-haaland-foden-real-v1",
-        "compare-saka-bellingham-cross-scope-real-v1",
-        "compare-kane-musiala-heldout-v1",
-        "compare-kane-van-dijk-cross-scope-heldout-v1",
-        "compare-add-raphinha-heldout-v1",
-        "compare-season-add-van-dijk-heldout-v1",
+    const missingSeasonTrial = report.trials.find(
+      ({ caseId }) => caseId === "lookup-mbappe-confirmation-real-v1"
+    );
+
+    const notFoundTrial = report.trials.find(
+      ({ caseId }) => caseId === "lookup-kane-followup-heldout-v1"
+    );
+
+    const comparisonTrial = report.trials.find(
+      ({ caseId }) => caseId === "compare-saka-haaland-real-v1"
+    );
+
+    const resetComparisonTrial = report.trials.find(
+      ({ caseId }) => caseId === "compare-season-add-van-dijk-heldout-v1"
+    );
+
+    const resetTurn = resetComparisonTrial?.observation.turns.at(-1);
+
+    const recommendationTrials = report.trials.filter(
+      ({ workflow }) => workflow === "player_recommendation"
+    );
+
+    expect(
+      recommendationTrials.flatMap((trial) =>
+        trial.checks
+          .filter(({ status }) => status === "failed")
+          .map(({ actual, expected, id }) => ({
+            actual,
+            caseId: trial.caseId,
+            expected,
+            id,
+          }))
+      )
+    ).toStrictEqual([]);
+
+    expect({
+      allPreparedFromRealSources: report.trials.every(
+        ({ evidenceSourceMetadata, origin }) =>
+          origin === "real" && evidenceSourceMetadata !== null
+      ),
+      caseCount: report.caseCount,
+      comparisonActionStatus: comparisonTrial?.observation.actionEvents.find(
+        ({ kind, name }) =>
+          kind === "returned" && name === "compare_player_records"
+      )?.outcome,
+      comparisonCaseChecks: report.trials
+        .filter(({ workflow }) => workflow === "player_comparison")
+        .map(({ caseId, codeStatus }) => ({ caseId, codeStatus })),
+      comparisonCodeStatus: comparisonTrial?.codeStatus,
+      comparisonWorkflowCount: report.trials.filter(
+        ({ workflow }) => workflow === "player_comparison"
+      ).length,
+      fakeGatewayRequests: requestCount,
+      finalNotFoundIdentityStatus:
+        notFoundTrial?.observation.players[0]?.resolutionStatus,
+      finalNotFoundOutcome: notFoundTrial?.observation.outcomeStatus,
+      freshComparisonCodeStatus: resetComparisonTrial?.codeStatus,
+      freshComparisonConstraints: resetTurn?.effectiveConstraints,
+      freshComparisonParticipants: resetTurn?.players.map(
+        ({ mention }) => mention
+      ),
+      freshComparisonToolCount:
+        resetComparisonTrial?.observation.actionEvents.filter(
+          ({ kind, name }) =>
+            kind === "returned" && name === "compare_player_records"
+        ).length,
+      missingSeasonActionOutcome:
+        missingSeasonTrial?.observation.actionEvents.find(
+          ({ kind, name }) =>
+            kind === "returned" && name === "search_player_records"
+        )?.outcome,
+      missingSeasonStatus: missingSeasonTrial?.status,
+      modelRequests: report.modelRequests,
+      preflightErrors: report.preflightErrors,
+      previousLookupPreserved: notFoundTrial?.checks.find(
+        ({ id }) => id === "active-lookup-preserved"
+      )?.status,
+      recommendationCaseChecks: recommendationTrials.map(
+        ({ caseId, codeStatus, status }) => ({ caseId, codeStatus, status })
+      ),
+      recommendationWorkflowCount: recommendationTrials.length,
+      runStatus: report.status,
+      savedResultReuseTurns: report.trials
+        .flatMap(({ observation }) => observation.turns)
+        .filter(({ reuse }) => reuse?.kind === "saved_lookup_result").length,
+      trialCount: report.trials.length,
+      workflowCount: report.trials.filter(
+        ({ workflow }) => workflow === "player_lookup"
+      ).length,
+    }).toStrictEqual({
+      allPreparedFromRealSources: true,
+      caseCount: 24,
+      comparisonActionStatus: "ready",
+      comparisonCaseChecks: [
+        {
+          caseId: "compare-saka-haaland-real-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-saka-foden-real-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-haaland-foden-real-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-saka-bellingham-cross-scope-real-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-kane-musiala-heldout-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-kane-van-dijk-cross-scope-heldout-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-add-raphinha-heldout-v1",
+          codeStatus: "passed",
+        },
+        {
+          caseId: "compare-season-add-van-dijk-heldout-v1",
+          codeStatus: "passed",
+        },
+      ],
+      comparisonCodeStatus: "passed",
+      comparisonWorkflowCount: 8,
+      fakeGatewayRequests: requestCount,
+      finalNotFoundIdentityStatus: "not_found",
+      finalNotFoundOutcome: null,
+      freshComparisonCodeStatus: "passed",
+      freshComparisonConstraints: [{ name: "season", value: "2026/27" }],
+      freshComparisonParticipants: ["Harry Kane", "Virgil van Dijk"],
+      freshComparisonToolCount: 3,
+      missingSeasonActionOutcome: "not_found",
+      missingSeasonStatus: "not_assessed",
+      modelRequests: requestCount,
+      preflightErrors: [],
+      previousLookupPreserved: "passed",
+      recommendationCaseChecks: [
         "recommend-haaland-real-v1",
         "recommend-kane-real-v1",
         "recommend-ca-empty-real-v1",
@@ -3084,197 +3277,16 @@ describe("local scouting evaluation entry", () => {
         "recommend-ca-empty-real-heldout-v1",
         "recommend-add-isak-watkins-heldout-v1",
         "recommend-refine-young-isak-heldout-v1",
-      ];
-
-      const evidenceDirectory = path.join(
-        process.cwd(),
-        ".data/evals/evidence"
-      );
-
-      const { freezeFingerprint } = previewEvaluation({
-        caseIds,
-        evidenceDirectory,
-        mode: "smoke",
-      });
-
-      if (freezeFingerprint === null) {
-        throw new Error(
-          "The real-source fixture test needs a freeze fingerprint."
-        );
-      }
-
-      const report = await runEvaluation({
-        caseIds,
-        evidenceDirectory,
-        freezeId: freezeFingerprint,
-        maxModelRequests: 250,
-        mode: "smoke",
-        outputDirectory: path.join(workspace, "reports"),
-        workspaceDirectory: path.join(workspace, "workspace"),
-      });
-
-      const missingSeasonTrial = report.trials.find(
-        ({ caseId }) => caseId === "lookup-mbappe-confirmation-real-v1"
-      );
-
-      const notFoundTrial = report.trials.find(
-        ({ caseId }) => caseId === "lookup-kane-followup-heldout-v1"
-      );
-
-      const comparisonTrial = report.trials.find(
-        ({ caseId }) => caseId === "compare-saka-haaland-real-v1"
-      );
-
-      const resetComparisonTrial = report.trials.find(
-        ({ caseId }) => caseId === "compare-season-add-van-dijk-heldout-v1"
-      );
-
-      const resetTurn = resetComparisonTrial?.observation.turns.at(-1);
-
-      const recommendationTrials = report.trials.filter(
-        ({ workflow }) => workflow === "player_recommendation"
-      );
-
-      expect(
-        recommendationTrials.flatMap((trial) =>
-          trial.checks
-            .filter(({ status }) => status === "failed")
-            .map(({ actual, expected, id }) => ({
-              actual,
-              caseId: trial.caseId,
-              expected,
-              id,
-            }))
-        )
-      ).toStrictEqual([]);
-
-      expect({
-        allPreparedFromRealSources: report.trials.every(
-          ({ evidenceSourceMetadata, origin }) =>
-            origin === "real" && evidenceSourceMetadata !== null
-        ),
-        caseCount: report.caseCount,
-        comparisonActionStatus: comparisonTrial?.observation.actionEvents.find(
-          ({ kind, name }) =>
-            kind === "returned" && name === "compare_player_records"
-        )?.outcome,
-        comparisonCaseChecks: report.trials
-          .filter(({ workflow }) => workflow === "player_comparison")
-          .map(({ caseId, codeStatus }) => ({ caseId, codeStatus })),
-        comparisonCodeStatus: comparisonTrial?.codeStatus,
-        comparisonWorkflowCount: report.trials.filter(
-          ({ workflow }) => workflow === "player_comparison"
-        ).length,
-        fakeGatewayRequests: requestCount,
-        finalNotFoundIdentityStatus:
-          notFoundTrial?.observation.players[0]?.resolutionStatus,
-        finalNotFoundOutcome: notFoundTrial?.observation.outcomeStatus,
-        freshComparisonCodeStatus: resetComparisonTrial?.codeStatus,
-        freshComparisonConstraints: resetTurn?.effectiveConstraints,
-        freshComparisonParticipants: resetTurn?.players.map(
-          ({ mention }) => mention
-        ),
-        freshComparisonToolCount:
-          resetComparisonTrial?.observation.actionEvents.filter(
-            ({ kind, name }) =>
-              kind === "returned" && name === "compare_player_records"
-          ).length,
-        missingSeasonActionOutcome:
-          missingSeasonTrial?.observation.actionEvents.find(
-            ({ kind, name }) =>
-              kind === "returned" && name === "search_player_records"
-          )?.outcome,
-        missingSeasonStatus: missingSeasonTrial?.status,
-        modelRequests: report.modelRequests,
-        preflightErrors: report.preflightErrors,
-        previousLookupPreserved: notFoundTrial?.checks.find(
-          ({ id }) => id === "active-lookup-preserved"
-        )?.status,
-        recommendationCaseChecks: recommendationTrials.map(
-          ({ caseId, codeStatus, status }) => ({ caseId, codeStatus, status })
-        ),
-        recommendationWorkflowCount: recommendationTrials.length,
-        runStatus: report.status,
-        savedResultReuseTurns: report.trials
-          .flatMap(({ observation }) => observation.turns)
-          .filter(({ reuse }) => reuse?.kind === "saved_lookup_result").length,
-        trialCount: report.trials.length,
-        workflowCount: report.trials.filter(
-          ({ workflow }) => workflow === "player_lookup"
-        ).length,
-      }).toStrictEqual({
-        allPreparedFromRealSources: true,
-        caseCount: 24,
-        comparisonActionStatus: "ready",
-        comparisonCaseChecks: [
-          {
-            caseId: "compare-saka-haaland-real-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-saka-foden-real-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-haaland-foden-real-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-saka-bellingham-cross-scope-real-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-kane-musiala-heldout-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-kane-van-dijk-cross-scope-heldout-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-add-raphinha-heldout-v1",
-            codeStatus: "passed",
-          },
-          {
-            caseId: "compare-season-add-van-dijk-heldout-v1",
-            codeStatus: "passed",
-          },
-        ],
-        comparisonCodeStatus: "passed",
-        comparisonWorkflowCount: 8,
-        fakeGatewayRequests: requestCount,
-        finalNotFoundIdentityStatus: "not_found",
-        finalNotFoundOutcome: null,
-        freshComparisonCodeStatus: "passed",
-        freshComparisonConstraints: [{ name: "season", value: "2026/27" }],
-        freshComparisonParticipants: ["Harry Kane", "Virgil van Dijk"],
-        freshComparisonToolCount: 3,
-        missingSeasonActionOutcome: "not_found",
-        missingSeasonStatus: "not_assessed",
-        modelRequests: requestCount,
-        preflightErrors: [],
-        previousLookupPreserved: "passed",
-        recommendationCaseChecks: [
-          "recommend-haaland-real-v1",
-          "recommend-kane-real-v1",
-          "recommend-ca-empty-real-v1",
-          "recommend-add-haaland-kane-real-v1",
-          "recommend-isak-real-heldout-v1",
-          "recommend-ca-empty-real-heldout-v1",
-          "recommend-add-isak-watkins-heldout-v1",
-          "recommend-refine-young-isak-heldout-v1",
-        ].map((caseId) => ({
-          caseId,
-          codeStatus: "passed",
-          status: "not_assessed",
-        })),
-        recommendationWorkflowCount: 8,
-        runStatus: "completed",
-        savedResultReuseTurns: 2,
-        trialCount: 24,
-        workflowCount: 8,
-      });
-    },
-    45_000
-  );
+      ].map((caseId) => ({
+        caseId,
+        codeStatus: "passed",
+        status: "not_assessed",
+      })),
+      recommendationWorkflowCount: 8,
+      runStatus: "completed",
+      savedResultReuseTurns: 2,
+      trialCount: 24,
+      workflowCount: 8,
+    });
+  }, 45_000);
 });
