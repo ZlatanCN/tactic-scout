@@ -14,11 +14,13 @@ type RunIdentity = {
   workingTreeDirty: boolean | null;
 };
 
-type FreezeCaseIdentity = {
+type FreezeCase = {
+  caseDefinition: {
+    caseId: string;
+    evidenceBundleSha256: string;
+    split: "development" | "held_out";
+  };
   caseHash: string;
-  caseId: string;
-  evidenceBundleSha256: string;
-  split: "development" | "held_out";
 };
 
 type FreezeConfiguration = {
@@ -73,6 +75,8 @@ const gitValue = (root: string, args: string[]): string | null => {
 
 const captureRunIdentity = (root = process.cwd()): RunIdentity => {
   const sourceFiles = [
+    "package.json",
+    "tsconfig.json",
     ...recursiveSourceFiles(root, "src"),
     ...recursiveSourceFiles(root, "evals"),
   ].toSorted();
@@ -162,7 +166,7 @@ const captureFreezeConfiguration = (
 
 const freezeFingerprintForEvaluation = (
   identity: RunIdentity,
-  cases: FreezeCaseIdentity[],
+  cases: FreezeCase[],
   configuration: FreezeConfiguration
 ): string | null => {
   const missingRunIdentity =
@@ -178,11 +182,11 @@ const freezeFingerprintForEvaluation = (
   }
 
   const caseIdentity = cases
-    .map(({ caseHash, caseId, evidenceBundleSha256, split }) => ({
+    .map(({ caseDefinition, caseHash }) => ({
       caseHash,
-      caseId,
-      evidenceBundleSha256,
-      split,
+      caseId: caseDefinition.caseId,
+      evidenceBundleSha256: caseDefinition.evidenceBundleSha256,
+      split: caseDefinition.split,
     }))
     .toSorted((left, right) => left.caseId.localeCompare(right.caseId));
 
@@ -211,4 +215,4 @@ export {
   freezeFingerprintForEvaluation,
 };
 
-export type { FreezeCaseIdentity, RunIdentity };
+export type { RunIdentity };

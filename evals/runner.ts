@@ -597,12 +597,7 @@ const runEvaluation = async (
 
   const freezeFingerprint = freezeFingerprintForEvaluation(
     runIdentity,
-    cases.map(({ caseDefinition, caseHash }) => ({
-      caseHash,
-      caseId: caseDefinition.caseId,
-      evidenceBundleSha256: caseDefinition.evidenceBundleSha256,
-      split: caseDefinition.split,
-    })),
+    cases,
     captureFreezeConfiguration(options.includeSemanticJudge === true)
   );
 

@@ -773,12 +773,7 @@ const previewEvaluation = (
 
   const freezeFingerprint = freezeFingerprintForEvaluation(
     captureRunIdentity(),
-    cases.map(({ caseDefinition, caseHash }) => ({
-      caseHash,
-      caseId: caseDefinition.caseId,
-      evidenceBundleSha256: caseDefinition.evidenceBundleSha256,
-      split: caseDefinition.split,
-    })),
+    cases,
     captureFreezeConfiguration(judgeEnabled)
   );
 
