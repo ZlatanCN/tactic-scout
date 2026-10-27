@@ -1,0 +1,380 @@
+{
+  "caseId": "compare-season-add-van-dijk-heldout-v1",
+  "category": "multi_turn",
+  "workflow": "player_comparison",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "kane-musiala-van-dijk-comparison-context-reset",
+  "priorTuningExposure": "Harry Kane appears in prior manual experiments; this clarification and addition script has not been run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "ready",
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28124579"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8418",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37024025"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "833",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved"
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1"
+      },
+      {
+        "lookupName": "Jamal Musiala",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1"
+      },
+      {
+        "lookupName": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Jamal Musiala",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2"
+      },
+      {
+        "mention": "Jamal Musiala",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2"
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2"
+      },
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-3"
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-3"
+      }
+    ],
+    "expectedTurnConstraints": [
+      {
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-3",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Harry Kane",
+        "candidateId": "reep:rp53e98442ac6bba",
+        "canonicalIdentityId": "rp53e98442ac6bba",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "candidateId": "reep:rp65c52b88b1ee92",
+        "canonicalIdentityId": "rp65c52b88b1ee92",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          }
+        ],
+        "businessOutcome": "ready"
+      },
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833"
+          }
+        ],
+        "businessOutcome": "ready"
+      },
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833"
+          }
+        ],
+        "businessOutcome": "ready"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320",
+        "field": "currentAbility",
+        "value": 186
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28124579",
+        "field": "currentAbility",
+        "value": 170
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37024025",
+        "field": "currentAbility",
+        "value": 175
+      }
+    ],
+    "requiredAbstentions": [
+      "The final pair has different Understat competitions; do not compare their performance values as one shared-scope metric."
+    ],
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee"
+    ],
+    "expectedTurnToolActions": [
+      {
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          }
+        ],
+        "businessOutcome": "ready"
+      },
+      {
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833"
+          }
+        ],
+        "businessOutcome": "ready"
+      },
+      {
+        "turnId": "compare-season-add-van-dijk-heldout-v1-turn-3",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833"
+          }
+        ],
+        "businessOutcome": "ready"
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "compare-season-add-van-dijk-heldout-v1-turn-1",
+      "userMessage": "Compare Harry Kane and Jamal Musiala from last season.",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "season",
+          "resumeValue": "2026/27"
+        }
+      ]
+    },
+    {
+      "turnId": "compare-season-add-van-dijk-heldout-v1-turn-2",
+      "userMessage": "Add Virgil van Dijk to the comparison in 2026/27."
+    },
+    {
+      "turnId": "compare-season-add-van-dijk-heldout-v1-turn-3",
+      "userMessage": "Start a new comparison of only Harry Kane and Virgil van Dijk for 2026/27."
+    }
+  ]
+}

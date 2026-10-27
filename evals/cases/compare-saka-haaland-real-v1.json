@@ -1,0 +1,154 @@
+{
+  "caseId": "compare-saka-haaland-real-v1",
+  "category": "ordinary",
+  "workflow": "player_comparison",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "saka-haaland-2026-27-epl-comparison",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-development-v1",
+  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "turns": [
+    {
+      "turnId": "compare-saka-haaland-real-v1-turn-1",
+      "userMessage": "Compare Bukayo Saka and Erling Haaland for 2026/27 EPL performance and FM ability."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bukayo Saka",
+        "status": "resolved"
+      },
+      {
+        "mention": "Erling Haaland",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bukayo Saka",
+        "status": "resolved",
+        "turnId": "compare-saka-haaland-real-v1-turn-1"
+      },
+      {
+        "lookupName": "Erling Haaland",
+        "status": "resolved",
+        "turnId": "compare-saka-haaland-real-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Bukayo Saka",
+        "status": "resolved",
+        "turnId": "compare-saka-haaland-real-v1-turn-1"
+      },
+      {
+        "mention": "Erling Haaland",
+        "status": "resolved",
+        "turnId": "compare-saka-haaland-real-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Bukayo Saka",
+        "candidateId": "reep:rp56bd0fc61d9da5",
+        "canonicalIdentityId": "rp56bd0fc61d9da5",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122642"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7322",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "mention": "Erling Haaland",
+        "candidateId": "reep:rp6633c6727b95f0",
+        "canonicalIdentityId": "rp6633c6727b95f0",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8260",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122642"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7322"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8260"
+          }
+        ],
+        "businessOutcome": "ready"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28122642",
+        "field": "currentAbility",
+        "value": 182
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29179241",
+        "field": "currentAbility",
+        "value": 187
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7322",
+        "field": "expectedGoals",
+        "value": 4.594318777322769,
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8260",
+        "field": "expectedGoals",
+        "value": 6.426070660352707,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "requiredAbstentions": [
+      "FM ability and Understat performance are separate measures; do not claim one overall player is better based on an invented combined score."
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "caseId": "lookup-identity-unavailable-v1",
+  "category": "boundary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "declared-source-unavailable",
+  "priorTuningExposure": "created-for-evaluation-v1",
+  "evidenceBundleId": "lookup-smoke-evidence-v1",
+  "evidenceBundleSha256": "1b52f79ef7146ecc2863c16fe8e94be208a62bed2d8b82b6195cd554cadf3c46",
+  "declaredDataFaults": ["understat_snapshot_missing"],
+  "turns": [
+    {
+      "turnId": "lookup-identity-unavailable-v1-turn-1",
+      "userMessage": "请查一下 Elias Demo 的 FM 画像和表现资料。"
+    }
+  ],
+  "contract": {
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Elias Demo",
+        "status": "data_unavailable"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Elias Demo",
+        "status": "data_unavailable",
+        "turnId": "lookup-identity-unavailable-v1-turn-1"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "outcomeStatus": "identity_data_unavailable",
+    "sourceScope": [
+      { "provider": "fm", "sourceId": "fm-demo-01" },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "resolvedPlayers": [],
+    "toolActions": [],
+    "requiredEvidence": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility",
+      "successful_search"
+    ]
+  }
+}

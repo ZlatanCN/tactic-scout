@@ -1,0 +1,108 @@
+{
+  "caseId": "compare-same-identity-synthetic-v1",
+  "category": "boundary",
+  "workflow": "player_comparison",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "comparison-duplicate-identity-alias",
+  "priorTuningExposure": "Constructed for evaluation-v1 from the versioned synthetic lookup fixture.",
+  "evidenceBundleId": "lookup-smoke-evidence-v1",
+  "evidenceBundleSha256": "1b52f79ef7146ecc2863c16fe8e94be208a62bed2d8b82b6195cd554cadf3c46",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "insufficient_distinct_players",
+    "sourceScope": [
+      { "provider": "fm", "sourceId": "fm-demo-01" },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      { "mention": "Elias Demo", "status": "resolved" },
+      { "mention": "Demo", "status": "resolved" }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-same-identity-synthetic-v1-turn-1"
+      },
+      {
+        "lookupName": "Demo",
+        "status": "resolved",
+        "turnId": "compare-same-identity-synthetic-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-same-identity-synthetic-v1-turn-1"
+      },
+      {
+        "mention": "Demo",
+        "status": "resolved",
+        "turnId": "compare-same-identity-synthetic-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Elias Demo",
+        "candidateId": "reep:identity-demo-01",
+        "canonicalIdentityId": "identity-demo-01",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-demo-01" },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      },
+      {
+        "mention": "Demo",
+        "candidateId": "reep:identity-demo-01",
+        "canonicalIdentityId": "identity-demo-01",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-demo-01" },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-demo-01" },
+          { "provider": "understat", "sourceId": "us-demo-01" }
+        ],
+        "businessOutcome": "insufficient_distinct_players"
+      }
+    ],
+    "requiredEvidence": [],
+    "requiredAbstentions": [
+      "The two mentions resolve to the same canonical identity, so do not compare one player with themselves."
+    ],
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee"
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "compare-same-identity-synthetic-v1-turn-1",
+      "userMessage": "Compare Elias Demo with the alias Demo."
+    }
+  ]
+}

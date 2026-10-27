@@ -1,0 +1,100 @@
+{
+  "caseId": "lookup-smoke-v1",
+  "category": "ordinary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "confirmed-cross-source-lookup",
+  "priorTuningExposure": "created-for-evaluation-v1",
+  "evidenceBundleId": "lookup-smoke-evidence-v1",
+  "evidenceBundleSha256": "1b52f79ef7146ecc2863c16fe8e94be208a62bed2d8b82b6195cd554cadf3c46",
+  "turns": [
+    {
+      "turnId": "lookup-smoke-v1-turn-1",
+      "userMessage": "请查一下 Elias Demo 的 FM 画像和表现资料。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "sourceScope": [
+      { "provider": "fm", "sourceId": "fm-demo-01" },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Elias Demo",
+        "status": "resolved",
+        "turnId": "lookup-smoke-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Elias Demo",
+        "candidateId": "reep:identity-demo-01",
+        "canonicalIdentityId": "identity-demo-01",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01",
+        "field": "currentAbility",
+        "value": 132
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01",
+        "field": "potentialAbility",
+        "value": 184
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "field": "expectedGoals",
+        "value": 5.2,
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ]
+  }
+}

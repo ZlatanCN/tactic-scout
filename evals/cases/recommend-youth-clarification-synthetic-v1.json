@@ -1,0 +1,272 @@
+{
+  "caseId": "recommend-youth-clarification-synthetic-v1",
+  "category": "boundary",
+  "workflow": "player_recommendation",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "synthetic-youth-age-clarification-and-potential",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles.",
+  "evidenceBundleId": "recommendation-synthetic-evidence-v1",
+  "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
+  "turns": [
+    {
+      "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+      "userMessage": "根据 Synthetic Reference 推荐年轻的高潜前锋。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "age",
+          "resumeValue": "21"
+        },
+        {
+          "expectedKind": "position",
+          "resumeValue": "stc"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Synthetic Reference",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Synthetic Reference",
+        "status": "resolved",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "position_required",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ],
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-no-pa-01"
+          }
+        ],
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "input",
+        "path": "maxAge",
+        "value": 21
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "input",
+        "path": "position",
+        "value": null
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "position_required"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "positionOptions.0",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "input",
+        "path": "position",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "input",
+        "path": "includePotential",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "currentCandidates.0.fmId",
+        "value": "fm-future-01"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "potentialCandidates.0.fmId",
+        "value": "fm-future-01"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "filterCounts.excludedMissingPotentialForPotentialList",
+        "value": 1
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "positionFeatureMapSha256",
+        "value": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "strategyVersion",
+        "value": "fm-position-global-rmse-v1-provisional"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "snapshotDate",
+        "value": "2025-11-23"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal and is not a guaranteed future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "currentAbility",
+        "value": 150
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "potentialAbility",
+        "value": 178
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01",
+        "field": "potentialAbility",
+        "value": null
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Synthetic Reference",
+        "candidateId": "reep:identity-ref-01",
+        "canonicalIdentityId": "identity-ref-01",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ineligible-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "position_required",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-no-pa-01"
+          }
+        ]
+      }
+    ]
+  }
+}

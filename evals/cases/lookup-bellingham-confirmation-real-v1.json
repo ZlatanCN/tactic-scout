@@ -1,0 +1,104 @@
+{
+  "caseId": "lookup-bellingham-confirmation-real-v1",
+  "category": "boundary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "jude-bellingham-unlinked-understat-source",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-development-v1",
+  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "turns": [
+    {
+      "turnId": "lookup-bellingham-confirmation-real-v1-turn-1",
+      "userMessage": "Look up Jude Bellingham's FM current and potential ability.",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "2"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jude Bellingham",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jude Bellingham",
+        "status": "needs_confirmation",
+        "turnId": "lookup-bellingham-confirmation-real-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Jude Bellingham",
+        "status": "resolved",
+        "turnId": "lookup-bellingham-confirmation-real-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Jude Bellingham",
+        "candidateId": "reep:rp5e0611be4b48ce",
+        "canonicalIdentityId": "rp5e0611be4b48ce",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29232937"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29232937"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "29232937",
+        "field": "currentAbility",
+        "value": 178
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29232937",
+        "field": "potentialAbility",
+        "value": 188
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29232937"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8824",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

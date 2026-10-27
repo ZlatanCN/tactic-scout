@@ -1,0 +1,379 @@
+{
+  "caseId": "team-rec-refine-synthetic-v1",
+  "category": "multi_turn",
+  "workflow": "team_recommendation",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "synthetic-team-recommendation-reuses-squad-on-filter-refinement",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic API-Football responses and FM profiles; no live model or provider call.",
+  "evidenceBundleId": "team-recommendation-synthetic-evidence-v1",
+  "evidenceBundleSha256": "72bd039a4960f1e49a16ce2feb44ac0550b35597418060b2adee0a3c3f8a335e",
+  "turns": [
+    {
+      "turnId": "team-rec-refine-synthetic-v1-turn-1",
+      "userMessage": "为 Synthetic Town FC 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "turnId": "team-rec-refine-synthetic-v1-turn-2",
+      "userMessage": "把球队推荐的 CA 下限设为 130。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [
+      {
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "constraints": [
+          {
+            "name": "CA",
+            "value": "130"
+          }
+        ]
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          }
+        ],
+        "turnId": "team-rec-refine-synthetic-v1-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          }
+        ],
+        "turnId": "team-rec-refine-synthetic-v1-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ],
+        "turnId": "team-rec-refine-synthetic-v1-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          }
+        ],
+        "turnId": "team-rec-refine-synthetic-v1-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ],
+        "turnId": "team-rec-refine-synthetic-v1-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ],
+        "turnId": "team-rec-refine-synthetic-v1-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "source": "input",
+        "path": "minimumCurrentAbility",
+        "value": 130
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "source": "result",
+        "path": "team.id",
+        "value": 901
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "filters.minimumCurrentAbility",
+        "value": 130
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "currentAbility",
+        "value": 150
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "currentAbility",
+        "value": 146
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "901"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "501"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "502"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [
+      {
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 130
+      },
+      {
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "path": "teamId",
+        "value": 901
+      },
+      {
+        "turnId": "team-rec-refine-synthetic-v1-turn-2",
+        "path": "position",
+        "value": "stc"
+      }
+    ]
+  }
+}

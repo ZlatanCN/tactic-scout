@@ -1,0 +1,396 @@
+{
+  "caseId": "recommend-add-refine-synthetic-v1",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "synthetic-add-reference-then-refine-age",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles; no live model run.",
+  "evidenceBundleId": "recommendation-synthetic-evidence-v1",
+  "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
+  "turns": [
+    {
+      "turnId": "recommend-add-refine-synthetic-v1-turn-1",
+      "userMessage": "根据 Synthetic Reference 推荐 stc 球员。",
+      "clarificationAnswers": []
+    },
+    {
+      "turnId": "recommend-add-refine-synthetic-v1-turn-2",
+      "userMessage": "再加上 Synthetic Close Candidate 作为参考。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "turnId": "recommend-add-refine-synthetic-v1-turn-3",
+      "userMessage": "把年龄上限设为 21 岁。",
+      "clarificationAnswers": []
+    },
+    {
+      "turnId": "recommend-add-refine-synthetic-v1-turn-4",
+      "userMessage": "再加上 Synthetic Failure Reference 作为参考。",
+      "clarificationAnswers": []
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "identity_data_unavailable",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Synthetic Reference",
+        "status": "resolved"
+      },
+      {
+        "mention": "Synthetic Close Candidate",
+        "status": "resolved"
+      },
+      {
+        "mention": "Synthetic Failure Reference",
+        "status": "data_unavailable"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Synthetic Failure Reference",
+        "status": "data_unavailable",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-4"
+      },
+      {
+        "lookupName": "Synthetic Close Candidate",
+        "status": "needs_confirmation",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-2"
+      },
+      {
+        "lookupName": "Synthetic Reference",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Synthetic Reference",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1"
+      },
+      {
+        "mention": "Synthetic Reference",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-2"
+      },
+      {
+        "mention": "Synthetic Close Candidate",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-2"
+      },
+      {
+        "mention": "Synthetic Reference",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-3"
+      },
+      {
+        "mention": "Synthetic Close Candidate",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-3"
+      },
+      {
+        "mention": "Synthetic Reference",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-4"
+      },
+      {
+        "mention": "Synthetic Close Candidate",
+        "status": "resolved",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-4"
+      },
+      {
+        "mention": "Synthetic Failure Reference",
+        "status": "data_unavailable",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-4"
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          }
+        ],
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          }
+        ],
+        "turnId": "recommend-add-refine-synthetic-v1-turn-2"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          }
+        ],
+        "turnId": "recommend-add-refine-synthetic-v1-turn-3"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "currentCandidates.0.fmId",
+        "value": "fm-close-01"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-2",
+        "source": "input",
+        "path": "referenceGroups.1.fmIds.0",
+        "value": "fm-close-01"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-3",
+        "source": "input",
+        "path": "maxAge",
+        "value": 21
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-3",
+        "source": "result",
+        "path": "currentCandidates.0.fmId",
+        "value": "fm-future-01"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "positionFeatureMapSha256",
+        "value": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "strategyVersion",
+        "value": "fm-position-global-rmse-v1-provisional"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-add-refine-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "snapshotDate",
+        "value": "2025-11-23"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "player_recommendation",
+        "path": "status",
+        "value": "ready"
+      },
+      {
+        "kind": "player_recommendation",
+        "path": "filters.maxAge",
+        "value": 21
+      },
+      {
+        "kind": "player_recommendation",
+        "path": "currentCandidates.0.fmId",
+        "value": "fm-future-01"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal and is not a guaranteed future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "currentAbility",
+        "value": 150
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "potentialAbility",
+        "value": 178
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "currentAbility",
+        "value": 146
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Synthetic Reference",
+        "candidateId": "reep:identity-ref-01",
+        "canonicalIdentityId": "identity-ref-01",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          }
+        ]
+      },
+      {
+        "mention": "Synthetic Close Candidate",
+        "candidateId": "source:fm:fm-close-01",
+        "canonicalIdentityId": null,
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-failure-ref-01"
+      }
+    ],
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-far-01"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": ["reep_bridge_malformed"]
+}

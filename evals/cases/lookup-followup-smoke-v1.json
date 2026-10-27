@@ -1,0 +1,139 @@
+{
+  "caseId": "lookup-followup-smoke-v1",
+  "category": "multi_turn",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "chinese-alias-repeat-and-explicit-refresh",
+  "priorTuningExposure": "created-for-evaluation-v1",
+  "evidenceBundleId": "lookup-haaland-synthetic-evidence-v1",
+  "evidenceBundleSha256": "aacd91777e13e580708e6d7df523e4a4c7d383168c967a3df2d00679e1dddcb1",
+  "sourceScope": [
+    { "provider": "fm", "sourceId": "fm-haaland-01" },
+    {
+      "provider": "understat",
+      "sourceId": "us-haaland-01",
+      "competition": "EPL",
+      "season": "2024/25"
+    }
+  ],
+  "turns": [
+    {
+      "turnId": "lookup-followup-smoke-v1-turn-1",
+      "userMessage": "请查一下哈兰德的 FM 画像和表现资料。",
+      "clarificationAnswers": [
+        { "expectedKind": "identity", "resumeValue": "1" }
+      ]
+    },
+    {
+      "turnId": "lookup-followup-smoke-v1-turn-2",
+      "userMessage": "再查一次哈兰德的英超资料。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Erling Haaland",
+        "status": "resolved",
+        "turnId": "lookup-followup-smoke-v1-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [{ "mention": "哈兰德", "status": "resolved" }],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "哈兰德",
+        "status": "resolved",
+        "turnId": "lookup-followup-smoke-v1-turn-1"
+      },
+      {
+        "mention": "哈兰德",
+        "status": "resolved",
+        "turnId": "lookup-followup-smoke-v1-turn-2"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "哈兰德",
+        "candidateId": "reep:haaland-demo-01",
+        "canonicalIdentityId": "haaland-demo-01",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-haaland-01" },
+          {
+            "provider": "understat",
+            "sourceId": "us-haaland-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-haaland-01" },
+          { "provider": "understat", "sourceId": "us-haaland-01" }
+        ],
+        "businessOutcome": "found"
+      },
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-haaland-01" },
+          { "provider": "understat", "sourceId": "us-haaland-01" }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-haaland-01" },
+          { "provider": "understat", "sourceId": "us-haaland-01" }
+        ],
+        "turnId": "lookup-followup-smoke-v1-turn-1"
+      },
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          { "provider": "fm", "sourceId": "fm-haaland-01" },
+          { "provider": "understat", "sourceId": "us-haaland-01" }
+        ],
+        "turnId": "lookup-followup-smoke-v1-turn-2"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-haaland-01",
+        "field": "currentAbility",
+        "value": 187
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-haaland-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-haaland-01",
+        "field": "expectedGoals",
+        "value": 4.2,
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ]
+  }
+}

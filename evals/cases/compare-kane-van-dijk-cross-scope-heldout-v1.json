@@ -1,0 +1,176 @@
+{
+  "caseId": "compare-kane-van-dijk-cross-scope-heldout-v1",
+  "category": "boundary",
+  "workflow": "player_comparison",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "kane-van-dijk-unshared-understat-competitions",
+  "priorTuningExposure": "Harry Kane appears in prior manual experiments; this cross-scope case has not been run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "ready",
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37024025"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "833",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved"
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-kane-van-dijk-cross-scope-heldout-v1-turn-1"
+      },
+      {
+        "lookupName": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "compare-kane-van-dijk-cross-scope-heldout-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-kane-van-dijk-cross-scope-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "compare-kane-van-dijk-cross-scope-heldout-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Harry Kane",
+        "candidateId": "reep:rp53e98442ac6bba",
+        "canonicalIdentityId": "rp53e98442ac6bba",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "candidateId": "reep:rp65c52b88b1ee92",
+        "canonicalIdentityId": "rp65c52b88b1ee92",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833"
+          }
+        ],
+        "businessOutcome": "ready"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320",
+        "field": "currentAbility",
+        "value": 186
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37024025",
+        "field": "currentAbility",
+        "value": 175
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "field": "expectedGoals",
+        "value": 5.467523120343685,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "833",
+        "field": "expectedGoals",
+        "value": 0.1653727926313877,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "requiredAbstentions": [
+      "The Understat rows belong to different competitions; do not present them as a shared-scope comparison or infer who performed better overall."
+    ],
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee"
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "compare-kane-van-dijk-cross-scope-heldout-v1-turn-1",
+      "userMessage": "Compare the 2026/27 league stats and FM abilities for Harry Kane and Virgil van Dijk."
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "caseId": "recommend-ambiguous-profile-synthetic-v1",
+  "category": "boundary",
+  "workflow": "player_recommendation",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "synthetic-linked-identity-has-two-fm-profiles",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles and Reep bridges.",
+  "evidenceBundleId": "recommendation-synthetic-evidence-v1",
+  "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
+  "turns": [
+    {
+      "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
+      "userMessage": "请把 Synthetic Ambiguous 列进候选名单后推荐 stc。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "recommendation_role",
+          "resumeValue": "参考"
+        },
+        {
+          "expectedKind": "fm_profile",
+          "resumeValue": "fm-amb-b"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Synthetic Ambiguous",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-amb-b"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-amb-a"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          }
+        ],
+        "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
+        "source": "input",
+        "path": "referenceGroups.0.fmIds.0",
+        "value": "fm-amb-b"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "referenceFmIds.0",
+        "value": "fm-amb-b"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "positionFeatureMapSha256",
+        "value": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "strategyVersion",
+        "value": "fm-position-global-rmse-v1-provisional"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "snapshotDate",
+        "value": "2025-11-23"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal and is not a guaranteed future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-amb-b",
+        "field": "currentAbility",
+        "value": 142
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Synthetic Ambiguous",
+        "candidateId": "reep:identity-ambiguous",
+        "canonicalIdentityId": "identity-ambiguous",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-amb-b"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-amb-a"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-amb-b"
+      }
+    ],
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-amb-b"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-amb-a"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-future-01"
+          }
+        ]
+      }
+    ]
+  }
+}

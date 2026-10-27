@@ -1,0 +1,144 @@
+{
+  "caseId": "lookup-kane-followup-heldout-v1",
+  "category": "multi_turn",
+  "workflow": "player_lookup",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "harry-kane-follow-up-and-valid-not-found",
+  "priorTuningExposure": "The player appeared in prior manual experiments; this multi-turn script has not been run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "turns": [
+    {
+      "turnId": "lookup-kane-followup-heldout-v1-turn-1",
+      "userMessage": "Look up Harry Kane's FM profile and 2026/27 Bundesliga data."
+    },
+    {
+      "turnId": "lookup-kane-followup-heldout-v1-turn-2",
+      "userMessage": "刚才查到的是什么赛季？"
+    },
+    {
+      "turnId": "lookup-kane-followup-heldout-v1-turn-3",
+      "userMessage": "Look up Zed Missing."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": null,
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Zed Missing",
+        "status": "not_found"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Harry Kane",
+        "status": "resolved",
+        "turnId": "lookup-kane-followup-heldout-v1-turn-1"
+      },
+      {
+        "lookupName": "Zed Missing",
+        "status": "not_found",
+        "turnId": "lookup-kane-followup-heldout-v1-turn-3"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "lookup-kane-followup-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Harry Kane",
+        "status": "saved_result_reuse",
+        "turnId": "lookup-kane-followup-heldout-v1-turn-2"
+      },
+      {
+        "mention": "Zed Missing",
+        "status": "not_found",
+        "turnId": "lookup-kane-followup-heldout-v1-turn-3"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          }
+        ],
+        "turnId": "lookup-kane-followup-heldout-v1-turn-1"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320",
+        "field": "currentAbility",
+        "value": 186
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "field": "expectedGoals",
+        "value": 5.467523120343685,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

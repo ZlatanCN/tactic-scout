@@ -1,0 +1,486 @@
+{
+  "caseId": "recommend-refine-young-isak-heldout-v1",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "heldout-age-refinement-and-separate-potential-order",
+  "priorTuningExposure": "Independent arithmetic checks were computed from the frozen FM position-feature map and source rows; no production ranking output was used as gold. Authored for evaluation-v1; not run against a live model.",
+  "evidenceBundleId": "recommendation-real-heldout-v1",
+  "evidenceBundleSha256": "b8a6949e7b5bb6f8563a93d4609c5267d11964ec0a44b6179056af6ef86437e4",
+  "turns": [
+    {
+      "turnId": "recommend-refine-young-isak-heldout-v1-turn-1",
+      "userMessage": "根据 Alexander Isak 推荐 stc 球员。"
+    },
+    {
+      "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+      "userMessage": "把推荐年龄上限设为 21 岁，并打开高潜名单。"
+    },
+    {
+      "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+      "userMessage": "移除年龄上限，将 PA 下限设为 154，并显示前 20 名。",
+      "clarificationAnswers": []
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Alexander Isak",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Alexander Isak",
+        "status": "resolved",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-1",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18108540"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000138835"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85111795"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62182055"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          }
+        ]
+      },
+      {
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000138835"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000163799"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000179713"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29110623"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18108540"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85111795"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62182055"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000138835"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000163799"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000179713"
+          }
+        ],
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+        "source": "input",
+        "path": "maxAge",
+        "value": 21
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+        "source": "input",
+        "path": "includePotential",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+        "source": "result",
+        "path": "currentCandidates.0.fmId",
+        "value": "2000138835"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+        "source": "result",
+        "path": "potentialCandidates.0.fmId",
+        "value": "2000138835"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
+        "source": "result",
+        "path": "potentialCandidates.1.fmId",
+        "value": "2000163799"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-1",
+        "source": "result",
+        "path": "positionFeatureMapSha256",
+        "value": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-1",
+        "source": "result",
+        "path": "strategyVersion",
+        "value": "fm-position-global-rmse-v1-provisional"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-1",
+        "source": "result",
+        "path": "snapshotDate",
+        "value": "2025-11-23"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "input",
+        "path": "maxAge",
+        "value": null
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "input",
+        "path": "minimumPotentialAbility",
+        "value": 154
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "input",
+        "path": "resultLimit",
+        "value": 20
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "input",
+        "path": "includePotential",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "result",
+        "path": "filters.maxAge",
+        "value": null
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "result",
+        "path": "currentCandidates.0.fmId",
+        "value": "18108540"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "source": "result",
+        "path": "potentialCandidates.0.fmId",
+        "value": "2000138835"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "player_recommendation",
+        "path": "filters.maxAge",
+        "value": null
+      },
+      {
+        "kind": "player_recommendation",
+        "path": "filters.minimumPotentialAbility",
+        "value": 154
+      },
+      {
+        "kind": "player_recommendation",
+        "path": "filters.resultLimit",
+        "value": 20
+      },
+      {
+        "kind": "player_recommendation",
+        "path": "currentCandidates.0.fmId",
+        "value": "18108540"
+      },
+      {
+        "kind": "player_recommendation",
+        "path": "potentialCandidates.0.fmId",
+        "value": "2000138835"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "93070286",
+        "field": "currentAbility",
+        "value": 170
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000138835",
+        "field": "potentialAbility",
+        "value": 185
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000163799",
+        "field": "potentialAbility",
+        "value": 181
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000179713",
+        "field": "potentialAbility",
+        "value": 179
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18108540",
+        "field": "currentAbility",
+        "value": 152
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18108540",
+        "field": "potentialAbility",
+        "value": 154
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Alexander Isak",
+        "candidateId": "reep:rpc9c9c02c05443c",
+        "canonicalIdentityId": "rpc9c9c02c05443c",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "93070286"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29110623"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18108540"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "25042141"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85111795"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "62182055"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000138835"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000163799"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000179713"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18108540"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000138835"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85111795"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62182055"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000138835"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000163799"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000179713"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "93070286"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29110623"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18108540"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25042141"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85111795"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62182055"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000138835"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000163799"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000179713"
+          }
+        ]
+      }
+    ],
+    "expectedTurnConstraints": [
+      {
+        "turnId": "recommend-refine-young-isak-heldout-v1-turn-3",
+        "constraints": [
+          {
+            "name": "PA",
+            "value": "154"
+          },
+          {
+            "name": "result_limit",
+            "value": "20"
+          }
+        ]
+      }
+    ]
+  }
+}

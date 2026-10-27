@@ -1,0 +1,176 @@
+{
+  "caseId": "compare-saka-foden-real-v1",
+  "category": "ordinary",
+  "workflow": "player_comparison",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "epl-attacking-players-2026-27",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-development-v1",
+  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "ready",
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28122642"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7322",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28108494"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6055",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bukayo Saka",
+        "status": "resolved"
+      },
+      {
+        "mention": "Phil Foden",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bukayo Saka",
+        "status": "resolved",
+        "turnId": "compare-saka-foden-real-v1-turn-1"
+      },
+      {
+        "lookupName": "Phil Foden",
+        "status": "resolved",
+        "turnId": "compare-saka-foden-real-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Bukayo Saka",
+        "status": "resolved",
+        "turnId": "compare-saka-foden-real-v1-turn-1"
+      },
+      {
+        "mention": "Phil Foden",
+        "status": "resolved",
+        "turnId": "compare-saka-foden-real-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Bukayo Saka",
+        "candidateId": "reep:rp56bd0fc61d9da5",
+        "canonicalIdentityId": "rp56bd0fc61d9da5",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122642"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7322",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "mention": "Phil Foden",
+        "candidateId": "reep:rp6da9a22bb14244",
+        "canonicalIdentityId": "rp6da9a22bb14244",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28108494"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6055",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122642"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7322"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28108494"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6055"
+          }
+        ],
+        "businessOutcome": "ready"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28122642",
+        "field": "currentAbility",
+        "value": 182
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28108494",
+        "field": "currentAbility",
+        "value": 169
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7322",
+        "field": "expectedGoals",
+        "value": 4.594318777322769,
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6055",
+        "field": "expectedGoals",
+        "value": 2.2773483768105507,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "requiredAbstentions": [
+      "FM ability and Understat performance are distinct measures; do not combine them into one overall ranking."
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "compare-saka-foden-real-v1-turn-1",
+      "userMessage": "Compare Bukayo Saka and Phil Foden for 2026/27 EPL performance and FM ability."
+    }
+  ]
+}

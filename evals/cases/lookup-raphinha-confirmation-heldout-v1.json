@@ -1,0 +1,128 @@
+{
+  "caseId": "lookup-raphinha-confirmation-heldout-v1",
+  "category": "boundary",
+  "workflow": "player_lookup",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "raphinha-four-same-name-identities",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "turns": [
+    {
+      "turnId": "lookup-raphinha-confirmation-heldout-v1-turn-1",
+      "userMessage": "Look up Raphinha's FM profile and La Liga 2026/27 xG.",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Raphinha",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Raphinha",
+        "status": "needs_confirmation",
+        "turnId": "lookup-raphinha-confirmation-heldout-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Raphinha",
+        "status": "resolved",
+        "turnId": "lookup-raphinha-confirmation-heldout-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Raphinha",
+        "candidateId": "reep:rp5e6ba4bca98681",
+        "canonicalIdentityId": "rp5e6ba4bca98681",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19242277"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8026",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19242277"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8026"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "19242277",
+        "field": "currentAbility",
+        "value": 176
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8026",
+        "field": "expectedGoals",
+        "value": 9.184422969818115,
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "19242277"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19190121"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19221644"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19350728"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8026",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

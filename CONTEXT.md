@@ -54,6 +54,14 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Active team recommendation**: The selected API-Football team, mapped roster snapshot, target position, effective filters, named reference if used, and completed result from the latest successful team recommendation in a thread. Filter refinements inherit this context; selecting another team starts a fresh team request, and failed or interrupted attempts do not replace it.
 
+**Scouting evaluation case**: A versioned scouting request or conversation paired with fixed source evidence and expected workflow behavior. Its evaluation covers task completion and whether the answer's factual claims are supported by that evidence.
+
+**Scouting evaluation trial**: One independent execution of a scouting evaluation case, including all of its scripted turns and clarification answers. A confirmed critical failure anywhere in the conversation fails the trial; repeating the case creates a separate trial.
+
+**Fixed evaluation evidence**: Versioned FM profiles, Understat performance records, and squad snapshots available to a scouting evaluation case, retaining provider identities, source dates, and missing fields. Grounding a generated claim additionally requires that its supporting evidence was actually supplied to the agent or legitimately reused from saved context.
+
+**Scouting execution claim**: A statement that the agent attempted or completed a source lookup, comparison, ranking, filter application, or roster retrieval. Its evidence is an actual execution outcome or explicitly identified saved-result reuse; a requested tool call alone does not establish execution or success.
+
 ## Boundaries
 
 - `StateGraph` owns routing and per-thread message state.

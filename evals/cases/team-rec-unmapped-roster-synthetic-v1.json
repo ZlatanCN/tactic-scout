@@ -1,0 +1,164 @@
+{
+  "caseId": "team-rec-unmapped-roster-synthetic-v1",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "synthetic-roster-member-without-local-fm-profile",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic API-Football responses and FM profiles; no live model or provider call.",
+  "evidenceBundleId": "team-recommendation-synthetic-evidence-v1",
+  "evidenceBundleSha256": "72bd039a4960f1e49a16ce2feb44ac0550b35597418060b2adee0a3c3f8a335e",
+  "turns": [
+    {
+      "turnId": "team-rec-unmapped-roster-synthetic-v1-turn-1",
+      "userMessage": "为 Unknown City FC 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:903"
+          }
+        ],
+        "turnId": "team-rec-unmapped-roster-synthetic-v1-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:999"
+          }
+        ],
+        "turnId": "team-rec-unmapped-roster-synthetic-v1-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:999"
+          }
+        ],
+        "turnId": "team-rec-unmapped-roster-synthetic-v1-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "team-rec-unmapped-roster-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 999
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "team-rec-unmapped-roster-synthetic-v1-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "903"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "999"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:903"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:999"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:999"
+          }
+        ]
+      }
+    ]
+  }
+}

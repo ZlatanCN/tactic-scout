@@ -1,0 +1,349 @@
+{
+  "caseId": "compare-add-raphinha-heldout-v1",
+  "category": "multi_turn",
+  "workflow": "player_comparison",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "raphinha-add-to-heldout-comparison",
+  "priorTuningExposure": "Raphinha appeared in prior discussion; this comparison script has not been run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "ready",
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28124579"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8418",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19242277"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8026",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19190121"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19221644"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19350728"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved"
+      },
+      {
+        "mention": "Jamal Musiala",
+        "status": "resolved"
+      },
+      {
+        "mention": "Raphinha",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-1"
+      },
+      {
+        "lookupName": "Jamal Musiala",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-1"
+      },
+      {
+        "lookupName": "Raphinha",
+        "status": "needs_confirmation",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Jamal Musiala",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Harry Kane",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-2"
+      },
+      {
+        "mention": "Jamal Musiala",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-2"
+      },
+      {
+        "mention": "Raphinha",
+        "status": "resolved",
+        "turnId": "compare-add-raphinha-heldout-v1-turn-2"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Harry Kane",
+        "candidateId": "reep:rp53e98442ac6bba",
+        "canonicalIdentityId": "rp53e98442ac6bba",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "mention": "Jamal Musiala",
+        "candidateId": "reep:rpe4e6ca2c8a0f99",
+        "canonicalIdentityId": "rpe4e6ca2c8a0f99",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "mention": "Raphinha",
+        "candidateId": "reep:rp5e6ba4bca98681",
+        "canonicalIdentityId": "rp5e6ba4bca98681",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19242277"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8026",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          }
+        ],
+        "businessOutcome": "ready"
+      },
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19242277"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8026"
+          }
+        ],
+        "businessOutcome": "ready"
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          }
+        ],
+        "turnId": "compare-add-raphinha-heldout-v1-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28124579"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8418"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19242277"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8026"
+          }
+        ],
+        "turnId": "compare-add-raphinha-heldout-v1-turn-2"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320",
+        "field": "currentAbility",
+        "value": 186
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28124579",
+        "field": "currentAbility",
+        "value": 170
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19242277",
+        "field": "currentAbility",
+        "value": 176
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "field": "expectedGoals",
+        "value": 5.467523120343685,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8418",
+        "field": "expectedGoals",
+        "value": 0.25447119399905205,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8026",
+        "field": "expectedGoals",
+        "value": 9.184422969818115,
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "requiredAbstentions": [
+      "The three participants do not share one Understat competition scope; do not rank all three by a single performance metric."
+    ],
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee"
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "compare-add-raphinha-heldout-v1-turn-1",
+      "userMessage": "Compare Harry Kane and Jamal Musiala in 2026/27 Bundesliga data."
+    },
+    {
+      "turnId": "compare-add-raphinha-heldout-v1-turn-2",
+      "userMessage": "Add Raphinha to the comparison.",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ]
+}

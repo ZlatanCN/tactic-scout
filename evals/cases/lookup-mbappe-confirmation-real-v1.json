@@ -1,0 +1,105 @@
+{
+  "caseId": "lookup-mbappe-confirmation-real-v1",
+  "category": "boundary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "kylian-mbappe-understat-only-identity",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-development-v1",
+  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "turns": [
+    {
+      "turnId": "lookup-mbappe-confirmation-real-v1-turn-1",
+      "userMessage": "Look up Kylian Mbappé's 2024/25 La Liga xG.",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Kylian Mbappé",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Kylian Mbappe",
+        "status": "needs_confirmation",
+        "turnId": "lookup-mbappe-confirmation-real-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Kylian Mbappé",
+        "status": "resolved",
+        "turnId": "lookup-mbappe-confirmation-real-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Kylian Mbappé",
+        "candidateId": "source:understat:3423",
+        "canonicalIdentityId": null,
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "3423",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "3423"
+          }
+        ],
+        "businessOutcome": "not_found"
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "not_found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "3423"
+          }
+        ],
+        "turnId": "lookup-mbappe-confirmation-real-v1-turn-1"
+      }
+    ],
+    "requiredEvidence": [],
+    "requiredAbstentions": [
+      "The fixed Understat snapshot has no 2024/25 La Liga row for this source ID; the answer must say that the requested season is unavailable."
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "understat",
+        "sourceId": "3423",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

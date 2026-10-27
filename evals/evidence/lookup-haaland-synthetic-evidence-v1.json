@@ -1,0 +1,87 @@
+{
+  "bundleId": "lookup-haaland-synthetic-evidence-v1",
+  "origin": "synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "synthetic",
+      "inGameDate": "2025-11-23",
+      "sha256": "synthetic-haaland-fixture-v1"
+    },
+    "players": [
+      {
+        "recordId": "fm-row-haaland-01",
+        "uniqueId": "fm-haaland-01",
+        "name": "Erling Haaland",
+        "birthDate": "2000-07-21",
+        "aliases": ["Haaland"],
+        "payload": {
+          "ability_current": 187,
+          "ability_potential": 195,
+          "birth_date": "2000-07-21",
+          "common_name": "Erling Haaland",
+          "full_name": "Erling Braut Haaland",
+          "height_cm": 195,
+          "name": "Erling Haaland",
+          "natural_positions": "STC",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_decisions": 16,
+          "raw_attributes_finishing": 19,
+          "raw_attributes_first_touch": 16,
+          "raw_attributes_off_the_ball": 19,
+          "raw_attributes_pace": 16,
+          "raw_attributes_passing": 12,
+          "raw_attributes_strength": 18,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 12,
+          "unique_id": "fm-haaland-01"
+        }
+      }
+    ]
+  },
+  "understat": {
+    "snapshots": [
+      {
+        "capturedAt": "2025-11-23T00:00:00.000Z",
+        "kind": "league",
+        "parserVersion": "synthetic-evaluation-v1",
+        "resourceId": "EPL",
+        "schemaVersion": 1,
+        "seasonStartYear": 2024,
+        "players": [
+          {
+            "assists": "1",
+            "goals": "7",
+            "id": "us-haaland-01",
+            "key_passes": "9",
+            "npxG": "3.6",
+            "player_name": "Erling Haaland",
+            "position": "F",
+            "shots": "28",
+            "team_title": "Synthetic City",
+            "time": "840",
+            "xA": "0.8",
+            "xG": "4.2"
+          }
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "releaseStamp": "evaluation-haaland-fixture-v1",
+    "bridges": [
+      {
+        "provider": "fm",
+        "externalId": "fm-haaland-01",
+        "canonicalReepId": "haaland-demo-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "understat",
+        "externalId": "us-haaland-01",
+        "canonicalReepId": "haaland-demo-01",
+        "redirectStatus": "resolved"
+      }
+    ]
+  }
+}

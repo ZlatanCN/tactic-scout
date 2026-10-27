@@ -1,0 +1,106 @@
+{
+  "caseId": "lookup-saka-real-v1",
+  "category": "ordinary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "bukayo-saka-2026-27-profile-and-performance",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-development-v1",
+  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "turns": [
+    {
+      "turnId": "lookup-saka-real-v1-turn-1",
+      "userMessage": "Look up Bukayo Saka's FM profile, 2026/27 EPL performance, and current club."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bukayo Saka",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bukayo Saka",
+        "status": "resolved",
+        "turnId": "lookup-saka-real-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Bukayo Saka",
+        "candidateId": "reep:rp56bd0fc61d9da5",
+        "canonicalIdentityId": "rp56bd0fc61d9da5",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122642"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7322",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122642"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7322"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28122642",
+        "field": "currentAbility",
+        "value": 182
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7322",
+        "field": "expectedGoals",
+        "value": 4.594318777322769,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "requiredAbstentions": [
+      "Current club or registration is absent from the supplied FM and Understat records; the answer must say it cannot be determined from these sources."
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28122642"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7322",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

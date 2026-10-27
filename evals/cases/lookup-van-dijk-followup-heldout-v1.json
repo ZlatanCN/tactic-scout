@@ -1,0 +1,119 @@
+{
+  "caseId": "lookup-van-dijk-followup-heldout-v1",
+  "category": "multi_turn",
+  "workflow": "player_lookup",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "virgil-van-dijk-2026-27-epl-lookup",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "turns": [
+    {
+      "turnId": "lookup-van-dijk-followup-heldout-v1-turn-1",
+      "userMessage": "Look up Virgil van Dijk's FM profile and 2026/27 EPL data."
+    },
+    {
+      "turnId": "lookup-van-dijk-followup-heldout-v1-turn-2",
+      "userMessage": "刚才查到的是哪个联赛的数据？"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "lookup_follow_up",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Virgil van Dijk",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "lookup-van-dijk-followup-heldout-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Virgil van Dijk",
+        "status": "resolved",
+        "turnId": "lookup-van-dijk-followup-heldout-v1-turn-1"
+      },
+      {
+        "mention": "Virgil van Dijk",
+        "status": "saved_result_reuse",
+        "turnId": "lookup-van-dijk-followup-heldout-v1-turn-2"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Virgil van Dijk",
+        "candidateId": "reep:rp65c52b88b1ee92",
+        "canonicalIdentityId": "rp65c52b88b1ee92",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37024025"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "833"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "37024025",
+        "field": "currentAbility",
+        "value": 175
+      },
+      {
+        "provider": "understat",
+        "sourceId": "833",
+        "field": "expectedGoals",
+        "value": 0.1653727926313877,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "37024025"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "833",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

@@ -8,6 +8,12 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "eval:preview": "tsx evals/cli.ts preview",
+    "eval:run": "tsx evals/cli.ts run",
+    "eval:compare": "tsx evals/cli.ts compare",
+    "eval:validate": "tsx evals/cli.ts validate",
+    "eval:prepare-evidence": "tsx evals/prepare-local-evidence.ts",
+    "eval:capture-team-snapshots": "tsx evals/capture-team-snapshots.ts",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "prepare": "husky"

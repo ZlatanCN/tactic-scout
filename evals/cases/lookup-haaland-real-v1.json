@@ -1,0 +1,103 @@
+{
+  "caseId": "lookup-haaland-real-v1",
+  "category": "ordinary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "erling-haaland-2026-27-profile-and-performance",
+  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "evidenceBundleId": "lookup-real-development-v1",
+  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "turns": [
+    {
+      "turnId": "lookup-haaland-real-v1-turn-1",
+      "userMessage": "Look up Erling Haaland's FM ability and 2026/27 EPL xG."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Erling Haaland",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Erling Haaland",
+        "status": "resolved",
+        "turnId": "lookup-haaland-real-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Erling Haaland",
+        "candidateId": "reep:rp6633c6727b95f0",
+        "canonicalIdentityId": "rp6633c6727b95f0",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8260",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8260"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "29179241",
+        "field": "currentAbility",
+        "value": 187
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8260",
+        "field": "expectedGoals",
+        "value": 6.426070660352707,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29179241"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8260",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

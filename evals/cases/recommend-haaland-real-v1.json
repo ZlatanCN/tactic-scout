@@ -1,0 +1,211 @@
+{
+  "caseId": "recommend-haaland-real-v1",
+  "category": "ordinary",
+  "workflow": "player_recommendation",
+  "split": "development",
+  "origin": "real",
+  "scenarioFamily": "dev-single-haaland-striker-rmse",
+  "priorTuningExposure": "Independent arithmetic checks were computed from the frozen FM position-feature map and source rows; no production ranking output was used as gold. Authored for evaluation-v1; not run against a live model.",
+  "evidenceBundleId": "recommendation-real-development-v1",
+  "evidenceBundleSha256": "6f95fc8100af889e1be99995b43a45a8918d04dc22a93a2f521fdade11b0dc51",
+  "turns": [
+    {
+      "turnId": "recommend-haaland-real-v1-turn-1",
+      "userMessage": "根据 Erling Haaland 推荐 stc 球员，结果只要前 2 名。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Erling Haaland",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Erling Haaland",
+        "status": "resolved",
+        "turnId": "recommend-haaland-real-v1-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13158205"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          }
+        ]
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "input",
+        "path": "referenceGroups.0.fmIds.0",
+        "value": "29179241"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "result",
+        "path": "currentCandidates.0.fmId",
+        "value": "13158205"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "result",
+        "path": "currentCandidates.0.currentDistance",
+        "value": 10.503967504392486
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "result",
+        "path": "snapshotDate",
+        "value": "2025-11-23"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "input",
+        "path": "resultLimit",
+        "value": 2
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "result",
+        "path": "currentCandidates.1.fmId",
+        "value": "28049320"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "result",
+        "path": "positionFeatureMapSha256",
+        "value": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-haaland-real-v1-turn-1",
+        "source": "result",
+        "path": "strategyVersion",
+        "value": "fm-position-global-rmse-v1-provisional"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "player_recommendation",
+        "path": "currentCandidates.0.fmId",
+        "value": "13158205"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "29179241",
+        "field": "currentAbility",
+        "value": 187
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29179241",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "13158205",
+        "field": "currentAbility",
+        "value": 162
+      },
+      {
+        "provider": "fm",
+        "sourceId": "13158205",
+        "field": "potentialAbility",
+        "value": 170
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Erling Haaland",
+        "candidateId": "reep:rp6633c6727b95f0",
+        "canonicalIdentityId": "rp6633c6727b95f0",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29179241"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "13158205"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14110660"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000220941"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29179241"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13158205"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          }
+        ]
+      }
+    ]
+  }
+}

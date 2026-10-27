@@ -1,0 +1,103 @@
+{
+  "caseId": "lookup-kane-real-heldout-v1",
+  "category": "ordinary",
+  "workflow": "player_lookup",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "harry-kane-2026-27-bundesliga-lookup",
+  "priorTuningExposure": "The player appeared in prior manual experiments; this fixed snapshot case has not been run against a live model.",
+  "evidenceBundleId": "lookup-real-heldout-v1",
+  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "turns": [
+    {
+      "turnId": "lookup-kane-real-heldout-v1-turn-1",
+      "userMessage": "Look up Harry Kane's FM current ability and 2026/27 Bundesliga xG."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Harry Kane",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Harry Kane",
+        "status": "resolved",
+        "turnId": "lookup-kane-real-heldout-v1-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Harry Kane",
+        "candidateId": "reep:rp53e98442ac6bba",
+        "canonicalIdentityId": "rp53e98442ac6bba",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28049320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "647"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320",
+        "field": "currentAbility",
+        "value": 186
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "field": "expectedGoals",
+        "value": 5.467523120343685,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28049320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "647",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ]
+  }
+}

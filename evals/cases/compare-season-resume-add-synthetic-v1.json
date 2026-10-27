@@ -1,0 +1,517 @@
+{
+  "caseId": "compare-season-resume-add-synthetic-v1",
+  "category": "multi_turn",
+  "workflow": "player_comparison",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "comparison-season-resume-and-participant-addition",
+  "priorTuningExposure": "Constructed from versioned synthetic rows; the last turn declares an Understat/FM local snapshot failure after two completed comparisons.",
+  "evidenceBundleId": "comparison-synthetic-evidence-v1",
+  "evidenceBundleSha256": "3c81c15ce962f455f24c350af3719eb9ce7a61d90168d9beff06235cdc75f840",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "data_unavailable",
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-mid-01"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-mid-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-wing-01"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-wing-01",
+        "competition": "La_liga",
+        "season": "2024/25"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Elias Demo",
+        "status": "resolved"
+      },
+      {
+        "mention": "Synthetic Winger",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-1"
+      },
+      {
+        "lookupName": "Synthetic Midfielder",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-1"
+      },
+      {
+        "lookupName": "Synthetic Winger",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-1"
+      },
+      {
+        "mention": "Synthetic Midfielder",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-1"
+      },
+      {
+        "mention": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-2"
+      },
+      {
+        "mention": "Synthetic Midfielder",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-2"
+      },
+      {
+        "mention": "Synthetic Winger",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-2"
+      },
+      {
+        "mention": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-3"
+      },
+      {
+        "mention": "Synthetic Winger",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-3"
+      },
+      {
+        "mention": "Elias Demo",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-4"
+      },
+      {
+        "mention": "Synthetic Winger",
+        "status": "resolved",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-4"
+      }
+    ],
+    "expectedTurnConstraints": [
+      {
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2024/25"
+          }
+        ]
+      },
+      {
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-2",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2024/25"
+          }
+        ]
+      },
+      {
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-3",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2024/25"
+          }
+        ]
+      },
+      {
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-4",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2024/25"
+          }
+        ]
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Elias Demo",
+        "candidateId": "reep:identity-demo-01",
+        "canonicalIdentityId": "identity-demo-01",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      },
+      {
+        "mention": "Synthetic Winger",
+        "candidateId": "reep:identity-wing-01",
+        "canonicalIdentityId": "identity-wing-01",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01",
+            "competition": "La_liga",
+            "season": "2024/25"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-mid-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-mid-01"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-mid-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-mid-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ]
+      },
+      {
+        "name": "compare_player_records",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ]
+      },
+      {
+        "name": "compare_player_records",
+        "businessOutcome": "no_comparable_data",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-mid-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-mid-01"
+          }
+        ],
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-mid-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-mid-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ],
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-2"
+      },
+      {
+        "name": "compare_player_records",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ],
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-3"
+      },
+      {
+        "name": "compare_player_records",
+        "businessOutcome": "no_comparable_data",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-wing-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ],
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-4"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01",
+        "field": "currentAbility",
+        "value": 132
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-mid-01",
+        "field": "currentAbility",
+        "value": 145
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-wing-01",
+        "field": "currentAbility",
+        "value": 139
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "field": "expectedGoals",
+        "value": 5.2,
+        "competition": "EPL",
+        "season": "2024/25"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-mid-01",
+        "field": "expectedGoals",
+        "value": 2.8,
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "requiredAbstentions": [
+      "The three participants do not share one Understat competition scope; do not rank all three by a single performance metric."
+    ],
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee"
+    ],
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-3",
+        "source": "result",
+        "path": "status",
+        "value": "ready"
+      },
+      {
+        "name": "compare_player_records",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-4",
+        "source": "input",
+        "path": "seasonStartYear",
+        "value": 2024
+      },
+      {
+        "name": "compare_player_records",
+        "turnId": "compare-season-resume-add-synthetic-v1-turn-4",
+        "source": "result",
+        "path": "status",
+        "value": "no_comparable_data"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "player_comparison",
+        "path": "players.0.name",
+        "value": "Synthetic Winger"
+      },
+      {
+        "kind": "player_comparison",
+        "path": "players.1.name",
+        "value": "Elias Demo"
+      },
+      {
+        "kind": "player_comparison",
+        "path": "constraints.0.name",
+        "value": "season"
+      },
+      {
+        "kind": "player_comparison",
+        "path": "constraints.0.value",
+        "value": "2024/25"
+      }
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "compare-season-resume-add-synthetic-v1-turn-1",
+      "userMessage": "Compare Elias Demo and Synthetic Midfielder from last season.",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "season",
+          "resumeValue": "2024/25"
+        }
+      ]
+    },
+    {
+      "turnId": "compare-season-resume-add-synthetic-v1-turn-2",
+      "userMessage": "Add Synthetic Winger to the comparison."
+    },
+    {
+      "turnId": "compare-season-resume-add-synthetic-v1-turn-3",
+      "userMessage": "Start a new comparison of only Elias Demo and Synthetic Winger for 2024/25.",
+      "clarificationAnswers": []
+    },
+    {
+      "turnId": "compare-season-resume-add-synthetic-v1-turn-4",
+      "userMessage": "Add the 2024/25 season to the comparison.",
+      "clarificationAnswers": []
+    }
+  ],
+  "declaredTurnFaults": [
+    {
+      "turnId": "compare-season-resume-add-synthetic-v1-turn-3",
+      "missingSources": ["fm_snapshot_missing", "understat_snapshot_missing"]
+    }
+  ]
+}

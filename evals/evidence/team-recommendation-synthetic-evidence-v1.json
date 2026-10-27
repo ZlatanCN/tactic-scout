@@ -1,0 +1,623 @@
+{
+  "bundleId": "team-recommendation-synthetic-evidence-v1",
+  "origin": "synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "synthetic",
+      "inGameDate": "2025-11-23",
+      "sha256": "synthetic-recommendation-fixture-v1"
+    },
+    "players": [
+      {
+        "recordId": "fm-row-ref-01",
+        "uniqueId": "fm-ref-01",
+        "name": "Synthetic Reference",
+        "birthDate": "2000-02-03",
+        "aliases": ["Reference Alpha"],
+        "payload": {
+          "ability_current": 150,
+          "ability_potential": 178,
+          "birth_date": "2000-02-03",
+          "common_name": "Synthetic Reference",
+          "full_name": "Synthetic Reference",
+          "height_cm": 182,
+          "name": "Synthetic Reference",
+          "natural_positions": "STC;AMC",
+          "unique_id": "fm-ref-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        }
+      },
+      {
+        "recordId": "fm-row-close-01",
+        "uniqueId": "fm-close-01",
+        "name": "Synthetic Close Candidate",
+        "birthDate": "2003-04-05",
+        "aliases": [],
+        "payload": {
+          "ability_current": 146,
+          "ability_potential": 181,
+          "birth_date": "2003-04-05",
+          "common_name": "Synthetic Close Candidate",
+          "full_name": "Synthetic Close Candidate",
+          "height_cm": 179,
+          "name": "Synthetic Close Candidate",
+          "natural_positions": "STC",
+          "unique_id": "fm-close-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        }
+      },
+      {
+        "recordId": "fm-row-future-01",
+        "uniqueId": "fm-future-01",
+        "name": "Synthetic Future Prospect",
+        "birthDate": "2007-06-07",
+        "aliases": [],
+        "payload": {
+          "ability_current": 124,
+          "ability_potential": 195,
+          "birth_date": "2007-06-07",
+          "common_name": "Synthetic Future Prospect",
+          "full_name": "Synthetic Future Prospect",
+          "height_cm": 180,
+          "name": "Synthetic Future Prospect",
+          "natural_positions": "STC",
+          "unique_id": "fm-future-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        }
+      },
+      {
+        "recordId": "fm-row-far-01",
+        "uniqueId": "fm-far-01",
+        "name": "Synthetic Far Candidate",
+        "birthDate": "1999-08-09",
+        "aliases": [],
+        "payload": {
+          "ability_current": 160,
+          "ability_potential": 166,
+          "birth_date": "1999-08-09",
+          "common_name": "Synthetic Far Candidate",
+          "full_name": "Synthetic Far Candidate",
+          "height_cm": 188,
+          "name": "Synthetic Far Candidate",
+          "natural_positions": "STC",
+          "unique_id": "fm-far-01",
+          "raw_attributes_acceleration": 9,
+          "raw_attributes_pace": 9,
+          "raw_attributes_strength": 9,
+          "raw_attributes_jumping_reach": 9,
+          "raw_attributes_stamina": 9,
+          "raw_attributes_finishing": 9,
+          "raw_attributes_off_the_ball": 9,
+          "raw_attributes_heading": 9,
+          "raw_attributes_composure": 9,
+          "raw_attributes_anticipation": 9,
+          "raw_attributes_decisions": 9,
+          "raw_attributes_first_touch": 9,
+          "raw_attributes_passing": 9,
+          "raw_attributes_technique": 9,
+          "raw_attributes_vision": 9,
+          "raw_attributes_teamwork": 9,
+          "raw_attributes_dribbling": 9,
+          "raw_attributes_work_rate": 9
+        }
+      },
+      {
+        "recordId": "fm-row-missing-01",
+        "uniqueId": "fm-missing-01",
+        "name": "Synthetic Missing Attribute",
+        "birthDate": "2001-01-01",
+        "aliases": [],
+        "payload": {
+          "ability_current": 140,
+          "ability_potential": 180,
+          "birth_date": "2001-01-01",
+          "common_name": "Synthetic Missing Attribute",
+          "full_name": "Synthetic Missing Attribute",
+          "height_cm": 183,
+          "name": "Synthetic Missing Attribute",
+          "natural_positions": "STC",
+          "unique_id": "fm-missing-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": null,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        }
+      },
+      {
+        "recordId": "fm-row-ineligible-01",
+        "uniqueId": "fm-ineligible-01",
+        "name": "Synthetic Ineligible Candidate",
+        "birthDate": "2002-01-01",
+        "aliases": [],
+        "payload": {
+          "ability_current": 151,
+          "ability_potential": 181,
+          "birth_date": "2002-01-01",
+          "common_name": "Synthetic Ineligible Candidate",
+          "full_name": "Synthetic Ineligible Candidate",
+          "height_cm": 182,
+          "name": "Synthetic Ineligible Candidate",
+          "natural_positions": "STC",
+          "unique_id": "fm-ineligible-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        }
+      },
+      {
+        "recordId": "fm-row-ambiguous-a",
+        "uniqueId": "fm-amb-a",
+        "name": "Synthetic Ambiguous",
+        "birthDate": "2000-01-01",
+        "aliases": [],
+        "payload": {
+          "ability_current": 135,
+          "ability_potential": 170,
+          "birth_date": "2000-01-01",
+          "common_name": "Synthetic Ambiguous",
+          "full_name": "Synthetic Ambiguous A",
+          "height_cm": 180,
+          "name": "Synthetic Ambiguous A",
+          "natural_positions": "STC",
+          "unique_id": "fm-amb-a",
+          "raw_attributes_acceleration": 14,
+          "raw_attributes_pace": 14,
+          "raw_attributes_strength": 14,
+          "raw_attributes_jumping_reach": 14,
+          "raw_attributes_stamina": 14,
+          "raw_attributes_finishing": 14,
+          "raw_attributes_off_the_ball": 14,
+          "raw_attributes_heading": 14,
+          "raw_attributes_composure": 14,
+          "raw_attributes_anticipation": 14,
+          "raw_attributes_decisions": 14,
+          "raw_attributes_first_touch": 14,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 14,
+          "raw_attributes_vision": 14,
+          "raw_attributes_teamwork": 14,
+          "raw_attributes_dribbling": 14,
+          "raw_attributes_work_rate": 14
+        }
+      },
+      {
+        "recordId": "fm-row-ambiguous-b",
+        "uniqueId": "fm-amb-b",
+        "name": "Synthetic Ambiguous",
+        "birthDate": "2004-01-01",
+        "aliases": [],
+        "payload": {
+          "ability_current": 142,
+          "ability_potential": 181,
+          "birth_date": "2004-01-01",
+          "common_name": "Synthetic Ambiguous",
+          "full_name": "Synthetic Ambiguous B",
+          "height_cm": 184,
+          "name": "Synthetic Ambiguous B",
+          "natural_positions": "STC",
+          "unique_id": "fm-amb-b",
+          "raw_attributes_acceleration": 16,
+          "raw_attributes_pace": 16,
+          "raw_attributes_strength": 16,
+          "raw_attributes_jumping_reach": 16,
+          "raw_attributes_stamina": 16,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 16,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 16,
+          "raw_attributes_decisions": 16,
+          "raw_attributes_first_touch": 16,
+          "raw_attributes_passing": 16,
+          "raw_attributes_technique": 16,
+          "raw_attributes_vision": 16,
+          "raw_attributes_teamwork": 16,
+          "raw_attributes_dribbling": 16,
+          "raw_attributes_work_rate": 16
+        }
+      },
+      {
+        "recordId": "fm-row-failure-ref-01",
+        "uniqueId": "fm-failure-ref-01",
+        "name": "Synthetic Failure Reference",
+        "birthDate": "2001-03-04",
+        "aliases": [],
+        "payload": {
+          "ability_current": 130,
+          "ability_potential": 172,
+          "birth_date": "2001-03-04",
+          "common_name": "Synthetic Failure Reference",
+          "full_name": "Synthetic Failure Reference",
+          "height_cm": 180,
+          "name": "Synthetic Failure Reference",
+          "natural_positions": "STC",
+          "unique_id": "fm-failure-ref-01",
+          "raw_attributes_acceleration": 13,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 13,
+          "raw_attributes_jumping_reach": 13,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 13,
+          "raw_attributes_heading": 13,
+          "raw_attributes_composure": 13,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 13,
+          "raw_attributes_first_touch": 13,
+          "raw_attributes_passing": 13,
+          "raw_attributes_technique": 13,
+          "raw_attributes_vision": 13,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 13,
+          "raw_attributes_work_rate": 13
+        }
+      },
+      {
+        "recordId": "fm-row-no-pa-01",
+        "uniqueId": "fm-no-pa-01",
+        "name": "Synthetic Missing PA",
+        "birthDate": "2007-10-01",
+        "aliases": [],
+        "payload": {
+          "ability_current": 128,
+          "ability_potential": null,
+          "birth_date": "2007-10-01",
+          "common_name": "Synthetic Missing PA",
+          "full_name": "Synthetic Missing PA",
+          "height_cm": 180,
+          "name": "Synthetic Missing PA",
+          "natural_positions": "STC",
+          "unique_id": "fm-no-pa-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        }
+      }
+    ],
+    "positions": [
+      {
+        "recordId": "fm-row-ref-01",
+        "position": "stc",
+        "rating": 20
+      },
+      {
+        "recordId": "fm-row-close-01",
+        "position": "stc",
+        "rating": 20
+      },
+      {
+        "recordId": "fm-row-future-01",
+        "position": "stc",
+        "rating": 19
+      },
+      {
+        "recordId": "fm-row-far-01",
+        "position": "stc",
+        "rating": 18
+      },
+      {
+        "recordId": "fm-row-missing-01",
+        "position": "stc",
+        "rating": 19
+      },
+      {
+        "recordId": "fm-row-ineligible-01",
+        "position": "stc",
+        "rating": 14
+      },
+      {
+        "recordId": "fm-row-ambiguous-a",
+        "position": "stc",
+        "rating": 20
+      },
+      {
+        "recordId": "fm-row-ambiguous-b",
+        "position": "stc",
+        "rating": 20
+      },
+      {
+        "recordId": "fm-row-failure-ref-01",
+        "position": "stc",
+        "rating": 14
+      },
+      {
+        "recordId": "fm-row-no-pa-01",
+        "position": "stc",
+        "rating": 19
+      }
+    ]
+  },
+  "understat": {
+    "snapshots": []
+  },
+  "identity": {
+    "releaseStamp": "evaluation-recommendation-fixture-v1",
+    "bridges": [
+      {
+        "provider": "api_football",
+        "externalId": "501",
+        "canonicalReepId": "identity-ref-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-failure-ref-01",
+        "canonicalReepId": "identity-failure-ref-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-ref-01",
+        "canonicalReepId": "identity-ref-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-amb-a",
+        "canonicalReepId": "identity-ambiguous",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-amb-b",
+        "canonicalReepId": "identity-ambiguous",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-future-01",
+        "canonicalReepId": "identity-future-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "api_football",
+        "externalId": "503",
+        "canonicalReepId": "identity-future-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-far-01",
+        "canonicalReepId": "identity-far-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "api_football",
+        "externalId": "504",
+        "canonicalReepId": "identity-far-01",
+        "redirectStatus": "resolved"
+      }
+    ]
+  },
+  "apiFootball": {
+    "capturedAt": "2025-11-20T12:00:00.000Z",
+    "teamSearchResponses": [
+      {
+        "query": "Synthetic Town FC",
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 901,
+                "name": "Synthetic Town FC",
+                "country": "Testland"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "query": "Synthetic Town",
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 901,
+                "name": "Synthetic Town FC",
+                "country": "Testland"
+              }
+            },
+            {
+              "team": {
+                "id": 902,
+                "name": "Synthetic Town Reserves",
+                "country": "Testland"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "query": "Unknown City FC",
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 903,
+                "name": "Unknown City FC",
+                "country": "Testland"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "squadResponses": [
+      {
+        "teamId": 901,
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 901,
+                "name": "Synthetic Town FC",
+                "country": "Testland"
+              },
+              "players": [
+                {
+                  "id": 501,
+                  "name": "Synthetic Reference",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 502,
+                  "name": "Synthetic Close Candidate",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "teamId": 902,
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 902,
+                "name": "Synthetic Town Reserves",
+                "country": "Testland"
+              },
+              "players": [
+                {
+                  "id": 503,
+                  "name": "Synthetic Future Prospect",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 504,
+                  "name": "Synthetic Far Candidate",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "teamId": 903,
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 903,
+                "name": "Unknown City FC",
+                "country": "Testland"
+              },
+              "players": [
+                {
+                  "id": 999,
+                  "name": "No Local Profile",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

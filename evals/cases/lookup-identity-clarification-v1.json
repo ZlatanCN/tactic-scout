@@ -1,0 +1,171 @@
+{
+  "caseId": "lookup-identity-clarification-v1",
+  "category": "multi_turn",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "ambiguous-identity-follow-up-and-data-failure",
+  "priorTuningExposure": "created-for-evaluation-v1",
+  "evidenceBundleId": "lookup-ambiguous-evidence-v1",
+  "evidenceBundleSha256": "0ad73fc3aa159a213ec87361d87b5bed26d5ca785ec3ff77c0f5b486c3394218",
+  "turns": [
+    {
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "1"
+        }
+      ],
+      "turnId": "lookup-identity-clarification-v1-turn-1",
+      "userMessage": "请查一下 Elias Demo 的 FM 画像和表现资料。"
+    },
+    {
+      "turnId": "lookup-identity-clarification-v1-turn-2",
+      "userMessage": "刚才查到的是什么赛季？"
+    },
+    {
+      "turnId": "lookup-identity-clarification-v1-turn-3",
+      "userMessage": "Look up Synthetic Failure Demo's FM profile and performance data."
+    }
+  ],
+  "contract": {
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Synthetic Failure Demo",
+        "status": "data_unavailable"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Elias Demo",
+        "status": "needs_confirmation",
+        "turnId": "lookup-identity-clarification-v1-turn-1"
+      },
+      {
+        "lookupName": "Synthetic Failure Demo",
+        "status": "data_unavailable",
+        "turnId": "lookup-identity-clarification-v1-turn-3"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Elias Demo",
+        "status": "resolved",
+        "turnId": "lookup-identity-clarification-v1-turn-1"
+      },
+      {
+        "mention": "Elias Demo",
+        "status": "saved_result_reuse",
+        "turnId": "lookup-identity-clarification-v1-turn-2"
+      },
+      {
+        "mention": "Synthetic Failure Demo",
+        "status": "data_unavailable",
+        "turnId": "lookup-identity-clarification-v1-turn-3"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "outcomeStatus": "identity_data_unavailable",
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-02"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-fail-01"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-fail-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "resolvedPlayers": [],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "expectedTurnToolActions": [
+      {
+        "turnId": "lookup-identity-clarification-v1-turn-1",
+        "name": "search_player_records",
+        "businessOutcome": "found",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "fm-demo-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-demo-01"
+          }
+        ]
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01",
+        "field": "currentAbility",
+        "value": 132
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01",
+        "field": "potentialAbility",
+        "value": 184
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "field": "expectedGoals",
+        "value": 5.2,
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-demo-01"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-demo-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ]
+  },
+  "declaredDataFaults": ["reep_bridge_malformed"]
+}
