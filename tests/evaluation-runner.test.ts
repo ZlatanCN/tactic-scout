@@ -2372,11 +2372,8 @@ describe("local scouting evaluation entry", () => {
           actionOutcomes: ["ready"],
           clarifications: [
             {
-              answers: [
-                { kind: "recommendation_role", value: "参考" },
-                { kind: "fm_profile", value: "fm-amb-b" },
-              ],
-              kinds: ["recommendation_role", "fm_profile"],
+              answers: [{ kind: "fm_profile", value: "fm-amb-b" }],
+              kinds: ["fm_profile"],
             },
           ],
           identityLookups: [
@@ -2408,6 +2405,17 @@ describe("local scouting evaluation entry", () => {
         },
       ],
     });
+
+    const ambiguousProfileTrial = report.trials.find(
+      ({ caseId }) => caseId === "recommend-ambiguous-profile-synthetic-v1"
+    );
+
+    const finalAssistantMessage =
+      ambiguousProfileTrial?.observation.turns
+        .at(-1)
+        ?.assistantMessages.at(-1) ?? "";
+
+    expect(finalAssistantMessage.trim().length).toBeGreaterThan(0);
   }, 20_000);
 
   it("runs a fixed API-Football roster through its real adapter and the complete team graph", async () => {

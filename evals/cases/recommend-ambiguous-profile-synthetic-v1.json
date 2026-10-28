@@ -5,18 +5,14 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-linked-identity-has-two-fm-profiles",
-  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles and Reep bridges.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles and Reep bridges. Used in baseline run ab3547a4-8cb7-4566-a837-eff62941357b; wording was clarified afterward to make Synthetic Ambiguous an explicit reference profile because the graph asks for FM profile selection directly.",
   "evidenceBundleId": "recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
   "turns": [
     {
       "turnId": "recommend-ambiguous-profile-synthetic-v1-turn-1",
-      "userMessage": "请把 Synthetic Ambiguous 列进候选名单后推荐 stc。",
+      "userMessage": "请以 Synthetic Ambiguous 作为参考画像，推荐 STC 位置相似球员。",
       "clarificationAnswers": [
-        {
-          "expectedKind": "recommendation_role",
-          "resumeValue": "参考"
-        },
         {
           "expectedKind": "fm_profile",
           "resumeValue": "fm-amb-b"
