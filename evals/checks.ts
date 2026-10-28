@@ -680,6 +680,50 @@ const clarificationChecks = (
   ];
 };
 
+const canonicalConstraintNames = new Map<string, string>([
+  ["age", "age"],
+  ["maxage", "age"],
+  ["maximumage", "age"],
+  ["年龄", "age"],
+  ["年龄上限", "age"],
+  ["ca", "CA"],
+  ["minca", "CA"],
+  ["minimumca", "CA"],
+  ["currentability", "CA"],
+  ["minimumcurrentability", "CA"],
+  ["当前能力", "CA"],
+  ["pa", "PA"],
+  ["minpa", "PA"],
+  ["minimumpa", "PA"],
+  ["potentialability", "PA"],
+  ["minimumpotentialability", "PA"],
+  ["潜力", "PA"],
+  ["潜力下限", "PA"],
+  ["season", "season"],
+  ["赛季", "season"],
+  ["competition", "competition"],
+  ["league", "competition"],
+  ["赛事", "competition"],
+  ["联赛", "competition"],
+  ["position", "position"],
+  ["位置", "position"],
+  ["limit", "result_limit"],
+  ["resultlimit", "result_limit"],
+  ["maximumresults", "result_limit"],
+  ["结果数", "result_limit"],
+  ["最多", "result_limit"],
+]);
+
+const canonicalConstraintName = (name: string): string => {
+  const normalized = name
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]/gu, "");
+
+  return canonicalConstraintNames.get(normalized) ?? name;
+};
+
 const turnConstraintChecks = (
   caseDefinition: EvaluationCase,
   worker: WorkerTrialResult
@@ -694,18 +738,26 @@ const turnConstraintChecks = (
     const turn = worker.turns.find((item) => item.turnId === turnId);
 
     return {
-      constraints: turn?.effectiveConstraints ?? [],
+      constraints: (turn?.effectiveConstraints ?? []).map((constraint) => ({
+        ...constraint,
+        name: canonicalConstraintName(constraint.name),
+      })),
       turnId,
     };
   });
 
   const normalizedExpected = expected.map((turn) => ({
     ...turn,
-    constraints: turn.constraints.toSorted(
-      (left, right) =>
-        left.name.localeCompare(right.name) ||
-        left.value.localeCompare(right.value)
-    ),
+    constraints: turn.constraints
+      .map((constraint) => ({
+        ...constraint,
+        name: canonicalConstraintName(constraint.name),
+      }))
+      .toSorted(
+        (left, right) =>
+          left.name.localeCompare(right.name) ||
+          left.value.localeCompare(right.value)
+      ),
   }));
 
   const normalizedActual = actual.map((turn) => ({
