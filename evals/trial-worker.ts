@@ -16,6 +16,7 @@ import { AgentState } from "../src/state.js";
 import type { AgentStateType } from "../src/state.js";
 import { createApiFootballClient } from "../src/team-data/api-football.js";
 import type { ApiFootballClient } from "../src/team-data/api-football.js";
+import { teamRosterCoverage } from "../src/team-data/roster-coverage.js";
 import { resolveTeamRosterIdentity } from "../src/team-data/roster-identity.js";
 import type { TeamRosterIdentityResolution } from "../src/team-data/roster-identity.js";
 import {
@@ -731,6 +732,7 @@ const workerResultFromState = (
       outcomeStatus: null,
       players: [],
       requestKind: null,
+      teamRosterCoverage: null,
       toolMessages: [],
       turns: observer.turnObservations,
     };
@@ -772,6 +774,11 @@ const workerResultFromState = (
     outcomeStatus: state.outcome?.status ?? null,
     players: observedPlayers(state),
     requestKind: state.request.kind,
+    teamRosterCoverage:
+      state.request.kind === "team_recommendation" &&
+      state.request.teamRecommendation.roster !== null
+        ? teamRosterCoverage(state.request.teamRecommendation.roster)
+        : null,
     toolMessages: observedToolMessages(state),
     turns: observer.turnObservations,
   };

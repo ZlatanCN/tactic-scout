@@ -80,6 +80,7 @@ const judgeRequestSchema = z.object({
     requiredFacts: z.array(z.object({ factId: z.string() })),
   }),
   evidence: z.array(z.looseObject({ evidenceId: z.string() })),
+  teamRosterCoverage: z.json().nullable().optional(),
   turns: z.array(
     z.looseObject({
       assistantMessages: z.array(z.string()),
@@ -3552,6 +3553,94 @@ describe("local scouting evaluation entry", () => {
       refinementRecommendationCalls: 2,
     });
   }, 25_000);
+
+  it("uses the same fixed roster coverage in the answer, contract check, and judge input", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(request, response, requestCount);
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-roster-coverage-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["team-rec-unmapped-roster-synthetic-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    if (trial === undefined) {
+      throw new Error("The roster evaluation returned no trial.");
+    }
+
+    const judgeExchange = trial.gatewayExchanges.find(
+      ({ role }) => role === "judge"
+    );
+
+    if (judgeExchange === undefined) {
+      throw new Error("The roster trial did not record its judge request.");
+    }
+
+    const judgeInput = judgeInputFromRequestBody(judgeExchange.requestBody);
+
+    const observationCoverage = z
+      .looseObject({ teamRosterCoverage: z.json().nullable() })
+      .safeParse(trial.observation);
+
+    expect({
+      answer: trial.observation.turns[0]?.assistantMessages[0],
+      coverageCheck: trial.checks.find(
+        ({ id }) => id === "team-roster-coverage"
+      )?.status,
+      judgeCoverage: judgeInput.teamRosterCoverage ?? null,
+      judgeRequests: report.requestCountsByRole.judge,
+      observationCoverage: observationCoverage.success
+        ? observationCoverage.data.teamRosterCoverage
+        : null,
+    }).toStrictEqual({
+      answer:
+        "阵容成员“No Local Profile”（API-Football ID 999）没有可确认的本地 FM 画像，因此已暂停推荐。映射到可用本地 FM 画像 0/1 人（Reep 桥接 0，人工确认 0），无本地画像 1 人，待确认 0 人。",
+      coverageCheck: "passed",
+      judgeCoverage: {
+        mappedMembers: 0,
+        noLocalProfileMembers: 1,
+        pendingMembers: 0,
+        reepBridgeMappings: 0,
+        totalMembers: 1,
+        userConfirmedMappings: 0,
+      },
+      judgeRequests: 1,
+      observationCoverage: {
+        mappedMembers: 0,
+        noLocalProfileMembers: 1,
+        pendingMembers: 0,
+        reepBridgeMappings: 0,
+        totalMembers: 1,
+        userConfirmedMappings: 0,
+      },
+    });
+  }, 30_000);
 
   it("runs prepared real team cases or reports missing local preparation", async () => {
     const caseIds = [

@@ -76,6 +76,14 @@
         "value": "no_profile"
       }
     ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
     "expectedActiveResultValues": [],
     "expectedActiveLookupSourceRecords": [],
     "prohibitedClaims": [

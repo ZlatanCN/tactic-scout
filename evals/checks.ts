@@ -255,6 +255,28 @@ const expectedActionValueChecks = (
   ];
 };
 
+const expectedTeamRosterCoverageChecks = (
+  caseDefinition: EvaluationCase,
+  worker: WorkerTrialResult
+): EvaluationCheck[] => {
+  const expected = caseDefinition.contract.expectedTeamRosterCoverage;
+
+  if (expected === null) {
+    return [];
+  }
+
+  const actual = worker.teamRosterCoverage;
+
+  return [
+    {
+      actual: JSON.stringify(actual),
+      expected: JSON.stringify(expected),
+      id: "team-roster-coverage",
+      status: isDeepStrictEqual(actual, expected) ? "passed" : "failed",
+    },
+  ];
+};
+
 const activeResultKey = (
   kind: EvaluationCase["contract"]["expectedActiveResultValues"][number]["kind"]
 ): keyof WorkerTrialResult["activeResults"] => {
@@ -880,6 +902,7 @@ const checkCaseContract = (
     ...turnConstraintChecks(caseDefinition, worker),
     ...turnToolActionChecks(caseDefinition, worker),
     ...expectedActionValueChecks(caseDefinition, worker),
+    ...expectedTeamRosterCoverageChecks(caseDefinition, worker),
     ...expectedTurnParameterChecks(caseDefinition, worker),
     ...expectedActiveResultChecks(caseDefinition, worker),
     {
@@ -920,6 +943,7 @@ const emptyWorkerResult = (error: string): WorkerTrialResult => ({
   outcomeStatus: null,
   players: [],
   requestKind: null,
+  teamRosterCoverage: null,
   toolMessages: [],
   turns: [],
 });

@@ -1,8 +1,15 @@
 import { z } from "zod/v4";
 
+import { TeamRosterCoverageSchema } from "../src/team-data/contracts.js";
+import type { TeamRosterCoverage } from "../src/team-data/contracts.js";
+
 const jsonValueSchema = z.json();
 
 type JsonValue = z.output<typeof jsonValueSchema>;
+
+const teamRosterCoverageSchema = z.custom<TeamRosterCoverage>(
+  (value) => TeamRosterCoverageSchema.safeParse(value).success
+);
 
 const sourceProviderSchema = z.enum(["api_football", "fm", "understat"]);
 
@@ -88,6 +95,9 @@ const evaluationCaseSchema = z.object({
     expectedIdentityStatuses: z
       .array(z.object({ mention: z.string(), status: z.string() }))
       .default([]),
+    expectedTeamRosterCoverage: teamRosterCoverageSchema
+      .nullable()
+      .default(null),
     expectedTurnConstraints: z
       .array(
         z.object({
@@ -460,6 +470,7 @@ const workerTrialResultSchema = z.object({
   outcomeStatus: z.string().nullable(),
   players: z.array(observedPlayerSchema),
   requestKind: z.string().nullable(),
+  teamRosterCoverage: teamRosterCoverageSchema.nullable(),
   toolMessages: z.array(
     z.object({
       content: z.string(),
@@ -739,6 +750,7 @@ export {
   evaluationReportSchema,
   evaluationWorkerRequestSchema,
   workerTrialResultSchema,
+  teamRosterCoverageSchema,
   judgeCalibrationSchema,
   semanticErrorCategorySchema,
   semanticFindingSchema,

@@ -1023,7 +1023,7 @@ describe("team recommendation graph", () => {
     }).toStrictEqual({
       activeTeamRecommendation: null,
       answer:
-        "阵容成员“Unmapped Player”（API-Football ID 3001）没有可确认的本地 FM 画像，因此已暂停推荐。当前已映射 0/1 人（Reep 0，人工确认 0），无本地画像 1 人。",
+        "阵容成员“Unmapped Player”（API-Football ID 3001）没有可确认的本地 FM 画像，因此已暂停推荐。映射到可用本地 FM 画像 0/1 人（Reep 桥接 0，人工确认 0），无本地画像 1 人，待确认 0 人。",
       recommendCalls: 0,
     });
   });

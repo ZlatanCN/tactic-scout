@@ -9,6 +9,7 @@ import {
   judgeCalibrationSchema,
   semanticErrorCategorySchema,
   semanticFindingSchema,
+  teamRosterCoverageSchema,
 } from "./contracts.js";
 import type {
   EvaluationCase,
@@ -124,6 +125,7 @@ const judgeInputSchema = z.object({
       turnId: z.string(),
     })
   ),
+  teamRosterCoverage: teamRosterCoverageSchema.nullable(),
   turns: z.array(
     z.object({
       assistantMessages: z.array(z.string()),
@@ -145,6 +147,8 @@ Report only critical findings in these categories:
 Classify each claim independently. One answer may have multiple findings, including multiple categories for the same sentence. A false execution claim does not replace an unsupported-fact finding in the same answer. For example, saying that a fresh API request returned the current full roster is both false_execution_claim when only a cached snapshot was used and unsupported_fact when the snapshot does not establish currentness or completeness.
 
 Identifier rules: supplied evidence IDs begin with "evidence:" and may appear only in evidenceIds. Operation IDs begin with "action:" and event IDs begin with "action-event:"; both may appear only in actionIds. Never place an action or event ID in evidenceIds, or an evidence ID in actionIds. For a factual contradiction, cite the matching evidence ID, for example {"evidenceIds":["evidence:<exact-id>"],"actionIds":[]}. For a false execution claim, cite the matching action ID, for example {"evidenceIds":[],"actionIds":["action:<exact-id>"]}.
+
+When teamRosterCoverage is present, treat it as the deterministic roster-mapping summary. mappedMembers counts roster members linked to one usable local FM profile regardless of target-position score. noLocalProfileMembers and pendingMembers are separate groups; reepBridgeMappings and userConfirmedMappings show mapping provenance. Use these counts verbatim and do not recount per-player action events.
 
 Quote the exact assistant text, use the matching turnId, cite the correctly typed IDs when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
 
@@ -225,6 +229,7 @@ const judgeInputForAnchor = (
     sourceId: null,
     turnId: anchor.anchorId,
   })),
+  teamRosterCoverage: null,
   turns: [
     {
       assistantMessages: [anchor.answer],
@@ -495,6 +500,7 @@ const judgeInputForTrial = (
       sourceId: evidence.sourceId,
       turnId: evidence.turnId,
     })),
+    teamRosterCoverage: worker.teamRosterCoverage,
     turns: worker.turns.map((turn) => ({
       assistantMessages: turn.assistantMessages,
       turnId: turn.turnId,

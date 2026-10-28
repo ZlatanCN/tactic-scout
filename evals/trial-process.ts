@@ -55,6 +55,7 @@ const emptyWorkerResult = (error: string): WorkerTrialResult => ({
   outcomeStatus: null,
   players: [],
   requestKind: null,
+  teamRosterCoverage: null,
   toolMessages: [],
   turns: [],
 });

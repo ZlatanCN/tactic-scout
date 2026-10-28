@@ -569,6 +569,7 @@ describe("player recommendation data invariants", () => {
         roster: z.object({
           mappedMembers: z.number(),
           noLocalProfileMembers: z.number(),
+          pendingMembers: z.number(),
           reepBridgeMappings: z.number(),
           retrievedAt: z.string(),
           source: z.string(),
@@ -602,6 +603,7 @@ describe("player recommendation data invariants", () => {
       roster: {
         mappedMembers: 2,
         noLocalProfileMembers: 0,
+        pendingMembers: 0,
         reepBridgeMappings: 1,
         retrievedAt: roster.retrievedAt,
         source: "API-Football",

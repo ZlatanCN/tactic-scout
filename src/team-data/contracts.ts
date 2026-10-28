@@ -31,6 +31,15 @@ const TeamRosterSnapshotSchema = z.object({
   team: TeamIdentitySchema,
 });
 
+const TeamRosterCoverageSchema = z.object({
+  mappedMembers: z.number().int().nonnegative(),
+  noLocalProfileMembers: z.number().int().nonnegative(),
+  pendingMembers: z.number().int().nonnegative(),
+  reepBridgeMappings: z.number().int().nonnegative(),
+  totalMembers: z.number().int().nonnegative(),
+  userConfirmedMappings: z.number().int().nonnegative(),
+});
+
 const TeamRecommendationFiltersSchema = z.object({
   includePotential: z.boolean(),
   maxAge: z.number().int().nullable(),
@@ -47,6 +56,8 @@ type TeamRosterMember = z.infer<typeof TeamRosterMemberSchema>;
 
 type TeamRosterSnapshot = z.infer<typeof TeamRosterSnapshotSchema>;
 
+type TeamRosterCoverage = z.infer<typeof TeamRosterCoverageSchema>;
+
 type TeamRecommendationFilters = z.infer<
   typeof TeamRecommendationFiltersSchema
 >;
@@ -54,6 +65,7 @@ type TeamRecommendationFilters = z.infer<
 export {
   TeamFmProfileCandidateSchema,
   TeamIdentitySchema,
+  TeamRosterCoverageSchema,
   TeamRecommendationFiltersSchema,
   TeamRosterMemberSchema,
   TeamRosterSnapshotSchema,
@@ -62,6 +74,7 @@ export {
 export type {
   TeamFmProfileCandidate,
   TeamIdentity,
+  TeamRosterCoverage,
   TeamRecommendationFilters,
   TeamRosterMember,
   TeamRosterSnapshot,

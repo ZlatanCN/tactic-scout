@@ -34,6 +34,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Roster FM profile mapping**: A link from a provider roster player to one exact local FM profile, established by a Reep bridge or explicit user confirmation. Matching names alone do not establish the mapping.
 
+**Roster mapping coverage**: For a captured squad, the counts of members linked to one usable local FM profile, members with no local profile, and members awaiting confirmation. Reep-bridge and user-confirmed counts identify how profiles were linked. This measures profile mapping, not target-position capability.
+
 **Agent loop**: The repeated path from model node to a LangGraph `ToolNode` when the model returns tool calls, then back to the model. The loop ends when the model returns a response without tool calls.
 
 **Structured request**: A bounded extraction of the user's task kind, all named players and teams, and explicitly stated constraints. For comparison, season and competition are data scopes; metric names such as FM ability and xG describe what to compare, not hard filters. It routes work; it does not invent a plan or evidence.

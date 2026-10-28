@@ -31,7 +31,7 @@ const comparisonPrompt = `你是一个足球资料助手。当前请求是多人
 
 const recommendationPrompt = `你是一个足球资料助手。当前请求是 FM 球员能力推荐，只能依据下面提供的结构化推荐结果作答，不得自行重排、补算或引入外部资料。当前能力相似名单按目标位置属性 RMSE 排序；高潜名单若出现，则按 PA 降序，当前属性距离只用于并列。两份名单回答不同问题，不要合并成一个综合分。PA 是潜力信号，不是未来 CA 预测或保证。高潜榜描述该位置的高潜球员，不代表他们都像参考球员。说明多参考平均画像代表接近算术平均，不保证同时接近每位参考球员。只展示工具结果中的姓名、数值、位置、快照和特征差；不要补猜当前球队、合同、费用、转会可行性、表现或未来属性。`;
 
-const teamRecommendationPrompt = `你是一个足球资料助手。当前请求是指定球队和位置的 FM 能力推荐，只能依据下面提供的结构化结果作答，不得自行重排、补算或引入外部资料。说明球队、目标位置、阵容数据来源与获取日期、FM 快照日期、已映射人数和映射方式。团队参考画像是位置评分至少 15 且特征完整的队内球员属性等权平均；候选按同一位置属性 RMSE 排序，当前阵容所有已映射 FM 球员都已排除。若提供高潜榜，它按 PA 单独排序，不与当前能力相似度混成综合分。不要推断阵容缺口、战术适配、转会可行性、合同、费用、当前球队或未来属性。`;
+const teamRecommendationPrompt = `你是一个足球资料助手。当前请求是指定球队和位置的 FM 能力推荐，只能依据下面提供的结构化结果作答，不得自行重排、补算或引入外部资料。说明球队、目标位置、阵容数据来源与获取日期、FM 快照日期、已映射人数和映射方式。“已映射”表示阵容成员链接到一个可用的本地 FM 画像，不代表该成员在目标位置达到位置评分门槛；Reep 桥接、用户确认、无本地画像和待确认成员数按工具提供的阵容覆盖统计说明。团队参考画像是位置评分至少 15 且特征完整的队内球员属性等权平均；候选按同一位置属性 RMSE 排序，当前阵容所有已映射 FM 球员都已排除。若提供高潜榜，它按 PA 单独排序，不与当前能力相似度混成综合分。不要推断阵容缺口、战术适配、转会可行性、合同、费用、当前球队或未来属性。`;
 
 const resolvedRecords = (player: RequestPlayerState) => {
   const candidate = selectedReferenceCandidate(player.resolution);
@@ -262,6 +262,7 @@ const parseUnmappedRosterMember = (value: string) => {
           .object({
             mappedMembers: z.number(),
             noLocalProfileMembers: z.number(),
+            pendingMembers: z.number(),
             reepBridgeMappings: z.number(),
             totalMembers: z.number(),
             userConfirmedMappings: z.number(),
@@ -335,7 +336,7 @@ const teamFailureAnswer = (state: AgentStateType): string | null => {
     const coverageSummary =
       coverage === undefined
         ? ""
-        : `当前已映射 ${coverage.mappedMembers}/${coverage.totalMembers} 人（Reep ${coverage.reepBridgeMappings}，人工确认 ${coverage.userConfirmedMappings}），无本地画像 ${coverage.noLocalProfileMembers} 人。`;
+        : `映射到可用本地 FM 画像 ${coverage.mappedMembers}/${coverage.totalMembers} 人（Reep 桥接 ${coverage.reepBridgeMappings}，人工确认 ${coverage.userConfirmedMappings}），无本地画像 ${coverage.noLocalProfileMembers} 人，待确认 ${coverage.pendingMembers} 人。`;
 
     return `阵容成员“${rosterMember.playerName}”（API-Football ID ${rosterMember.apiFootballPlayerId}）没有可确认的本地 FM 画像，因此已暂停推荐。${coverageSummary}`;
   }
