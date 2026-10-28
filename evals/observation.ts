@@ -281,6 +281,31 @@ const effectiveConditionsForState = (
   return null;
 };
 
+const availableResultKindsForState = (
+  state: AgentStateType
+): TurnObservation["availableResultKinds"] => {
+  const resultKinds: TurnObservation["availableResultKinds"] = [];
+  const context = state.conversationContext;
+
+  if (context.activeLookup !== null) {
+    resultKinds.push("player_lookup");
+  }
+
+  if (context.activeComparison.players.length >= 2) {
+    resultKinds.push("player_comparison");
+  }
+
+  if (context.activeRecommendation !== null) {
+    resultKinds.push("player_recommendation");
+  }
+
+  if (context.activeTeamRecommendation !== null) {
+    resultKinds.push("team_recommendation");
+  }
+
+  return resultKinds;
+};
+
 type EvaluationObserver = {
   actionEvents: EvaluationActionEvent[];
   callbacks: CallbackHandlerMethods;
@@ -790,6 +815,7 @@ const createEvaluationObserver = (
 
     turnObservations.push({
       assistantMessages,
+      availableResultKinds: availableResultKindsForState(state),
       clarificationAnswers: clarificationAnswersByTurn.get(turn.turnId) ?? [],
       clarificationKinds: clarificationKindsByTurn.get(turn.turnId) ?? [],
       deliveredEvidenceIds,

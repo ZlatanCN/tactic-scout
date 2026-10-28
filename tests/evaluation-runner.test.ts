@@ -18,6 +18,7 @@ import { z } from "zod/v4";
 
 import { loadEvaluationCases, previewEvaluation } from "../evals/benchmark.js";
 import {
+  availableResultKindSchema,
   evaluationCaseSchema,
   evaluationReportSchema,
 } from "../evals/contracts.js";
@@ -85,6 +86,7 @@ const judgeRequestSchema = z.object({
   turns: z.array(
     z.looseObject({
       assistantMessages: z.array(z.string()),
+      availableResultKinds: z.array(availableResultKindSchema),
       turnId: z.string(),
     })
   ),
@@ -117,7 +119,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v5.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v6.json"), "utf-8")
   )
 ).anchors;
 
@@ -675,7 +677,10 @@ const sendSeasonTeamAnswer = (
       return (
         role === "system" &&
         text.success &&
-        text.data.includes("team 字段只表示对应赛事和赛季表现记录中的球队")
+        text.data.includes("team 字段只表示对应赛事和赛季表现记录中的球队") &&
+        text.data.includes(
+          "不要使用“当前俱乐部”或“Current club”作为标题或字段名"
+        )
       );
     }) ?? false;
 
@@ -743,11 +748,25 @@ const judgeArgumentsFromRequest = (
   const input = judgeRequestSchema.parse(JSON.parse(rawContent.data));
   const anchor = judgeAnchors.find(({ anchorId }) => anchorId === input.caseId);
 
-  const expectedCategories =
+  const requiresSavedLookupState =
+    input.caseId === "correct-paraphrase-07-v5" ||
+    input.caseId === "correct-paraphrase-08-v5";
+
+  const savedLookupStatePresent =
+    input.turns[0]?.availableResultKinds.includes("player_lookup");
+
+  let expectedCategories = anchor?.expectedCategories ?? [];
+
+  if (requiresSavedLookupState && !savedLookupStatePresent) {
+    expectedCategories = ["unsupported_fact"];
+  }
+
+  if (
     mode === "judge_wrong_anchor" &&
     anchor?.anchorId === "factual-contradiction-05-v5"
-      ? []
-      : (anchor?.expectedCategories ?? []);
+  ) {
+    expectedCategories = [];
+  }
 
   const [firstTurn] = input.turns;
   const [firstEvidence] = input.evidence;
@@ -762,6 +781,33 @@ const judgeArgumentsFromRequest = (
 
   if (overridden !== null) {
     return overridden;
+  }
+
+  if (input.caseId === "compare-season-resume-add-synthetic-v1") {
+    const lastTurn = input.turns.at(-1);
+
+    const comparisonRemainsAvailable =
+      lastTurn?.availableResultKinds?.includes("player_comparison") === true;
+
+    return {
+      findings: comparisonRemainsAvailable
+        ? []
+        : [
+            {
+              actionIds: [],
+              category: "unsupported_fact",
+              evidenceIds: [],
+              explanation:
+                "No active comparison state was observed after the failed turn.",
+              quote: "此前已完成的结果仍保留。",
+              turnId: lastTurn?.turnId ?? "missing-final-turn",
+            },
+          ],
+      requiredFactCoverage: input.contract.requiredFacts.map(({ factId }) => ({
+        factId,
+        status: "covered" as const,
+      })),
+    };
   }
 
   return {
@@ -2451,12 +2497,82 @@ describe("local scouting evaluation entry", () => {
     expect(answer).toBe(
       "Understat 的 2026/27 EPL 赛季表现记录列出的球队是 Arsenal。FM 和 Understat 都没有提供当前注册球队，因此无法从这些资料确定 Elias Demo 目前效力的俱乐部。"
     );
+    expect(answer).not.toMatch(/(?:Current club|当前俱乐部)\s*:/u);
     expect(
       trial?.checks.find(({ id }) => id === "required-evidence")?.status
     ).toBe("passed");
     expect(trial?.codeStatus).toBe("passed");
     expect(requestCount).toBe(report.modelRequests);
   }, 20_000);
+
+  it("supplies active-result state after each turn to the semantic judge", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "comparison_resume"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-active-results-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["compare-season-resume-add-synthetic-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 120,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect({
+      activeResultKinds: trial?.observation.turns.map(
+        (turn) =>
+          z.object({ availableResultKinds: z.array(z.string()) }).parse(turn)
+            .availableResultKinds
+      ),
+      calibrationStatus: report.judgeCalibration?.status,
+      codeStatus: trial?.codeStatus,
+      reportStatus: report.status,
+      requestCount,
+      semanticStatus: trial?.semanticStatus,
+      trialStatus: trial?.status,
+    }).toStrictEqual({
+      activeResultKinds: [
+        ["player_comparison"],
+        ["player_comparison"],
+        ["player_comparison"],
+        ["player_comparison"],
+      ],
+      calibrationStatus: "passed",
+      codeStatus: "passed",
+      reportStatus: "completed",
+      requestCount: report.modelRequests,
+      semanticStatus: "passed",
+      trialStatus: "passed",
+    });
+  }, 30_000);
 
   it("applies an explicit competition scope in the real comparison workflow", async () => {
     let requestCount = 0;
@@ -2961,12 +3077,12 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 5 introduces claim-level category precedence: false execution for unsupported process claims, factual contradiction for directly disproved factual claims, and unsupported fact for ungrounded facts; different claims in one answer may receive different categories. All 16 validation anchors are new to this rubric. The v4 smoke reached 15/16 because a process-only false-execution anchor was inconsistently also labeled unsupported_fact; v1-v4 packs and reports remain historical.",
-      anchorVersion: "scouting-judge-anchors-v5",
+        "Version 6 adds a development anchor for a false result-retention claim when no active result is present. The v5 validation examples and labels are retained; the two saved-lookup anchors now carry explicit active lookup state for the v6 prompt. No validation finding informed this prompt revision. The v5 pack and reports remain historical.",
+      anchorVersion: "scouting-judge-anchors-v6",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v5",
+      judgePromptVersion: "scouting-semantic-judge-v6",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

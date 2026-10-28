@@ -398,8 +398,16 @@ const deliveredEvidenceSchema = z.object({
   turnId: z.string(),
 });
 
+const availableResultKindSchema = z.enum([
+  "player_comparison",
+  "player_lookup",
+  "player_recommendation",
+  "team_recommendation",
+]);
+
 const turnObservationSchema = z.object({
   assistantMessages: z.array(z.string()),
+  availableResultKinds: z.array(availableResultKindSchema),
   clarificationAnswers: z.array(
     z.object({ kind: z.string(), value: z.string() })
   ),
@@ -741,6 +749,7 @@ type WorkerTrialResult = z.output<typeof workerTrialResultSchema>;
 type TurnObservation = z.output<typeof turnObservationSchema>;
 
 export {
+  availableResultKindSchema,
   evaluationCaseSchema,
   declaredEvaluationDataFaultSchema,
   evaluationActionEventSchema,

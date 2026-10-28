@@ -6,6 +6,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod/v4";
 
 import {
+  availableResultKindSchema,
   judgeCalibrationSchema,
   semanticErrorCategorySchema,
   semanticFindingSchema,
@@ -21,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v5";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v6";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -55,6 +56,7 @@ const judgeAnchorSchema = z.object({
   ),
   anchorId: z.string(),
   answer: z.string(),
+  availableResultKinds: z.array(availableResultKindSchema).default([]),
   category: z.enum([
     "correct_paraphrase",
     "factual_contradiction",
@@ -129,6 +131,7 @@ const judgeInputSchema = z.object({
   turns: z.array(
     z.object({
       assistantMessages: z.array(z.string()),
+      availableResultKinds: z.array(availableResultKindSchema),
       turnId: z.string(),
       userMessage: z.string(),
     })
@@ -137,7 +140,7 @@ const judgeInputSchema = z.object({
 
 const judgeSystemPrompt = `You are an automated reviewer for a football scouting assistant. Review every assistant response in the supplied conversation.
 
-Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events, and the supplied task contract. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
+Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events, per-turn availableResultKinds state observations, and the supplied task contract. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn; use them to judge claims that a previous result was retained. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
 
 Report only critical findings in these categories:
 - factual_contradiction: a factual claim conflicts with delivered evidence.
@@ -184,7 +187,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v5.json");
+  const filePath = path.join(anchorDirectory, "v6.json");
   let contents: unknown;
 
   try {
@@ -233,6 +236,7 @@ const judgeInputForAnchor = (
   turns: [
     {
       assistantMessages: [anchor.answer],
+      availableResultKinds: anchor.availableResultKinds,
       turnId: anchor.anchorId,
       userMessage: anchor.userMessage,
     },
@@ -503,6 +507,7 @@ const judgeInputForTrial = (
     teamRosterCoverage: worker.teamRosterCoverage,
     turns: worker.turns.map((turn) => ({
       assistantMessages: turn.assistantMessages,
+      availableResultKinds: turn.availableResultKinds,
       turnId: turn.turnId,
       userMessage: turn.userMessage,
     })),
