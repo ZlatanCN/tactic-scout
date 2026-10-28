@@ -713,6 +713,87 @@ const sendCompletion = (
   );
 };
 
+const recommendationAnswerForRequest = (
+  body: z.output<typeof openAiRequestSchema>
+): string | null => {
+  const systemPrompt = body.messages?.find(({ role }) => role === "system");
+  const promptText = z.string().safeParse(systemPrompt?.content);
+
+  if (
+    !promptText.success ||
+    !promptText.data.includes("当前请求是 FM 球员能力推荐")
+  ) {
+    return null;
+  }
+
+  const userMessage = body.messages
+    ?.toReversed()
+    .find(({ role }) => role === "user");
+
+  const userText = z.string().safeParse(userMessage?.content);
+
+  if (!userText.success) {
+    return "推荐结果已就绪。";
+  }
+
+  const resultMarker = "结构化工具结果：";
+  const resultStart = userText.data.lastIndexOf(resultMarker);
+
+  if (resultStart === -1) {
+    return "推荐结果已就绪。";
+  }
+
+  const result = z
+    .looseObject({
+      currentCandidates: z.array(
+        z.looseObject({ fmId: z.string(), name: z.string() })
+      ),
+      references: z.array(
+        z.looseObject({
+          currentAbility: z.number().nullable(),
+          fmId: z.string(),
+          name: z.string(),
+          potentialAbility: z.number().nullable(),
+        })
+      ),
+    })
+    .safeParse(
+      JSON.parse(userText.data.slice(resultStart + resultMarker.length))
+    );
+
+  const references = result.success ? result.data.references : [];
+
+  const currentCandidates = result.success ? result.data.currentCandidates : [];
+
+  const reference = references.find(({ fmId }) => fmId === "fm-amb-b");
+
+  const alternateProfileReturned = currentCandidates.some(
+    ({ fmId }) => fmId === "fm-amb-a"
+  );
+
+  if (
+    reference !== undefined &&
+    !alternateProfileReturned &&
+    promptText.data.includes("为每个所选参考画像说明 FM ID、CA 和 PA")
+  ) {
+    const candidateNames = currentCandidates.map(({ name }) => name).join("、");
+
+    return `参考画像 ${reference.name}（FM ID ${reference.fmId}）：CA ${reference.currentAbility}，PA ${reference.potentialAbility}。推荐候选：${candidateNames}。`;
+  }
+
+  return "推荐结果已就绪。";
+};
+
+const isJudgeRequest = (body: z.output<typeof openAiRequestSchema>): boolean =>
+  body.messages?.some(({ content }) => {
+    const text = z.string().safeParse(content);
+
+    return (
+      text.success &&
+      text.data.includes("automated reviewer for a football scouting assistant")
+    );
+  }) ?? false;
+
 const sendSeasonTeamAnswer = (
   response: ServerResponse,
   callNumber: number,
@@ -976,19 +1057,10 @@ const handleGatewayRequest = async (
     const toolMessages =
       body.messages?.filter(({ role }) => role === "tool") ?? [];
 
-    const isJudgePrompt =
-      body.messages?.some(({ content }) => {
-        const text = z.string().safeParse(content);
-
-        return (
-          text.success &&
-          text.data.includes(
-            "automated reviewer for a football scouting assistant"
-          )
-        );
-      }) ?? false;
-
-    if (isJudgePrompt || toolNames.includes("evaluate_scouting_answer")) {
+    if (
+      isJudgeRequest(body) ||
+      toolNames.includes("evaluate_scouting_answer")
+    ) {
       sendJudgeResponse(
         response,
         callNumber,
@@ -1019,6 +1091,19 @@ const handleGatewayRequest = async (
           content:
             "FM 记录显示 CA 132、PA 184；Understat 的 EPL 2024/25 xG 为 5.2。",
         },
+        "stop"
+      );
+
+      return;
+    }
+
+    const recommendationAnswer = recommendationAnswerForRequest(body);
+
+    if (recommendationAnswer !== null) {
+      sendCompletion(
+        response,
+        callNumber,
+        { content: recommendationAnswer },
         "stop"
       );
 
@@ -2951,7 +3036,15 @@ describe("local scouting evaluation entry", () => {
         .at(-1)
         ?.assistantMessages.at(-1) ?? "";
 
-    expect(finalAssistantMessage.trim().length).toBeGreaterThan(0);
+    expect({
+      currentAbility: finalAssistantMessage.includes("CA 142"),
+      fmId: finalAssistantMessage.includes("FM ID fm-amb-b"),
+      potentialAbility: finalAssistantMessage.includes("PA 181"),
+    }).toStrictEqual({
+      currentAbility: true,
+      fmId: true,
+      potentialAbility: true,
+    });
   }, 20_000);
 
   it("runs a fixed API-Football roster through its real adapter and the complete team graph", async () => {

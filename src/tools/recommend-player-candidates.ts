@@ -9,6 +9,7 @@ import {
   recommendPlayers,
   resolveRecommendationPosition,
 } from "../player-data/recommend-players.js";
+import { expandFmIdsForLinkedIdentity } from "../player-data/reep-registry.js";
 import { assertModelProcessingAllowed } from "../player-data/shared.js";
 
 type RecommendationIdentityGroup = {
@@ -167,7 +168,12 @@ const recommendPlayerCandidates: RecommendPlayerCandidates = (input) => {
   }
 
   const referenceFmIds = referenceGroups.map((group) => group.fmIds[0] ?? "");
-  const excludeFmIds = excludeGroups.flatMap((group) => group.fmIds);
+
+  const excludeFmIds = expandFmIdsForLinkedIdentity([
+    ...referenceFmIds,
+    ...excludeGroups.flatMap((group) => group.fmIds),
+  ]);
+
   let { position } = input;
 
   if (position === null) {
@@ -244,7 +250,7 @@ const createRecommendPlayerCandidatesTool = (
 ) =>
   tool(recommend, {
     description:
-      "按已解析 FM 身份查找位置级能力相似球员。多名 reference 会等权平均属性；exclude 从所有名单排除。当前相似名单按 RMSE 排序，高潜名单按 PA 独立排序。",
+      "按已解析 FM 身份查找位置级能力相似球员。多名 reference 会等权平均属性；候选名单排除所有与 reference 或 exclude 同 Reep 身份的 FM 资料。当前相似名单按 RMSE 排序，高潜名单按 PA 独立排序。",
     name: "recommend_player_candidates",
     schema: recommendationToolInputSchema,
   });

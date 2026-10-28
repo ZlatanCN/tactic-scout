@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { readFmRecommendationProfiles } from "../player-data/football-manager.js";
 import { recommendTeamPlayers } from "../player-data/recommend-players.js";
+import { expandFmIdsForLinkedIdentity } from "../player-data/reep-registry.js";
 import { assertModelProcessingAllowed } from "../player-data/shared.js";
 import type {
   TeamIdentity,
@@ -86,6 +87,11 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
   const requestedReferenceFmIds =
     input.referenceMode === "squad" ? rosterFmIds : input.referenceFmIds;
 
+  const excludedFmIds = expandFmIdsForLinkedIdentity([
+    ...rosterFmIds,
+    ...requestedReferenceFmIds,
+  ]);
+
   const source = readFmRecommendationProfiles(
     input.position,
     requestedReferenceFmIds
@@ -93,7 +99,7 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
 
   const calculation = recommendTeamPlayers(
     {
-      excludeFmIds: rosterFmIds,
+      excludeFmIds: excludedFmIds,
       includePotential: input.includePotential,
       maxAge: input.maxAge,
       minimumCurrentAbility: input.minimumCurrentAbility,

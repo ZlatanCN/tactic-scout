@@ -12,7 +12,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **FM profile**: A versioned Football Manager ability profile containing current ability (CA), potential ability (PA), and player attributes. PA is a potential ceiling signal, not a probability or guarantee of reaching it.
 
-**Ability-similar recommendation**: A ranking of FM profiles by their position-specific attributes for a selected playing position. For multiple references, their attributes are averaged equally; this describes similarity within the FM snapshot, not real-world transfer availability.
+**Ability-similar recommendation**: A ranking of FM profiles by their position-specific attributes for a selected playing position. For multiple references, their attributes are averaged equally; this describes similarity within the FM snapshot, not real-world transfer availability. Candidates linked by Reep to a reference or explicitly excluded identity are removed across all FM profile IDs; the selected reference profile alone defines the comparison attributes.
 
 **Potential prospect recommendation**: A separate list for requests about youth or potential, ordered by PA while showing CA and current-attribute similarity as context. It does not predict a future attribute profile or combine PA with the current-ability similarity score.
 
@@ -30,7 +30,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Team-position reference profile**: The equal-weight mean of the target-position attributes for mapped roster FM profiles with a position rating of at least 15 and complete required features. It describes the existing team profile at that position, not an inferred squad gap or tactical style.
 
-**Team-directed recommendation**: Candidates for a scout-selected team and target position, ranked by distance from the team-position reference profile. Exact mapped current roster profiles are excluded from the candidate set.
+**Team-directed recommendation**: Candidates for a scout-selected team and target position, ranked by distance from the team-position reference profile. Every FM profile linked by Reep to a mapped current-roster identity is excluded from the candidate set, not only the particular mapped FM source ID.
 
 **Roster FM profile mapping**: A link from a provider roster player to one exact local FM profile, established by a Reep bridge or explicit user confirmation. Matching names alone do not establish the mapping.
 

@@ -47,6 +47,7 @@ const reepBridgeRowSchema = z.object({
 });
 
 const reepRegistryReadErrorMessage = "Reep 身份注册表无法读取。";
+const identityRegistryDefaultPath = ".data/reep/identity-with-fm.sqlite";
 
 const rethrowIdentityRegistryReadError = (error: Error): never => {
   if (isLocalDataError(error)) {
@@ -194,12 +195,86 @@ const resolveReepRecord = (
   }
 };
 
+const fmIdsForCanonicalIdentity = (
+  registry: DatabaseSync,
+  canonicalIdentityId: string
+): string[] =>
+  z
+    .array(z.object({ external_id: z.string() }))
+    .parse(
+      registry
+        .prepare(
+          `SELECT DISTINCT external_id
+           FROM bridges
+           WHERE provider = 'fm' AND namespace = 'player'
+             AND redirect_status = 'resolved' AND canonical_reep_id = ?
+           ORDER BY external_id`
+        )
+        .all(canonicalIdentityId)
+    )
+    .map(({ external_id }) => external_id);
+
+const expandFmIdsForLinkedIdentity = (fmIds: string[]): string[] => {
+  const expandedFmIds = new Set(fmIds.filter((fmId) => fmId.length > 0));
+
+  if (expandedFmIds.size === 0) {
+    return [];
+  }
+
+  const registryPath = resolveDataPath(
+    process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH,
+    identityRegistryDefaultPath
+  );
+
+  const registry = openIdentityRegistry(registryPath);
+
+  if (registry === null) {
+    return [...expandedFmIds].toSorted();
+  }
+
+  try {
+    const expandedCanonicalIdentities = new Set<string>();
+    const sourceFmIds = [...expandedFmIds];
+
+    for (const fmId of sourceFmIds) {
+      const identity = resolveReepRecord(registry, "fm", fmId);
+
+      if (
+        identity.status !== "resolved" ||
+        identity.canonicalIdentityId === null ||
+        expandedCanonicalIdentities.has(identity.canonicalIdentityId)
+      ) {
+        continue;
+      }
+
+      expandedCanonicalIdentities.add(identity.canonicalIdentityId);
+
+      for (const linkedFmId of fmIdsForCanonicalIdentity(
+        registry,
+        identity.canonicalIdentityId
+      )) {
+        expandedFmIds.add(linkedFmId);
+      }
+    }
+
+    return [...expandedFmIds].toSorted();
+  } catch (error) {
+    if (error instanceof Error) {
+      return rethrowIdentityRegistryReadError(error);
+    }
+
+    throw error;
+  } finally {
+    registry.close();
+  }
+};
+
 const resolveApiFootballPlayerFmIds = (
   apiFootballPlayerId: string
 ): ApiFootballFmBridgeResolution => {
   const registryPath = resolveDataPath(
     process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH,
-    ".data/reep/identity-with-fm.sqlite"
+    identityRegistryDefaultPath
   );
 
   const registry = openIdentityRegistry(registryPath);
@@ -252,21 +327,9 @@ const resolveApiFootballPlayerFmIds = (
       };
     }
 
-    const fmRows = z.array(z.object({ external_id: z.string() })).parse(
-      registry
-        .prepare(
-          `SELECT DISTINCT external_id
-           FROM bridges
-           WHERE provider = 'fm' AND namespace = 'player'
-             AND redirect_status = 'resolved' AND canonical_reep_id = ?
-           ORDER BY external_id`
-        )
-        .all(canonicalIdentityId)
-    );
-
     return {
       canonicalIdentityId,
-      fmIds: fmRows.map((row) => row.external_id),
+      fmIds: fmIdsForCanonicalIdentity(registry, canonicalIdentityId),
       status: "resolved",
     };
   } catch (error) {
@@ -299,7 +362,7 @@ const resolveSearchIdentityGroups = (
 
   const registryPath = resolveDataPath(
     process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH,
-    ".data/reep/identity-with-fm.sqlite"
+    identityRegistryDefaultPath
   );
 
   const unavailable = () => ({
@@ -389,6 +452,7 @@ const resolveSearchIdentityGroups = (
 };
 
 export {
+  expandFmIdsForLinkedIdentity,
   openIdentityRegistry,
   resolveApiFootballPlayerFmIds,
   resolveReepRecord,

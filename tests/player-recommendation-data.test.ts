@@ -102,6 +102,34 @@ const createFmDatabase = (
   return databasePath;
 };
 
+const createIdentityDatabase = (
+  bridges: { canonicalReepId: string; fmId: string }[]
+): string => {
+  const directory = mkdtempSync(path.join(tmpdir(), "tactiscout-identity-"));
+  const databasePath = path.join(directory, "identity.sqlite");
+  const database = new DatabaseSync(databasePath);
+
+  temporaryDirectories.push(directory);
+  database.exec(
+    "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);" +
+      "INSERT INTO metadata (key, value) VALUES ('release_stamp', 'test');" +
+      "CREATE TABLE bridges (provider TEXT NOT NULL, namespace TEXT NOT NULL, external_id TEXT NOT NULL, canonical_reep_id TEXT, redirect_status TEXT NOT NULL);"
+  );
+
+  const insertBridge = database.prepare(
+    "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES ('fm', 'player', ?, ?, 'resolved')"
+  );
+
+  for (const { canonicalReepId, fmId } of bridges) {
+    insertBridge.run(fmId, canonicalReepId);
+  }
+
+  database.close();
+  vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", databasePath);
+
+  return databasePath;
+};
+
 const understatPlayer = (id: string, name: string) => ({
   assists: "2",
   goals: "5",
@@ -506,8 +534,18 @@ describe("player recommendation data invariants", () => {
   it("returns team identity, mapping coverage, source dates, filters, and ranked candidates", async () => {
     createFmDatabase([
       { fmId: "team-reference", rating: 20 },
+      { fmId: "team-reference-alternate", rating: 20 },
       { fmId: "team-low-rated", rating: 14 },
       { fmId: "outside-candidate", rating: 20 },
+    ]);
+    createIdentityDatabase([
+      { canonicalReepId: "identity-team-reference", fmId: "team-reference" },
+      {
+        canonicalReepId: "identity-team-reference",
+        fmId: "team-reference-alternate",
+      },
+      { canonicalReepId: "identity-low-rated", fmId: "team-low-rated" },
+      { canonicalReepId: "identity-outside", fmId: "outside-candidate" },
     ]);
     vi.stubEnv("OPENAI_BASE_URL", "http://127.0.0.1:1234");
 
@@ -621,6 +659,64 @@ describe("player recommendation data invariants", () => {
         ])
       )
     );
+    expect(
+      result.recommendation.currentCandidates.map(({ fmId }) => fmId)
+    ).toStrictEqual(["outside-candidate"]);
+  });
+
+  it("excludes alternate FM profiles linked to reference and excluded identities", async () => {
+    createFmDatabase([
+      { fmId: "reference-selected", rating: 20 },
+      { fmId: "reference-alternate", rating: 20 },
+      { fmId: "exclude-selected", rating: 20 },
+      { fmId: "exclude-alternate", rating: 20 },
+      { fmId: "outside-candidate", rating: 20 },
+    ]);
+    createIdentityDatabase([
+      { canonicalReepId: "identity-reference", fmId: "reference-selected" },
+      { canonicalReepId: "identity-reference", fmId: "reference-alternate" },
+      { canonicalReepId: "identity-excluded", fmId: "exclude-selected" },
+      { canonicalReepId: "identity-excluded", fmId: "exclude-alternate" },
+      { canonicalReepId: "identity-outside", fmId: "outside-candidate" },
+    ]);
+    vi.stubEnv("OPENAI_BASE_URL", "http://127.0.0.1:1234");
+
+    const input: RecommendPlayerCandidatesInput = {
+      excludeGroups: [
+        {
+          fmIds: ["exclude-selected"],
+          identityKey: "identity-excluded",
+          name: "Excluded Player",
+        },
+      ],
+      includePotential: false,
+      maxAge: null,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceGroups: [
+        {
+          fmIds: ["reference-selected"],
+          identityKey: "identity-reference",
+          name: "Reference Player",
+        },
+      ],
+      resultLimit: 5,
+    };
+
+    const result = z
+      .object({
+        currentCandidates: z.array(z.object({ fmId: z.string() })),
+        referenceFmIds: z.array(z.string()),
+        status: z.string(),
+      })
+      .parse(JSON.parse(await recommendPlayerCandidates(input)));
+
+    expect(result).toStrictEqual({
+      currentCandidates: [{ fmId: "outside-candidate" }],
+      referenceFmIds: ["reference-selected"],
+      status: "ready",
+    });
   });
 
   it("merges FM IDs across repeated groups for the same identity", async () => {
