@@ -58,7 +58,9 @@ const completionMessageSchema = z.object({
 type CompletionMessage = z.input<typeof completionMessageSchema>;
 
 type FakeGatewayMode =
+  | "judge_action_id_in_evidence"
   | "judge_invalid_quote"
+  | "judge_missing_contradiction_evidence"
   | "judge_unsupported_finding"
   | "judge_wrong_anchor"
   | "malformed_search"
@@ -85,6 +87,18 @@ const judgeRequestSchema = z.object({
   ),
 });
 
+const judgeInputFromRequestBody = (requestBody: string) => {
+  const body = openAiRequestSchema.parse(JSON.parse(requestBody));
+
+  const userMessage = body.messages
+    ?.toReversed()
+    .find(({ role }) => role === "user");
+
+  const content = z.string().parse(userMessage?.content);
+
+  return judgeRequestSchema.parse(JSON.parse(content));
+};
+
 const judgeAnchorPackSchema = z.object({
   anchors: z.array(
     z.object({
@@ -103,6 +117,61 @@ const judgeAnchors = judgeAnchorPackSchema.parse(
     readFileSync(path.join(process.cwd(), "evals/anchors/v3.json"), "utf-8")
   )
 ).anchors;
+
+const judgeOverrideForRequest = (
+  input: z.output<typeof judgeRequestSchema>,
+  mode: FakeGatewayMode,
+  firstTurn: z.output<typeof judgeRequestSchema>["turns"][number] | undefined,
+  firstAction:
+    | z.output<typeof judgeRequestSchema>["actions"][number]
+    | undefined
+) => {
+  if (input.caseId !== "lookup-smoke-v1" || firstTurn === undefined) {
+    return null;
+  }
+
+  const requiredFactCoverage = input.contract.requiredFacts.map(
+    ({ factId }) => ({
+      factId,
+      status: "covered" as const,
+    })
+  );
+
+  let finding = null;
+
+  if (mode === "judge_invalid_quote" || mode === "judge_unsupported_finding") {
+    finding = {
+      actionIds: [],
+      category: "unsupported_fact" as const,
+      evidenceIds: [],
+      explanation: "The controlled judge provides a test finding.",
+      quote:
+        mode === "judge_invalid_quote"
+          ? "This quotation is absent from the answer."
+          : (firstTurn.assistantMessages[0] ?? ""),
+      turnId: firstTurn.turnId,
+    };
+  } else if (
+    mode === "judge_action_id_in_evidence" ||
+    mode === "judge_missing_contradiction_evidence"
+  ) {
+    finding = {
+      actionIds: [],
+      category: "factual_contradiction" as const,
+      evidenceIds:
+        mode === "judge_action_id_in_evidence" && firstAction !== undefined
+          ? [firstAction.actionId]
+          : [],
+      explanation: "The controlled judge provides a test finding.",
+      quote: firstTurn.assistantMessages[0] ?? "",
+      turnId: firstTurn.turnId,
+    };
+  }
+
+  return finding === null
+    ? null
+    : { findings: [finding], requiredFactCoverage };
+};
 
 const parseRequest = async (request: IncomingMessage) => {
   request.setEncoding("utf-8");
@@ -671,32 +740,15 @@ const judgeArgumentsFromRequest = (
   const [firstEvidence] = input.evidence;
   const [firstAction] = input.actions;
 
-  if (
-    input.caseId === "lookup-smoke-v1" &&
-    firstTurn !== undefined &&
-    (mode === "judge_invalid_quote" || mode === "judge_unsupported_finding")
-  ) {
-    const firstResponse = firstTurn.assistantMessages[0] ?? "";
+  const overridden = judgeOverrideForRequest(
+    input,
+    mode,
+    firstTurn,
+    firstAction
+  );
 
-    return {
-      findings: [
-        {
-          actionIds: [],
-          category: "unsupported_fact",
-          evidenceIds: [],
-          explanation: "The controlled judge provides a test finding.",
-          quote:
-            mode === "judge_invalid_quote"
-              ? "This quotation is absent from the answer."
-              : firstResponse,
-          turnId: firstTurn.turnId,
-        },
-      ],
-      requiredFactCoverage: input.contract.requiredFacts.map(({ factId }) => ({
-        factId,
-        status: "covered",
-      })),
-    };
+  if (overridden !== null) {
+    return overridden;
   }
 
   return {
@@ -2901,20 +2953,169 @@ describe("local scouting evaluation entry", () => {
 
     const [trial] = report.trials;
 
+    const judgeExchange = trial?.gatewayExchanges.find(
+      ({ role }) => role === "judge"
+    );
+
+    if (judgeExchange === undefined) {
+      throw new Error("The trial did not record its judge request.");
+    }
+
+    const judgeInput = judgeInputFromRequestBody(judgeExchange.requestBody);
+
     expect({
+      actionEventIdsAreNamespaced: judgeInput.actions.every(({ eventId }) =>
+        eventId.startsWith("action-event:")
+      ),
+      actionIdsAreNamespaced: judgeInput.actions.every(({ actionId }) =>
+        actionId.startsWith("action:")
+      ),
       calibration: report.judgeCalibration?.status,
       codeStatus: trial?.codeStatus,
+      evidenceIdsAreNamespaced: judgeInput.evidence.every(({ evidenceId }) =>
+        evidenceId.startsWith("evidence:")
+      ),
       findingCategories: trial?.semanticFindings.map(
         ({ category }) => category
       ),
       semanticStatus: trial?.semanticStatus,
       status: trial?.status,
     }).toStrictEqual({
+      actionEventIdsAreNamespaced: true,
+      actionIdsAreNamespaced: true,
       calibration: "passed",
       codeStatus: "passed",
+      evidenceIdsAreNamespaced: true,
       findingCategories: ["unsupported_fact"],
       semanticStatus: "failed",
       status: "failed",
+    });
+  }, 30_000);
+
+  it("invalidates factual contradictions without evidence citations", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "judge_missing_contradiction_evidence"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-judge-missing-evidence-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-smoke-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect({
+      calibration: report.judgeCalibration?.status,
+      judgeRequests: report.requestCountsByRole.judge,
+      semanticStatus: trial?.semanticStatus,
+      status: trial?.status,
+      validationErrors: trial?.semanticValidationErrors,
+    }).toStrictEqual({
+      calibration: "passed",
+      judgeRequests: 1,
+      semanticStatus: "invalid",
+      status: "judge_invalid",
+      validationErrors: ["contradiction_missing_evidence_reference"],
+    });
+  }, 30_000);
+
+  it("rejects an action identifier placed in evidenceIds without retrying", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "judge_action_id_in_evidence"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-judge-action-as-evidence-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-smoke-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    const judgeExchange = trial?.gatewayExchanges.find(
+      ({ role }) => role === "judge"
+    );
+
+    if (judgeExchange === undefined) {
+      throw new Error("The trial did not record its judge request.");
+    }
+
+    const judgeInput = judgeInputFromRequestBody(judgeExchange.requestBody);
+    const [firstAction] = judgeInput.actions;
+
+    if (firstAction === undefined) {
+      throw new Error("The judge request did not contain an action.");
+    }
+
+    expect({
+      actionIdIsNamespaced: firstAction.actionId.startsWith("action:"),
+      judgeRequests: report.requestCountsByRole.judge,
+      semanticStatus: trial?.semanticStatus,
+      status: trial?.status,
+      validationErrors: trial?.semanticValidationErrors,
+    }).toStrictEqual({
+      actionIdIsNamespaced: true,
+      judgeRequests: 1,
+      semanticStatus: "invalid",
+      status: "judge_invalid",
+      validationErrors: [`unknown_evidence:${firstAction.actionId}`],
     });
   }, 30_000);
 
@@ -2962,15 +3163,113 @@ describe("local scouting evaluation entry", () => {
     expect({
       calibration: report.judgeCalibration?.status,
       codeStatus: trial?.codeStatus,
+      judgeRequests: report.requestCountsByRole.judge,
       semanticStatus: trial?.semanticStatus,
       status: trial?.status,
       validationErrors: trial?.semanticValidationErrors,
     }).toStrictEqual({
       calibration: "passed",
       codeStatus: "passed",
+      judgeRequests: 1,
       semanticStatus: "invalid",
       status: "judge_invalid",
       validationErrors: ["quote_not_found:lookup-smoke-v1-turn-1"],
+    });
+  }, 30_000);
+
+  it("keeps undelivered required evidence inconclusive", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(request, response, requestCount);
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-judge-undelivered-evidence-eval-")
+    );
+
+    const caseDirectory = path.join(workspace, "cases");
+    const evidenceDirectory = path.join(workspace, "evidence");
+
+    temporaryDirectories.push(workspace);
+    mkdirSync(caseDirectory, { recursive: true });
+    mkdirSync(evidenceDirectory, { recursive: true });
+
+    const sourceCase = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(
+            process.cwd(),
+            "evals/cases/lookup-identity-unavailable-v1.json"
+          ),
+          "utf-8"
+        )
+      )
+    );
+
+    const evidenceContents = readFileSync(
+      path.join(process.cwd(), "evals/evidence/lookup-smoke-evidence-v1.json"),
+      "utf-8"
+    );
+
+    const caseWithRequiredEvidence = {
+      ...sourceCase,
+      contract: {
+        ...sourceCase.contract,
+        requiredEvidence: [
+          {
+            field: "currentAbility",
+            provider: "fm" as const,
+            sourceId: "fm-demo-01",
+            value: 132,
+          },
+        ],
+      },
+    };
+
+    writeFileSync(
+      path.join(caseDirectory, "lookup-identity-unavailable-v1.json"),
+      JSON.stringify(caseWithRequiredEvidence)
+    );
+    writeFileSync(
+      path.join(evidenceDirectory, "lookup-smoke-evidence-v1.json"),
+      evidenceContents
+    );
+
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseDirectory,
+      caseIds: ["lookup-identity-unavailable-v1"],
+      evidenceDirectory,
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect({
+      judgeRequests: report.requestCountsByRole.judge,
+      semanticStatus: trial?.semanticStatus,
+      validationErrors: trial?.semanticValidationErrors,
+    }).toStrictEqual({
+      judgeRequests: 1,
+      semanticStatus: "inconclusive",
+      validationErrors: ["required_evidence_not_delivered"],
     });
   }, 30_000);
 

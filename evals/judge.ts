@@ -20,7 +20,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v2";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v4";
 const semanticRubricVersion = "scouting-evaluation-rubric-v2";
 
 const semanticJudgeOutputSchema = z.object({
@@ -144,7 +144,9 @@ Report only critical findings in these categories:
 
 Classify each claim independently. One answer may have multiple findings, including multiple categories for the same sentence. A false execution claim does not replace an unsupported-fact finding in the same answer. For example, saying that a fresh API request returned the current full roster is both false_execution_claim when only a cached snapshot was used and unsupported_fact when the snapshot does not establish currentness or completeness.
 
-Quote the exact assistant text, use the matching turnId, cite evidenceIds or actionIds when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
+Identifier rules: supplied evidence IDs begin with "evidence:" and may appear only in evidenceIds. Operation IDs begin with "action:" and event IDs begin with "action-event:"; both may appear only in actionIds. Never place an action or event ID in evidenceIds, or an evidence ID in actionIds. For a factual contradiction, cite the matching evidence ID, for example {"evidenceIds":["evidence:<exact-id>"],"actionIds":[]}. For a false execution claim, cite the matching action ID, for example {"evidenceIds":[],"actionIds":["action:<exact-id>"]}.
+
+Quote the exact assistant text, use the matching turnId, cite the correctly typed IDs when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
 
 For each required fact, mark whether it is covered in the visible assistant responses. If the answer cannot be assessed from the supplied evidence, use uncertain. Return the required structured output only.`;
 
@@ -190,12 +192,17 @@ const loadJudgeAnchors = (
   return judgeAnchorPackSchema.parse(contents);
 };
 
+const judgeIdentifier = (
+  namespace: "action" | "action-event" | "evidence",
+  id: string
+): string => `${namespace}:${id}`;
+
 const judgeInputForAnchor = (
   anchor: z.output<typeof judgeAnchorSchema>
 ): z.output<typeof judgeInputSchema> => ({
   actions: anchor.actions.map((action) => ({
-    actionId: action.actionId,
-    eventId: `${action.actionId}:anchor`,
+    actionId: judgeIdentifier("action", action.actionId),
+    eventId: judgeIdentifier("action-event", `${action.actionId}:anchor`),
     kind: action.kind,
     name: action.name,
     outcome: action.outcome ?? null,
@@ -213,6 +220,7 @@ const judgeInputForAnchor = (
   },
   evidence: anchor.evidence.map((evidence) => ({
     ...evidence,
+    evidenceId: judgeIdentifier("evidence", evidence.evidenceId),
     provider: "application",
     sourceId: null,
     turnId: anchor.anchorId,
@@ -456,8 +464,8 @@ const judgeInputForTrial = (
 
   return {
     actions: worker.actionEvents.map((event) => ({
-      actionId: event.actionId,
-      eventId: event.eventId,
+      actionId: judgeIdentifier("action", event.actionId),
+      eventId: judgeIdentifier("action-event", event.eventId),
       kind: event.kind,
       name: event.name,
       outcome: event.outcome,
@@ -482,7 +490,7 @@ const judgeInputForTrial = (
     },
     evidence: worker.deliveredEvidence.map((evidence) => ({
       content: evidence.content,
-      evidenceId: evidence.evidenceId,
+      evidenceId: judgeIdentifier("evidence", evidence.evidenceId),
       provider: evidence.provider,
       sourceId: evidence.sourceId,
       turnId: evidence.turnId,
