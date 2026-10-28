@@ -495,17 +495,23 @@ const readFmProfilesBySourceIds = (sourceIds: string[]): FmReadResult => {
   }
 
   try {
-    const query = database.prepare(
-      `SELECT p.record_id, p.payload
-       FROM players p
-       WHERE p.unique_id = ? OR p.record_id = ?
-       ORDER BY p.record_id`
+    const queryByUniqueId = database.prepare(
+      "SELECT p.record_id, p.payload FROM players p WHERE p.unique_id = ? ORDER BY p.record_id"
+    );
+
+    const queryByRecordId = database.prepare(
+      "SELECT p.record_id, p.payload FROM players p WHERE p.record_id = ? ORDER BY p.record_id"
     );
 
     const records = [...new Set(sourceIds)].flatMap((sourceId) => {
-      const rows = z
+      const uniqueIdRows = z
         .array(fmProfileRowSchema)
-        .parse(query.all(sourceId, sourceId));
+        .parse(queryByUniqueId.all(sourceId));
+
+      const rows =
+        uniqueIdRows.length > 0
+          ? uniqueIdRows
+          : z.array(fmProfileRowSchema).parse(queryByRecordId.all(sourceId));
 
       return rows.map(({ record_id: recordId, payload }) => {
         const profile = parseJson(

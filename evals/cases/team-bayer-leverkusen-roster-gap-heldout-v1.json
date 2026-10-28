@@ -1437,7 +1437,7 @@
   "declaredDataFaults": [],
   "declaredTurnFaults": [],
   "evidenceBundleId": "team-bayer-leverkusen-heldout-v1",
-  "evidenceBundleSha256": "afb330787d111a6ffc5ab04c6b7e8c024e19deacc742680236a1b46c69080702",
+  "evidenceBundleSha256": "b5dea1e4bbf2e9171499bbc59f32b0f65726979eee638c0f72b89388c50f1501",
   "origin": "real",
   "priorTuningExposure": "Authored after the local API-Football capture and Reep-to-FM coverage audit; not evaluated against a live model.",
   "scenarioFamily": "real-bayer-leverkusen-incomplete-fm-roster",

@@ -11,6 +11,7 @@ import {
   latestHumanMessage,
   messageText,
 } from "../player-mentions.js";
+import { recommendationPatchFromConstraints } from "../recommendation-constraints.js";
 import type { RequestUnderstandingExtractor } from "../request-extraction.js";
 import {
   normalizeExtractedPlayers,
@@ -33,6 +34,13 @@ import {
 } from "../state.js";
 
 type RecommendationAction = "replace" | "add" | "refine";
+
+const recommendationPatchFromRequest = (
+  extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>
+) => ({
+  ...extracted.recommendation,
+  ...recommendationPatchFromConstraints(extracted.constraints),
+});
 
 const youthRecommendationPattern =
   /年轻|青年|青少年|小将|\bu(?:1[5-9]|2\d)\b|\byoung\b|\byouth\b/iu;
@@ -249,7 +257,7 @@ const recommendationFromText = (
 ): RecommendationRequestState =>
   mergeRecommendationIntent(
     recommendationBaseline(context, action),
-    extracted.recommendation,
+    recommendationPatchFromRequest(extracted),
     text
   );
 
@@ -387,7 +395,7 @@ const teamRecommendationFromText = (
   const existing = context.activeTeamRecommendation;
   const teamNames = uniqueText(extracted.teams);
   const hasNewTeam = teamNames.length > 0;
-  const patch = extracted.recommendation;
+  const patch = recommendationPatchFromRequest(extracted);
 
   const baseline =
     existing !== null && !hasNewTeam
@@ -399,7 +407,7 @@ const teamRecommendationFromText = (
   let teamSearchName: string | null = existing?.team.name ?? null;
 
   if (patchHasField(patch, "position")) {
-    position = patch?.position ?? null;
+    position = patch.position ?? null;
   }
 
   if (hasNewTeam) {

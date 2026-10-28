@@ -7,7 +7,7 @@
   "scenarioFamily": "kane-van-dijk-unshared-understat-competitions",
   "priorTuningExposure": "Harry Kane appears in prior manual experiments; this cross-scope case has not been run against a live model.",
   "evidenceBundleId": "lookup-real-heldout-v1",
-  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "evidenceBundleSha256": "d9a28212e17759541f2f1b8d84051214645f330bb38dec700cead4a027ee18b6",
   "contract": {
     "taskKind": "player_comparison",
     "outcomeStatus": "ready",

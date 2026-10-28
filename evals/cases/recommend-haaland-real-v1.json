@@ -7,7 +7,7 @@
   "scenarioFamily": "dev-single-haaland-striker-rmse",
   "priorTuningExposure": "Independent arithmetic checks were computed from the frozen FM position-feature map and source rows; no production ranking output was used as gold. Authored for evaluation-v1; not run against a live model.",
   "evidenceBundleId": "recommendation-real-development-v1",
-  "evidenceBundleSha256": "6f95fc8100af889e1be99995b43a45a8918d04dc22a93a2f521fdade11b0dc51",
+  "evidenceBundleSha256": "a04e0e0b2de2180ae0dbbb85cd9b0dd9ff15a836fd1995f71d09cf09838cbd9d",
   "turns": [
     {
       "turnId": "recommend-haaland-real-v1-turn-1",

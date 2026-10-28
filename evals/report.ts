@@ -20,6 +20,18 @@ const escapeMarkdownCell = (value: string): string =>
 const usageLabel = (value: number | null): string =>
   value === null ? "unavailable" : String(value);
 
+const retiredAnchorLabel = (
+  calibration: EvaluationReport["judgeCalibration"]
+): string => {
+  if (calibration === null) {
+    return "unavailable";
+  }
+
+  return calibration.retiredValidationAnchorIds.length === 0
+    ? "none"
+    : calibration.retiredValidationAnchorIds.join(", ");
+};
+
 const noneRecorded = "- None recorded";
 
 const understatDateLabel = (
@@ -274,6 +286,8 @@ const markdownReport = (report: EvaluationReport): string => {
       ? []
       : [
           `- Judge calibration: ${report.judgeCalibration.status} · validation ${report.judgeCalibration.validation.passed}/${report.judgeCalibration.validation.total} · model ${report.judgeCalibration.judgeModel}${report.judgeCalibration.sameModelAsAgent ? " (same as agent)" : ""}`,
+          `- Judge anchor prior tuning exposure: ${report.judgeCalibration.anchorPriorTuningExposure}`,
+          `- Retired validation anchors: ${retiredAnchorLabel(report.judgeCalibration)}`,
         ]),
     `- Denied requests: ${report.deniedRequests}`,
     `- Network failures: ${report.networkFailures}`,
@@ -408,6 +422,12 @@ const comparisonModelRows = (
     baseline.tokenUsageByRole.agent.modelIds.join(", ") || "unavailable",
     candidate.tokenUsageByRole.agent.modelIds.join(", ") || "unavailable"
   ),
+];
+
+const comparisonJudgePolicyRows = (
+  baseline: EvaluationReport,
+  candidate: EvaluationReport
+): string[] => [
   comparisonConfigRow(
     "Judge model",
     baseline.judgeCalibration?.judgeModel ?? "unavailable",
@@ -422,6 +442,16 @@ const comparisonModelRows = (
     "Judge anchors",
     baseline.judgeCalibration?.anchorVersion ?? "unavailable",
     candidate.judgeCalibration?.anchorVersion ?? "unavailable"
+  ),
+  comparisonConfigRow(
+    "Anchor prior tuning exposure",
+    baseline.judgeCalibration?.anchorPriorTuningExposure ?? "unavailable",
+    candidate.judgeCalibration?.anchorPriorTuningExposure ?? "unavailable"
+  ),
+  comparisonConfigRow(
+    "Retired validation anchors",
+    retiredAnchorLabel(baseline.judgeCalibration),
+    retiredAnchorLabel(candidate.judgeCalibration)
   ),
 ];
 
@@ -448,6 +478,7 @@ const comparisonConfigurationRows = (
 ): string[] => [
   ...comparisonCodeRows(baseline, candidate),
   ...comparisonModelRows(baseline, candidate),
+  ...comparisonJudgePolicyRows(baseline, candidate),
   ...comparisonRunRows(baseline, candidate),
 ];
 

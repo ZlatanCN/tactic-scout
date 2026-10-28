@@ -197,6 +197,35 @@ describe("request understanding extraction", () => {
     });
   });
 
+  it("maps a generic maximum-age constraint into the recommendation filter", async () => {
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      requestUnderstandingExtractor: async () => {
+        await delay(0);
+
+        return {
+          constraints: [{ name: "maximum_age", value: "21" }],
+          kind: "player_recommendation",
+          players: [],
+          recommendation: { position: "stc" },
+          teams: [],
+        };
+      },
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Find striker candidates under 21.")] },
+      { configurable: { thread_id: "recommendation-maximum-age-alias" } }
+    );
+
+    if (result.request.kind !== "player_recommendation") {
+      throw new Error("Expected a player recommendation request.");
+    }
+
+    expect(result.request.recommendation.maxAge).toBe(21);
+  });
+
   it("keeps the user's team mention separate from the provider search name", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");

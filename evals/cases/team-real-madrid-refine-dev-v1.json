@@ -3286,9 +3286,9 @@
   "declaredDataFaults": [],
   "declaredTurnFaults": [],
   "evidenceBundleId": "team-real-madrid-development-v1",
-  "evidenceBundleSha256": "da808b2d7d055daa2dba50309d84c9e0f3769d9617804c6d9098e5f41d98ca2b",
+  "evidenceBundleSha256": "79b025ade4227ba872a79298ba7cbe7fe1cb3ee6f7053bbf8786907fe8103725",
   "origin": "real",
-  "priorTuningExposure": "Authored after the local API-Football capture and Reep-to-FM coverage audit; not evaluated against a live model.",
+  "priorTuningExposure": "Used in the evaluation-v1 live smoke (run 58b834ab-ba06-4c04-acc9-1ea55e8f67d3); the case verifies safe stopping for the frozen Real Madrid roster.",
   "scenarioFamily": "real-real-madrid-incomplete-fm-roster",
   "split": "development",
   "turns": [

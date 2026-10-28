@@ -676,11 +676,24 @@ const restrictEvidenceBundleToCase = (
     scopedUnderstatIds.set(source.sourceId, allowedScopes);
   }
 
-  const fmPlayers = bundle.fm.players.filter(
-    (player) => fmIds.has(player.uniqueId ?? "") || fmIds.has(player.recordId)
+  const availableFmUniqueIds = new Set(
+    bundle.fm.players.flatMap((player) =>
+      player.uniqueId === null ? [] : [player.uniqueId]
+    )
   );
 
-  const fmRecordIds = new Set(fmPlayers.map(({ recordId }) => recordId));
+  const fmRecordIds = new Set(
+    [...fmIds].filter((sourceId) => !availableFmUniqueIds.has(sourceId))
+  );
+
+  const fmPlayers = bundle.fm.players.filter(
+    (player) =>
+      fmIds.has(player.uniqueId ?? "") || fmRecordIds.has(player.recordId)
+  );
+
+  const selectedFmRecordIds = new Set(
+    fmPlayers.map(({ recordId }) => recordId)
+  );
 
   const identitySourceKeys = new Set(
     sourceScope.map(({ provider, sourceId }) => `${provider}|${sourceId}`)
@@ -777,7 +790,7 @@ const restrictEvidenceBundleToCase = (
       ...bundle.fm,
       players: fmPlayers,
       positions: bundle.fm.positions.filter(({ recordId }) =>
-        fmRecordIds.has(recordId)
+        selectedFmRecordIds.has(recordId)
       ),
     },
     identity: {

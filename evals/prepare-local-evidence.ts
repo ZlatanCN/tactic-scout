@@ -208,8 +208,12 @@ const fmPlayersFromSource = (
   database: DatabaseSync,
   selectedIds: string[]
 ): ExtractedFmProfile[] => {
-  const playerQuery = database.prepare(
-    "SELECT birth_date, name, payload, record_id, unique_id FROM players WHERE unique_id = ? OR record_id = ? ORDER BY record_id"
+  const playerByUniqueIdQuery = database.prepare(
+    "SELECT birth_date, name, payload, record_id, unique_id FROM players WHERE unique_id = ? ORDER BY record_id"
+  );
+
+  const playerByRecordIdQuery = database.prepare(
+    "SELECT birth_date, name, payload, record_id, unique_id FROM players WHERE record_id = ? ORDER BY record_id"
   );
 
   const aliasQuery = database.prepare(
@@ -223,9 +227,18 @@ const fmPlayersFromSource = (
   const selectedRows = new Map<string, z.output<typeof fmProfileRowSchema>>();
 
   for (const sourceId of new Set(selectedIds)) {
-    for (const row of z
+    const uniqueIdRows = z
       .array(fmProfileRowSchema)
-      .parse(playerQuery.all(sourceId, sourceId))) {
+      .parse(playerByUniqueIdQuery.all(sourceId));
+
+    const rows =
+      uniqueIdRows.length > 0
+        ? uniqueIdRows
+        : z
+            .array(fmProfileRowSchema)
+            .parse(playerByRecordIdQuery.all(sourceId));
+
+    for (const row of rows) {
       selectedRows.set(row.record_id, row);
     }
   }

@@ -94,7 +94,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v1.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v2.json"), "utf-8")
   )
 ).anchors;
 
@@ -1052,13 +1052,9 @@ describe("local scouting evaluation entry", () => {
     gateway.listen(0, "127.0.0.1");
     await once(gateway, "listening");
 
-    const parsedAddress = z
+    const { port } = z
       .object({ port: z.number().int().positive() })
-      .safeParse(gateway.address());
-
-    if (!parsedAddress.success) {
-      throw new Error("The fake gateway did not bind to a TCP port.");
-    }
+      .parse(gateway.address());
 
     const workspace = mkdtempSync(
       path.join(tmpdir(), "tactiscout-repeat-eval-")
@@ -1067,10 +1063,7 @@ describe("local scouting evaluation entry", () => {
     temporaryDirectories.push(workspace);
     vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
     vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
-    vi.stubEnv(
-      "OPENAI_BASE_URL",
-      `http://127.0.0.1:${parsedAddress.data.port}/v1`
-    );
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${port}/v1`);
 
     const report = await runEvaluation({
       caseIds: ["lookup-smoke-v1"],
@@ -2348,12 +2341,17 @@ describe("local scouting evaluation entry", () => {
         development: report.judgeCalibration?.development,
         validation: report.judgeCalibration?.validation,
       },
+      anchorPriorTuningExposure:
+        report.judgeCalibration?.anchorPriorTuningExposure,
+      anchorVersion: report.judgeCalibration?.anchorVersion,
       calibrationRequests: report.requestCountsByRole.calibration,
       calibrationStatus: report.judgeCalibration?.status,
       judgeEnabled: preview.judgeEnabled && report.judgeEnabled,
       judgeRequests: report.requestCountsByRole.judge,
       modelRequests: report.modelRequests,
       requestCount,
+      retiredValidationAnchorIds:
+        report.judgeCalibration?.retiredValidationAnchorIds,
       semanticStatus: trial?.semanticStatus,
       status: trial?.status,
       trialRequestsByRole: trial?.modelRequestsByRole,
@@ -2362,12 +2360,16 @@ describe("local scouting evaluation entry", () => {
         development: { passed: 16, total: 16 },
         validation: { passed: 16, total: 16 },
       },
+      anchorPriorTuningExposure:
+        "Version 2 replaces the v1 development unsupported-fact-04 example with an overlapping execution/factuality case and retires unsupported-fact-08-v1 after the first smoke showed incomplete category coverage. The other v1 validation anchors were scored but not used for rubric tuning; one new validation family replaces the retired example.",
+      anchorVersion: "scouting-judge-anchors-v2",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
+      retiredValidationAnchorIds: ["unsupported-fact-08-v1"],
       semanticStatus: "passed",
       status: "passed",
       trialRequestsByRole: {
@@ -3038,23 +3040,16 @@ describe("local scouting evaluation entry", () => {
     gateway.listen(0, "127.0.0.1");
     await once(gateway, "listening");
 
-    const parsedAddress = z
+    const { port } = z
       .object({ port: z.number().int().positive() })
-      .safeParse(gateway.address());
-
-    if (!parsedAddress.success) {
-      throw new Error("The fake gateway did not bind to a TCP port.");
-    }
+      .parse(gateway.address());
 
     const workspace = mkdtempSync(path.join(tmpdir(), "tactiscout-real-eval-"));
 
     temporaryDirectories.push(workspace);
     vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
     vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
-    vi.stubEnv(
-      "OPENAI_BASE_URL",
-      `http://127.0.0.1:${parsedAddress.data.port}/v1`
-    );
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${port}/v1`);
 
     const caseIds = [
       "lookup-saka-real-v1",
@@ -3154,18 +3149,20 @@ describe("local scouting evaluation entry", () => {
       ({ workflow }) => workflow === "player_recommendation"
     );
 
-    expect(
-      recommendationTrials.flatMap((trial) =>
-        trial.checks
-          .filter(({ status }) => status === "failed")
-          .map(({ actual, expected, id }) => ({
-            actual,
-            caseId: trial.caseId,
-            expected,
-            id,
-          }))
-      )
-    ).toStrictEqual([]);
+    const recommendationFailures = recommendationTrials.flatMap((trial) =>
+      trial.checks
+        .filter(({ status }) => status === "failed")
+        .map(({ actual, expected, id }) => ({
+          actual,
+          caseId: trial.caseId,
+          expected,
+          id,
+        }))
+    );
+
+    if (recommendationFailures.length > 0) {
+      throw new Error(JSON.stringify(recommendationFailures, null, 2));
+    }
 
     expect({
       allPreparedFromRealSources: report.trials.every(

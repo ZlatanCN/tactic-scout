@@ -519,6 +519,9 @@ const requiredFactCoverageSchema = z.object({
 });
 
 const judgeCalibrationSchema = z.object({
+  anchorPriorTuningExposure: z
+    .string()
+    .default("Prior anchor-tuning exposure was not recorded in this report."),
   anchorVersion: z.string(),
   development: z.object({
     passed: z.number().int().nonnegative(),
@@ -536,6 +539,7 @@ const judgeCalibrationSchema = z.object({
       validationErrors: z.array(z.string()),
     })
   ),
+  retiredValidationAnchorIds: z.array(z.string()).default([]),
   rubricVersion: z.string(),
   sameModelAsAgent: z.boolean(),
   status: z.enum(["failed", "incomplete", "passed"]),

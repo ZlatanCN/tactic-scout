@@ -5,9 +5,9 @@
   "split": "development",
   "origin": "real",
   "scenarioFamily": "bukayo-saka-2026-27-profile-and-performance",
-  "priorTuningExposure": "Authored during evaluation-v1 implementation; not run against a live model.",
+  "priorTuningExposure": "Used in the evaluation-v1 live smoke (run 58b834ab-ba06-4c04-acc9-1ea55e8f67d3); the first run exposed an FM ID collision that was corrected afterward.",
   "evidenceBundleId": "lookup-real-development-v1",
-  "evidenceBundleSha256": "8f4494928b30f20911549be6e0231fd6642a1ce82e40b62a8c334f24326af519",
+  "evidenceBundleSha256": "72dbd6eecfc06283ff9bdb500a992ded8e2fb038d5b990b4aa8606472041db9b",
   "turns": [
     {
       "turnId": "lookup-saka-real-v1-turn-1",

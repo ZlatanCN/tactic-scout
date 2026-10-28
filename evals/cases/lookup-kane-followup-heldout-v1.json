@@ -7,7 +7,7 @@
   "scenarioFamily": "harry-kane-follow-up-and-valid-not-found",
   "priorTuningExposure": "The player appeared in prior manual experiments; this multi-turn script has not been run against a live model.",
   "evidenceBundleId": "lookup-real-heldout-v1",
-  "evidenceBundleSha256": "ea85203b1417790c33728c6f67c3e9ec423a36b2353263bbad0e7883ecf9b760",
+  "evidenceBundleSha256": "d9a28212e17759541f2f1b8d84051214645f330bb38dec700cead4a027ee18b6",
   "turns": [
     {
       "turnId": "lookup-kane-followup-heldout-v1-turn-1",

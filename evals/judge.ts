@@ -20,8 +20,8 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v1";
-const semanticRubricVersion = "scouting-evaluation-rubric-v1";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v2";
+const semanticRubricVersion = "scouting-evaluation-rubric-v2";
 
 const semanticJudgeOutputSchema = z.object({
   findings: z.array(semanticJudgeFindingSchema),
@@ -70,6 +70,10 @@ const judgeAnchorSchema = z.object({
 const judgeAnchorPackSchema = z.object({
   anchorVersion: z.string(),
   anchors: z.array(judgeAnchorSchema),
+  priorTuningExposure: z
+    .string()
+    .default("Prior anchor-tuning exposure was not recorded in this pack."),
+  retiredValidationAnchorIds: z.array(z.string()).default([]),
 });
 
 type AnchorValidation = {
@@ -138,6 +142,8 @@ Report only critical findings in these categories:
 - unsupported_fact: the answer adds a specific factual claim without delivered evidence.
 - false_execution_claim: the answer claims a search, filter, comparison, roster fetch, cache refresh, or successful result that the action events do not support.
 
+Classify each claim independently. One answer may have multiple findings, including multiple categories for the same sentence. A false execution claim does not replace an unsupported-fact finding in the same answer. For example, saying that a fresh API request returned the current full roster is both false_execution_claim when only a cached snapshot was used and unsupported_fact when the snapshot does not establish currentness or completeness.
+
 Quote the exact assistant text, use the matching turnId, cite evidenceIds or actionIds when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
 
 For each required fact, mark whether it is covered in the visible assistant responses. If the answer cannot be assessed from the supplied evidence, use uncertain. Return the required structured output only.`;
@@ -172,7 +178,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v1.json");
+  const filePath = path.join(anchorDirectory, "v2.json");
   let contents: unknown;
 
   try {
@@ -423,11 +429,13 @@ const runJudgeCalibration = async (options: {
   }
 
   return {
+    anchorPriorTuningExposure: pack.priorTuningExposure,
     anchorVersion: pack.anchorVersion,
     development: { passed: developmentPassed, total: developmentTotal },
     judgeModel: options.judgeModel,
     judgePromptVersion: semanticJudgePromptVersion,
     results,
+    retiredValidationAnchorIds: pack.retiredValidationAnchorIds,
     rubricVersion: semanticRubricVersion,
     sameModelAsAgent: options.judgeModel === options.agentModel,
     status: calibrationStatus,

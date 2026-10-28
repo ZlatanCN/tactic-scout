@@ -280,6 +280,36 @@ describe("player recommendation data invariants", () => {
     ).toStrictEqual(["selected-fm-id"]);
   });
 
+  it("prefers a unique ID over an unrelated profile record ID collision", () => {
+    const databasePath = createFmDatabase([
+      { fmId: "colliding-fm-id", rating: 20 },
+      { fmId: "other-fm-id", rating: 20 },
+    ]);
+
+    const database = new DatabaseSync(databasePath);
+    database
+      .prepare("UPDATE players SET record_id = ? WHERE unique_id = ?")
+      .run("colliding-fm-id", "other-fm-id");
+    database.close();
+
+    const result = readFmProfilesBySourceIds(["colliding-fm-id"]);
+
+    expect(result.status).toBe("found");
+
+    if (result.status !== "found") {
+      throw new Error("Expected the FM unique-ID profile to be found.");
+    }
+
+    expect(
+      result.records.map(({ identitySourceId, sourceRecordId }) => ({
+        identitySourceId,
+        sourceRecordId,
+      }))
+    ).toStrictEqual([
+      { identitySourceId: "colliding-fm-id", sourceRecordId: "record-1" },
+    ]);
+  });
+
   it("reads only the confirmed Understat source ID and requested season", () => {
     createUnderstatDatabase();
 
