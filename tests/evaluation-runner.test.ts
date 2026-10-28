@@ -132,6 +132,23 @@ const promptRuleFailureForAnchor = (
     return "factual_contradiction";
   }
 
+  if (
+    (caseId === "false-execution-claim-01-v5" ||
+      caseId === "false-execution-claim-02-v5") &&
+    !systemPrompt.includes("no matching current-turn action")
+  ) {
+    return "factual_contradiction";
+  }
+
+  if (
+    caseId === "correct-paraphrase-result-retained-after-failure-v8" &&
+    (!systemPrompt.includes("data_unavailable") ||
+      !systemPrompt.includes("availableResultKinds") ||
+      !systemPrompt.includes("explicitly historical statement"))
+  ) {
+    return "factual_contradiction";
+  }
+
   return null;
 };
 
@@ -150,7 +167,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v7.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v8.json"), "utf-8")
   )
 ).anchors;
 
@@ -3131,12 +3148,12 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 7 adds a development anchor for an equivalent birth-date format and clarifies that a fresh-operation claim after cache_hit is a false execution claim. The v6 validation examples and labels are retained; no validation finding informed this prompt revision. The v6 pack and reports remain historical.",
-      anchorVersion: "scouting-judge-anchors-v7",
+        "Version 8 clarifies that a current operation can fail while a prior result remains active and that unsupported current-turn operation claims are false_execution_claim. It replaces a development identity paraphrase with a correct active-result counterpart to the v6 no-state retention anchor. The v7 validation examples and labels are retained; no validation finding informed this prompt revision. The v7 pack and reports remain historical.",
+      anchorVersion: "scouting-judge-anchors-v8",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v7",
+      judgePromptVersion: "scouting-semantic-judge-v8",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

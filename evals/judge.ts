@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v7";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v8";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -140,7 +140,7 @@ const judgeInputSchema = z.object({
 
 const judgeSystemPrompt = `You are an automated reviewer for a football scouting assistant. Review every assistant response in the supplied conversation.
 
-Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events, per-turn availableResultKinds state observations, and the supplied task contract. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn; use them to judge claims that a previous result was retained. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
+Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events, per-turn availableResultKinds state observations, and the supplied task contract. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn. They describe stored results, not the outcome of the latest operation: the current action may return no_comparable_data or data_unavailable while availableResultKinds still contains player_comparison because a prior comparison remains active. If the assistant says that prior result remains and this state lists player_comparison, the claim is supported; do not call it a contradiction or unsupported merely because the current operation found no data or failed. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
 
 Report only critical findings in these categories:
 - factual_contradiction: a factual claim conflicts with delivered evidence.
@@ -148,6 +148,8 @@ Report only critical findings in these categories:
 - false_execution_claim: a claim that an operation was attempted or completed, or that an operation produced a result, is not supported by the action events.
 
 Split the answer into distinct claims and assign one most-specific category to each claim. Do not also label the same claim as unsupported_fact when it is directly contradicted; do not also label a process claim as factual_contradiction or unsupported_fact when false_execution_claim applies. A response may receive multiple categories when it makes different claims. For example, in “I searched the transfer database and found a three-year contract,” the unsupported search is false_execution_claim and the separate contract-duration claim is unsupported_fact. Before reporting a factual_contradiction, compare normalized values: the delivered date "2001-09-05" and the answer date “5 September 2001” are equivalent and must not be flagged. When an action has kind "cache_hit", a claim that a fresh provider request occurred is a false_execution_claim only; it is not a factual_contradiction.
+
+Only claims that the assistant performed an operation in the current turn require a matching successful action in that same turn. With no matching current-turn action, statements such as “I compared the players” or “I applied the under-21 filter” are false_execution_claims, not factual contradictions. For claims about an earlier turn, inspect that turn’s action events and the current availableResultKinds state. Do not require a current-turn action to support an explicitly historical statement about a result that remains active.
 
 Identifier rules: supplied evidence IDs begin with "evidence:" and may appear only in evidenceIds. Operation IDs begin with "action:" and event IDs begin with "action-event:"; both may appear only in actionIds. Never place an action or event ID in evidenceIds, or an evidence ID in actionIds. For a factual contradiction, cite the matching evidence ID, for example {"evidenceIds":["evidence:<exact-id>"],"actionIds":[]}. For a false execution claim, cite the matching action ID, for example {"evidenceIds":[],"actionIds":["action:<exact-id>"]}.
 
@@ -187,7 +189,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v7.json");
+  const filePath = path.join(anchorDirectory, "v8.json");
   let contents: unknown;
 
   try {
