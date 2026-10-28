@@ -58,6 +58,7 @@ const completionMessageSchema = z.object({
 type CompletionMessage = z.input<typeof completionMessageSchema>;
 
 type FakeGatewayMode =
+  | "comparison_resume"
   | "judge_action_id_in_evidence"
   | "judge_invalid_quote"
   | "judge_missing_contradiction_evidence"
@@ -590,12 +591,22 @@ const fixtureConstraints = (
 };
 
 const extractionArgumentsFromRequest = (
-  body: z.output<typeof openAiRequestSchema>
+  body: z.output<typeof openAiRequestSchema>,
+  mode: FakeGatewayMode = "normal"
 ) => {
   const text = currentMessageFromRequest(body) ?? "";
   const teamName = fixtureTeamNames.find((name) => text.includes(name)) ?? null;
   const kind = fixtureRequestKind(text, teamName);
-  const players = fixturePlayersForRequest(text, kind);
+  const extractedPlayers = fixturePlayersForRequest(text, kind);
+
+  const players =
+    mode === "comparison_resume"
+      ? extractedPlayers.toSorted(
+          (left, right) =>
+            text.indexOf(left.mention) - text.indexOf(right.mention)
+        )
+      : extractedPlayers;
+
   const recommendation = recommendationPatchFromText(text);
 
   const common = {
@@ -917,7 +928,9 @@ const handleGatewayRequest = async (
           tool_calls: [
             {
               function: {
-                arguments: JSON.stringify(extractionArgumentsFromRequest(body)),
+                arguments: JSON.stringify(
+                  extractionArgumentsFromRequest(body, mode)
+                ),
                 name: requestedName,
               },
               id: `call-extract-demo-${callNumber}`,
@@ -2049,7 +2062,12 @@ describe("local scouting evaluation entry", () => {
 
     const gateway = createServer((request, response) => {
       requestCount += 1;
-      void handleGatewayRequest(request, response, requestCount);
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "comparison_resume"
+      );
     });
 
     servers.push(gateway);
@@ -2196,6 +2214,99 @@ describe("local scouting evaluation entry", () => {
       ],
     });
   }, 20_000);
+
+  it("isolates declared turn faults across repeated comparison trials", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "comparison_resume"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-comparison-repeat-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["compare-season-resume-add-synthetic-v1"],
+      maxModelRequests: 100,
+      mode: "development",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const summarizeTrial = (trial: (typeof report.trials)[number]) => {
+      const activeComparison = z
+        .object({
+          constraints: z.array(
+            z.object({ name: z.string(), value: z.string() })
+          ),
+          players: z.array(z.object({ name: z.string() })),
+        })
+        .parse(JSON.parse(trial.observation.activeResults.comparison ?? "{}"));
+
+      return {
+        activePlayers: activeComparison.players.map(({ name }) => name),
+        codeStatus: trial.codeStatus,
+        comparisonCount: trial.observation.actionEvents.filter(
+          ({ kind, name }) =>
+            kind === "returned" && name === "compare_player_records"
+        ).length,
+        outcomeStatus: trial.observation.outcomeStatus,
+        season: activeComparison.constraints.find(
+          ({ name }) => name === "season"
+        )?.value,
+        turnIdentityStatuses: trial.observation.turns.flatMap((turn) =>
+          turn.players.map(({ resolutionStatus }) => resolutionStatus)
+        ),
+      };
+    };
+
+    expect({
+      modelRequests: requestCount,
+      reportStatus: report.status,
+      trials: report.trials.map(summarizeTrial),
+    }).toStrictEqual({
+      modelRequests: report.modelRequests,
+      reportStatus: "completed",
+      trials: [1, 2, 3].map(() => ({
+        activePlayers: ["Elias Demo", "Synthetic Winger"],
+        codeStatus: "passed",
+        comparisonCount: 4,
+        outcomeStatus: "data_unavailable",
+        season: "2024/25",
+        turnIdentityStatuses: [
+          "resolved",
+          "resolved",
+          "resolved",
+          "resolved",
+          "resolved",
+          "resolved",
+          "resolved",
+          "resolved",
+          "resolved",
+        ],
+      })),
+    });
+  }, 30_000);
 
   it("keeps a season team separate from current registration in lookup answers", async () => {
     let requestCount = 0;

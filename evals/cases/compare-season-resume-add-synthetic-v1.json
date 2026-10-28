@@ -463,12 +463,12 @@
       {
         "kind": "player_comparison",
         "path": "players.0.name",
-        "value": "Synthetic Winger"
+        "value": "Elias Demo"
       },
       {
         "kind": "player_comparison",
         "path": "players.1.name",
-        "value": "Elias Demo"
+        "value": "Synthetic Winger"
       },
       {
         "kind": "player_comparison",

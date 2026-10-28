@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
 import { z } from "zod/v4";
@@ -75,6 +75,30 @@ type EvaluationRunContext = {
   report: EvaluationReport;
   runId: string;
   workspaceDirectory: string;
+};
+
+const databasePathsForTrial = (
+  sourcePaths: NonNullable<PreparedEvaluationCase["databasePaths"]>,
+  trialDirectory: string
+): NonNullable<PreparedEvaluationCase["databasePaths"]> => {
+  const databaseDirectory = path.join(trialDirectory, "databases");
+  mkdirSync(databaseDirectory, { recursive: true });
+
+  const copyDatabase = (sourcePath: string, fileName: string): string => {
+    const destinationPath = path.join(databaseDirectory, fileName);
+
+    if (existsSync(sourcePath)) {
+      copyFileSync(sourcePath, destinationPath);
+    }
+
+    return destinationPath;
+  };
+
+  return {
+    fm: copyDatabase(sourcePaths.fm, "fm.sqlite"),
+    identity: copyDatabase(sourcePaths.identity, "identity.sqlite"),
+    understat: copyDatabase(sourcePaths.understat, "understat.sqlite"),
+  };
 };
 
 const roleLedgerFromGateway = (
@@ -232,6 +256,11 @@ const runOneTrial = async (
     `${prepared.caseDefinition.caseId}-${runIndex}`
   );
 
+  const databasePaths = databasePathsForTrial(
+    prepared.databasePaths,
+    trialDirectory
+  );
+
   const requestsBefore = context.gateway.modelRequests();
   const deniedBefore = context.gateway.deniedRequests();
   const failuresBefore = context.gateway.failedRequests();
@@ -240,7 +269,7 @@ const runOneTrial = async (
   const execution = await runIsolatedTrial({
     apiFootball: prepared.apiFootball,
     caseDefinition: prepared.caseDefinition,
-    databasePaths: prepared.databasePaths,
+    databasePaths,
     proxyBaseUrl: context.gateway.baseUrlForRole("agent"),
     runId: context.runId,
     runIndex,
