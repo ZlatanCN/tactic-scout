@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "real",
   "scenarioFamily": "bukayo-saka-2026-27-profile-and-performance",
-  "priorTuningExposure": "Used in evaluation-v1 live smoke runs 58b834ab-ba06-4c04-acc9-1ea55e8f67d3 and 949b845b-53d1-433f-981f-95758b55aa5a. The first run exposed an FM ID collision that was corrected afterward; the latest run exposed a misleading Current club heading for a season-scoped team value and prompted a lookup-prompt clarification.",
+  "priorTuningExposure": "Used in evaluation-v1 live smoke runs 58b834ab-ba06-4c04-acc9-1ea55e8f67d3, 949b845b-53d1-433f-981f-95758b55aa5a, and 3fa010ca-926e-417c-ae7b-ed8b50b0e8ff. The first run exposed an FM ID collision that was corrected afterward; the second exposed a misleading Current club heading that prompted a lookup-prompt clarification; the third prompted judge tuning after an equivalent birth-date format was mislabeled as a contradiction.",
   "evidenceBundleId": "lookup-real-development-v1",
   "evidenceBundleSha256": "72dbd6eecfc06283ff9bdb500a992ded8e2fb038d5b990b4aa8606472041db9b",
   "turns": [

@@ -104,6 +104,37 @@ const judgeInputFromRequestBody = (requestBody: string) => {
   return judgeRequestSchema.parse(JSON.parse(content));
 };
 
+const judgeSystemPromptFromRequest = (
+  body: z.output<typeof openAiRequestSchema>
+): string => {
+  const systemMessage = body.messages?.find(({ role }) => role === "system");
+  const parsedContent = z.string().safeParse(systemMessage?.content);
+
+  return parsedContent.success ? parsedContent.data : "";
+};
+
+const promptRuleFailureForAnchor = (
+  caseId: string,
+  systemPrompt: string
+): string | null => {
+  if (
+    caseId === "correct-paraphrase-date-normalization-v7" &&
+    (!systemPrompt.includes("2001-09-05") ||
+      !systemPrompt.includes("5 September 2001"))
+  ) {
+    return "factual_contradiction";
+  }
+
+  if (
+    caseId === "false-execution-claim-03-v5" &&
+    !systemPrompt.includes("cache_hit")
+  ) {
+    return "factual_contradiction";
+  }
+
+  return null;
+};
+
 const judgeAnchorPackSchema = z.object({
   anchors: z.array(
     z.object({
@@ -119,7 +150,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v6.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v7.json"), "utf-8")
   )
 ).anchors;
 
@@ -731,6 +762,42 @@ const sendSearchToolCall = (
   );
 };
 
+const expectedCategoriesForJudgeRequest = (
+  body: z.output<typeof openAiRequestSchema>,
+  input: z.output<typeof judgeRequestSchema>,
+  mode: FakeGatewayMode,
+  anchor: z.output<typeof judgeAnchorPackSchema>["anchors"][number] | undefined
+): string[] => {
+  if (
+    mode === "judge_wrong_anchor" &&
+    anchor?.anchorId === "factual-contradiction-05-v5"
+  ) {
+    return [];
+  }
+
+  const promptRuleFailureCategory = promptRuleFailureForAnchor(
+    input.caseId,
+    judgeSystemPromptFromRequest(body)
+  );
+
+  if (promptRuleFailureCategory !== null) {
+    return [promptRuleFailureCategory];
+  }
+
+  const requiresSavedLookupState =
+    input.caseId === "correct-paraphrase-07-v5" ||
+    input.caseId === "correct-paraphrase-08-v5";
+
+  if (
+    requiresSavedLookupState &&
+    !input.turns[0]?.availableResultKinds.includes("player_lookup")
+  ) {
+    return ["unsupported_fact"];
+  }
+
+  return anchor?.expectedCategories ?? [];
+};
+
 const judgeArgumentsFromRequest = (
   body: z.output<typeof openAiRequestSchema>,
   mode: FakeGatewayMode
@@ -748,25 +815,12 @@ const judgeArgumentsFromRequest = (
   const input = judgeRequestSchema.parse(JSON.parse(rawContent.data));
   const anchor = judgeAnchors.find(({ anchorId }) => anchorId === input.caseId);
 
-  const requiresSavedLookupState =
-    input.caseId === "correct-paraphrase-07-v5" ||
-    input.caseId === "correct-paraphrase-08-v5";
-
-  const savedLookupStatePresent =
-    input.turns[0]?.availableResultKinds.includes("player_lookup");
-
-  let expectedCategories = anchor?.expectedCategories ?? [];
-
-  if (requiresSavedLookupState && !savedLookupStatePresent) {
-    expectedCategories = ["unsupported_fact"];
-  }
-
-  if (
-    mode === "judge_wrong_anchor" &&
-    anchor?.anchorId === "factual-contradiction-05-v5"
-  ) {
-    expectedCategories = [];
-  }
+  const expectedCategories = expectedCategoriesForJudgeRequest(
+    body,
+    input,
+    mode,
+    anchor
+  );
 
   const [firstTurn] = input.turns;
   const [firstEvidence] = input.evidence;
@@ -3077,12 +3131,12 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 6 adds a development anchor for a false result-retention claim when no active result is present. The v5 validation examples and labels are retained; the two saved-lookup anchors now carry explicit active lookup state for the v6 prompt. No validation finding informed this prompt revision. The v5 pack and reports remain historical.",
-      anchorVersion: "scouting-judge-anchors-v6",
+        "Version 7 adds a development anchor for an equivalent birth-date format and clarifies that a fresh-operation claim after cache_hit is a false execution claim. The v6 validation examples and labels are retained; no validation finding informed this prompt revision. The v6 pack and reports remain historical.",
+      anchorVersion: "scouting-judge-anchors-v7",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v6",
+      judgePromptVersion: "scouting-semantic-judge-v7",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

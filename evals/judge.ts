@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v6";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v7";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -147,7 +147,7 @@ Report only critical findings in these categories:
 - unsupported_fact: a factual claim has no supporting or contradicting delivered evidence.
 - false_execution_claim: a claim that an operation was attempted or completed, or that an operation produced a result, is not supported by the action events.
 
-Split the answer into distinct claims and assign one most-specific category to each claim. Do not also label the same claim as unsupported_fact when it is directly contradicted; do not also label a process claim as factual_contradiction or unsupported_fact when false_execution_claim applies. A response may receive multiple categories when it makes different claims. For example, in “I searched the transfer database and found a three-year contract,” the unsupported search is false_execution_claim and the separate contract-duration claim is unsupported_fact.
+Split the answer into distinct claims and assign one most-specific category to each claim. Do not also label the same claim as unsupported_fact when it is directly contradicted; do not also label a process claim as factual_contradiction or unsupported_fact when false_execution_claim applies. A response may receive multiple categories when it makes different claims. For example, in “I searched the transfer database and found a three-year contract,” the unsupported search is false_execution_claim and the separate contract-duration claim is unsupported_fact. Before reporting a factual_contradiction, compare normalized values: the delivered date "2001-09-05" and the answer date “5 September 2001” are equivalent and must not be flagged. When an action has kind "cache_hit", a claim that a fresh provider request occurred is a false_execution_claim only; it is not a factual_contradiction.
 
 Identifier rules: supplied evidence IDs begin with "evidence:" and may appear only in evidenceIds. Operation IDs begin with "action:" and event IDs begin with "action-event:"; both may appear only in actionIds. Never place an action or event ID in evidenceIds, or an evidence ID in actionIds. For a factual contradiction, cite the matching evidence ID, for example {"evidenceIds":["evidence:<exact-id>"],"actionIds":[]}. For a false execution claim, cite the matching action ID, for example {"evidenceIds":[],"actionIds":["action:<exact-id>"]}.
 
@@ -187,7 +187,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v6.json");
+  const filePath = path.join(anchorDirectory, "v7.json");
   let contents: unknown;
 
   try {
