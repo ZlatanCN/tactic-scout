@@ -64,6 +64,7 @@ type FakeGatewayMode =
   | "judge_missing_contradiction_evidence"
   | "judge_unsupported_finding"
   | "judge_wrong_anchor"
+  | "malformed_extraction"
   | "malformed_search"
   | "normal"
   | "season_team_abstention"
@@ -116,7 +117,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v3.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v5.json"), "utf-8")
   )
 ).anchors;
 
@@ -744,7 +745,7 @@ const judgeArgumentsFromRequest = (
 
   const expectedCategories =
     mode === "judge_wrong_anchor" &&
-    anchor?.anchorId === "factual-contradiction-05-v1"
+    anchor?.anchorId === "factual-contradiction-05-v5"
       ? []
       : (anchor?.expectedCategories ?? []);
 
@@ -921,6 +922,30 @@ const handleGatewayRequest = async (
     const [requestedName] = toolNames;
 
     if (requestedName !== undefined) {
+      if (mode === "malformed_extraction" && requestedName === "extract") {
+        sendCompletion(
+          response,
+          callNumber,
+          {
+            content: null,
+            tool_calls: [
+              {
+                function: {
+                  arguments:
+                    '{"kind":"player_lookup","players":[{"mention":"Elias Demo","lookupName":null,"recommendationRole":"reference","referenceScope":"explicit","referenceTargetMention":null}],"teams":[],"constraints[]} { "  :  " } } {"  }',
+                  name: requestedName,
+                },
+                id: `call-malformed-extract-${callNumber}`,
+                type: "function",
+              },
+            ],
+          },
+          "tool_calls"
+        );
+
+        return;
+      }
+
       sendCompletion(
         response,
         callNumber,
@@ -2920,11 +2945,13 @@ describe("local scouting evaluation entry", () => {
       calibrationRequests: report.requestCountsByRole.calibration,
       calibrationStatus: report.judgeCalibration?.status,
       judgeEnabled: preview.judgeEnabled && report.judgeEnabled,
+      judgePromptVersion: report.judgeCalibration?.judgePromptVersion,
       judgeRequests: report.requestCountsByRole.judge,
       modelRequests: report.modelRequests,
       requestCount,
       retiredValidationAnchorIds:
         report.judgeCalibration?.retiredValidationAnchorIds,
+      rubricVersion: report.judgeCalibration?.rubricVersion,
       semanticStatus: trial?.semanticStatus,
       status: trial?.status,
       trialRequestsByRole: trial?.modelRequestsByRole,
@@ -2934,11 +2961,12 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 3 retires factual-contradiction-08-v1 and false-execution-claim-07-v1 after the second smoke exposed missing overlapping category labels. It preserves the v2 development set, the v2 unsupported-fact-08 validation replacement, and the 13 other v2 validation anchors that were scored but not used for rubric tuning. Two fresh validation families replace the retired examples; v1/v2 packs remain historical.",
-      anchorVersion: "scouting-judge-anchors-v3",
+        "Version 5 introduces claim-level category precedence: false execution for unsupported process claims, factual contradiction for directly disproved factual claims, and unsupported fact for ungrounded facts; different claims in one answer may receive different categories. All 16 validation anchors are new to this rubric. The v4 smoke reached 15/16 because a process-only false-execution anchor was inconsistently also labeled unsupported_fact; v1-v4 packs and reports remain historical.",
+      anchorVersion: "scouting-judge-anchors-v5",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
+      judgePromptVersion: "scouting-semantic-judge-v5",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
@@ -2946,7 +2974,26 @@ describe("local scouting evaluation entry", () => {
         "unsupported-fact-08-v1",
         "factual-contradiction-08-v1",
         "false-execution-claim-07-v1",
+        "unsupported-fact-05-v1",
+        "factual-contradiction-overlap-08-v3",
+        "correct-paraphrase-05-v1",
+        "correct-paraphrase-06-v1",
+        "correct-paraphrase-07-v1",
+        "correct-paraphrase-08-v1",
+        "factual-contradiction-05-v1",
+        "factual-contradiction-06-v1",
+        "factual-contradiction-07-v1",
+        "unsupported-fact-09-v4",
+        "unsupported-fact-06-v1",
+        "unsupported-fact-07-v1",
+        "false-execution-claim-05-v1",
+        "false-execution-claim-06-v1",
+        "false-execution-claim-08-v1",
+        "unsupported-fact-08-v2",
+        "factual-contradiction-09-v4",
+        "false-execution-claim-overlap-07-v3",
       ],
+      rubricVersion: "scouting-evaluation-rubric-v3",
       semanticStatus: "passed",
       status: "passed",
       trialRequestsByRole: {
@@ -3870,6 +3917,66 @@ describe("local scouting evaluation entry", () => {
       schemaRejectedEvents: ["search_player_records:schema_rejected"],
       searchToolMessages: 0,
     });
+  }, 15_000);
+
+  it("records malformed request extraction as a failed trial, not a runtime error", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "malformed_extraction"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const parsedAddress = z
+      .object({ port: z.number().int().positive() })
+      .safeParse(gateway.address());
+
+    if (!parsedAddress.success) {
+      throw new Error("The fake gateway did not bind to a TCP port.");
+    }
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-missing-pending-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv(
+      "OPENAI_BASE_URL",
+      `http://127.0.0.1:${parsedAddress.data.port}/v1`
+    );
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-identity-unavailable-v1"],
+      maxModelRequests: 10,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "workspace"),
+    });
+
+    const [trial] = report.trials;
+
+    expect(requestCount).toBeGreaterThan(0);
+    expect({
+      codeStatus: trial?.codeStatus,
+      failureCategory: trial?.observation.failureCategory,
+      status: trial?.status,
+    }).toStrictEqual({
+      codeStatus: "failed",
+      failureCategory: "invalid_response",
+      status: "failed",
+    });
+    expect(trial?.observation.error).toBeUndefined();
   }, 15_000);
 
   it("distinguishes a requested but guard-blocked lookup from completed searches", async () => {

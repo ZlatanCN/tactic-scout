@@ -5,13 +5,13 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-add-reference-then-refine-age",
-  "priorTuningExposure": "Used in the evaluation-v1 live smoke (run 58b834ab-ba06-4c04-acc9-1ea55e8f67d3); a maximum-age alias was normalized afterward.",
+  "priorTuningExposure": "Used in evaluation live smoke runs 58b834ab-ba06-4c04-acc9-1ea55e8f67d3 and d925d52d-a97b-432c-8fd2-15ecb40f4fbd. The first smoke exposed a maximum-age alias issue; the third routed the initial 'Synthetic Reference' wording to team search, so the player-profile reference wording was clarified afterward.",
   "evidenceBundleId": "recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
   "turns": [
     {
       "turnId": "recommend-add-refine-synthetic-v1-turn-1",
-      "userMessage": "根据 Synthetic Reference 推荐 stc 球员。",
+      "userMessage": "请把 Synthetic Reference 作为参考球员，推荐 STC 位置相似球员。",
       "clarificationAnswers": []
     },
     {

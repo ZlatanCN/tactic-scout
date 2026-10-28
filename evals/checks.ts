@@ -991,7 +991,7 @@ const makeTrialReport = (
     return { ...base, status: "budget_exhausted" };
   }
 
-  if (worker.error !== undefined || worker.failureCategory !== null) {
+  if (worker.error !== undefined) {
     return { ...base, status: "runtime_error" };
   }
 

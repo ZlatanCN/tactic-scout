@@ -502,9 +502,8 @@ const resumeClarifications = async (
 
   observer.recordClarificationAnswer(turnId, pending.kind, answer.resumeValue);
 
-  const resumed = await app.invoke(
-    new Command({ resume: answer.resumeValue }),
-    config
+  const resumed = AgentState.parse(
+    await app.invoke(new Command({ resume: answer.resumeValue }), config)
   );
 
   return await resumeClarifications(
@@ -556,9 +555,8 @@ const runTurns = async (
 
   observer.setActiveTurn(turn.turnId);
 
-  const state = await app.invoke(
-    { messages: [new HumanMessage(turn.userMessage)] },
-    config
+  const state = AgentState.parse(
+    await app.invoke({ messages: [new HumanMessage(turn.userMessage)] }, config)
   );
 
   observer.observeState(state);

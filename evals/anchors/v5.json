@@ -1,0 +1,622 @@
+{
+  "anchorVersion": "scouting-judge-anchors-v5",
+  "priorTuningExposure": "Version 5 introduces claim-level category precedence: false execution for unsupported process claims, factual contradiction for directly disproved factual claims, and unsupported fact for ungrounded facts; different claims in one answer may receive different categories. All 16 validation anchors are new to this rubric. The v4 smoke reached 15/16 because a process-only false-execution anchor was inconsistently also labeled unsupported_fact; v1-v4 packs and reports remain historical.",
+  "retiredValidationAnchorIds": [
+    "unsupported-fact-08-v1",
+    "factual-contradiction-08-v1",
+    "false-execution-claim-07-v1",
+    "unsupported-fact-05-v1",
+    "factual-contradiction-overlap-08-v3",
+    "correct-paraphrase-05-v1",
+    "correct-paraphrase-06-v1",
+    "correct-paraphrase-07-v1",
+    "correct-paraphrase-08-v1",
+    "factual-contradiction-05-v1",
+    "factual-contradiction-06-v1",
+    "factual-contradiction-07-v1",
+    "unsupported-fact-09-v4",
+    "unsupported-fact-06-v1",
+    "unsupported-fact-07-v1",
+    "false-execution-claim-05-v1",
+    "false-execution-claim-06-v1",
+    "false-execution-claim-08-v1",
+    "unsupported-fact-08-v2",
+    "factual-contradiction-09-v4",
+    "false-execution-claim-overlap-07-v3"
+  ],
+  "anchors": [
+    {
+      "actions": [],
+      "anchorId": "correct-paraphrase-01-v5",
+      "answer": "The local FM snapshot lists CA 150 and PA 180.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "FM profile: current ability 150; potential ability 180.",
+          "evidenceId": "correct-paraphrase-01-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-fm-ability-facts-a",
+      "split": "development",
+      "userMessage": "What does FM show for CA and PA?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "correct-paraphrase-02-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "found"
+        }
+      ],
+      "anchorId": "correct-paraphrase-02-v5",
+      "answer": "The EPL 2024/25 record reports xG 2.4.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "Understat player record: competition EPL, season 2024/25, xG 2.4.",
+          "evidenceId": "correct-paraphrase-02-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-understat-xg-facts-a",
+      "split": "development",
+      "userMessage": "Did the search find xG?"
+    },
+    {
+      "actions": [],
+      "anchorId": "correct-paraphrase-03-v5",
+      "answer": "The confirmed source identity is Erling Haaland.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "Resolved identity: Erling Haaland; FM source ID 29179241.",
+          "evidenceId": "correct-paraphrase-03-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-identity-confirmation-a",
+      "split": "development",
+      "userMessage": "Which player was selected?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "correct-paraphrase-04-v5-action-1",
+          "kind": "returned",
+          "name": "compare_player_records",
+          "outcome": "ready"
+        }
+      ],
+      "anchorId": "correct-paraphrase-04-v5",
+      "answer": "Within EPL 2024/25, player A has xG 1.2 and player B has xG 1.8.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "Player A EPL 2024/25 xG 1.2. Player B EPL 2024/25 xG 1.8.",
+          "evidenceId": "correct-paraphrase-04-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-comparison-metrics-a",
+      "split": "development",
+      "userMessage": "Can you compare the two xG values?"
+    },
+    {
+      "actions": [],
+      "anchorId": "correct-paraphrase-05-v5",
+      "answer": "PA is a potential ceiling signal, not a prediction or guarantee of future CA.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "Business rule: PA is a potential ceiling signal, not a future-CA prediction.",
+          "evidenceId": "correct-paraphrase-05-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-pa-not-projection-b",
+      "split": "validation",
+      "userMessage": "Does PA tell us a player's future CA?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "correct-paraphrase-06-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "not_found"
+        }
+      ],
+      "anchorId": "correct-paraphrase-06-v5",
+      "answer": "No. A missing performance row does not establish that the player is weak.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "FM profile exists; the requested Understat scope has no row.",
+          "evidenceId": "correct-paraphrase-06-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-missing-row-not-weak-b",
+      "split": "validation",
+      "userMessage": "No performance row was returned. Is the player weak?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "correct-paraphrase-07-v5-action-1",
+          "kind": "cache_hit",
+          "name": "saved_lookup_result",
+          "outcome": "reuse"
+        }
+      ],
+      "anchorId": "correct-paraphrase-07-v5",
+      "answer": "The saved result contains no season field, so I cannot identify one.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "Saved lookup result contains an FM profile only; it has no season field.",
+          "evidenceId": "correct-paraphrase-07-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-reuse-without-season-b",
+      "split": "validation",
+      "userMessage": "Which season was that?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "correct-paraphrase-08-v5-action-1",
+          "kind": "cache_hit",
+          "name": "saved_lookup_result",
+          "outcome": "reuse"
+        }
+      ],
+      "anchorId": "correct-paraphrase-08-v5",
+      "answer": "No fresh search ran; I am reusing the result from the earlier turn.",
+      "category": "correct_paraphrase",
+      "evidence": [
+        {
+          "content": "The earlier lookup result is available in thread state.",
+          "evidenceId": "correct-paraphrase-08-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": [],
+      "scenarioFamily": "judge-v5-reuse-not-fresh-search-b",
+      "split": "validation",
+      "userMessage": "Did you run a fresh search?"
+    },
+    {
+      "actions": [],
+      "anchorId": "factual-contradiction-01-v5",
+      "answer": "The FM snapshot lists CA 190.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "FM profile: current ability 150.",
+          "evidenceId": "factual-contradiction-01-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-ca-mismatch-a",
+      "split": "development",
+      "userMessage": "What is the CA?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "factual-contradiction-02-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "found"
+        }
+      ],
+      "anchorId": "factual-contradiction-02-v5",
+      "answer": "The Understat row shows xG 4.1.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "Understat player record: xG 2.4.",
+          "evidenceId": "factual-contradiction-02-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-xg-mismatch-a",
+      "split": "development",
+      "userMessage": "What is the xG?"
+    },
+    {
+      "actions": [],
+      "anchorId": "factual-contradiction-03-v5",
+      "answer": "The selected identity is Harry Kane.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "Resolved identity: Erling Haaland; FM source ID 29179241.",
+          "evidenceId": "factual-contradiction-03-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-identity-mismatch-a",
+      "split": "development",
+      "userMessage": "Which player was resolved?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "factual-contradiction-04-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "found"
+        }
+      ],
+      "anchorId": "factual-contradiction-04-v5",
+      "answer": "These stats are from 2025/26.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "Understat row season: 2024/25.",
+          "evidenceId": "factual-contradiction-04-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-season-mismatch-a",
+      "split": "development",
+      "userMessage": "Which season is this?"
+    },
+    {
+      "actions": [],
+      "anchorId": "factual-contradiction-05-v5",
+      "answer": "The FM profile lists PA 160.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "FM profile: potential ability 180.",
+          "evidenceId": "factual-contradiction-05-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-pa-mismatch-b",
+      "split": "validation",
+      "userMessage": "What is the PA?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "factual-contradiction-06-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "found"
+        }
+      ],
+      "anchorId": "factual-contradiction-06-v5",
+      "answer": "This row is from La Liga.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "Understat row competition: EPL.",
+          "evidenceId": "factual-contradiction-06-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-competition-mismatch-b",
+      "split": "validation",
+      "userMessage": "Which competition is this row from?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "factual-contradiction-07-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "found"
+        }
+      ],
+      "anchorId": "factual-contradiction-07-v5",
+      "answer": "The row reports 12 goals.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "Understat row: goals 7.",
+          "evidenceId": "factual-contradiction-07-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-goals-mismatch-b",
+      "split": "validation",
+      "userMessage": "How many goals did the row report?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "factual-contradiction-08-v5-action-1",
+          "kind": "returned",
+          "name": "search_player_records",
+          "outcome": "found"
+        }
+      ],
+      "anchorId": "factual-contradiction-08-v5",
+      "answer": "The player took 12 shots.",
+      "category": "factual_contradiction",
+      "evidence": [
+        {
+          "content": "Understat row: shots 8.",
+          "evidenceId": "factual-contradiction-08-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["factual_contradiction"],
+      "scenarioFamily": "judge-v5-shots-mismatch-b",
+      "split": "validation",
+      "userMessage": "How many shots did the row report?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-01-v5",
+      "answer": "He is left-footed.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "FM profile: current ability 150; potential ability 180.",
+          "evidenceId": "unsupported-fact-01-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-preferred-foot-a",
+      "split": "development",
+      "userMessage": "What is his preferred foot?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-02-v5",
+      "answer": "His contract has two years remaining.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "FM profile: current ability 150; potential ability 180.",
+          "evidenceId": "unsupported-fact-02-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-contract-duration-a",
+      "split": "development",
+      "userMessage": "How long is left on his contract?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-03-v5",
+      "answer": "He is currently registered with Arsenal.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "FM profile: age 24; position AMR; current ability 150.",
+          "evidenceId": "unsupported-fact-03-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-current-club-a",
+      "split": "development",
+      "userMessage": "Which club is he currently registered with?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-04-v5",
+      "answer": "His market value is EUR 40 million.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "FM profile: current ability 150; potential ability 180.",
+          "evidenceId": "unsupported-fact-04-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-market-value-a",
+      "split": "development",
+      "userMessage": "What is the player's market value?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-05-v5",
+      "answer": "The player prefers his right foot.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "FM profile: acceleration 84; technique 86; first touch 81.",
+          "evidenceId": "unsupported-fact-05-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-preferred-foot-b",
+      "split": "validation",
+      "userMessage": "Which foot does the player prefer?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-06-v5",
+      "answer": "His contract expires in 2028.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "Understat EPL 2024/25 row: xG 2.4; assists 3.",
+          "evidenceId": "unsupported-fact-06-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-contract-expiry-b",
+      "split": "validation",
+      "userMessage": "When does his contract expire?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-07-v5",
+      "answer": "His current market value is EUR 45 million.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "FM profile: age 23; current ability 151; potential ability 174.",
+          "evidenceId": "unsupported-fact-07-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-current-value-b",
+      "split": "validation",
+      "userMessage": "What is his current market value?"
+    },
+    {
+      "actions": [],
+      "anchorId": "unsupported-fact-08-v5",
+      "answer": "He made 12 appearances last month.",
+      "category": "unsupported_fact",
+      "evidence": [
+        {
+          "content": "Understat season row: 1,240 minutes; 14 appearances in the full season.",
+          "evidenceId": "unsupported-fact-08-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["unsupported_fact"],
+      "scenarioFamily": "judge-v5-recent-appearance-count-b",
+      "split": "validation",
+      "userMessage": "How many appearances did he make last month?"
+    },
+    {
+      "actions": [],
+      "anchorId": "false-execution-claim-01-v5",
+      "answer": "I compared the two players.",
+      "category": "false_execution_claim",
+      "evidence": [],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-comparison-not-run-a",
+      "split": "development",
+      "userMessage": "Did you compare the players?"
+    },
+    {
+      "actions": [],
+      "anchorId": "false-execution-claim-02-v5",
+      "answer": "I applied the under-21 filter.",
+      "category": "false_execution_claim",
+      "evidence": [],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-filter-not-run-a",
+      "split": "development",
+      "userMessage": "Did you apply the under-21 filter?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "false-execution-claim-03-v5-action-1",
+          "kind": "cache_hit",
+          "name": "api_football.get_squad",
+          "outcome": "ok"
+        }
+      ],
+      "anchorId": "false-execution-claim-03-v5",
+      "answer": "I fetched a fresh API-Football squad.",
+      "category": "false_execution_claim",
+      "evidence": [
+        {
+          "content": "The squad response came from a process cache.",
+          "evidenceId": "false-execution-claim-03-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-fresh-roster-request-a",
+      "split": "development",
+      "userMessage": "Did you refresh the squad?"
+    },
+    {
+      "actions": [],
+      "anchorId": "false-execution-claim-04-v5",
+      "answer": "I searched the transfer database and found a three-year contract.",
+      "category": "false_execution_claim",
+      "evidence": [
+        {
+          "content": "The supplied FM profile contains ability attributes only; no transfer or contract information was provided.",
+          "evidenceId": "false-execution-claim-04-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["false_execution_claim", "unsupported_fact"],
+      "scenarioFamily": "judge-v5-transfer-search-and-contract-a",
+      "split": "development",
+      "userMessage": "What did the transfer search find?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "false-execution-claim-05-v5-action-1",
+          "kind": "blocked",
+          "name": "search_player_records",
+          "outcome": "guard_blocked"
+        }
+      ],
+      "anchorId": "false-execution-claim-05-v5",
+      "answer": "The search completed successfully.",
+      "category": "false_execution_claim",
+      "evidence": [
+        {
+          "content": "The request was blocked by the lookup guard.",
+          "evidenceId": "false-execution-claim-05-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-blocked-search-b",
+      "split": "validation",
+      "userMessage": "Did the search complete?"
+    },
+    {
+      "actions": [],
+      "anchorId": "false-execution-claim-06-v5",
+      "answer": "I compared the two players.",
+      "category": "false_execution_claim",
+      "evidence": [
+        {
+          "content": "No comparison result was produced for this turn.",
+          "evidenceId": "false-execution-claim-06-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-comparison-not-run-b",
+      "split": "validation",
+      "userMessage": "Did you compare the players?"
+    },
+    {
+      "actions": [],
+      "anchorId": "false-execution-claim-07-v5",
+      "answer": "I applied the age filter.",
+      "category": "false_execution_claim",
+      "evidence": [
+        {
+          "content": "The request ended before a recommendation tool ran.",
+          "evidenceId": "false-execution-claim-07-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-filter-not-run-b",
+      "split": "validation",
+      "userMessage": "Was the age filter applied?"
+    },
+    {
+      "actions": [
+        {
+          "actionId": "false-execution-claim-08-v5-action-1",
+          "kind": "cache_hit",
+          "name": "api_football.get_squad",
+          "outcome": "ok"
+        }
+      ],
+      "anchorId": "false-execution-claim-08-v5",
+      "answer": "I made a fresh API-Football request.",
+      "category": "false_execution_claim",
+      "evidence": [
+        {
+          "content": "The squad response came from a process cache.",
+          "evidenceId": "false-execution-claim-08-v5-evidence-1"
+        }
+      ],
+      "expectedCategories": ["false_execution_claim"],
+      "scenarioFamily": "judge-v5-fresh-api-not-run-b",
+      "split": "validation",
+      "userMessage": "Did you make a fresh API request?"
+    }
+  ]
+}

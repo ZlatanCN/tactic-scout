@@ -21,8 +21,8 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v4";
-const semanticRubricVersion = "scouting-evaluation-rubric-v2";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v5";
+const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
   findings: z.array(semanticJudgeFindingSchema),
@@ -140,11 +140,11 @@ const judgeSystemPrompt = `You are an automated reviewer for a football scouting
 Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events, and the supplied task contract. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
 
 Report only critical findings in these categories:
-- factual_contradiction: the answer conflicts with delivered evidence.
-- unsupported_fact: the answer adds a specific factual claim without delivered evidence.
-- false_execution_claim: the answer claims a search, filter, comparison, roster fetch, cache refresh, or successful result that the action events do not support.
+- factual_contradiction: a factual claim conflicts with delivered evidence.
+- unsupported_fact: a factual claim has no supporting or contradicting delivered evidence.
+- false_execution_claim: a claim that an operation was attempted or completed, or that an operation produced a result, is not supported by the action events.
 
-Classify each claim independently. One answer may have multiple findings, including multiple categories for the same sentence. A false execution claim does not replace an unsupported-fact finding in the same answer. For example, saying that a fresh API request returned the current full roster is both false_execution_claim when only a cached snapshot was used and unsupported_fact when the snapshot does not establish currentness or completeness.
+Split the answer into distinct claims and assign one most-specific category to each claim. Do not also label the same claim as unsupported_fact when it is directly contradicted; do not also label a process claim as factual_contradiction or unsupported_fact when false_execution_claim applies. A response may receive multiple categories when it makes different claims. For example, in “I searched the transfer database and found a three-year contract,” the unsupported search is false_execution_claim and the separate contract-duration claim is unsupported_fact.
 
 Identifier rules: supplied evidence IDs begin with "evidence:" and may appear only in evidenceIds. Operation IDs begin with "action:" and event IDs begin with "action-event:"; both may appear only in actionIds. Never place an action or event ID in evidenceIds, or an evidence ID in actionIds. For a factual contradiction, cite the matching evidence ID, for example {"evidenceIds":["evidence:<exact-id>"],"actionIds":[]}. For a false execution claim, cite the matching action ID, for example {"evidenceIds":[],"actionIds":["action:<exact-id>"]}.
 
@@ -184,7 +184,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v3.json");
+  const filePath = path.join(anchorDirectory, "v5.json");
   let contents: unknown;
 
   try {
