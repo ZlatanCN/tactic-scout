@@ -28,6 +28,7 @@ const comparisonPlayerSchema = z.object({
 });
 
 const comparePlayerRecordsInputSchema = z.object({
+  competition: z.string().trim().min(1).max(100).optional(),
   players: z.array(comparisonPlayerSchema).min(2),
   seasonStartYear: z.number().int().min(2000).max(2100).optional(),
 });
@@ -76,16 +77,28 @@ const selectedSourceIds = (
     )
   );
 
+const normalizeCompetition = (value: string): string =>
+  value
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]/gu, "");
+
 const filterUnderstatRecords = (
   result: UnderstatReadResult | undefined,
-  sourceIds: Set<string>
+  sourceIds: Set<string>,
+  competition?: string
 ): UnderstatReadResult | null => {
   if (result === undefined || result.status !== "found") {
     return result ?? null;
   }
 
-  const records = result.records.filter((record) =>
-    sourceIds.has(record.sourcePlayerId)
+  const records = result.records.filter(
+    (record) =>
+      sourceIds.has(record.sourcePlayerId) &&
+      (competition === undefined ||
+        normalizeCompetition(record.competition) ===
+          normalizeCompetition(competition))
   );
 
   return {
@@ -236,7 +249,8 @@ const comparePlayerRecords = async (
         playerName: player.playerName,
         understat: filterUnderstatRecords(
           result.understat,
-          selectedSourceIds(player, "understat")
+          selectedSourceIds(player, "understat"),
+          input.competition
         ),
       };
     })

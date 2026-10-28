@@ -4,11 +4,13 @@ import { z } from "zod/v4";
 
 import { comparisonContextFromRequest } from "../comparison-context.js";
 import { logLocalDataFailure } from "../fault-tolerance.js";
+import type { ComparePlayerRecordsInput } from "../player-data/compare-records.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { AgentState, RequestPlayerState, RequestState } from "../state.js";
 
 const seasonPattern = /\b(?<start>20\d{2})\s*\/\s*(?<end>\d{2}|20\d{2})\b/u;
 const seasonConstraintPattern = /season|赛季/iu;
+const competitionConstraintPattern = /^competition$/iu;
 
 const comparisonResultSchema = z.object({
   status: z.string(),
@@ -128,15 +130,31 @@ const createComparePlayersNode =
       };
     }
 
-    const unsupportedConstraints = request.constraints.filter(
-      ({ name }) => !seasonConstraintPattern.test(name)
+    const competitionConstraints = request.constraints.filter(({ name }) =>
+      competitionConstraintPattern.test(name.trim())
     );
 
-    if (unsupportedConstraints.length > 0) {
+    const unsupportedConstraints = request.constraints.filter(
+      ({ name }) =>
+        !seasonConstraintPattern.test(name) &&
+        !competitionConstraintPattern.test(name.trim())
+    );
+
+    if (
+      unsupportedConstraints.length > 0 ||
+      competitionConstraints.length > 1
+    ) {
       return {
         outcome: {
           kind: "player_comparison",
-          resultJson: JSON.stringify({ constraints: unsupportedConstraints }),
+          resultJson: JSON.stringify({
+            constraints: [
+              ...unsupportedConstraints,
+              ...(competitionConstraints.length > 1
+                ? competitionConstraints
+                : []),
+            ],
+          }),
           status: "unsupported_constraints",
         },
       };
@@ -172,10 +190,17 @@ const createComparePlayersNode =
       };
     }
 
-    const toolInput =
-      season.kind === "valid"
-        ? { players, seasonStartYear: season.year }
-        : { players };
+    const competition = competitionConstraints[0]?.value;
+
+    const toolInput: ComparePlayerRecordsInput = { players };
+
+    if (competition !== undefined) {
+      toolInput.competition = competition;
+    }
+
+    if (season.kind === "valid") {
+      toolInput.seasonStartYear = season.year;
+    }
 
     const startedAt = Date.now();
     const rawResult: unknown = await compareTool.invoke(toolInput);

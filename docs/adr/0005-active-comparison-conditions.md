@@ -14,8 +14,11 @@ For an `add` request, merge previous conditions with conditions explicitly state
 
 The extractor describes only current-turn conditions. Request understanding owns inheritance; the model does not reconstruct old conditions. Historical comparison recovery reads the successful tool call's `seasonStartYear` argument together with its participant identities. Source-record seasons are observations and do not establish a requested season.
 
+An explicitly requested Understat league is stored as the `competition` scope and passed to the comparison tool. The tool filters Understat rows to that league before finding shared scopes. Metric names such as FM ability and xG describe what to compare; they are not hard filters. Comparison additions inherit an existing competition scope unless the user explicitly changes it.
+
 ## Consequences
 
 - Player focus, aliases, and active comparison remain separate thread-level concepts.
+- Season and competition scopes are stored with the active comparison and inherited by `add` requests; the comparator keeps FM ability profiles separate from filtered Understat performance.
 - The existing graph nodes own the same execution stages; no additional orchestration node is needed.
 - Whole-graph regressions assert the actual season passed to data search across additions, overrides, new comparisons, and historical recovery.

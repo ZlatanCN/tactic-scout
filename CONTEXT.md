@@ -36,7 +36,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Agent loop**: The repeated path from model node to a LangGraph `ToolNode` when the model returns tool calls, then back to the model. The loop ends when the model returns a response without tool calls.
 
-**Structured request**: A bounded extraction of the user's task kind, all named players and teams, and explicitly stated constraints. It routes work; it does not invent a plan or evidence.
+**Structured request**: A bounded extraction of the user's task kind, all named players and teams, and explicitly stated constraints. For comparison, season and competition are data scopes; metric names such as FM ability and xG describe what to compare, not hard filters. It routes work; it does not invent a plan or evidence.
 
 **Canonical player identity**: A Reep ID linked to one or more provider-specific player IDs. Search results may be grouped across providers only when the identity registry resolves both provider IDs to the same canonical Reep ID. Matching names alone never establish identity.
 
@@ -48,7 +48,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Active lookup**: The exact source-tagged result from the latest successful single-player lookup, associated with its resolved player. A factual follow-up may use that saved result without rerunning name resolution or querying a different identity.
 
-**Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
+**Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Conditions can include the season and Understat competition scope. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
 
 **Active recommendation**: The confirmed reference and excluded identities, target position, effective filters, result limit, and completed result from the latest successful player recommendation in a thread. Condition refinements inherit this context; failed or interrupted attempts do not replace it.
 
@@ -73,7 +73,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - User-confirmed player mentions are stored as thread-local aliases. If one mention was confirmed for multiple identities, the graph asks which identity the user means.
 - Explicit player names resolve through the identity registry. Prior-turn references resolve only against conversation focus; same-turn references require an explicit target mention. Missing or multiple referents pause for clarification.
 - Per-turn request participants, per-thread conversation focus, active comparison, and active recommendation are separate. A successful single-player data lookup updates the focus; identity resolution alone does not.
-- A completed comparison stores its participants and conditions together. Additions inherit conditions, explicit current conditions override matching previous conditions, and a new comparison resets them. An omitted season in a new comparison selects the latest local snapshot.
+- A completed comparison stores its participants and conditions together. Additions inherit season and competition scopes, explicit current scopes override matching previous ones, and a new comparison resets them. An omitted season in a new comparison selects the latest local snapshot.
 - Player-search tools read only the provider source IDs selected by identity resolution. The model cannot substitute another name or source record.
 - The request-understanding node recognizes lookup, comparison, player recommendation, and team recommendation. Only lookup enters the model/tool loop; comparison and recommendation workflows invoke deterministic tools directly.
 - Team-directed recommendation requires a user-selected team and target position; it does not infer weak positions or formations from squad data. API-Football teams use their provider IDs, roster snapshots are cached in process for seven days, and roster players map to FM only through a Reep bridge or explicit user confirmation. A provider search name translated from the user's original team mention must be confirmed even when it yields one result.

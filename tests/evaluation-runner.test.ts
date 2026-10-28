@@ -16,7 +16,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 
 import { loadEvaluationCases, previewEvaluation } from "../evals/benchmark.js";
-import { evaluationReportSchema } from "../evals/contracts.js";
+import {
+  evaluationCaseSchema,
+  evaluationReportSchema,
+} from "../evals/contracts.js";
+import type { EvaluationCase } from "../evals/contracts.js";
 import { compareEvaluationReportFiles } from "../evals/report.js";
 import { runEvaluation } from "../evals/runner.js";
 
@@ -486,7 +490,8 @@ const fixtureRecommendationAction = (
 const fixtureConstraints = (
   body: z.output<typeof openAiRequestSchema>,
   text: string,
-  recommendation: FixtureRecommendationPatch
+  recommendation: FixtureRecommendationPatch,
+  kind: FixtureRequestKind
 ) => {
   const constraints = recommendationConstraintsFromPatch(recommendation);
 
@@ -496,6 +501,18 @@ const fixtureConstraints = (
 
   if (season !== null) {
     constraints.unshift({ name: "season", value: season });
+  }
+
+  let competition: string | null = null;
+
+  if (kind === "player_comparison" && /\bEPL\b/iu.test(text)) {
+    competition = "EPL";
+  } else if (kind === "player_comparison" && /\bLa\s+Liga\b/iu.test(text)) {
+    competition = "La Liga";
+  }
+
+  if (competition !== null) {
+    constraints.push({ name: "competition", value: competition });
   }
 
   return constraints;
@@ -512,7 +529,7 @@ const extractionArgumentsFromRequest = (
 
   const common = {
     comparisonAction: /\badd\b|再加上/iu.test(text) ? "add" : "replace",
-    constraints: fixtureConstraints(body, text, recommendation),
+    constraints: fixtureConstraints(body, text, recommendation, kind),
     kind,
     players,
     teams: teamName === null ? [] : [teamName],
@@ -864,6 +881,96 @@ const originCounts = (cases: ReturnType<typeof loadEvaluationCases>) => ({
     ({ caseDefinition }) => caseDefinition.origin === "synthetic"
   ).length,
 });
+
+const explicitCompetitionComparisonCase = (
+  baseCase: EvaluationCase
+): EvaluationCase => {
+  const caseId = "compare-explicit-competition-regression-v1";
+  const turnId = `${caseId}-turn-1`;
+
+  const selectedMentions = new Set([
+    "Synthetic Midfielder",
+    "Synthetic Winger",
+  ]);
+
+  const selectedPlayers = baseCase.contract.resolvedPlayers.filter(
+    ({ mention }) => selectedMentions.has(mention)
+  );
+
+  const selectedSourceRecords = selectedPlayers.flatMap(
+    ({ sourceRecords }) => sourceRecords
+  );
+
+  const selectedFmIds = new Set(
+    selectedSourceRecords.flatMap(({ provider, sourceId }) =>
+      provider === "fm" ? [sourceId] : []
+    )
+  );
+
+  const returnedSourceRecords = selectedSourceRecords.filter(
+    ({ provider, sourceId }) =>
+      provider === "fm" ||
+      (provider === "understat" && sourceId === "us-wing-01")
+  );
+
+  const [baseTurn] = baseCase.turns;
+
+  if (baseTurn === undefined) {
+    throw new Error("The synthetic comparison fixture has no user turn.");
+  }
+
+  const expectedToolAction = {
+    businessOutcome: "ready",
+    name: "compare_player_records",
+    sourceRecords: returnedSourceRecords,
+    turnId,
+  };
+
+  return evaluationCaseSchema.parse({
+    ...baseCase,
+    caseId,
+    contract: {
+      ...baseCase.contract,
+      expectedIdentityLookups: [],
+      expectedIdentityStatuses: selectedPlayers.map(({ mention }) => ({
+        mention,
+        status: "resolved",
+      })),
+      expectedTurnConstraints: [
+        {
+          constraints: [
+            { name: "season", value: "2024/25" },
+            { name: "competition", value: "La Liga" },
+          ],
+          turnId,
+        },
+      ],
+      expectedTurnIdentityStatuses: [],
+      expectedTurnToolActions: [expectedToolAction],
+      outcomeStatus: "ready",
+      requiredEvidence: baseCase.contract.requiredEvidence.filter(
+        ({ provider, sourceId }) =>
+          provider === "fm" && selectedFmIds.has(sourceId)
+      ),
+      resolvedPlayers: selectedPlayers,
+      sourceScope: selectedSourceRecords,
+      toolActions: [expectedToolAction],
+    },
+    priorTuningExposure:
+      "Generated for a fake-gateway regression from versioned synthetic comparison evidence.",
+    scenarioFamily: "comparison-explicit-competition-scope-regression",
+    turns: [
+      {
+        ...baseTurn,
+        clarificationAlternatives: [],
+        clarificationAnswers: [],
+        turnId,
+        userMessage:
+          "Compare Synthetic Midfielder and Synthetic Winger for La Liga 2024/25 performance and FM ability.",
+      },
+    ],
+  });
+};
 
 describe("local scouting evaluation entry", () => {
   const temporaryDirectories: string[] = [];
@@ -1999,6 +2106,140 @@ describe("local scouting evaluation entry", () => {
           status: "not_assessed",
         },
       ],
+    });
+  }, 20_000);
+
+  it("applies an explicit competition scope in the real comparison workflow", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(request, response, requestCount);
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const parsedAddress = z
+      .object({ port: z.number().int().positive() })
+      .safeParse(gateway.address());
+
+    if (!parsedAddress.success) {
+      throw new Error("The fake gateway did not bind to a TCP port.");
+    }
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-comparison-competition-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv(
+      "OPENAI_BASE_URL",
+      `http://127.0.0.1:${parsedAddress.data.port}/v1`
+    );
+
+    const [loadedCase] = loadEvaluationCases("development", [
+      "compare-add-third-synthetic-v1",
+    ]);
+
+    if (loadedCase === undefined) {
+      throw new Error("The synthetic comparison fixture is missing.");
+    }
+
+    const caseDefinition = explicitCompetitionComparisonCase(
+      loadedCase.caseDefinition
+    );
+
+    const { caseId } = caseDefinition;
+
+    const caseDirectory = path.join(workspace, "cases");
+    const evidenceDirectory = path.join(workspace, "evidence");
+
+    mkdirSync(caseDirectory, { recursive: true });
+    mkdirSync(evidenceDirectory, { recursive: true });
+    writeFileSync(
+      path.join(caseDirectory, `${caseId}.json`),
+      JSON.stringify(caseDefinition)
+    );
+    writeFileSync(
+      path.join(evidenceDirectory, `${caseDefinition.evidenceBundleId}.json`),
+      readFileSync(
+        path.join(
+          process.cwd(),
+          "evals/evidence",
+          `${caseDefinition.evidenceBundleId}.json`
+        ),
+        "utf-8"
+      )
+    );
+
+    const report = await runEvaluation({
+      caseDirectory,
+      caseIds: [caseId],
+      evidenceDirectory,
+      maxModelRequests: 10,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "workspace"),
+    });
+
+    const [trial] = report.trials;
+
+    const returnedAction = trial?.observation.actionEvents.find(
+      ({ kind, name }) =>
+        kind === "returned" && name === "compare_player_records"
+    );
+
+    const comparisonOutputSchema = z.object({
+      players: z.array(
+        z.object({
+          fm: z.object({ status: z.string() }).nullable().optional(),
+          playerName: z.string(),
+          understat: z.object({ status: z.string() }).nullable().optional(),
+        })
+      ),
+      sharedUnderstatScopes: z.array(
+        z.object({ competition: z.string(), season: z.string() })
+      ),
+      status: z.string(),
+    });
+
+    const parsedOutput = comparisonOutputSchema.safeParse(
+      returnedAction?.result === null || returnedAction?.result === undefined
+        ? null
+        : JSON.parse(returnedAction.result)
+    );
+
+    expect({
+      codeStatus: trial?.codeStatus,
+      comparisonStatus: parsedOutput.success ? parsedOutput.data.status : null,
+      effectiveConstraints: trial?.observation.turns[0]?.effectiveConstraints,
+      sharedUnderstatScopes: parsedOutput.success
+        ? parsedOutput.data.sharedUnderstatScopes
+        : null,
+      syntheticMidfielderUnderstatStatus: parsedOutput.success
+        ? parsedOutput.data.players.find(
+            ({ playerName }) => playerName === "Synthetic Midfielder"
+          )?.understat?.status
+        : null,
+      syntheticWingerUnderstatStatus: parsedOutput.success
+        ? parsedOutput.data.players.find(
+            ({ playerName }) => playerName === "Synthetic Winger"
+          )?.understat?.status
+        : null,
+    }).toStrictEqual({
+      codeStatus: "passed",
+      comparisonStatus: "ready",
+      effectiveConstraints: [
+        { name: "season", value: "2024/25" },
+        { name: "competition", value: "La Liga" },
+      ],
+      sharedUnderstatScopes: [],
+      syntheticMidfielderUnderstatStatus: "not_found",
+      syntheticWingerUnderstatStatus: "found",
     });
   }, 20_000);
 

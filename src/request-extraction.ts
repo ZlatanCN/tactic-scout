@@ -120,7 +120,9 @@ const requestExtractionSchema = z.object({
       z.object({
         name: z
           .string()
-          .describe("赛季条件统一使用 season；其他条件使用其明确名称。"),
+          .describe(
+            "比较范围名使用 season 或 competition；指标名称不是筛选条件。"
+          ),
         value: z.string(),
       })
     )
@@ -189,7 +191,8 @@ team_recommendation 需要一个明确的球队和一个明确的 FM 位置。�
 如果用户在追问最近成功球员查询中的赛季、赛事或来源，仍分类为 player_lookup；引用之前结果时不要要求用户重报球员。
 comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补语义时一律 replace。add 时 players 仍只列本轮新增的称呼，已有比较对象会由程序从 thread 状态合并，不要重复输出。
 recommendationAction 仅在 player_recommendation 时有意义。明确给出新参考名单时用 replace；明确要求把新球员加入最近成功推荐的参考名单时用 add；只修改最近成功推荐的条件、位置或结果数且没有新球员时用 refine。refine 时 players 为空，程序会继承最近成功推荐的已确认参考和排除身份。
-constraints 只提取本轮原文明确指定的条件，不要复制 activeComparison.constraints；程序负责继承。赛季条件的 name 统一用 season，value 保留用户指定的赛季。
+player_comparison 的 constraints 只表示范围：赛季用 name=season，联赛用 name=competition，value 保留用户说的赛季或联赛名。比如“比较 2026/27 EPL 表现和 FM ability”应提取 season=2026/27、competition=EPL；“FM ability”是要展示的比较维度，不是筛选条件，不要提取为 attribute=FM ability。比较工具会单独展示 FM 能力，并只把同一联赛和赛季的 Understat 记录作为共同表现范围。
+constraints 只提取本轮原文明确指定且当前工作流支持的条件，不要复制 activeComparison.constraints；程序负责继承。其他指标名称、数据来源或展示维度不是硬筛选条件，不要补猜或改写成条件。
 列出本轮消息里出现的所有球员称呼和球队。mention 必须照抄本轮原文。
 球员推荐时，把每个称呼标为 reference 或 exclude。只有用户明确说“不要/排除/不考虑某人”才标 exclude；无法判断该人是参考还是排除时标 ambiguous。没有明确排除语义的球员都是 reference。recommendation.position 仅在用户明确指定一个 FM 位置时填对应小写代码：gk 守门员、dc 中卫、dl/dr 左右后卫、wbl/wbr 左右翼卫、dm 后腰、mc 中场中路、ml/mr 左右中场、aml/amr 左右边锋、amc 前腰、stc 中锋、sw 清道夫；“边锋”等含混说法不要擅自选择左右或中路。推荐字段只填写本轮明确修改的值：没有提及就省略字段；用户明确清除限制时填 null。不要把所有字段都填 null。年龄、CA、PA 和结果数只填写用户明确提出的数字；只说“年轻”不推算年龄上限。用户明确要求高潜名单时 includePotential=true，明确说不考虑潜力或只看当前能力时 includePotential=false。不要从单个“年轻”关键词推断用户想要高潜榜。
 用户明确写出球员姓名时 referenceScope=explicit。代词指向本轮之前的焦点球员时 referenceScope=prior_context；指向本轮较早出现的明确姓名时用 same_turn，并填入 referenceTargetMention；无法判断先行对象时用 ambiguous。

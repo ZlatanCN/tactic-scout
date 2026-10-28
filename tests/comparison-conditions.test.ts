@@ -116,7 +116,7 @@ const createExtractor =
   };
 
 describe("comparison workflow state", () => {
-  it("inherits an explicitly requested season when adding players to a saved comparison", async () => {
+  it("inherits explicitly requested season and competition when adding players to a saved comparison", async () => {
     const players = [
       candidate("Harry Kane", "kane"),
       candidate("Kylian Mbappé", "mbappe"),
@@ -124,7 +124,8 @@ describe("comparison workflow state", () => {
       candidate("Troy Parrott", "parrott"),
     ];
 
-    const first = "Compare Harry Kane and Kylian Mbappé in 2024/25.";
+    const first = "Compare Harry Kane and Kylian Mbappé in 2024/25 La Liga.";
+
     const addHaaland = "Add Erling Haaland to the comparison.";
     const addParrott = "Add Troy Parrott to the comparison.";
     const search = vi.fn<PlayerSearch>(searchResult);
@@ -143,7 +144,10 @@ describe("comparison workflow state", () => {
         [addParrott]: compareRequest(["Troy Parrott"], [], "add"),
         [first]: compareRequest(
           ["Harry Kane", "Kylian Mbappé"],
-          [{ name: "season", value: "2024/25" }]
+          [
+            { name: "season", value: "2024/25" },
+            { name: "competition", value: "La Liga" },
+          ]
         ),
       }),
       tools: createTools(search),
@@ -165,7 +169,10 @@ describe("comparison workflow state", () => {
       search.mock.calls.map(([query]) => query.seasonStartYear)
     ).toStrictEqual([2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024]);
     expect(final.conversationContext.activeComparison).toMatchObject({
-      constraints: [{ name: "season", value: "2024/25" }],
+      constraints: [
+        { name: "season", value: "2024/25" },
+        { name: "competition", value: "La Liga" },
+      ],
       players: [
         { candidate: { name: "Harry Kane" } },
         { candidate: { name: "Kylian Mbappé" } },
@@ -174,6 +181,134 @@ describe("comparison workflow state", () => {
       ],
     });
     expect(final.messages.at(-1)?.content).toBe("Third comparison checked.");
+  });
+
+  it("filters Understat rows to an explicitly requested competition scope", async () => {
+    const kane = candidate("Harry Kane", "kane");
+    const mbappe = candidate("Kylian Mbappé", "mbappe");
+    const message = "Compare Harry Kane and Kylian Mbappé in La Liga 2024/25.";
+
+    const search = vi.fn<PlayerSearch>(async (input) => {
+      await Promise.resolve();
+
+      return JSON.stringify({
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        understat: {
+          records: input.sourceRecords.flatMap(({ provider, sourceId }) =>
+            provider === "understat"
+              ? ["EPL", "La_liga"].map((competition) => ({
+                  assists: 1,
+                  competition,
+                  expectedAssists: 0.5,
+                  expectedGoals: 1.2,
+                  goals: 1,
+                  keyPasses: 4,
+                  minutes: 900,
+                  nonPenaltyExpectedGoals: 1.1,
+                  player: sourceId,
+                  position: "F",
+                  season: "2024/25",
+                  shots: 10,
+                  source: "Understat",
+                  sourcePlayerId: sourceId,
+                  team: "Fixture FC",
+                }))
+              : []
+          ),
+          status: "found",
+        },
+      });
+    });
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel().respond(new AIMessage("La Liga comparison checked.")),
+      playerIdentityLookup: createLookup([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: compareRequest(
+          ["Harry Kane", "Kylian Mbappé"],
+          [
+            { name: "season", value: "2024/25" },
+            { name: "competition", value: "La Liga" },
+          ]
+        ),
+      }),
+      tools: createTools(search),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "comparison-league-scope" } }
+    );
+
+    const parsedResult = z
+      .object({
+        players: z.array(
+          z.object({
+            understat: z
+              .object({
+                records: z.array(z.object({ competition: z.string() })),
+              })
+              .nullable(),
+          })
+        ),
+        sharedUnderstatScopes: z.array(
+          z.object({ competition: z.string(), season: z.string() })
+        ),
+        status: z.string(),
+      })
+      .parse(JSON.parse(result.outcome?.resultJson ?? "null"));
+
+    expect({
+      outcome: result.outcome?.status,
+      perPlayerCompetitions: parsedResult.players.map(({ understat }) =>
+        understat?.records.map(({ competition }) => competition)
+      ),
+      sharedScopes: parsedResult.sharedUnderstatScopes,
+      status: parsedResult.status,
+    }).toStrictEqual({
+      outcome: "ready",
+      perPlayerCompetitions: [["La_liga"], ["La_liga"]],
+      sharedScopes: [{ competition: "La_liga", season: "2024/25" }],
+      status: "ready",
+    });
+  });
+
+  it("keeps rejecting unsupported comparison filters", async () => {
+    const kane = candidate("Harry Kane", "kane");
+    const mbappe = candidate("Kylian Mbappé", "mbappe");
+
+    const message =
+      "Compare Harry Kane and Kylian Mbappé by a custom attribute.";
+
+    const search = vi.fn<PlayerSearch>(searchResult);
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: createLookup([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: compareRequest(
+          ["Harry Kane", "Kylian Mbappé"],
+          [{ name: "attribute", value: "custom" }]
+        ),
+      }),
+      tools: createTools(search),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "comparison-unsupported-filter" } }
+    );
+
+    expect({
+      outcome: result.outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      outcome: "unsupported_constraints",
+      searchCalls: 0,
+    });
   });
 
   it("interrupts on an unparseable hard season and resumes the same comparison", async () => {
