@@ -19,4 +19,5 @@ In run `ab3547a4-8cb7-4566-a837-eff62941357b`, all nine trials across the three 
 
 - The extractor prompt now distinguishes season/competition scopes from metrics such as FM ability and xG. The graph passes an explicit competition to the comparison tool, which filters Understat rows while keeping FM profiles separate.
 - Public evaluation-entry tests cover La Liga versus EPL evidence, competition inheritance, and rejection of unsupported filters. Prepared real-source comparison cases pass their deterministic contracts with the fake gateway.
-- The full Vitest, typecheck, Ultracite, and evidence-inventory checks passed after implementation. No live-model smoke was run for this fix.
+- A post-fix real-model smoke `84a220c3-6229-425c-b9db-7feface802fd` used 6/30 agent requests. All three real comparison cases extracted season and EPL scope, invoked `compare_player_records`, and passed deterministic contracts. Judge scoring was disabled; this is a smoke, not a replacement baseline.
+- The full Vitest, typecheck, Ultracite, and evidence-inventory checks passed after implementation.

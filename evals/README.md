@@ -26,7 +26,9 @@ pnpm eval:run --mode smoke --judge --evidence-directory .data/evals/evidence --c
 
 Formal runs repeat each selected case three times. Add `--judge` to run the 32-anchor calibration before semantic scoring. The estimate includes 32 calibration calls and one judge call per trial. The judge defaults to the configured agent model; set `TACTISCOUT_EVAL_JUDGE_MODEL` to choose a separate model through the same gateway.
 
-The active judge anchor pack is `evals/anchors/v3.json`. It replaces two v2 validation anchors whose labels omitted overlapping error categories and records the retired IDs and prior exposure. The v1 and v2 smoke reports remain historical with invalid semantic scores; v3 requires a fresh live calibration before semantic scoring can be trusted.
+The active judge anchor pack is `evals/anchors/v5.json`. The v4 smoke reached 15/16 validation anchors, so rubric v3 assigns one most-specific category per claim; distinct claims may receive different categories. v5 uses 16 validation anchors that are new to this rubric and passed live calibration (16/16) in smoke run `d1341374-a3b4-448a-bf52-65f0416cbc36`. That smoke also found one unsupported current-club claim in the Saka lookup; its four-case rates are smoke observations, not the full development baseline. v1-v4 packs and reports remain historical.
+
+Formal run `ab3547a4-8cb7-4566-a837-eff62941357b` executed all 96 development trials and used 358/1,326 requests. Its report is `partial`: 44 semantic passes, 33 failures, 9 inconclusive, 7 invalid judge outputs, and 3 trials without a visible answer. The three claim metrics use the 77 adjudicated trials: factual contradictions 3/77, unsupported additions 13/77, and false execution claims 8/77. See the local report at `.data/evals/runs/ab3547a4-8cb7-4566-a837-eff62941357b/report.md`; an earlier runtime-error partial attempt is preserved separately.
 
 Run the development split against locally prepared evidence with an explicit budget:
 
@@ -83,6 +85,8 @@ pnpm eval:capture-team-snapshots --team <team-a> --team <team-b> --max-api-reque
 The capture command requires `API_FOOTBALL_KEY`, writes raw API response bodies locally with restrictive file permissions, and stops at the specified physical request cap. It does not upload the responses. After inspecting the snapshots and FM/Reep mappings, pass the capture file to `eval:prepare-evidence` when generating team bundles.
 
 The benchmark now has 48/48 cases: 32 real and 16 synthetic, with 12 cases per workflow. `pnpm eval:validate --evidence-directory .data/evals/evidence` checks the local evidence hashes and split/category counts.
+
+After Issue 10, real-model smoke `84a220c3-6229-425c-b9db-7feface802fd` used 6/30 agent requests across the three real player-comparison cases. All three extracted the requested season and EPL scope, called the comparison tool, and passed deterministic checks. This smoke disabled semantic judging and does not replace the development baseline.
 
 ## Quality gates
 
