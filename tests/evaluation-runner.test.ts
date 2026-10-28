@@ -1602,7 +1602,7 @@ describe("local scouting evaluation entry", () => {
       ],
       unavailableOutcome: "identity_data_unavailable",
       unavailableReply:
-        "本地球员身份资料无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+        "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。",
       unavailableStatus: "not_assessed",
       workflow: "player_lookup",
     });

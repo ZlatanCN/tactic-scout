@@ -344,8 +344,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       outputCalls: 2,
-      response:
-        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
+      response: "请求理解模型暂时不可用，因此没有执行这条新请求。",
     });
     expect(result).not.toHaveProperty("request");
   });
@@ -395,8 +394,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       calls: 2,
-      response:
-        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
+      response: "请求理解模型暂时不可用，因此没有执行这条新请求。",
     });
     expect(result).not.toHaveProperty("request");
   });
@@ -490,8 +488,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       calls: 2,
-      response:
-        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
+      response: "请求理解模型暂时不可用，因此没有执行这条新请求。",
     });
   });
 
@@ -580,8 +577,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       outputCalls: 1,
-      response:
-        "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+      response: "模型服务额度已用完，本次请求没有完成。",
     });
   });
 
@@ -619,8 +615,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       calls: 1,
-      response:
-        "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+      response: "模型服务额度已用完，本次请求没有完成。",
     });
   });
 
@@ -655,8 +650,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       calls: 1,
-      response:
-        "模型服务正在限流。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+      response: "模型服务正在限流，本次请求没有完成。",
     });
   });
 
@@ -694,8 +688,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       calls: 1,
-      response:
-        "模型服务正在限流。本次请求没有完成，已确认的数据和之前的结果仍保留。",
+      response: "模型服务正在限流，本次请求没有完成。",
     });
   });
 
@@ -777,8 +770,7 @@ describe("request understanding extraction", () => {
       response: result.messages.at(-1)?.content,
     }).toStrictEqual({
       calls: 3,
-      response:
-        "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。",
+      response: "请求理解模型暂时不可用，因此没有执行这条新请求。",
     });
   });
 

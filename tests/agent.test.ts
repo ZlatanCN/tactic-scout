@@ -220,19 +220,96 @@ describe("LangGraph player workflows", () => {
     faultLog.mockRestore();
 
     expect({
+      activeLookup: result.conversationContext.activeLookup,
       answer: result.messages.at(-1)?.content,
       pendingClarification: result.pendingClarification,
       searchCalls: search.mock.calls.length,
       status: result.outcome?.status,
     }).toStrictEqual({
+      activeLookup: null,
       answer:
-        "本地球员身份资料无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+        "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。",
       pendingClarification: null,
       searchCalls: 0,
       status: "identity_data_unavailable",
     });
     expect(logOutput).toContain('"category":"local_data"');
     expect(logOutput).not.toContain("Harry Kane");
+  });
+
+  it("keeps a completed result when identity data fails on a later turn", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Look up Harry Kane.";
+    const secondMessage = "Look up Erling Haaland.";
+    const search = vi.fn<PlayerSearch>(emptySearchResult);
+    let identityLookups = 0;
+
+    const graph = createAgent({
+      model: fakeModel()
+        .respondWithTools([
+          { args: { sourceRecords: [] }, name: "search_player_records" },
+        ])
+        .respond(new AIMessage("The lookup is complete.")),
+      playerIdentityLookup: async (mention) => {
+        identityLookups += 1;
+
+        if (identityLookups === 1) {
+          return await resolvedLookup(kane)(mention);
+        }
+
+        return {
+          candidateCount: 0,
+          candidates: [],
+          candidatesTruncated: false,
+          canonicalIdentityId: null,
+          clarificationMessage: null,
+          mention,
+          selectedCandidateId: null,
+          selectedName: null,
+          status: "data_unavailable",
+        };
+      },
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", [kane.name]),
+        [secondMessage]: requestForPlayers("player_lookup", ["Erling Haaland"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "identity-failure-keeps-lookup" },
+    };
+
+    const first = await graph.invoke(
+      {
+        messages: [new HumanMessage({ content: firstMessage, id: "lookup-1" })],
+      },
+      config
+    );
+
+    const previousLookup = first.conversationContext.activeLookup;
+
+    const second = await graph.invoke(
+      {
+        messages: [
+          new HumanMessage({ content: secondMessage, id: "lookup-2" }),
+        ],
+      },
+      config
+    );
+
+    expect({
+      activeLookup: second.conversationContext.activeLookup,
+      answer: second.messages.at(-1)?.content,
+      identityLookups,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activeLookup: previousLookup,
+      answer:
+        "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。此前已完成的结果仍保留。",
+      identityLookups: 2,
+      searchCalls: 1,
+    });
   });
 
   it("preserves the previous lookup result after model retry exhaustion", async () => {
@@ -304,7 +381,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: previousLookup,
       answer:
-        "球员查询模型暂时不可用，本次没有完成查询或切换已确认的球员身份。请稍后重试。",
+        "球员查询模型暂时不可用，本次查询未能完成。请稍后重试。此前已完成的结果仍保留。",
       modelCalls: 5,
       searchCalls: 1,
     });
@@ -424,7 +501,7 @@ describe("LangGraph player workflows", () => {
         resultJson: lookupResult,
       },
       answer:
-        "球员查询模型暂时不可用，本次没有完成查询或切换已确认的球员身份。请稍后重试。",
+        "球员数据查询已完成，但模型暂时无法生成解释。查询结果已保存，可以继续追问。",
       focus: ["canonical-kane"],
       searchCalls: 1,
     });
@@ -745,7 +822,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: previousLookup,
       answer:
-        "本地球员数据源无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+        "本地球员数据源无法读取，已发起的数据查询或计算未能完成。此前已完成的结果仍保留。",
       modelCalls: 3,
       outcomeStatus: "data_unavailable",
       searchCalls: 2,

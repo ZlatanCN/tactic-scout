@@ -511,8 +511,7 @@ describe("comparison workflow state", () => {
       outcome: result.outcome?.status,
       searchCalls: search.mock.calls.length,
     }).toStrictEqual({
-      answer:
-        "本地球员数据源无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+      answer: "本地球员数据源无法读取，已发起的数据查询或计算未能完成。",
       outcome: "data_unavailable",
       searchCalls: 2,
     });

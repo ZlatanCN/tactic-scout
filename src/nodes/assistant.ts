@@ -168,11 +168,7 @@ const requestBoundaryAnswer = (state: AgentStateType): string => {
 const fixedOutcomeMessages = new Map<string, string>([
   [
     "data_unavailable",
-    "本地球员数据源无法读取。本次请求没有执行，之前完成的结果仍然保留。",
-  ],
-  [
-    "identity_data_unavailable",
-    "本地球员身份资料无法读取。本次请求没有执行，之前完成的结果仍然保留。",
+    "本地球员数据源无法读取，已发起的数据查询或计算未能完成。",
   ],
   [
     "excluded_profile_missing",
@@ -211,10 +207,7 @@ const fixedOutcomeMessages = new Map<string, string>([
     "lookup_search_limit",
     "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
   ],
-  [
-    "tool_error",
-    "本次数据计算失败，之前完成的查询结果仍然保留。请检查本地数据后重试。",
-  ],
+  ["tool_error", "本次数据计算失败。请检查本地数据后重试。"],
   [
     "unsupported_constraints",
     "请求包含当前流程无法计算的硬条件，因此没有按删减后的条件生成候选。请删除该条件或改用支持的条件。",
@@ -284,6 +277,32 @@ const parseUnmappedRosterMember = (value: string) => {
   }
 };
 
+const hasCompletedThreadResult = (state: AgentStateType): boolean => {
+  const context = state.conversationContext;
+
+  if (context === undefined) {
+    return false;
+  }
+
+  return (
+    context.activeLookup !== null ||
+    context.activeComparison.players.length >= 2 ||
+    context.activeRecommendation !== null ||
+    context.activeTeamRecommendation !== null
+  );
+};
+
+const withPreservedResultNotice = (
+  state: AgentStateType,
+  message: string
+): string =>
+  hasCompletedThreadResult(state)
+    ? `${message}此前已完成的结果仍保留。`
+    : message;
+
+const completedResultExplanationFailure =
+  "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。";
+
 const teamFailureAnswer = (state: AgentStateType): string | null => {
   const { outcome } = state;
 
@@ -295,7 +314,10 @@ const teamFailureAnswer = (state: AgentStateType): string | null => {
     const providerFailure = parseProviderFailure(outcome.resultJson);
 
     if (providerFailure === null) {
-      return "API-Football 阵容服务暂时不可用，本次推荐没有覆盖旧结果。";
+      return withPreservedResultNotice(
+        state,
+        "API-Football 阵容服务暂时不可用，本次球队推荐没有完成。"
+      );
     }
 
     return providerFailure.message;
@@ -329,9 +351,20 @@ const fixedOutcomeAnswer = (state: AgentStateType): string | null => {
     return teamFailure;
   }
 
+  if (status === "identity_data_unavailable") {
+    return withPreservedResultNotice(
+      state,
+      "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。"
+    );
+  }
+
   const knownMessage = fixedOutcomeMessages.get(status);
 
   if (knownMessage !== undefined) {
+    if (status === "data_unavailable" || status === "tool_error") {
+      return withPreservedResultNotice(state, knownMessage);
+    }
+
     return knownMessage;
   }
 
@@ -354,6 +387,10 @@ const faultFailureAnswer = (state: AgentStateType): string => {
     return "我没能可靠理解这条新请求，因此没有执行任何球员或球队操作。请换个说法重试。";
   }
 
+  if (failure.node === "answer" && state.outcome !== null) {
+    return completedResultExplanationFailure;
+  }
+
   if (
     failure.category === "authentication" ||
     failure.category === "configuration"
@@ -362,24 +399,43 @@ const faultFailureAnswer = (state: AgentStateType): string => {
   }
 
   if (failure.category === "quota") {
-    return "模型服务额度已用完。本次请求没有完成，已确认的数据和之前的结果仍保留。";
+    return withPreservedResultNotice(
+      state,
+      "模型服务额度已用完，本次请求没有完成。"
+    );
   }
 
   if (failure.category === "rate_limit") {
-    return "模型服务正在限流。本次请求没有完成，已确认的数据和之前的结果仍保留。";
+    return withPreservedResultNotice(
+      state,
+      "模型服务正在限流，本次请求没有完成。"
+    );
   }
 
   if (failure.node === "understand_request") {
-    return "请求理解模型暂时不可用，因此没有执行这条新请求。之前已完成的结果仍保留。";
+    return withPreservedResultNotice(
+      state,
+      "请求理解模型暂时不可用，因此没有执行这条新请求。"
+    );
   }
 
   if (failure.node === "lookup_player") {
-    return "球员查询模型暂时不可用，本次没有完成查询或切换已确认的球员身份。请稍后重试。";
+    if (
+      state.faultTolerance.lookupSearchExecutions > 0 &&
+      state.conversationContext.activeLookup !== null
+    ) {
+      return "球员数据查询已完成，但模型暂时无法生成解释。查询结果已保存，可以继续追问。";
+    }
+
+    return withPreservedResultNotice(
+      state,
+      "球员查询模型暂时不可用，本次查询未能完成。请稍后重试。"
+    );
   }
 
   return state.outcome === null
-    ? "模型服务暂时不可用，本次请求没有完成。已确认的数据身份和之前的结果仍保留。"
-    : "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。";
+    ? withPreservedResultNotice(state, "模型服务暂时不可用，本次请求没有完成。")
+    : completedResultExplanationFailure;
 };
 
 const createFaultAnswerNode = (): GraphNode<typeof AgentState> => (state) => ({
