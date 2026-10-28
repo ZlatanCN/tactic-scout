@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-linked-identity-has-two-fm-profiles",
-  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles and Reep bridges. Used in baseline run ab3547a4-8cb7-4566-a837-eff62941357b and smoke run 426f3ce3-1b71-41cd-b782-7259b48d52e1; wording was clarified to make Synthetic Ambiguous an explicit reference profile, and the latest smoke exposed alternate FM profiles from the same identity leaking into candidates. That finding prompted identity-wide candidate exclusion and reference CA/PA answer requirements.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles and Reep bridges. Used in baseline run ab3547a4-8cb7-4566-a837-eff62941357b and smoke runs 426f3ce3-1b71-41cd-b782-7259b48d52e1 and c0d751ad-4aee-43cf-893a-2e7d86aed9f5. Wording was clarified to make Synthetic Ambiguous an explicit reference profile; v8 exposed alternate FM profiles for the same identity, and the post-fix run confirmed identity-wide exclusion and reference CA/PA reporting.",
   "evidenceBundleId": "recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
   "turns": [
