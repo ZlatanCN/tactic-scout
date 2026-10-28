@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import {
   existsSync,
@@ -62,6 +63,7 @@ type FakeGatewayMode =
   | "judge_wrong_anchor"
   | "malformed_search"
   | "normal"
+  | "season_team_abstention"
   | "loop_search";
 
 const requestContextSchema = z.looseObject({ currentMessage: z.string() });
@@ -579,6 +581,34 @@ const sendCompletion = (
   );
 };
 
+const sendSeasonTeamAnswer = (
+  response: ServerResponse,
+  callNumber: number,
+  body: z.output<typeof openAiRequestSchema>
+): void => {
+  const seasonTeamPolicyPresent =
+    body.messages?.some(({ content, role }) => {
+      const text = z.string().safeParse(content);
+
+      return (
+        role === "system" &&
+        text.success &&
+        text.data.includes("team 字段只表示对应赛事和赛季表现记录中的球队")
+      );
+    }) ?? false;
+
+  sendCompletion(
+    response,
+    callNumber,
+    {
+      content: seasonTeamPolicyPresent
+        ? "Understat 的 2026/27 EPL 赛季表现记录列出的球队是 Arsenal。FM 和 Understat 都没有提供当前注册球队，因此无法从这些资料确定 Elias Demo 目前效力的俱乐部。"
+        : "Elias Demo 目前效力于 Arsenal。",
+    },
+    "stop"
+  );
+};
+
 const sendSearchToolCall = (
   response: ServerResponse,
   callNumber: number,
@@ -788,6 +818,12 @@ const handleGatewayRequest = async (
     }
 
     if (toolMessages.length > 0) {
+      if (mode === "season_team_abstention") {
+        sendSeasonTeamAnswer(response, callNumber, body);
+
+        return;
+      }
+
       if (mode === "loop_search" && toolMessages.length < 4) {
         sendSearchToolCall(response, callNumber, seasonStartYear);
 
@@ -2107,6 +2143,130 @@ describe("local scouting evaluation entry", () => {
         },
       ],
     });
+  }, 20_000);
+
+  it("keeps a season team separate from current registration in lookup answers", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "season_team_abstention"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const parsedAddress = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-season-team-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+
+    const caseDirectory = path.join(workspace, "cases");
+    const evidenceDirectory = path.join(workspace, "evidence");
+    mkdirSync(caseDirectory, { recursive: true });
+    mkdirSync(evidenceDirectory, { recursive: true });
+
+    const sourceCase = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(process.cwd(), "evals/cases/lookup-smoke-v1.json"),
+          "utf-8"
+        ).replaceAll("2024/25", "2026/27")
+      )
+    );
+
+    const sourceEvidence = readFileSync(
+      path.join(process.cwd(), "evals/evidence/lookup-smoke-evidence-v1.json"),
+      "utf-8"
+    );
+
+    const evidenceContents = sourceEvidence
+      .replace(
+        '"capturedAt": "2025-11-23T00:00:00.000Z"',
+        '"capturedAt": "2026-10-28T00:00:00.000Z"'
+      )
+      .replace('"seasonStartYear": 2024', '"seasonStartYear": 2026')
+      .replace('"team_title": "Fixture City"', '"team_title": "Arsenal"');
+
+    const evidenceBundleSha256 = createHash("sha256")
+      .update(evidenceContents)
+      .digest("hex");
+
+    const seasonalTeamCase = {
+      ...sourceCase,
+      contract: {
+        ...sourceCase.contract,
+        requiredAbstentions: [
+          "Current registration is not present in FM or Understat and must be stated as unknown.",
+        ],
+        requiredEvidence: [
+          ...sourceCase.contract.requiredEvidence,
+          {
+            competition: "EPL",
+            field: "team",
+            provider: "understat" as const,
+            season: "2026/27",
+            sourceId: "us-demo-01",
+            value: "Arsenal",
+          },
+        ],
+      },
+      evidenceBundleSha256,
+      turns: sourceCase.turns.map((turn) => ({
+        ...turn,
+        userMessage:
+          "请查一下 Elias Demo 的 2026/27 EPL 表现记录对应球队，以及当前注册俱乐部。",
+      })),
+    };
+
+    writeFileSync(
+      path.join(caseDirectory, "lookup-smoke-v1.json"),
+      JSON.stringify(seasonalTeamCase)
+    );
+    writeFileSync(
+      path.join(evidenceDirectory, "lookup-smoke-evidence-v1.json"),
+      evidenceContents
+    );
+
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${parsedAddress.port}/v1`);
+
+    const report = await runEvaluation({
+      caseDirectory,
+      caseIds: ["lookup-smoke-v1"],
+      evidenceDirectory,
+      maxModelRequests: 10,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "workspace"),
+    });
+
+    const [trial] = report.trials;
+
+    const answer = trial?.observation.conversationContext
+      .toReversed()
+      .find(({ role }) => role === "assistant")?.content;
+
+    expect(answer).toBe(
+      "Understat 的 2026/27 EPL 赛季表现记录列出的球队是 Arsenal。FM 和 Understat 都没有提供当前注册球队，因此无法从这些资料确定 Elias Demo 目前效力的俱乐部。"
+    );
+    expect(
+      trial?.checks.find(({ id }) => id === "required-evidence")?.status
+    ).toBe("passed");
+    expect(trial?.codeStatus).toBe("passed");
+    expect(requestCount).toBe(report.modelRequests);
   }, 20_000);
 
   it("applies an explicit competition scope in the real comparison workflow", async () => {
