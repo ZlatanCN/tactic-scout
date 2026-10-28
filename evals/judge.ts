@@ -178,7 +178,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v2.json");
+  const filePath = path.join(anchorDirectory, "v3.json");
   let contents: unknown;
 
   try {

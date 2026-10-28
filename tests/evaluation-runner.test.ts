@@ -94,7 +94,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v2.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v3.json"), "utf-8")
   )
 ).anchors;
 
@@ -2361,15 +2361,19 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 2 replaces the v1 development unsupported-fact-04 example with an overlapping execution/factuality case and retires unsupported-fact-08-v1 after the first smoke showed incomplete category coverage. The other v1 validation anchors were scored but not used for rubric tuning; one new validation family replaces the retired example.",
-      anchorVersion: "scouting-judge-anchors-v2",
+        "Version 3 retires factual-contradiction-08-v1 and false-execution-claim-07-v1 after the second smoke exposed missing overlapping category labels. It preserves the v2 development set, the v2 unsupported-fact-08 validation replacement, and the 14 other v2 validation anchors that were scored but not used for rubric tuning. Two fresh validation families replace the retired examples; v1/v2 packs remain historical.",
+      anchorVersion: "scouting-judge-anchors-v3",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
-      retiredValidationAnchorIds: ["unsupported-fact-08-v1"],
+      retiredValidationAnchorIds: [
+        "unsupported-fact-08-v1",
+        "factual-contradiction-08-v1",
+        "false-execution-claim-07-v1",
+      ],
       semanticStatus: "passed",
       status: "passed",
       trialRequestsByRole: {

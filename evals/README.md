@@ -26,7 +26,7 @@ pnpm eval:run --mode smoke --judge --evidence-directory .data/evals/evidence --c
 
 Formal runs repeat each selected case three times. Add `--judge` to run the 32-anchor calibration before semantic scoring. The estimate includes 32 calibration calls and one judge call per trial. The judge defaults to the configured agent model; set `TACTISCOUT_EVAL_JUDGE_MODEL` to choose a separate model through the same gateway.
 
-The active judge anchor pack is `evals/anchors/v2.json`. It retires v1's `unsupported-fact-08-v1` validation anchor after the smoke exposed a classification gap, records the prior exposure, and adds examples where one answer has both an unsupported fact and a false execution claim. The v1 smoke report remains historical and its semantic scores are invalid; v2 needs a fresh live calibration before semantic scoring can be trusted.
+The active judge anchor pack is `evals/anchors/v3.json`. It replaces two v2 validation anchors whose labels omitted overlapping error categories and records the retired IDs and prior exposure. The v1 and v2 smoke reports remain historical with invalid semantic scores; v3 requires a fresh live calibration before semantic scoring can be trusted.
 
 Run the development split against locally prepared evidence with an explicit budget:
 
