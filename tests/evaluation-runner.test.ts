@@ -2361,7 +2361,7 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 3 retires factual-contradiction-08-v1 and false-execution-claim-07-v1 after the second smoke exposed missing overlapping category labels. It preserves the v2 development set, the v2 unsupported-fact-08 validation replacement, and the 14 other v2 validation anchors that were scored but not used for rubric tuning. Two fresh validation families replace the retired examples; v1/v2 packs remain historical.",
+        "Version 3 retires factual-contradiction-08-v1 and false-execution-claim-07-v1 after the second smoke exposed missing overlapping category labels. It preserves the v2 development set, the v2 unsupported-fact-08 validation replacement, and the 13 other v2 validation anchors that were scored but not used for rubric tuning. Two fresh validation families replace the retired examples; v1/v2 packs remain historical.",
       anchorVersion: "scouting-judge-anchors-v3",
       calibrationRequests: 32,
       calibrationStatus: "passed",
