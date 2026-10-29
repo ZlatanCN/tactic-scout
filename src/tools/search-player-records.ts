@@ -22,7 +22,9 @@ const searchInputSchema = z.object({
     .min(2000)
     .max(2100)
     .optional()
-    .describe("Understat 赛季起始年份；不填时使用数据库中最新赛季"),
+    .describe(
+      "用户明确指定 Understat 赛季时传入该赛季起始年份；不填时使用数据库中最新赛季"
+    ),
   sourceRecords: z
     .array(
       z.object({

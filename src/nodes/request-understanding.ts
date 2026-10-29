@@ -48,6 +48,20 @@ const youthRecommendationPattern =
 const lookupFollowUpPattern =
   /\b(?:which|what)\s+(?:season|league|source)\b|哪个赛季|什么赛季|哪个联赛|什么联赛|刚才(?:查到|的).{0,8}(?:赛季|数据|资料)/iu;
 
+const explicitUnderstatSeasonPattern =
+  /\b(?<startYear>20\d{2})\s*[/\-\u2010-\u2015]\s*(?:\d{2}|20\d{2})\b/u;
+
+const seasonConstraintNamePattern = /season|赛季/iu;
+
+const explicitUnderstatSeasonStartYearFromText = (
+  text: string
+): number | null => {
+  const startYear =
+    explicitUnderstatSeasonPattern.exec(text)?.groups?.startYear;
+
+  return startYear === undefined ? null : Number(startYear);
+};
+
 const isLookupFollowUpRequest = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
   text: string,
@@ -456,6 +470,23 @@ const constraintsForRequest = (
   text: string,
   isComparisonAddition: boolean
 ): RequestConstraint[] => {
+  if (extracted.kind === "player_lookup") {
+    const seasonStartYear = explicitUnderstatSeasonStartYearFromText(text);
+
+    const constraintsWithoutUnrequestedSeason = extracted.constraints.filter(
+      ({ name }) => !seasonConstraintNamePattern.test(name)
+    );
+
+    if (seasonStartYear === null) {
+      return constraintsWithoutUnrequestedSeason;
+    }
+
+    return [
+      ...constraintsWithoutUnrequestedSeason,
+      { name: "understatSeasonStartYear", value: String(seasonStartYear) },
+    ];
+  }
+
   if (extracted.kind === "player_comparison") {
     return mergeComparisonConstraints(
       isComparisonAddition ? context.activeComparison.constraints : [],

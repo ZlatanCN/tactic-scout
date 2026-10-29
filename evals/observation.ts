@@ -707,6 +707,7 @@ const createEvaluationObserver = (
     const eventId = `${request.trialId}:${activeTurnId}:identity-${identityLookupIndex}`;
 
     identityLookupEvents.push({
+      actionId: eventId,
       candidates: [],
       caseId: request.caseId,
       durationMs: null,
@@ -731,6 +732,7 @@ const createEvaluationObserver = (
     durationMs: number
   ): void => {
     identityLookupEvents.push({
+      actionId: eventId,
       candidates: result.candidates.map((candidate) => ({
         candidateId: candidate.candidateId,
         canonicalIdentityId: candidate.canonicalIdentityId,
@@ -764,6 +766,7 @@ const createEvaluationObserver = (
     durationMs: number
   ): void => {
     identityLookupEvents.push({
+      actionId: eventId,
       candidates: [],
       caseId: request.caseId,
       durationMs,

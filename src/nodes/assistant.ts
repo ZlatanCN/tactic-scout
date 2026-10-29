@@ -19,10 +19,11 @@ import {
 import type {
   AgentState,
   AgentStateType,
+  RequestConstraint,
   RequestPlayerState,
 } from "../state.js";
 
-const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。只依据工具结果作答，不要把同名记录当作同一人。保留 Understat 和 Football Manager 各自的数据与来源，不要把不同含义的字段混成一个指标。Understat 的 team 字段只表示对应赛事和赛季表现记录中的球队，不代表当前注册球队。用户询问当前俱乐部或注册球队时，只有来源明确提供当前注册信息才能回答；如果只有 Understat 赛季记录，只能标为“该赛事/赛季记录中的球队”，并明确当前注册无法从资料确定。不要使用“当前俱乐部”或“Current club”作为标题或字段名，除非某个来源明确提供了当前注册信息；也不要把 Understat.team 值放在该标题下。无论用户用中文还是英文询问当前俱乐部，都遵守此规则。不要补猜缺失值、合同、身价或转会可行性。说明来源、赛事和赛季；没有证据时明确说未知。`;
+const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。用户明确指定赛季时必须按请求中的 seasonStartYear 查询，不要改成最新赛季；用户未指定赛季时省略 seasonStartYear，使用快照最新赛季，不要自行猜一个年份。如果用户明确写了赛季，但 requestedUnderstatSeasonStartYear 为 null，表示该写法没有转换为查询范围；不要把默认最新赛季说成用户要求的赛季，请用户补充完整赛季范围，不要推断世纪或把单一年份当作赛季。若返回结果包含 understat，requestedUnderstatSeasonStartYear 表示用户明确指定的 Understat 查询年份；当 understat.status 为 found 或 not_found 且该字段为 null 时，工具使用快照最新赛季；当 understat.status 为 unavailable 时，不能声称查到了任何赛季记录。若结果中没有 understat，则本次没有查询 Understat。最终回答不要从记忆猜测或复述 source ID；只有用户明确询问且该 ID 出现在本次返回的具体记录中时才可提供。只依据工具结果作答，不要把同名记录当作同一人。保留 Understat 和 Football Manager 各自的数据与来源，不要把不同含义的字段混成一个指标。Understat 的 team 字段只表示对应赛事和赛季表现记录中的球队，不代表当前注册球队。用户询问当前俱乐部或注册球队时，只有来源明确提供当前注册信息才能回答；如果只有 Understat 赛季记录，只能标为“该赛事/赛季记录中的球队”，并明确当前注册无法从资料确定。不要使用“当前俱乐部”或“Current club”作为标题或字段名，除非某个来源明确提供了当前注册信息；也不要把 Understat.team 值放在该标题下。无论用户用中文还是英文询问当前俱乐部，都遵守此规则。不要补猜缺失值、合同、身价或转会可行性。说明来源、赛事和赛季；没有证据时明确说未知。`;
 
 const lookupFollowUpPrompt =
   "你在回答对最近一次球员资料查询的追问。只能依据提供的已保存查询结果 JSON 作答；如果结果里没有用户问的字段，要明确说资料未包含。不得补猜、改写来源或引入外部事实。";
@@ -61,9 +62,31 @@ const resolvedRecords = (player: RequestPlayerState) => {
   );
 };
 
+const seasonStartYearFromConstraints = (
+  constraints: RequestConstraint[]
+): number | undefined => {
+  const value = constraints.find(
+    ({ name }) => name === "understatSeasonStartYear"
+  )?.value;
+
+  const parsedStartYear = z
+    .string()
+    .regex(/^20\d{2}$/u)
+    .safeParse(value);
+
+  if (!parsedStartYear.success) {
+    return undefined;
+  }
+
+  const year = Number(parsedStartYear.data);
+
+  return year >= 2000 && year <= 2100 ? year : undefined;
+};
+
 const pinSearchToResolvedIdentity = (
   response: AIMessage,
-  player: RequestPlayerState
+  player: RequestPlayerState,
+  requestedSeasonStartYear?: number
 ): AIMessage => {
   const sourceRecords = resolvedRecords(player);
   let changed = false;
@@ -75,9 +98,7 @@ const pinSearchToResolvedIdentity = (
 
     changed = true;
 
-    const seasonStartYear = z
-      .number()
-      .safeParse(call.args.seasonStartYear).data;
+    const seasonStartYear = requestedSeasonStartYear;
 
     return {
       ...call,
@@ -370,10 +391,16 @@ const fixedOutcomeAnswer = (state: AgentStateType): string | null => {
   }
 
   if (status === "identity_data_unavailable") {
-    return withPreservedResultNotice(
-      state,
-      "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。"
+    const player = state.request.players.find(
+      ({ resolution }) => resolution?.status === "data_unavailable"
     );
+
+    const message =
+      player === undefined
+        ? "本轮无法确认球员身份，查询已暂停。"
+        : `本地身份匹配无法确认“${player.mention}”对应的球员，本次查询已暂停。`;
+
+    return withPreservedResultNotice(state, message);
   }
 
   const knownMessage = fixedOutcomeMessages.get(status);
@@ -517,7 +544,11 @@ const createLookupPlayerNode =
 
     const assistantMessage =
       modelMessage instanceof AIMessage && player !== undefined
-        ? pinSearchToResolvedIdentity(modelMessage, player)
+        ? pinSearchToResolvedIdentity(
+            modelMessage,
+            player,
+            seasonStartYearFromConstraints(state.request.constraints)
+          )
         : modelMessage;
 
     return {

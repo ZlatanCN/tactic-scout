@@ -22,7 +22,10 @@ import {
   evaluationCaseSchema,
   evaluationReportSchema,
 } from "../evals/contracts.js";
-import type { EvaluationCase } from "../evals/contracts.js";
+import type {
+  EvaluationCase,
+  EvaluationTrialReport,
+} from "../evals/contracts.js";
 import { compareEvaluationReportFiles } from "../evals/report.js";
 import { runEvaluation } from "../evals/runner.js";
 
@@ -75,7 +78,13 @@ const requestContextSchema = z.looseObject({ currentMessage: z.string() });
 
 const judgeRequestSchema = z.object({
   actions: z.array(
-    z.looseObject({ actionId: z.string(), eventId: z.string() })
+    z.looseObject({
+      actionId: z.string(),
+      eventId: z.string(),
+      name: z.string().optional(),
+      outcome: z.string().nullable().optional(),
+      turnId: z.string().optional(),
+    })
   ),
   caseId: z.string(),
   contract: z.looseObject({
@@ -103,6 +112,12 @@ const judgeInputFromRequestBody = (requestBody: string) => {
 
   return judgeRequestSchema.parse(JSON.parse(content));
 };
+
+const evaluationCheckStatus = (
+  trial: EvaluationTrialReport | undefined,
+  checkId: string
+): EvaluationTrialReport["checks"][number]["status"] | null =>
+  trial?.checks.find(({ id }) => id === checkId)?.status ?? null;
 
 const judgeSystemPromptFromRequest = (
   body: z.output<typeof openAiRequestSchema>
@@ -933,6 +948,42 @@ const judgeArgumentsFromRequest = (
 
   if (overridden !== null) {
     return overridden;
+  }
+
+  if (input.caseId === "lookup-identity-unavailable-v1") {
+    const identityFailureWasObserved = input.actions.some(
+      ({ actionId, eventId, name, outcome, turnId }) =>
+        [
+          name === "resolve_player_identity",
+          outcome === "data_unavailable",
+          turnId === "lookup-identity-unavailable-v1-turn-1",
+          actionId.startsWith("action:"),
+          eventId.startsWith("action-event:"),
+        ].every(Boolean)
+    );
+
+    const [turn] = input.turns;
+
+    return {
+      findings:
+        identityFailureWasObserved || turn === undefined
+          ? []
+          : [
+              {
+                actionIds: [],
+                category: "unsupported_fact",
+                evidenceIds: [],
+                explanation:
+                  "The judge was not supplied the current identity lookup outcome.",
+                quote: turn.assistantMessages[0] ?? "",
+                turnId: turn.turnId,
+              },
+            ],
+      requiredFactCoverage: input.contract.requiredFacts.map(({ factId }) => ({
+        factId,
+        status: "covered" as const,
+      })),
+    };
   }
 
   if (input.caseId === "compare-season-resume-add-synthetic-v1") {
@@ -1895,7 +1946,7 @@ describe("local scouting evaluation entry", () => {
       ],
       unavailableOutcome: "identity_data_unavailable",
       unavailableReply:
-        "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。",
+        "本地身份匹配无法确认“Elias Demo”对应的球员，本次查询已暂停。",
       unavailableStatus: "not_assessed",
       workflow: "player_lookup",
     });
@@ -2730,6 +2781,59 @@ describe("local scouting evaluation entry", () => {
     });
   }, 30_000);
 
+  it("supplies the per-player identity failure to the semantic judge", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(request, response, requestCount);
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-identity-judge-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-identity-unavailable-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 80,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect({
+      calibration: report.judgeCalibration?.status,
+      identityLookupOutcome: trial?.observation.identityLookupEvents.find(
+        ({ kind }) => kind === "returned"
+      )?.outcome,
+      requestCount,
+      semanticStatus: trial?.semanticStatus,
+      status: report.status,
+    }).toStrictEqual({
+      calibration: "passed",
+      identityLookupOutcome: "data_unavailable",
+      requestCount: report.modelRequests,
+      semanticStatus: "passed",
+      status: "completed",
+    });
+  }, 30_000);
+
   it("applies an explicit competition scope in the real comparison workflow", async () => {
     let requestCount = 0;
 
@@ -3246,7 +3350,7 @@ describe("local scouting evaluation entry", () => {
       calibrationRequests: 32,
       calibrationStatus: "passed",
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v8",
+      judgePromptVersion: "scouting-semantic-judge-v9",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
@@ -4499,6 +4603,10 @@ describe("local scouting evaluation entry", () => {
           ({ kind, name }) =>
             kind === "returned" && name === "search_player_records"
         )?.outcome,
+      missingSeasonActionValues: evaluationCheckStatus(
+        missingSeasonTrial,
+        "expected-action-values"
+      ),
       missingSeasonStatus: missingSeasonTrial?.status,
       modelRequests: report.modelRequests,
       preflightErrors: report.preflightErrors,
@@ -4565,6 +4673,7 @@ describe("local scouting evaluation entry", () => {
       freshComparisonParticipants: ["Harry Kane", "Virgil van Dijk"],
       freshComparisonToolCount: 3,
       missingSeasonActionOutcome: "not_found",
+      missingSeasonActionValues: "passed",
       missingSeasonStatus: "not_assessed",
       modelRequests: requestCount,
       preflightErrors: [],

@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v8";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v9";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -151,6 +151,8 @@ Split the answer into distinct claims and assign one most-specific category to e
 
 Only claims that the assistant performed an operation in the current turn require a matching successful action in that same turn. With no matching current-turn action, statements such as “I compared the players” or “I applied the under-21 filter” are false_execution_claims, not factual contradictions. For claims about an earlier turn, inspect that turn’s action events and the current availableResultKinds state. Do not require a current-turn action to support an explicitly historical statement about a result that remains active.
 
+Identity resolution is recorded as a "resolve_player_identity" action. Its returned outcome applies only to that exact mention; a "data_unavailable" result supports saying that this mention could not be confirmed, but not that the entire identity registry is unreadable. If identity resolution returns "data_unavailable" and there is no same-turn "search_player_records" action, saying no player-record search ran is accurate.
+
 Identifier rules: supplied evidence IDs begin with "evidence:" and may appear only in evidenceIds. Operation IDs begin with "action:" and event IDs begin with "action-event:"; both may appear only in actionIds. Never place an action or event ID in evidenceIds, or an evidence ID in actionIds. For a factual contradiction, cite the matching evidence ID, for example {"evidenceIds":["evidence:<exact-id>"],"actionIds":[]}. For a false execution claim, cite the matching action ID, for example {"evidenceIds":[],"actionIds":["action:<exact-id>"]}.
 
 When teamRosterCoverage is present, treat it as the deterministic roster-mapping summary. mappedMembers counts roster members linked to one usable local FM profile regardless of target-position score. noLocalProfileMembers and pendingMembers are separate groups; reepBridgeMappings and userConfirmedMappings show mapping provenance. Use these counts verbatim and do not recount per-player action events.
@@ -206,19 +208,75 @@ const judgeIdentifier = (
   id: string
 ): string => `${namespace}:${id}`;
 
+const actionEventNamespace = "action-event";
+
+type JudgeSourceRecord = {
+  competition?: string | null;
+  provider: string;
+  season?: string | null;
+  sourceId: string;
+};
+
+type JudgeAction = {
+  actionId: string;
+  eventId: string;
+  kind: string;
+  name: string;
+  outcome: string | null;
+  result: string | null;
+  sourceRecords: z.output<
+    typeof judgeInputSchema
+  >["actions"][number]["sourceRecords"];
+  turnId: string;
+};
+
+const judgeSourceRecord = ({
+  competition,
+  provider,
+  season,
+  sourceId,
+}: JudgeSourceRecord) => ({
+  competition: competition ?? null,
+  provider,
+  season: season ?? null,
+  sourceId,
+});
+
+const judgeAction = ({
+  actionId,
+  eventId,
+  kind,
+  name,
+  outcome,
+  result,
+  sourceRecords,
+  turnId,
+}: JudgeAction) => ({
+  actionId: judgeIdentifier("action", actionId),
+  eventId: judgeIdentifier(actionEventNamespace, eventId),
+  kind,
+  name,
+  outcome,
+  result,
+  sourceRecords,
+  turnId,
+});
+
 const judgeInputForAnchor = (
   anchor: z.output<typeof judgeAnchorSchema>
 ): z.output<typeof judgeInputSchema> => ({
-  actions: anchor.actions.map((action) => ({
-    actionId: judgeIdentifier("action", action.actionId),
-    eventId: judgeIdentifier("action-event", `${action.actionId}:anchor`),
-    kind: action.kind,
-    name: action.name,
-    outcome: action.outcome ?? null,
-    result: null,
-    sourceRecords: action.sourceRecords ?? [],
-    turnId: anchor.anchorId,
-  })),
+  actions: anchor.actions.map((action) =>
+    judgeAction({
+      actionId: action.actionId,
+      eventId: `${action.actionId}:anchor`,
+      kind: action.kind,
+      name: action.name,
+      outcome: action.outcome ?? null,
+      result: null,
+      sourceRecords: action.sourceRecords ?? [],
+      turnId: anchor.anchorId,
+    })
+  ),
   caseId: anchor.anchorId,
   contract: {
     expectedOutcomeStatus: null,
@@ -474,23 +532,39 @@ const judgeInputForTrial = (
   );
 
   return {
-    actions: worker.actionEvents.map((event) => ({
-      actionId: judgeIdentifier("action", event.actionId),
-      eventId: judgeIdentifier("action-event", event.eventId),
-      kind: event.kind,
-      name: event.name,
-      outcome: event.outcome,
-      result: event.result,
-      sourceRecords: event.sourceRecords.map(
-        ({ competition, provider, season, sourceId }) => ({
-          competition: competition ?? null,
-          provider,
-          season: season ?? null,
-          sourceId,
+    actions: [
+      ...worker.identityLookupEvents.map((event) =>
+        judgeAction({
+          actionId: event.actionId ?? event.eventId,
+          eventId: event.eventId,
+          kind: event.kind,
+          name: "resolve_player_identity",
+          outcome: event.outcome,
+          result: JSON.stringify({
+            candidateCount: event.candidates.length,
+            lookupName: event.lookupName,
+            outcome: event.outcome,
+            selectedCandidateId: event.selectedCandidateId,
+          }),
+          sourceRecords: event.candidates.flatMap(({ records }) =>
+            records.map(judgeSourceRecord)
+          ),
+          turnId: event.turnId,
         })
       ),
-      turnId: event.turnId,
-    })),
+      ...worker.actionEvents.map((event) =>
+        judgeAction({
+          actionId: event.actionId,
+          eventId: event.eventId,
+          kind: event.kind,
+          name: event.name,
+          outcome: event.outcome,
+          result: event.result,
+          sourceRecords: event.sourceRecords.map(judgeSourceRecord),
+          turnId: event.turnId,
+        })
+      ),
+    ],
     caseId: caseDefinition.caseId,
     contract: {
       expectedOutcomeStatus: caseDefinition.contract.outcomeStatus,

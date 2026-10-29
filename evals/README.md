@@ -28,6 +28,8 @@ Formal runs repeat each selected case three times. Add `--judge` to run the 32-a
 
 The active judge anchor pack is `evals/anchors/v8.json`. Rubric v3 assigns one most-specific category per claim; distinct claims may receive different categories. V8 clarifies retained-result state after a failed new operation and requires current-turn actions for comparison/filter claims. Its development anchors cover those cases. V8 passed live validation 16/16 in run `426f3ce3-1b71-41cd-b782-7259b48d52e1`; that smoke also exposed a same-identity alternate-profile candidate, which issue 20 fixed. The targeted post-fix recommendation smoke `c0d751ad-4aee-43cf-893a-2e7d86aed9f5` passed deterministic and semantic checks with v8 calibration 16/16. V1-v7 packs and reports remain historical.
 
+Judge prompt v9 adds per-turn identity-resolver outcomes to the action evidence and constrains identity-failure claims to the exact mention. It still uses the v8 anchor pack; a live v9 calibration has not yet run.
+
 Formal run `ab3547a4-8cb7-4566-a837-eff62941357b` executed all 96 development trials and used 358/1,326 requests. Its report is `partial`: 44 semantic passes, 33 failures, 9 inconclusive, 7 invalid judge outputs, and 3 trials without a visible answer. The three claim metrics use the 77 adjudicated trials: factual contradictions 3/77, unsupported additions 13/77, and false execution claims 8/77. See the local report at `.data/evals/runs/ab3547a4-8cb7-4566-a837-eff62941357b/report.md`; an earlier runtime-error partial attempt is preserved separately.
 
 Run the development split against locally prepared evidence with an explicit budget:

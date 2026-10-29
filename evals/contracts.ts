@@ -366,6 +366,7 @@ const evaluationActionEventSchema = z.object({
 });
 
 const identityLookupEventSchema = z.object({
+  actionId: z.string().optional(),
   candidates: z.array(
     z.object({
       candidateId: z.string(),

@@ -12,6 +12,7 @@ type SearchPlayerRecordsResult = {
   fm?: FmReadResult;
   identityGroups: ReturnType<typeof resolveSearchIdentityGroups>;
   query: PlayerSearchQuery["sourceRecords"];
+  requestedUnderstatSeasonStartYear?: number | null;
   understat?: UnderstatReadResult;
 };
 
@@ -59,6 +60,7 @@ const searchPlayerRecords: PlayerSearch = (input) => {
   };
 
   if (understatResult !== null) {
+    result.requestedUnderstatSeasonStartYear = input.seasonStartYear ?? null;
     result.understat = understatResult;
   }
 

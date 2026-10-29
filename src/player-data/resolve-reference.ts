@@ -314,8 +314,7 @@ const dataUnavailableReference = (mention: string): ReferenceLookupResult => ({
   candidates: [],
   candidatesTruncated: false,
   canonicalIdentityId: null,
-  clarificationMessage:
-    "本地球员身份资料无法读取，本次请求没有执行。请检查本地数据后重试。",
+  clarificationMessage: `本地身份匹配无法确认“${mention}”对应的球员。`,
   mention,
   selectedCandidateId: null,
   selectedName: null,

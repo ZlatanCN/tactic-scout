@@ -1,4 +1,9 @@
-import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  ToolMessage,
+} from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
@@ -25,6 +30,14 @@ const { createAgent } = await import("../src/agent.js");
 const { createTools } = await import("../src/tools/search-player-records.js");
 
 type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
+
+type EmptySearchResult = {
+  fm?: { records: unknown[]; status: "not_found" };
+  identityGroups: { canonicalGroups: unknown[] };
+  query: PlayerSearchInput["sourceRecords"];
+  requestedUnderstatSeasonStartYear?: number | null;
+  understat?: { records: unknown[]; status: "not_found" };
+};
 
 const playerCandidate = (name: string, id: string): ReferenceCandidate => ({
   candidateId: `reep:${id}`,
@@ -99,19 +112,159 @@ const requestForPlayers = (
   ...extra,
 });
 
-const emptySearchResult = (input: PlayerSearchInput): string =>
-  JSON.stringify({
-    fm: { records: [], status: "not_found" },
+const emptySearchResult = (input: PlayerSearchInput): string => {
+  const hasFmSource = input.sourceRecords.some(
+    ({ provider }) => provider === "fm"
+  );
+
+  const hasUnderstatSource = input.sourceRecords.some(
+    ({ provider }) => provider === "understat"
+  );
+
+  const result: EmptySearchResult = {
     identityGroups: { canonicalGroups: [] },
     query: input.sourceRecords,
-    understat: { records: [], status: "not_found" },
-  });
+  };
+
+  if (hasFmSource) {
+    result.fm = { records: [], status: "not_found" };
+  }
+
+  if (hasUnderstatSource) {
+    result.requestedUnderstatSeasonStartYear = input.seasonStartYear ?? null;
+    result.understat = { records: [], status: "not_found" };
+  }
+
+  return JSON.stringify(result);
+};
 
 const emptySearch: PlayerSearch = (input) => emptySearchResult(input);
 
 const createSearchTool = (search: PlayerSearch) => createTools(search)[0];
 
 describe("LangGraph player workflows", () => {
+  it("pins an explicit lookup season to the resolved source records", async () => {
+    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
+    const message = "Look up Kylian Mbappé's 2024/25 La Liga xG.";
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [], status: "not_found" },
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          args: {
+            seasonStartYear: 2025,
+            sourceRecords: [{ provider: "understat", sourceId: "2370" }],
+          },
+          name: "search_player_records",
+        },
+      ])
+      .respond(new AIMessage("The requested Understat row was not found."));
+
+    const lookupTool = createSearchTool(search);
+    const modelWithTools = model.bindTools([lookupTool]);
+    const lookupModelInvoke = vi.spyOn(modelWithTools, "invoke");
+    vi.spyOn(model, "bindTools").mockReturnValue(modelWithTools);
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(mbappe),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [mbappe.name]),
+      }),
+      tools: [lookupTool],
+    });
+
+    await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "lookup-explicit-season-scope" } }
+    );
+
+    const searchInput = search.mock.calls[0]?.[0];
+
+    expect(searchInput?.seasonStartYear).toBe(2024);
+    expect(searchInput?.sourceRecords).toStrictEqual([
+      { provider: "fm", sourceId: "mbappe-fm" },
+      { provider: "understat", sourceId: "mbappe-understat" },
+    ]);
+    const modelMessages = lookupModelInvoke.mock.calls[0]?.[0];
+
+    const systemMessage = Array.isArray(modelMessages)
+      ? modelMessages.find(
+          (inputMessage) => inputMessage instanceof SystemMessage
+        )
+      : undefined;
+
+    expect(z.string().safeParse(systemMessage?.content).data).toContain(
+      "最终回答不要从记忆猜测或复述 source ID"
+    );
+    expect(z.string().safeParse(systemMessage?.content).data).toContain(
+      "请用户补充完整赛季范围"
+    );
+  });
+
+  it.each(["Look up Harry Kane's xG.", "Look up Harry Kane's 24/25 xG."])(
+    "discards an inferred season when no supported range is present: %s",
+    async (message) => {
+      const kane = playerCandidate("Harry Kane", "kane");
+      const search = vi.fn<PlayerSearch>(emptySearchResult);
+
+      const model = fakeModel()
+        .respondWithTools([
+          {
+            args: {
+              seasonStartYear: 2025,
+              sourceRecords: [{ provider: "understat", sourceId: "wrong-id" }],
+            },
+            name: "search_player_records",
+          },
+        ])
+        .respond(new AIMessage("The requested Understat row was not found."));
+
+      const lookupTool = createSearchTool(search);
+
+      const graph = createAgent({
+        model,
+        playerIdentityLookup: resolvedLookup(kane),
+        requestUnderstandingExtractor: createExtractor({
+          [message]: requestForPlayers("player_lookup", [kane.name], {
+            constraints: [{ name: "understatSeasonStartYear", value: "2024" }],
+          }),
+        }),
+        tools: [lookupTool],
+      });
+
+      await graph.invoke(
+        { messages: [new HumanMessage(message)] },
+        { configurable: { thread_id: "lookup-default-latest-season" } }
+      );
+
+      const searchInput = search.mock.calls[0]?.[0];
+
+      const searchResult = z
+        .string()
+        .safeParse(await search.mock.results[0]?.value);
+
+      expect(searchInput).toStrictEqual({
+        sourceRecords: [
+          { provider: "fm", sourceId: "kane-fm" },
+          { provider: "understat", sourceId: "kane-understat" },
+        ],
+      });
+      expect(searchResult.success ? searchResult.data : "").toContain(
+        '"requestedUnderstatSeasonStartYear":null'
+      );
+    }
+  );
+
   it("retries a recognized transient model failure before executing the lookup tool", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
 
@@ -227,8 +380,7 @@ describe("LangGraph player workflows", () => {
       status: result.outcome?.status,
     }).toStrictEqual({
       activeLookup: null,
-      answer:
-        "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。",
+      answer: "本地身份匹配无法确认“Harry Kane”对应的球员，本次查询已暂停。",
       pendingClarification: null,
       searchCalls: 0,
       status: "identity_data_unavailable",
@@ -306,7 +458,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: previousLookup,
       answer:
-        "本地球员身份资料无法读取，本次无法确认球员身份，也没有执行依赖该身份的查询或计算。此前已完成的结果仍保留。",
+        "本地身份匹配无法确认“Erling Haaland”对应的球员，本次查询已暂停。此前已完成的结果仍保留。",
       identityLookups: 2,
       searchCalls: 1,
     });

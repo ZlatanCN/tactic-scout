@@ -83,9 +83,25 @@
         "turnId": "lookup-mbappe-confirmation-real-v1-turn-1"
       }
     ],
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "turnId": "lookup-mbappe-confirmation-real-v1-turn-1",
+        "source": "input",
+        "path": "seasonStartYear",
+        "value": 2024
+      },
+      {
+        "name": "search_player_records",
+        "turnId": "lookup-mbappe-confirmation-real-v1-turn-1",
+        "source": "result",
+        "path": "requestedUnderstatSeasonStartYear",
+        "value": 2024
+      }
+    ],
     "requiredEvidence": [],
     "requiredAbstentions": [
-      "The fixed Understat snapshot has no 2024/25 La Liga row for this source ID; the answer must say that the requested season is unavailable."
+      "The Understat lookup used source ID 3423 with seasonStartYear 2024 and returned no rows. State that no record was returned for the requested 2024/25 season; do not invent or replace a source ID."
     ],
     "prohibitedClaims": [
       "current_registration",
