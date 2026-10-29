@@ -2822,10 +2822,10 @@ describe("local scouting evaluation entry", () => {
           understat: z.object({ status: z.string() }).nullable().optional(),
         })
       ),
-      sharedUnderstatScopes: z.array(
+      status: z.string(),
+      understatScopeGroups: z.array(
         z.object({ competition: z.string(), season: z.string() })
       ),
-      status: z.string(),
     });
 
     const parsedOutput = comparisonOutputSchema.safeParse(
@@ -2838,9 +2838,6 @@ describe("local scouting evaluation entry", () => {
       codeStatus: trial?.codeStatus,
       comparisonStatus: parsedOutput.success ? parsedOutput.data.status : null,
       effectiveConstraints: trial?.observation.turns[0]?.effectiveConstraints,
-      sharedUnderstatScopes: parsedOutput.success
-        ? parsedOutput.data.sharedUnderstatScopes
-        : null,
       syntheticMidfielderUnderstatStatus: parsedOutput.success
         ? parsedOutput.data.players.find(
             ({ playerName }) => playerName === "Synthetic Midfielder"
@@ -2851,6 +2848,9 @@ describe("local scouting evaluation entry", () => {
             ({ playerName }) => playerName === "Synthetic Winger"
           )?.understat?.status
         : null,
+      understatScopeGroups: parsedOutput.success
+        ? parsedOutput.data.understatScopeGroups
+        : null,
     }).toStrictEqual({
       codeStatus: "passed",
       comparisonStatus: "ready",
@@ -2858,9 +2858,9 @@ describe("local scouting evaluation entry", () => {
         { name: "season", value: "2024/25" },
         { name: "competition", value: "La Liga" },
       ],
-      sharedUnderstatScopes: [],
       syntheticMidfielderUnderstatStatus: "not_found",
       syntheticWingerUnderstatStatus: "found",
+      understatScopeGroups: [],
     });
   }, 20_000);
 

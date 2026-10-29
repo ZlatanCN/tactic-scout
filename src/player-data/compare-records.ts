@@ -166,7 +166,7 @@ const uniqueComparisonPlayers = (
 const understatRecords = (player: PlayerComparisonData) =>
   player.understat?.status === "found" ? player.understat.records : [];
 
-const sharedUnderstatScopes = (players: PlayerComparisonData[]) => {
+const overlappingUnderstatScopeGroups = (players: PlayerComparisonData[]) => {
   const scopes = new Map<
     string,
     {
@@ -196,15 +196,22 @@ const sharedUnderstatScopes = (players: PlayerComparisonData[]) => {
     }
   }
 
-  const sharedScopes = [];
+  const scopeGroups = [];
 
   for (const scope of scopes.values()) {
-    if (scope.players.size < 2) {
+    const coveredPlayerCount = scope.players.size;
+
+    if (coveredPlayerCount < 2) {
       continue;
     }
 
-    sharedScopes.push({
+    scopeGroups.push({
       competition: scope.competition,
+      coverage: {
+        coveredPlayerCount,
+        coversAllParticipants: coveredPlayerCount === players.length,
+        participantCount: players.length,
+      },
       players: players.map((player, index) => ({
         playerName: player.playerName,
         record: scope.players.get(index) ?? null,
@@ -213,7 +220,7 @@ const sharedUnderstatScopes = (players: PlayerComparisonData[]) => {
     });
   }
 
-  return sharedScopes;
+  return scopeGroups;
 };
 
 const comparePlayerRecords = async (
@@ -256,29 +263,36 @@ const comparePlayerRecords = async (
     })
   );
 
-  const scopes = sharedUnderstatScopes(players);
+  const understatScopeGroups = overlappingUnderstatScopeGroups(players);
 
   const playersWithFmRecords = players.filter(
     (player) => player.fm?.status === "found"
   );
 
   const hasFmRecords = playersWithFmRecords.length > 0;
-  const hasUnderstatRecords = scopes.length > 0;
+
+  const hasUnderstatRecords = players.some(
+    (player) => player.understat?.status === "found"
+  );
+
+  const commonUnderstatScopeCount = understatScopeGroups.filter(
+    ({ coverage }) => coverage.coversAllParticipants
+  ).length;
 
   const hasComparableRecords =
-    scopes.length > 0 || playersWithFmRecords.length >= 2;
+    understatScopeGroups.length > 0 || playersWithFmRecords.length >= 2;
 
   return JSON.stringify({
     coverage: {
+      commonUnderstatScopeCount,
       fmPlayerCount: playersWithFmRecords.length,
       hasFmRecords,
       hasUnderstatRecords,
       playerCount: selectedPlayers.length,
-      sharedUnderstatScopeCount: scopes.length,
     },
     players,
-    sharedUnderstatScopes: scopes,
     status: hasComparableRecords ? "ready" : "no_comparable_data",
+    understatScopeGroups,
   });
 };
 

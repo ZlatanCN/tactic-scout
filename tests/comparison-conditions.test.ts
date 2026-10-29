@@ -253,10 +253,18 @@ describe("comparison workflow state", () => {
               .nullable(),
           })
         ),
-        sharedUnderstatScopes: z.array(
-          z.object({ competition: z.string(), season: z.string() })
-        ),
         status: z.string(),
+        understatScopeGroups: z.array(
+          z.object({
+            competition: z.string(),
+            coverage: z.object({
+              coveredPlayerCount: z.number(),
+              coversAllParticipants: z.boolean(),
+              participantCount: z.number(),
+            }),
+            season: z.string(),
+          })
+        ),
       })
       .parse(JSON.parse(result.outcome?.resultJson ?? "null"));
 
@@ -265,12 +273,154 @@ describe("comparison workflow state", () => {
       perPlayerCompetitions: parsedResult.players.map(({ understat }) =>
         understat?.records.map(({ competition }) => competition)
       ),
-      sharedScopes: parsedResult.sharedUnderstatScopes,
+      sharedScopes: parsedResult.understatScopeGroups,
       status: parsedResult.status,
     }).toStrictEqual({
       outcome: "ready",
       perPlayerCompetitions: [["La_liga"], ["La_liga"]],
-      sharedScopes: [{ competition: "La_liga", season: "2024/25" }],
+      sharedScopes: [
+        {
+          competition: "La_liga",
+          coverage: {
+            coveredPlayerCount: 2,
+            coversAllParticipants: true,
+            participantCount: 2,
+          },
+          season: "2024/25",
+        },
+      ],
+      status: "ready",
+    });
+  });
+
+  it("marks an overlapping Understat scope that does not cover every player", async () => {
+    const demo = candidate("Elias Demo", "demo");
+    const midfielder = candidate("Synthetic Midfielder", "midfielder");
+    const winger = candidate("Synthetic Winger", "winger");
+
+    const understatBySourceId = new Map([
+      ["demo-understat", "EPL"],
+      ["midfielder-understat", "EPL"],
+      ["winger-understat", "La_liga"],
+    ]);
+
+    const message =
+      "Compare Elias Demo, Synthetic Midfielder and Synthetic Winger for 2024/25.";
+
+    const search = vi.fn<PlayerSearch>((input) => {
+      const sourceId = input.sourceRecords.find(
+        ({ provider }) => provider === "understat"
+      )?.sourceId;
+
+      const competition = understatBySourceId.get(sourceId ?? "");
+
+      const records =
+        sourceId === undefined || competition === undefined
+          ? []
+          : [
+              {
+                assists: 1,
+                competition,
+                expectedAssists: 0.5,
+                expectedGoals: 1.2,
+                goals: 1,
+                keyPasses: 4,
+                minutes: 900,
+                nonPenaltyExpectedGoals: 1.1,
+                player: sourceId,
+                position: "F",
+                season: "2024/25",
+                shots: 10,
+                source: "Understat",
+                sourcePlayerId: sourceId,
+                team: "Fixture FC",
+              },
+            ];
+
+      return JSON.stringify({
+        fm: { records: [], status: "not_found" },
+        identityGroups: { canonicalGroups: [] },
+        query: input.sourceRecords,
+        understat: {
+          records,
+          status: records.length > 0 ? "found" : "not_found",
+        },
+      });
+    });
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel().respond(new AIMessage("Comparison completed.")),
+      playerIdentityLookup: createLookup([demo, midfielder, winger]),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: compareRequest(
+          [demo.name, midfielder.name, winger.name],
+          [{ name: "season", value: "2024/25" }]
+        ),
+      }),
+      tools: createTools(search),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "comparison-partial-understat-scope" } }
+    );
+
+    const parsedResult = z
+      .object({
+        coverage: z.object({
+          commonUnderstatScopeCount: z.number(),
+          hasUnderstatRecords: z.boolean(),
+          playerCount: z.number(),
+        }),
+        status: z.string(),
+        understatScopeGroups: z.array(
+          z.object({
+            competition: z.string(),
+            coverage: z.object({
+              coveredPlayerCount: z.number(),
+              coversAllParticipants: z.boolean(),
+              participantCount: z.number(),
+            }),
+            players: z.array(
+              z.object({
+                playerName: z.string(),
+                record: z
+                  .object({
+                    competition: z.string(),
+                    sourcePlayerId: z.string(),
+                  })
+                  .nullable(),
+              })
+            ),
+            season: z.string(),
+          })
+        ),
+      })
+      .parse(JSON.parse(result.outcome?.resultJson ?? "null"));
+
+    expect({
+      commonUnderstatScopeCount:
+        parsedResult.coverage.commonUnderstatScopeCount,
+      coverage: parsedResult.understatScopeGroups[0]?.coverage,
+      coveredEplPlayers: parsedResult.understatScopeGroups[0]?.players
+        .filter(({ record }) => record !== null)
+        .map(({ playerName }) => playerName),
+      hasUnderstatRecords: parsedResult.coverage.hasUnderstatRecords,
+      missingEplPlayers: parsedResult.understatScopeGroups[0]?.players
+        .filter(({ record }) => record === null)
+        .map(({ playerName }) => playerName),
+      status: parsedResult.status,
+    }).toStrictEqual({
+      commonUnderstatScopeCount: 0,
+      coverage: {
+        coveredPlayerCount: 2,
+        coversAllParticipants: false,
+        participantCount: 3,
+      },
+      coveredEplPlayers: [demo.name, midfielder.name],
+      hasUnderstatRecords: true,
+      missingEplPlayers: [winger.name],
       status: "ready",
     });
   });
