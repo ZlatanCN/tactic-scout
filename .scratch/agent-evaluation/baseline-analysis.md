@@ -53,7 +53,7 @@ The run completed all 96 trials using 399 of the 871 remaining authorized reques
 |---|---|---|
 | Follow-up loses active lookup focus | In two trials, the graph successfully looked up Elias Demo, then answered “刚才查到的是什么赛季？” with “请告诉我你要查询哪位球员。” instead of reusing the active lookup result. A third repetition had a transport failure before the lookup completed. | Fixed in issue 23. The graph-level regression passes. Live smoke `db57e292-9379-4051-80b3-d68d0d7fdaa5` used the saved lookup result to answer `2024/25` with all deterministic checks passing; semantic judging was disabled. The first live attempt `0ddc1a1b-7593-4af6-b2e4-17d3aeebf4dd` failed before the initial search and remains separately preserved. |
 | Comparison overstates shared data scope | One of three “add a third player” trials said all three shared one Understat competition, although one player's record was La Liga and the others' records were EPL. | Fixed in issue 24. Live smoke `09af647c-d887-4216-911f-0fd87696ca91` passed deterministic and semantic review with calibrated v8; the answer correctly limited EPL to two of three players. The historical full-baseline failure remains recorded. |
-| Recommendation-answer completeness and gold-contract scope | The earlier run reported 22 missing facts: six lookup facts occurred in two trials with no delivered lookup result, ten were internal team-reference CA/PA values that need not be recited, and six were relevant returned-candidate facts. A later baseline also exposed an inaccurate CA-empty explanation, a missing team-fit caveat, and two internal team-reference facts still over-required by the team-refine case. | Issue 25 now requires all returned candidate rows, correct filter-stage explanations, and the team-fit boundary; the gold cases require only user-facing candidate facts. A live smoke of this final wording and a fresh baseline remain pending. |
+| Recommendation-answer completeness and gold-contract scope | The earlier run reported 22 missing facts: six lookup facts occurred in two trials with no delivered lookup result, ten were internal team-reference CA/PA values that need not be recited, and six were relevant returned-candidate facts. Later runs exposed an inaccurate CA-empty explanation, a missing team-fit caveat, team filter-count conflation, and unsupported explanations of identity exclusions and reference-profile construction. | Issue 25 now requires all returned candidate rows, accurate stage counts, and the team-fit boundary; gold contracts require only user-visible facts. Final development baseline `1c235b12-2a69-475c-b254-0c5d34b070a5` was followed by a calibrated two-case smoke `727fd8c1-7858-44f9-9310-9282838b4295` that passed the two corrected prompt cases. |
 | Transport failures disrupt lookups | Seven proxy-forwarding attempts had no HTTP response. Two lookup trials consequently lacked tool results/evidence; other requests continued successfully. | Keep separate from agent quality and do not attribute to the gateway without HTTP/error evidence. |
 | Judge completeness has one invalid case | One Mbappé trial failed required-fact-coverage validation; two other trials were inconclusive. A later run also had one invalid judgment citing evidence IDs not present in the trial input. | Keep both runs visible; review the anchor/case pairing before relying on case-level semantic scores. |
 
@@ -61,9 +61,9 @@ The run completed all 96 trials using 399 of the 871 remaining authorized reques
 
 Run `88ba4282-7042-4d27-9c1a-d3646358e5bc` attempted all 96 revised development trials using 394/1,245 requests: agent 267, calibration 32, judge 95. V8 validation passed 16/16, with zero denied requests and two transport failures. It remains `partial`: 89 trials passed, six failed, and one judgment was invalid. The six failed trials comprise one deterministic scripted-clarification mismatch and five semantic failures; the invalid judgment separately cited evidence IDs not present in its input. This run predates the latest filter-stage prompt and team-refine contract fixes, so its results remain historical diagnostic evidence rather than the final revised baseline. The report is local at `.data/evals/runs/88ba4282-7042-4d27-9c1a-d3646358e5bc/report.md`; held-out cases remain untouched.
 
-The development baseline is complete as a measurement, but not an acceptance result. Do not set thresholds or run the held-out split yet. The active-lookup and comparison-scope fixes have successful targeted live smokes. Recommendation completeness has offline prompt/contract fixes, an earlier smoke, and the completed development run in issue 26. A post-run prompt clarification for exact team filter counts still needs a targeted live smoke before the wording is frozen for held-out evaluation.
+The development baseline is complete as a measurement, but not an acceptance result. Do not set thresholds or run the held-out split yet. The active-lookup and comparison-scope fixes have successful targeted live smokes. Recommendation completeness has offline prompt/contract fixes, the completed development run in issue 26, and a post-fix calibrated smoke for the final grounding corrections.
 
-## Final revised development baseline
+## Interim revised development baseline
 
 **Source run:** `da5005c7-f445-4ea0-bfb0-b8095dec47c3`
 
@@ -79,6 +79,28 @@ All 96 trials completed using 390/851 authorized requests: agent 262, v8 calibra
 | Player recommendation | 23/24 | 23/24 |
 | Team recommendation | 24/24 | 23/24 |
 
-The recommendation answers included all candidate facts required by the updated contracts. One team-refine trial nevertheless contradicted the evidence by confusing `afterCurrentAbility` (five, then four after a CA refinement), `afterIdentityExclusion` (two after that refinement), and `currentAttributeComplete` (one rankable profile). The shared recommendation prompt now explicitly defines each counter and warns that ranked lists are additionally constrained by `resultLimit`. This post-run wording change has graph-level prompt assertions and offline-suite coverage, but no post-edit live smoke yet.
+The recommendation answers included all candidate facts required by the updated contracts. One team-refine trial nevertheless contradicted the evidence by confusing `afterCurrentAbility` (five, then four after a CA refinement), `afterIdentityExclusion` (two after that refinement), and `currentAttributeComplete` (one rankable profile). The shared recommendation prompt was updated to define each counter and warn that ranked lists are additionally constrained by `resultLimit`; this interim run did not evaluate that wording.
 
-Other semantic failures were two unsupported/false-execution claims in the identity-clarification case and one season-availability contradiction in the Mbappé lookup. The seven inconclusive judgments were associated with missing delivered evidence; the report contained five physical network failures. Keep those distinct from confirmed semantic errors. Do not set aggregate quality thresholds or touch the held-out split until the final prompt version is frozen and its targeted correction is verified.
+Other semantic failures in this interim run were two unsupported/false-execution claims in the identity-clarification case and one season-availability contradiction in the Mbappé lookup. Keep those findings separate from errors introduced by later prompt edits.
+
+## Final development baseline and post-fix smoke
+
+**Baseline run:** `1c235b12-2a69-475c-b254-0c5d34b070a5`
+
+**Report:** `.data/evals/runs/1c235b12-2a69-475c-b254-0c5d34b070a5/report.md`
+**Scope:** 32 development cases, three isolated trials each. Held-out cases were not run.
+
+All 96 trials completed using 403/461 requests: agent 275, v8 calibration 32, and judge 96. V8 validation passed 16/16. There were six network failures and no denied requests. Trial status was 88 passed, seven failed, and one judge-invalid. The judge adjudicated 93 trials (89 passed, four failed), marked two inconclusive and one invalid, and reported four required-fact omissions. Case-trial rates were one factual contradiction (1/93), three unsupported additions (3/93), and zero false-execution claims (0/93). Twenty-five cases passed all three repetitions.
+
+| Workflow | Code contract passed | Semantic passed |
+|---|---:|---:|
+| Player comparison | 23/24 | 24/24 |
+| Player lookup | 23/24 | 20/24 |
+| Player recommendation | 23/24 | 22/24 |
+| Team recommendation | 24/24 | 23/24 |
+
+The report exposed an unsupported inference in a player recommendation: it described identity exclusion as including team-roster players. It also exposed a team recommendation claim about reference-profile selection criteria that the structured result did not state. The prompts now describe identity exclusion generically and forbid inferring reference-profile construction unless the tool result provides it.
+
+**Post-fix smoke:** `727fd8c1-7858-44f9-9310-9282838b4295` targeted `recommend-add-haaland-kane-real-v1` and `team-rec-synthetic-v1`. Both passed code and semantic checks; v8 validation passed 16/16. The smoke used 40/58 requests, with zero network failures and zero denied requests. The smoke is separate from and does not replace the full development baseline.
+
+The baseline plus smoke remain within the user-approved total request ceiling. Do not set aggregate quality thresholds or run the held-out split until the current agent, evaluator, evidence, prompts, and judge configuration are frozen. Other baseline findings in the lookup and judge paths remain separate follow-up work.

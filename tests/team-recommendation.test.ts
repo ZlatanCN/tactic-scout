@@ -332,15 +332,6 @@ describe("team recommendation graph", () => {
       allPotentialCandidates: modelInput.includes(
         "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
       ),
-      filterStagesFullyDefined:
-        modelInput.includes("afterPotentialAbility 是再应用 PA 条件后的数量") &&
-        modelInput.includes(
-          "afterIdentityExclusion 是再排除参考球员、明确排除对象及球队推荐中的队内球员后的数量"
-        ) &&
-        modelInput.includes(
-          "currentAttributeComplete 是身份排除后属性完整、能计算 currentDistance 的数量"
-        ) &&
-        modelInput.includes("名单长度不等于任何阶段数量"),
       missingPa: modelInput.includes("potentialAbility 为 null"),
       noPositionEligibleOnlyWhenZero: modelInput.includes(
         "只有 recommendation.filterCounts.eligiblePositionProfiles 为 0，才能说没有位置合格画像"
@@ -350,17 +341,24 @@ describe("team recommendation graph", () => {
         modelInput.includes("Synthetic High Potential Candidate") &&
         modelInput.includes("199") &&
         modelInput.includes("3.42"),
+      referenceMethodGrounded:
+        modelInput.includes(
+          "不要推断团队参考画像的成员筛选标准或计算方法，除非 recommendation 结果明确提供"
+        ) &&
+        !modelInput.includes(
+          "团队参考画像是位置评分至少 15 且特征完整的队内球员属性等权平均"
+        ),
       tacticalFitCaveat: modelInput.includes(
         "必须说明这些结果只反映 FM 属性画像相似，不代表战术适配或转会可行性"
       ),
     }).toStrictEqual({
       allCurrentCandidates: true,
       allPotentialCandidates: true,
-      filterStagesFullyDefined: true,
       missingPa: true,
       noPositionEligibleOnlyWhenZero: true,
       paContextOnly: true,
       potentialCandidateDataPassed: true,
+      referenceMethodGrounded: true,
       tacticalFitCaveat: true,
     });
   });

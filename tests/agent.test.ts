@@ -443,12 +443,14 @@ describe("LangGraph player workflows", () => {
 
   it("instructs recommendation answers to include every candidate's CA and PA", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
-    const message = "Find young high-potential striker alternatives to Kane.";
+
+    const message =
+      "Find high-potential striker alternatives to Kane aged 21 or younger.";
 
     const recommendation = JSON.stringify({
       currentCandidates: [
         {
-          age: 22,
+          age: 21,
           currentAbility: 146,
           currentDistance: 0.47,
           fmId: "fm-close-01",
@@ -523,6 +525,14 @@ describe("LangGraph player workflows", () => {
 
     const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
 
+    const filterStagesFullyDefined = [
+      "afterPotentialAbility 是再应用 PA 条件后的数量",
+      "afterIdentityExclusion 是应用请求中的身份排除规则后剩余的数量",
+      "currentAttributeComplete 是身份排除后属性完整、能计算 currentDistance 的数量",
+      "除非工具列出具体对象，否则不要推断具体排除了谁或属于哪类身份",
+      "名单长度不等于任何阶段数量",
+    ].every((promptRule) => modelInput.includes(promptRule));
+
     expect({
       allCurrentCandidates: modelInput.includes(
         "逐条列出 currentCandidates 中的每一个候选"
@@ -531,14 +541,8 @@ describe("LangGraph player workflows", () => {
         "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
       ),
       filterStagesFullyDefined:
-        modelInput.includes("afterPotentialAbility 是再应用 PA 条件后的数量") &&
-        modelInput.includes(
-          "afterIdentityExclusion 是再排除参考球员、明确排除对象及球队推荐中的队内球员后的数量"
-        ) &&
-        modelInput.includes(
-          "currentAttributeComplete 是身份排除后属性完整、能计算 currentDistance 的数量"
-        ) &&
-        modelInput.includes("名单长度不等于任何阶段数量"),
+        filterStagesFullyDefined &&
+        !modelInput.includes("球队推荐中的队内球员"),
       filteredCounts: modelInput.includes(
         "filterCounts.eligiblePositionProfiles"
       ),

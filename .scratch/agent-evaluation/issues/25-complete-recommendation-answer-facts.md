@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** claimed
+**Status:** resolved
 **Labels:** ready-for-agent
 
 - [x] Make player and team recommendation answer instructions require every returned candidate row, including CA, PA, position rating, and the current-distance value.
@@ -30,4 +30,4 @@ Earlier live smoke `7c587ba5-f61c-4a1e-a32d-a6c0416fad32` used 44/75 requests (a
 
 Revised baseline attempt `88ba4282-7042-4d27-9c1a-d3646358e5bc` completed all 96 agent trials using 394 requests and passed v8 calibration 16/16, but remained partial with two transport errors, one deterministic clarification failure, one invalid judge result, and five semantic failures. It exposed an inaccurate CA-empty explanation, two false omissions from team-reference values, and one missing team-suitability caveat; those contract and prompt issues are addressed here. The youth clarification mismatch, Mbappé source-ID claim, and invalid judge output remain separate findings.
 
-The CA-empty case now pins `eligiblePositionProfiles=5` separately from `afterCurrentAbility=0`; the team-refine contract requires the returned candidates rather than CA values of internal roster members. The completed development run `da5005c7-f445-4ea0-bfb0-b8095dec47c3` confirmed complete candidate rows in the recommendation workflows, but one team-refine trial still confused `afterCurrentAbility`, `afterIdentityExclusion`, and `currentAttributeComplete`. A shared prompt fragment now defines every filter-count stage and states that result-limit lists are not stage counts. Its two graph-level prompt tests and the full offline suite pass. The live report predates this final shared-fragment edit; a targeted post-edit model smoke has not run.
+The CA-empty case pins `eligiblePositionProfiles=5` separately from `afterCurrentAbility=0`; the team-refine contract requires returned candidate facts rather than internal roster-member CA values. Full baseline `1c235b12-2a69-475c-b254-0c5d34b070a5` found that a generic identity-exclusion explanation led to a player answer implying team-roster exclusions, and that a team answer claimed reference-profile selection rules absent from the structured result. The player and team prompts now keep identity exclusions generic and forbid inferring reference-profile selection or aggregation rules unless the tool returns them. Their two-case calibrated smoke `727fd8c1-7858-44f9-9310-9282838b4295` passed both cases with no semantic findings. The final offline suite passes all 137 tests; typecheck, Ultracite, and the 48-case validation pass.
