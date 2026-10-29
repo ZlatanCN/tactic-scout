@@ -85,19 +85,15 @@
     "expectedActiveResultValues": [],
     "expectedIdentityLookups": [],
     "expectedIdentityStatuses": [],
-    "expectedTurnConstraints": [
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [
       {
-        "constraints": [
-          {
-            "name": "CA",
-            "value": "150"
-          }
-        ],
-        "turnId": "team-real-madrid-refine-dev-v1-turn-2"
+        "turnId": "team-real-madrid-refine-dev-v1-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 150
       }
     ],
-    "expectedTurnIdentityStatuses": [],
-    "expectedTurnParameters": [],
     "expectedTurnToolActions": [
       {
         "businessOutcome": "ok",

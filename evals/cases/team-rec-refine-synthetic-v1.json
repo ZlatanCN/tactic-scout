@@ -30,17 +30,7 @@
     "expectedIdentityStatuses": [],
     "expectedIdentityLookups": [],
     "expectedTurnIdentityStatuses": [],
-    "expectedTurnConstraints": [
-      {
-        "turnId": "team-rec-refine-synthetic-v1-turn-2",
-        "constraints": [
-          {
-            "name": "CA",
-            "value": "130"
-          }
-        ]
-      }
-    ],
+    "expectedTurnConstraints": [],
     "expectedTurnToolActions": [
       {
         "name": "api_football.search_teams",

@@ -85,19 +85,15 @@
     "expectedActiveResultValues": [],
     "expectedIdentityLookups": [],
     "expectedIdentityStatuses": [],
-    "expectedTurnConstraints": [
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [
       {
-        "constraints": [
-          {
-            "name": "CA",
-            "value": "145"
-          }
-        ],
-        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2"
+        "turnId": "team-bayer-leverkusen-ca-filter-heldout-v1-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 145
       }
     ],
-    "expectedTurnIdentityStatuses": [],
-    "expectedTurnParameters": [],
     "expectedTurnToolActions": [
       {
         "businessOutcome": "ok",

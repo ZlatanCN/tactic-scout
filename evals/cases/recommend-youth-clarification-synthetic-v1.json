@@ -5,13 +5,13 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-youth-age-clarification-and-potential",
-  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles. Used in baseline run fe4f12b0-747c-46e9-90de-26c1ab83c6c0; the original wording said 前锋, which specified STC and made the expected position clarification invalid. The wording now leaves position unspecified to exercise the clarification path.",
   "evidenceBundleId": "recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
   "turns": [
     {
       "turnId": "recommend-youth-clarification-synthetic-v1-turn-1",
-      "userMessage": "根据 Synthetic Reference 推荐年轻的高潜前锋。",
+      "userMessage": "根据 Synthetic Reference 推荐年轻的高潜球员。",
       "clarificationAnswers": [
         {
           "expectedKind": "age",

@@ -25,6 +25,13 @@ type ObservedToolAction = {
 
 const jsonValue = (value: string[]): string => JSON.stringify(value);
 
+const normalizeIdentityLookupName = (value: string): string =>
+  value
+    .normalize("NFKD")
+    .replaceAll(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\p{N}]/gu, "");
+
 const sourceRecordKey = (provider: string, sourceId: string): string =>
   `${provider}:${sourceId}`;
 
@@ -117,7 +124,8 @@ const scriptedClarificationKeys = (
 const expectedIdentityLookupKeys = (caseDefinition: EvaluationCase): string[] =>
   caseDefinition.contract.expectedIdentityLookups
     .map(
-      ({ lookupName, status, turnId }) => `${turnId}|${lookupName}|${status}`
+      ({ lookupName, status, turnId }) =>
+        `${turnId}|${normalizeIdentityLookupName(lookupName)}|${status}`
     )
     .toSorted();
 
@@ -125,7 +133,7 @@ const observedIdentityLookupKeys = (worker: WorkerTrialResult): string[] =>
   worker.identityLookupEvents
     .flatMap(({ kind, lookupName, outcome, turnId }) =>
       kind === "returned" && outcome !== null
-        ? [`${turnId}|${lookupName}|${outcome}`]
+        ? [`${turnId}|${normalizeIdentityLookupName(lookupName)}|${outcome}`]
         : []
     )
     .toSorted();

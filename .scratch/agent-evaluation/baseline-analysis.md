@@ -33,3 +33,28 @@
 5. Run small affected-case smokes under explicit allowances. Keep the 16 held-out cases untouched until implementation and scoring are frozen.
 
 The report remains `partial` because semantic review was incomplete for 19 trials (9 inconclusive, 7 invalid, 3 not assessed), even though all 96 trial executions and their outcomes are present.
+
+## Corrected development baseline
+
+**Source run:** `dc3c8927-7426-490a-b99b-abd19231554c`
+
+**Report:** `.data/evals/runs/dc3c8927-7426-490a-b99b-abd19231554c/report.md`
+**Scope:** 32 corrected development cases, three trials each; held-out cases were not run.
+
+The run completed all 96 trials using 399 of the 871 remaining authorized requests: agent 271, calibration 32, judge 96. Calibration v8 passed 16/16; there were no budget denials. The local evaluation proxy recorded seven upstream fetch failures without an HTTP response. The report cannot attribute those transport failures to the gateway service.
+
+- 82 trials passed, 13 failed, and one had an invalid judge output. The judge semantically adjudicated 93 trials: 84 passed and 9 failed; two were inconclusive and one invalid.
+- Across 93 adjudicated trials, the judge found one factual contradiction (1.08%), no unsupported factual additions, and no false execution claims. It reported 22 required-fact omissions. These are separate dimensions: missing required facts indicate incomplete answers, not hallucinations.
+- Deterministic contracts passed 92/96 trials. Twenty-four of the 32 cases passed all three repetitions.
+
+## New failure clusters
+
+| Cluster | Evidence from the corrected run | Disposition |
+|---|---|---|
+| Follow-up loses active lookup focus | In two trials, the graph successfully looked up Elias Demo, then answered “刚才查到的是什么赛季？” with “请告诉我你要查询哪位球员。” instead of reusing the active lookup result. A third repetition had a transport failure before the lookup completed. | Real multi-turn context/routing defect; fix and add a targeted regression case before setting quality thresholds. |
+| Comparison overstates shared data scope | One of three “add a third player” trials said all three shared one Understat competition, although one player's record was La Liga and the others' records were EPL. | Confirmed factual contradiction; preserve as a critical failure and correct comparison explanation/grounding. |
+| Recommendations omit requested evidence | Required-fact omissions clustered in youth recommendations and team recommendations; the team synthetic recommendation omitted all three required facts in each of its three trials. | Improve answer completeness and evaluate claims separately from fact coverage. |
+| Transport failures disrupt lookups | Seven proxy-forwarding attempts had no HTTP response. Two lookup trials consequently lacked tool results/evidence; other requests continued successfully. | Keep separate from agent quality and do not attribute to the gateway without HTTP/error evidence. |
+| Judge completeness has one invalid case | One Mbappé trial failed required-fact-coverage validation; two other trials were inconclusive. | Keep the result visible; review this anchor/case pairing before relying on the case-level semantic score. |
+
+The development baseline is complete as a measurement, but not an acceptance result. Do not set thresholds or run the held-out split yet. First fix the active-lookup follow-up defect and the confirmed comparison-scope contradiction, then address repeated recommendation fact omissions; preserve the held-out split for a later frozen evaluation.

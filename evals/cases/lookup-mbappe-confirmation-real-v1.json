@@ -31,7 +31,7 @@
     ],
     "expectedIdentityLookups": [
       {
-        "lookupName": "Kylian Mbappe",
+        "lookupName": "Kylian Mbappé",
         "status": "needs_confirmation",
         "turnId": "lookup-mbappe-confirmation-real-v1-turn-1"
       }
