@@ -57,9 +57,14 @@ const isLookupFollowUpRequest = (
     return false;
   }
 
+  const priorContextOnly = normalizeExtractedPlayers(
+    text,
+    extracted.players
+  ).every(({ referenceScope }) => referenceScope === "prior_context");
+
   return (
-    extracted.kind === "other" ||
-    (extracted.kind === "player_lookup" && extracted.players.length === 0)
+    (extracted.kind === "other" || extracted.kind === "player_lookup") &&
+    priorContextOnly
   );
 };
 

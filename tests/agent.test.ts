@@ -832,7 +832,7 @@ describe("LangGraph player workflows", () => {
   it("answers a lookup follow-up from the saved result without rerunning the search", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const firstMessage = "Look up Harry Kane.";
-    const followUp = "Which season was it?";
+    const followUp = "刚才查到的是什么赛季？";
 
     const lookupResult = JSON.stringify({
       fm: { records: [], status: "found" },
@@ -842,6 +842,21 @@ describe("LangGraph player workflows", () => {
     });
 
     const search = vi.fn<PlayerSearch>(() => lookupResult);
+
+    const followUpRequest: ExtractedRequest = {
+      constraints: [],
+      kind: "player_lookup",
+      players: [
+        {
+          lookupName: null,
+          mention: "刚才查到的",
+          recommendationRole: "reference",
+          referenceScope: "prior_context",
+          referenceTargetMention: null,
+        },
+      ],
+      teams: [],
+    };
 
     const model = fakeModel()
       .respondWithTools([
@@ -858,7 +873,7 @@ describe("LangGraph player workflows", () => {
       playerIdentityLookup: resolvedLookup(kane),
       requestUnderstandingExtractor: createExtractor({
         [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
-        [followUp]: requestForPlayers("player_lookup", []),
+        [followUp]: followUpRequest,
       }),
       tools: [createSearchTool(search)],
     });
@@ -877,10 +892,14 @@ describe("LangGraph player workflows", () => {
     expect({
       activeLookup: followUpResult.conversationContext.activeLookup?.resultJson,
       followUpAnswer: followUpResult.messages.at(-1)?.content,
+      outcomeStatus: followUpResult.outcome?.status,
+      pendingClarification: followUpResult.pendingClarification,
       searchCalls: search.mock.calls.length,
     }).toStrictEqual({
       activeLookup: lookupResult,
       followUpAnswer: "The saved result covers the 2025/26 season.",
+      outcomeStatus: "lookup_follow_up",
+      pendingClarification: null,
       searchCalls: 1,
     });
   });
