@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-youth-age-clarification-and-potential",
-  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles. Used in baseline run fe4f12b0-747c-46e9-90de-26c1ab83c6c0; the original wording said 前锋, which specified STC and made the expected position clarification invalid. The wording now leaves position unspecified to exercise the clarification path.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles. Used in baseline runs fe4f12b0-747c-46e9-90de-26c1ab83c6c0 and dc3c8927-7426-490a-b99b-abd19231554c. The original wording said 前锋, which specified STC and made the expected position clarification invalid; it now leaves position unspecified. The corrected baseline exposed an omitted PA-missing candidate; the revised contract requires all current and potential rows' name, age, position rating, CA, PA, and distance, with missing PA labeled unavailable.",
   "evidenceBundleId": "recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
   "turns": [
@@ -185,8 +185,68 @@
       {
         "provider": "fm",
         "sourceId": "fm-future-01",
+        "field": "name",
+        "value": "Synthetic Future Prospect"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "currentDistance",
+        "value": 2.70801280154532
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
         "field": "potentialAbility",
         "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01",
+        "field": "name",
+        "value": "Synthetic Missing PA"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01",
+        "field": "currentAbility",
+        "value": 128
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-no-pa-01",
+        "field": "currentDistance",
+        "value": 2.70801280154532
       },
       {
         "provider": "fm",

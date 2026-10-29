@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-single-team-squad-reference-and-fm-position-ranking",
-  "priorTuningExposure": "Constructed for evaluation-v1 from a versioned synthetic API-Football response and FM profiles; no live model or provider call.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from a versioned synthetic API-Football response and FM profiles. Baseline run dc3c8927-7426-490a-b99b-abd19231554c showed that internal team-reference CA values were over-required while returned candidate PA was omitted; the revised contract requires each returned candidate's name, age, position rating, CA, PA, and distance.",
   "evidenceBundleId": "team-recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "72bd039a4960f1e49a16ce2feb44ac0550b35597418060b2adee0a3c3f8a335e",
   "turns": [
@@ -289,21 +289,75 @@
     "requiredEvidence": [
       {
         "provider": "fm",
-        "sourceId": "fm-ref-01",
-        "field": "currentAbility",
-        "value": 150
+        "sourceId": "fm-future-01",
+        "field": "name",
+        "value": "Synthetic Future Prospect"
       },
       {
         "provider": "fm",
-        "sourceId": "fm-close-01",
+        "sourceId": "fm-future-01",
         "field": "currentAbility",
-        "value": 146
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
       },
       {
         "provider": "fm",
         "sourceId": "fm-future-01",
         "field": "potentialAbility",
         "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01",
+        "field": "name",
+        "value": "Synthetic Far Candidate"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01",
+        "field": "age",
+        "value": 26
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-far-01",
+        "field": "potentialAbility",
+        "value": 166
       }
     ],
     "resolvedPlayers": [],

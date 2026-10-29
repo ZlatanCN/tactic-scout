@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-single-reference-rmse-ranking",
-  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic FM profiles. Baseline run dc3c8927-7426-490a-b99b-abd19231554c showed the answer omitted one returned current candidate; the revised contract requires every returned candidate's name, age, position rating, CA, PA, and distance.",
   "evidenceBundleId": "recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "d11ff587852b534baf49ce13050469b4a5cf530e99d135581e427a6e639a37cf",
   "turns": [
@@ -156,9 +156,69 @@
       },
       {
         "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "age",
+        "value": 22
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "positionRating",
+        "value": 20
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "currentDistance",
+        "value": 0.4714045207910317
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "potentialAbility",
+        "value": 181
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "name",
+        "value": "Synthetic Close Candidate"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "currentDistance",
+        "value": 2.70801280154532
+      },
+      {
+        "provider": "fm",
         "sourceId": "fm-future-01",
         "field": "potentialAbility",
         "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-future-01",
+        "field": "name",
+        "value": "Synthetic Future Prospect"
       }
     ],
     "resolvedPlayers": [

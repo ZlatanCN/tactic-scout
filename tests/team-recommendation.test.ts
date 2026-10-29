@@ -245,6 +245,83 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("instructs team recommendation answers to list every candidate with CA and PA", async () => {
+    const message = "Recommend a striker for Arsenal.";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 1001, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommendation = JSON.stringify({
+      fmSnapshotDate: "2025-11-23",
+      position: "stc",
+      recommendation: {
+        currentCandidates: [
+          {
+            age: 18,
+            currentAbility: 124,
+            currentDistance: 2.7,
+            fmId: "fm-future-01",
+            name: "Synthetic Future Prospect",
+            positionRating: 19,
+            potentialAbility: 195,
+            rank: 1,
+          },
+        ],
+        filterCounts: { excludedMissingPotentialForPotentialList: 1 },
+        potentialCandidates: [],
+        references: [],
+        status: "ready",
+      },
+      roster: {
+        mappedMembers: 1,
+        noLocalProfileMembers: 0,
+        pendingMembers: 0,
+        reepBridgeMappings: 1,
+        retrievedAt: "2025-11-20T12:00:00.000Z",
+        source: "API-Football",
+        totalMembers: 1,
+        userConfirmedMappings: 0,
+      },
+      status: "ready",
+      team: arsenal,
+    });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>(
+      () => recommendation
+    );
+
+    const model = fakeModel().respond(
+      new AIMessage("The recommendation is ready.")
+    );
+
+    const modelInvoke = vi.spyOn(model, "invoke");
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({ [message]: teamRequest("Arsenal", "stc") }),
+      model,
+      recommend,
+    });
+
+    await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-recommendation-answer-completeness" } }
+    );
+
+    const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
+
+    expect(modelInput).toContain(
+      "逐条列出 recommendation.currentCandidates 中的每一名候选"
+    );
+    expect(modelInput).toContain("PA 仅作为资料展示");
+    expect(modelInput).toContain("potentialAbility 为 null");
+    expect(modelInput).toContain(
+      "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
+    );
+  });
+
   it("asks for a position before acquiring a team roster", async () => {
     const message = "Recommend a player for Arsenal.";
 

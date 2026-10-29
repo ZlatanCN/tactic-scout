@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "synthetic",
   "scenarioFamily": "synthetic-ambiguous-team-choice-before-roster-read",
-  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic API-Football responses and FM profiles; no live model or provider call.",
+  "priorTuningExposure": "Constructed for evaluation-v1 from versioned synthetic API-Football responses and FM profiles. Baseline run dc3c8927-7426-490a-b99b-abd19231554c showed the original contract required facts from internal team reference members rather than candidate rows; the revised contract requires every returned candidate's name, age, position rating, CA, PA, and distance.",
   "evidenceBundleId": "team-recommendation-synthetic-evidence-v1",
   "evidenceBundleSha256": "72bd039a4960f1e49a16ce2feb44ac0550b35597418060b2adee0a3c3f8a335e",
   "turns": [
@@ -172,15 +172,75 @@
     "requiredEvidence": [
       {
         "provider": "fm",
-        "sourceId": "fm-future-01",
-        "field": "potentialAbility",
-        "value": 195
+        "sourceId": "fm-ref-01",
+        "field": "name",
+        "value": "Synthetic Reference"
       },
       {
         "provider": "fm",
-        "sourceId": "fm-far-01",
+        "sourceId": "fm-ref-01",
         "field": "currentAbility",
-        "value": 160
+        "value": 150
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "age",
+        "value": 25
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "positionRating",
+        "value": 20
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "currentDistance",
+        "value": 4.339738855430512
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-ref-01",
+        "field": "potentialAbility",
+        "value": 178
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "name",
+        "value": "Synthetic Close Candidate"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "currentAbility",
+        "value": 146
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "age",
+        "value": 22
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "positionRating",
+        "value": 20
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "currentDistance",
+        "value": 4.47213595499958
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-close-01",
+        "field": "potentialAbility",
+        "value": 181
       }
     ],
     "resolvedPlayers": [],

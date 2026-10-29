@@ -441,6 +441,79 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("instructs recommendation answers to include every candidate's CA and PA", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const message = "Find striker alternatives to Kane.";
+
+    const recommendation = JSON.stringify({
+      currentCandidates: [
+        {
+          age: 22,
+          currentAbility: 146,
+          currentDistance: 0.47,
+          fmId: "fm-close-01",
+          name: "Synthetic Close Candidate",
+          positionRating: 20,
+          potentialAbility: 181,
+          rank: 1,
+        },
+        {
+          age: 18,
+          currentAbility: 124,
+          currentDistance: 2.71,
+          fmId: "fm-future-01",
+          name: "Synthetic Future Prospect",
+          positionRating: 19,
+          potentialAbility: 195,
+          rank: 2,
+        },
+      ],
+      filters: { maxAge: null, minimumCurrentAbility: null },
+      position: "stc",
+      references: [
+        {
+          currentAbility: 150,
+          fmId: "fm-ref-01",
+          name: "Synthetic Reference",
+          positionRating: 20,
+          potentialAbility: 178,
+        },
+      ],
+      status: "ready",
+    });
+
+    const model = fakeModel().respond(
+      new AIMessage("The candidate list is ready.")
+    );
+
+    const modelInvoke = vi.spyOn(model, "invoke");
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_recommendation", ["Kane"], {
+          recommendation: { position: "stc" },
+        }),
+      }),
+      tools: createTools(emptySearch, () => recommendation),
+    });
+
+    await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "recommendation-answer-completeness" } }
+    );
+
+    const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
+
+    expect(modelInput).toContain("逐条列出 currentCandidates 中的每一个候选");
+    expect(modelInput).toContain(
+      "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
+    );
+    expect(modelInput).toContain("PA 仅作为资料展示");
+    expect(modelInput).toContain("potentialAbility 为 null");
+  });
+
   it("commits a lookup tool result before retrying the next model step", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const message = "Look up Harry Kane.";
