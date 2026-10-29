@@ -91,3 +91,5 @@ After Issue 10, real-model smoke `84a220c3-6229-425c-b9db-7feface802fd` used 6/3
 ## Quality gates
 
 Routine Vitest validates the runner, fixtures, scoring contracts, and tool behavior offline. It does not call a real gateway or API-Football. The current 32-case development preview with the judge estimates up to 1,235 gateway requests. The actual baseline remains a manual run and requires an explicit whole-run allowance and a qualified judge; the preview estimate is not permission to dispatch that workload. Results describe the finite evidence and candidate pools, not general scouting accuracy.
+
+The latest post-fix development attempt `fa75f1c4-fad2-4945-b409-092b782cb058` attempted all 96 trials but ended partial after a gateway DNS failure; no semantic trial was adjudicated because v8 anchor calibration could not complete. Preserve this report as an infrastructure-limited attempt, not the quality baseline. Retry is tracked in issue 21 when the configured gateway resolves again.
