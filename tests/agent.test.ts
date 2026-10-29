@@ -443,7 +443,7 @@ describe("LangGraph player workflows", () => {
 
   it("instructs recommendation answers to include every candidate's CA and PA", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
-    const message = "Find striker alternatives to Kane.";
+    const message = "Find young high-potential striker alternatives to Kane.";
 
     const recommendation = JSON.stringify({
       currentCandidates: [
@@ -468,8 +468,21 @@ describe("LangGraph player workflows", () => {
           rank: 2,
         },
       ],
-      filters: { maxAge: null, minimumCurrentAbility: null },
+      filterCounts: { excludedMissingPotentialForPotentialList: 1 },
+      filters: { maxAge: 21, minimumCurrentAbility: null },
       position: "stc",
+      potentialCandidates: [
+        {
+          age: 19,
+          currentAbility: 121,
+          currentDistance: 3.42,
+          fmId: "fm-high-pa-01",
+          name: "Synthetic High Potential Candidate",
+          positionRating: 18,
+          potentialAbility: 199,
+          rank: 1,
+        },
+      ],
       references: [
         {
           currentAbility: 150,
@@ -493,7 +506,11 @@ describe("LangGraph player workflows", () => {
       playerIdentityLookup: resolvedLookup(kane),
       requestUnderstandingExtractor: createExtractor({
         [message]: requestForPlayers("player_recommendation", ["Kane"], {
-          recommendation: { position: "stc" },
+          recommendation: {
+            includePotential: true,
+            maxAge: 21,
+            position: "stc",
+          },
         }),
       }),
       tools: createTools(emptySearch, () => recommendation),
@@ -506,12 +523,44 @@ describe("LangGraph player workflows", () => {
 
     const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
 
-    expect(modelInput).toContain("逐条列出 currentCandidates 中的每一个候选");
-    expect(modelInput).toContain(
-      "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
-    );
-    expect(modelInput).toContain("PA 仅作为资料展示");
-    expect(modelInput).toContain("potentialAbility 为 null");
+    expect({
+      allCurrentCandidates: modelInput.includes(
+        "逐条列出 currentCandidates 中的每一个候选"
+      ),
+      allPotentialCandidates: modelInput.includes(
+        "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
+      ),
+      filterStagesFullyDefined:
+        modelInput.includes("afterPotentialAbility 是再应用 PA 条件后的数量") &&
+        modelInput.includes(
+          "afterIdentityExclusion 是再排除参考球员、明确排除对象及球队推荐中的队内球员后的数量"
+        ) &&
+        modelInput.includes(
+          "currentAttributeComplete 是身份排除后属性完整、能计算 currentDistance 的数量"
+        ) &&
+        modelInput.includes("名单长度不等于任何阶段数量"),
+      filteredCounts: modelInput.includes(
+        "filterCounts.eligiblePositionProfiles"
+      ),
+      missingPa: modelInput.includes("potentialAbility 为 null"),
+      paContextOnly: modelInput.includes("PA 仅作为资料展示"),
+      potentialCandidateDataPassed:
+        modelInput.includes("Synthetic High Potential Candidate") &&
+        modelInput.includes("199") &&
+        modelInput.includes("3.42"),
+      zeroPositionProfilesOnlyWhenCountIsZero: modelInput.includes(
+        "只有 filterCounts.eligiblePositionProfiles 为 0，才能说没有位置合格画像"
+      ),
+    }).toStrictEqual({
+      allCurrentCandidates: true,
+      allPotentialCandidates: true,
+      filterStagesFullyDefined: true,
+      filteredCounts: true,
+      missingPa: true,
+      paContextOnly: true,
+      potentialCandidateDataPassed: true,
+      zeroPositionProfilesOnlyWhenCountIsZero: true,
+    });
   });
 
   it("commits a lookup tool result before retrying the next model step", async () => {

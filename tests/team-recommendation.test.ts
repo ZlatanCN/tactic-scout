@@ -246,7 +246,7 @@ describe("team recommendation graph", () => {
   });
 
   it("instructs team recommendation answers to list every candidate with CA and PA", async () => {
-    const message = "Recommend a striker for Arsenal.";
+    const message = "Recommend young high-potential strikers for Arsenal.";
 
     const directory = createDirectory(
       [arsenal],
@@ -270,7 +270,18 @@ describe("team recommendation graph", () => {
           },
         ],
         filterCounts: { excludedMissingPotentialForPotentialList: 1 },
-        potentialCandidates: [],
+        potentialCandidates: [
+          {
+            age: 19,
+            currentAbility: 121,
+            currentDistance: 3.42,
+            fmId: "fm-high-pa-01",
+            name: "Synthetic High Potential Candidate",
+            positionRating: 18,
+            potentialAbility: 199,
+            rank: 1,
+          },
+        ],
         references: [],
         status: "ready",
       },
@@ -300,7 +311,9 @@ describe("team recommendation graph", () => {
 
     const graph = createTeamAgent({
       directory,
-      extractor: createExtractor({ [message]: teamRequest("Arsenal", "stc") }),
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { includePotential: true }),
+      }),
       model,
       recommend,
     });
@@ -312,14 +325,44 @@ describe("team recommendation graph", () => {
 
     const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
 
-    expect(modelInput).toContain(
-      "逐条列出 recommendation.currentCandidates 中的每一名候选"
-    );
-    expect(modelInput).toContain("PA 仅作为资料展示");
-    expect(modelInput).toContain("potentialAbility 为 null");
-    expect(modelInput).toContain(
-      "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
-    );
+    expect({
+      allCurrentCandidates: modelInput.includes(
+        "逐条列出 recommendation.currentCandidates 中的每一名候选"
+      ),
+      allPotentialCandidates: modelInput.includes(
+        "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
+      ),
+      filterStagesFullyDefined:
+        modelInput.includes("afterPotentialAbility 是再应用 PA 条件后的数量") &&
+        modelInput.includes(
+          "afterIdentityExclusion 是再排除参考球员、明确排除对象及球队推荐中的队内球员后的数量"
+        ) &&
+        modelInput.includes(
+          "currentAttributeComplete 是身份排除后属性完整、能计算 currentDistance 的数量"
+        ) &&
+        modelInput.includes("名单长度不等于任何阶段数量"),
+      missingPa: modelInput.includes("potentialAbility 为 null"),
+      noPositionEligibleOnlyWhenZero: modelInput.includes(
+        "只有 recommendation.filterCounts.eligiblePositionProfiles 为 0，才能说没有位置合格画像"
+      ),
+      paContextOnly: modelInput.includes("PA 仅作为资料展示"),
+      potentialCandidateDataPassed:
+        modelInput.includes("Synthetic High Potential Candidate") &&
+        modelInput.includes("199") &&
+        modelInput.includes("3.42"),
+      tacticalFitCaveat: modelInput.includes(
+        "必须说明这些结果只反映 FM 属性画像相似，不代表战术适配或转会可行性"
+      ),
+    }).toStrictEqual({
+      allCurrentCandidates: true,
+      allPotentialCandidates: true,
+      filterStagesFullyDefined: true,
+      missingPa: true,
+      noPositionEligibleOnlyWhenZero: true,
+      paContextOnly: true,
+      potentialCandidateDataPassed: true,
+      tacticalFitCaveat: true,
+    });
   });
 
   it("asks for a position before acquiring a team roster", async () => {

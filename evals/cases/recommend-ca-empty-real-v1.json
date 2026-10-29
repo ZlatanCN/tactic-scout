@@ -5,7 +5,7 @@
   "split": "development",
   "origin": "real",
   "scenarioFamily": "dev-hard-ca-threshold-has-no-qualifying-candidate",
-  "priorTuningExposure": "Independent arithmetic checks were computed from the frozen FM position-feature map and source rows; no production ranking output was used as gold. Authored for evaluation-v1; not run against a live model.",
+  "priorTuningExposure": "Independent arithmetic checks were computed from the frozen FM position-feature map and source rows; no production ranking output was used as gold. Runs dc3c8927-7426-490a-b99b-abd19231554c and 88ba4282-7042-4d27-9c1a-d3646358e5bc exposed an answer that confused zero candidates after a CA filter with zero position-eligible profiles; the case asserts both filter-stage counts and the answer rule now distinguishes them.",
   "evidenceBundleId": "recommendation-real-development-v1",
   "evidenceBundleSha256": "a04e0e0b2de2180ae0dbbb85cd9b0dd9ff15a836fd1995f71d09cf09838cbd9d",
   "turns": [
@@ -65,6 +65,13 @@
         "source": "result",
         "path": "filterCounts.afterCurrentAbility",
         "value": 0
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "recommend-ca-empty-real-v1-turn-1",
+        "source": "result",
+        "path": "filterCounts.eligiblePositionProfiles",
+        "value": 5
       },
       {
         "name": "recommend_player_candidates",
