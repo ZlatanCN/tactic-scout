@@ -13,10 +13,13 @@
 - [x] Add graph-level tests at the injected model boundary for the answer instructions and structured candidate data.
 - [x] Validate the 48-case pack.
 - [x] Run the full offline suite.
+- [x] Run a calibrated four-case live semantic smoke under an explicit request cap.
 - [x] Review the code and ticket against project standards and this spec.
 
 ## Evidence
 
 Baseline `dc3c8927-7426-490a-b99b-abd19231554c` reported 22 missing facts. Six came from two lookup trials without delivered evidence after a failed lookup. Ten were team-roster reference-profile CA/PA values that the answer does not need to recite to explain an equal-weight team mean. Six are user-relevant recommendation facts: one player recommendation omitted a returned current candidate, two youth trials omitted a candidate whose PA was missing, and all three team recommendation trials omitted a returned candidate PA.
 
-The local recommendation contract says the current-similarity list contains name, age, position rating, CA, PA, distance, and feature differences; a potential list is separate and ordered by PA. The player and team prompts now require every returned current and potential candidate, and make PA a context column rather than a ranking input. Potential requests explicitly report PA-missing exclusions. Team case gold now checks candidate rows, not each internal roster member's CA/PA. The four edited cases record the baseline exposure and revised contracts in `priorTuningExposure`. The 48-case inventory is ready; typecheck, Ultracite, and all 137 Vitest tests pass. A targeted live-model smoke remains pending a separately authorized request cap.
+The local recommendation contract says the current-similarity list contains name, age, position rating, CA, PA, distance, and feature differences; a potential list is separate and ordered by PA. The player and team prompts now require every returned current and potential candidate, and make PA a context column rather than a ranking input. Potential requests explicitly report PA-missing exclusions. Team case gold now checks candidate rows, not each internal roster member's CA/PA. The four edited cases record the baseline exposure and revised contracts in `priorTuningExposure`. The 48-case inventory is ready; typecheck, Ultracite, and all 137 Vitest tests pass.
+
+Live smoke `7c587ba5-f61c-4a1e-a32d-a6c0416fad32` used 44/75 requests (agent 8, calibration 32, judge 4). V8 calibration passed 16/16. All four trials passed deterministic and semantic review, with no missing required facts, unsupported claims, or contradictions. The youth answer marked the missing-PA candidate unavailable and explained that it was excluded from the potential ranking. The report is local under `.data/evals/runs/`.
