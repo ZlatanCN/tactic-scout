@@ -64,34 +64,132 @@ const comparisonPlayerResultSchema = z.object({
   understat: understatReadResultSchema.nullable(),
 });
 
-const comparisonReadyResultSchema = z.object({
-  coverage: z.object({
-    commonUnderstatScopeCount: z.number().int().nonnegative(),
-    fmPlayerCount: z.number().int().nonnegative(),
-    hasFmRecords: z.boolean(),
-    hasUnderstatRecords: z.boolean(),
-    playerCount: z.number().int().min(2),
-  }),
-  players: z.array(comparisonPlayerResultSchema).min(2),
-  status: z.enum(["ready", "no_comparable_data"]),
-  understatScopeGroups: z.array(
-    z.object({
-      competition: z.string(),
-      coverage: z.object({
-        coveredPlayerCount: z.number().int().min(2),
-        coversAllParticipants: z.boolean(),
-        participantCount: z.number().int().min(2),
-      }),
-      players: z.array(
-        z.object({
-          playerName: z.string(),
-          record: understatSearchRecordSchema.nullable(),
-        })
-      ),
-      season: z.string(),
-    })
-  ),
-});
+const comparisonReadyResultSchema = z
+  .object({
+    coverage: z.object({
+      commonUnderstatScopeCount: z.number().int().nonnegative(),
+      fmPlayerCount: z.number().int().nonnegative(),
+      hasFmRecords: z.boolean(),
+      hasUnderstatRecords: z.boolean(),
+      playerCount: z.number().int().min(2),
+    }),
+    players: z.array(comparisonPlayerResultSchema).min(2),
+    status: z.enum(["ready", "no_comparable_data"]),
+    understatScopeGroups: z.array(
+      z.object({
+        competition: z.string(),
+        coverage: z.object({
+          coveredPlayerCount: z.number().int().min(2),
+          coversAllParticipants: z.boolean(),
+          participantCount: z.number().int().min(2),
+        }),
+        players: z.array(
+          z.object({
+            playerName: z.string(),
+            record: understatSearchRecordSchema.nullable(),
+          })
+        ),
+        season: z.string(),
+      })
+    ),
+  })
+  .superRefine((result, context) => {
+    const fmPlayerCount = result.players.filter(
+      (player) => player.fm?.status === "found"
+    ).length;
+
+    const hasFmRecords = fmPlayerCount > 0;
+
+    const hasUnderstatRecords = result.players.some(
+      (player) => player.understat?.status === "found"
+    );
+
+    const commonUnderstatScopeCount = result.understatScopeGroups.filter(
+      ({ coverage }) => coverage.coversAllParticipants
+    ).length;
+
+    const hasComparableRecords =
+      result.understatScopeGroups.length > 0 || fmPlayerCount >= 2;
+
+    if (result.coverage.playerCount !== result.players.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Comparison coverage participant count must match players.",
+        path: ["coverage", "playerCount"],
+      });
+    }
+
+    if (result.coverage.fmPlayerCount !== fmPlayerCount) {
+      context.addIssue({
+        code: "custom",
+        message: "FM coverage count must match found FM player records.",
+        path: ["coverage", "fmPlayerCount"],
+      });
+    }
+
+    if (result.coverage.hasFmRecords !== hasFmRecords) {
+      context.addIssue({
+        code: "custom",
+        message: "FM coverage flag must match the FM player records.",
+        path: ["coverage", "hasFmRecords"],
+      });
+    }
+
+    if (result.coverage.hasUnderstatRecords !== hasUnderstatRecords) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Understat coverage flag must match the Understat player records.",
+        path: ["coverage", "hasUnderstatRecords"],
+      });
+    }
+
+    if (
+      result.coverage.commonUnderstatScopeCount !== commonUnderstatScopeCount
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Common Understat scope count must match its groups.",
+        path: ["coverage", "commonUnderstatScopeCount"],
+      });
+    }
+
+    for (const [index, group] of result.understatScopeGroups.entries()) {
+      const recordCount = group.players.filter(
+        ({ record }) => record !== null
+      ).length;
+
+      if (
+        group.players.length !== result.players.length ||
+        group.coverage.participantCount !== result.players.length ||
+        group.coverage.coveredPlayerCount !== recordCount ||
+        group.coverage.coversAllParticipants !==
+          (recordCount === result.players.length)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Understat scope coverage must match group participants.",
+          path: ["understatScopeGroups", index, "coverage"],
+        });
+      }
+    }
+
+    if (result.status === "ready" && !hasComparableRecords) {
+      context.addIssue({
+        code: "custom",
+        message: "A ready comparison must contain comparable records.",
+        path: ["status"],
+      });
+    }
+
+    if (result.status === "no_comparable_data" && hasComparableRecords) {
+      context.addIssue({
+        code: "custom",
+        message: "A no-data comparison cannot contain comparable records.",
+        path: ["status"],
+      });
+    }
+  });
 
 const comparisonResultSchema = z.union([
   comparisonReadyResultSchema,
@@ -106,6 +204,36 @@ const comparisonResultSchema = z.union([
     status: z.literal("insufficient_distinct_players"),
   }),
 ]);
+
+const completedComparisonResultSchema = comparisonResultSchema.superRefine(
+  (result, context) => {
+    if (!("coverage" in result)) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "An incomplete comparison cannot be stored as a completed result.",
+        path: ["status"],
+      });
+
+      return;
+    }
+
+    if (
+      result.status === "no_comparable_data" &&
+      result.players.some(
+        (player) =>
+          player.fm?.status === "unavailable" ||
+          player.understat?.status === "unavailable"
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Unavailable sources cannot be stored as an empty comparison.",
+        path: ["status"],
+      });
+    }
+  }
+);
 
 type ComparisonPlayer = z.output<typeof comparisonPlayerSchema>;
 
@@ -352,6 +480,7 @@ const comparePlayerRecords = async (
 export {
   comparePlayerRecords,
   comparePlayerRecordsInputSchema,
+  completedComparisonResultSchema,
   comparisonResultSchema,
 };
 

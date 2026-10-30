@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { comparisonResultSchema } from "../src/player-data/compare-records.js";
+import {
+  completedComparisonResultSchema,
+  comparisonResultSchema,
+} from "../src/player-data/compare-records.js";
 import { recommendationResultSchema } from "../src/player-data/recommend-players.js";
 import { searchPlayerRecordsResultSchema } from "../src/player-data/search-records.js";
 import { teamRecommendationResultSchema } from "../src/team-data/recommendation-result.js";
@@ -69,5 +72,45 @@ describe("workflow result contracts", () => {
 
     expect(comparison.data.status).toBe("no_comparable_data");
     expect(team.data.status).toBe("no_candidates");
+  });
+
+  it("rejects unavailable-source comparisons as completed empty results", () => {
+    const unavailable = {
+      coverage: {
+        commonUnderstatScopeCount: 0,
+        fmPlayerCount: 0,
+        hasFmRecords: false,
+        hasUnderstatRecords: false,
+        playerCount: 2,
+      },
+      players: ["First Player", "Second Player"].map((playerName) => ({
+        fm: { reason: "FM snapshot unavailable", status: "unavailable" },
+        playerName,
+        understat: { records: [], status: "not_found" },
+      })),
+      status: "no_comparable_data",
+      understatScopeGroups: [],
+    };
+
+    const validEmpty = decodeResultJson(
+      comparisonResult(["First Player", "Second Player"]),
+      comparisonResultSchema
+    ).data;
+
+    if (!("coverage" in validEmpty)) {
+      throw new Error("Expected a complete comparison result fixture.");
+    }
+
+    const inconsistentCoverage = {
+      ...validEmpty,
+      coverage: { ...validEmpty.coverage, playerCount: 3 },
+    };
+
+    expect(
+      comparisonResultSchema.safeParse(inconsistentCoverage).success
+    ).toBeFalsy();
+    expect(
+      completedComparisonResultSchema.safeParse(unavailable).success
+    ).toBeFalsy();
   });
 });

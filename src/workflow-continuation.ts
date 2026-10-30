@@ -1,4 +1,4 @@
-import { comparisonResultSchema } from "./player-data/compare-records.js";
+import { completedComparisonResultSchema } from "./player-data/compare-records.js";
 import { selectedReferenceCandidate } from "./player-data/contracts.js";
 import { searchPlayerRecordsResultSchema } from "./player-data/search-records.js";
 import { recommendationPatchFromConstraints } from "./recommendation-constraints.js";
@@ -386,7 +386,7 @@ const savedOutcomeForWorkflow = (
 
     const { data, resultJson } = decodeResultJson(
       stored,
-      comparisonResultSchema
+      completedComparisonResultSchema
     );
 
     if (data.status !== "ready" && data.status !== "no_comparable_data") {
