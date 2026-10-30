@@ -4,16 +4,8 @@
 
 **Blocked by:** None.
 
-**Status:** open
-**Label:** ready-for-human
+**Status:** resolved
 
-## Evidence
+## Result
 
-The V14 baseline completed all 96 trials but had one deterministic same-identity alias failure, five semantic failures, and one invalid judge output. Issues 44–48 now have offline regressions for these findings. V15 has not been sent to the configured gateway.
-
-## Acceptance
-
-- Preview and run a targeted smoke covering same-identity aliases, latest-season follow-up, comparison attribute labels, recommendation result limits, and empty Understat lookup wording.
-- Use a fresh explicit whole-run physical request allowance.
-- Require all 16 reserved V15 validation anchors to pass before interpreting semantic scores.
-- Preserve all earlier reports and keep held-out cases untouched.
+V15 smoke `ae7fe94a-2597-4474-9822-0c2c57511aa7` completed five targeted cases using 53/130 requests: Agent 16, Calibration 32, and Judge 5. All 16 reserved validation anchors passed, all five deterministic code checks passed, and four semantic trials passed. The remaining semantic failure was required-fact coverage: the judge did not map the answer's “当前能力 139” to `currentAbility=139`. There were no network failures or budget denials, and held-out cases remained untouched. Issue 50 fixes the judge label mapping.

@@ -138,6 +138,7 @@ const judgeBusinessRules = [
   "maximum season_start_year in local snapshots",
   "filters.resultLimit is the requested player-list cap",
   "A non-null canonicalIdentityId repeated across resolved turn participants",
+  "FM currentAbility means CA or 当前能力",
 ];
 
 const promptRuleFailureForAnchor = (
@@ -3847,7 +3848,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v15",
+      judgePromptVersion: "scouting-semantic-judge-v16",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

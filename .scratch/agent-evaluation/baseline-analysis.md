@@ -192,6 +192,10 @@ All 96 trials completed using 402/1,500 requests: Agent 274, Calibration 32, and
 - **FM attribute name was over-specified.** `compare-add-third-synthetic-v1` translated the `techniqueRaw` value as “盘带技术,” although `dribblingRaw` is the separate dribbling field. Issue 46 clarifies the mapping in comparison and judge prompts.
 - **Recommendation cap was inferred from the surviving count.** `recommend-ambiguous-profile-synthetic-v1` returned `filters.resultLimit=5` but the answer stated the list was limited to two, matching the two remaining candidates. Issue 47 requires reading the cap from the actual field.
 - **Empty Understat response was described too broadly.** The Mbappé lookup returned no rows for source ID 3423 and season start year 2024, but the answer claimed no record in that season and no xG value. Issue 48 tightens that answer to the exact no-row result and the value absent from the returned data.
-- **One judge contradiction was invalid.** The judge reported that “Demo” and “Elias Demo” were not treated as the same player, but cited no evidence ID. The alias-routing fix and per-turn canonical identity input are covered by issues 32 and 44; v15 prompt anchors must continue checking evidence references.
+- **One judge contradiction was invalid.** The judge reported that “Demo” and “Elias Demo” were not treated as the same player, but cited no evidence ID. The alias-routing fix and per-turn canonical identity input are covered by issues 32 and 44; later smoke runs verify the V15/V16 judge input changes.
 
-Issues 44–48 now have offline regression coverage. V15 is the current judge prompt; a targeted v15 smoke and calibration are required before considering the V14 findings closed. Issue 49 tracks that run, which needs a new request allowance. Keep the held-out split untouched.
+Issues 44–48 now have offline regression coverage.
+
+**V15 targeted smoke:** `ae7fe94a-2597-4474-9822-0c2c57511aa7` covered five V14 failure cases and used 53/130 requests: Agent 16, Calibration 32, and Judge 5. V15 calibration passed 32/32, including 16/16 validation anchors. All five deterministic checks passed and four semantic reviews passed. The remaining failure was required-fact coverage: the judge missed `currentAbility=139` in an answer that said “当前能力 139.” No network failures or budget denials occurred.
+
+Judge v16 now includes user-facing field-name equivalences. Its five-case smoke is pending a fresh request allowance under issue 51. Keep the held-out split untouched.

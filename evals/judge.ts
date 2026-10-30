@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v15";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v16";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -196,7 +196,8 @@ Application-specific evidence rules:
 - A clarification answer and a same-turn participant marked resolved with a selectedCandidateId establish the selected identity after resume, even when the earlier identity lookup action returned needs_confirmation.
 - FM attribute keys techniqueRaw and dribblingRaw refer to distinct attributes: Technique is 技术; Dribbling is 盘带. Do not treat one as the other.
 - A non-null canonicalIdentityId repeated across resolved turn participants means those mentions refer to one canonical player. If that turn's outcomeStatus is insufficient_distinct_players, asking for another distinct player is supported.
-- Recommendation filters.resultLimit is the requested player-list cap; do not infer it from returned list length or afterIdentityExclusion counts.`;
+- Recommendation filters.resultLimit is the requested player-list cap; do not infer it from returned list length or afterIdentityExclusion counts.
+- For required-fact coverage, FM currentAbility means CA or 当前能力, and potentialAbility means PA or 潜力能力; Understat expectedGoals means xG or 预期进球.`;
 
 const createSemanticJudge = (options: {
   apiKey: string;
