@@ -1659,6 +1659,9 @@ describe("team recommendation graph", () => {
     const failedRequestMessage = "为切尔西找一个中锋";
     const refinementMessage = "年龄上限改到 21 岁";
 
+    const explicitSavedMessage =
+      "Explain the previous Arsenal team recommendation.";
+
     const roster = {
       members: [],
       retrievedAt: "2026-10-26T10:00:00.000Z",
@@ -1707,6 +1710,13 @@ describe("team recommendation graph", () => {
     const graph = createTeamAgent({
       directory,
       extractor: createExtractor({
+        [explicitSavedMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "team_recommendation",
+          players: [],
+          teams: ["Arsenal"],
+        },
         [failedRequestMessage]: teamRequest("切尔西", "stc", {
           position: "stc",
         }),
@@ -1739,7 +1749,24 @@ describe("team recommendation graph", () => {
       config
     );
 
+    const explicitSaved = await graph.invoke(
+      {
+        conversationContext: failed.conversationContext,
+        faultTolerance: failed.faultTolerance,
+        messages: [new HumanMessage(explicitSavedMessage)],
+        outcome: failed.outcome,
+        request: failed.request,
+      },
+      { configurable: { thread_id: "explicit-saved-after-failed-team" } }
+    );
+
     expect({
+      explicitSavedSource:
+        explicitSaved.outcome !== null && "source" in explicitSaved.outcome
+          ? explicitSaved.outcome.source
+          : null,
+      explicitSavedTeam:
+        explicitSaved.conversationContext.activeTeamRecommendation?.team,
       failedStatus: failed.outcome?.status,
       preservedAge:
         refined.conversationContext.activeTeamRecommendation?.maxAge,
@@ -1748,6 +1775,8 @@ describe("team recommendation graph", () => {
       requestKind: refined.request.kind,
       searchCalls: directory.searchTeams.mock.calls.length,
     }).toStrictEqual({
+      explicitSavedSource: "saved",
+      explicitSavedTeam: arsenal,
       failedStatus: "team_not_found",
       preservedAge: 25,
       preservedTeam: arsenal,

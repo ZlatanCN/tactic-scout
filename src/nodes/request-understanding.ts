@@ -20,6 +20,7 @@ import {
 import {
   continuationChoice,
   previousTurnSummary,
+  savedOutcomeForRequest,
   savedResultUnavailable,
   savedOutcomeForTurn,
   workflowLabels,
@@ -193,11 +194,9 @@ const createRequestUnderstandingNode =
       extracted.kind !== "other" &&
       extracted.continuationAction === "explain"
     ) {
-      outcome = savedOutcomeForTurn(
-        state,
-        contextWithComparison,
-        previous,
+      outcome = savedOutcomeForRequest(
         extracted.kind,
+        contextWithComparison,
         extracted,
         text
       );
