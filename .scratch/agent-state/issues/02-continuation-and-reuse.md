@@ -30,6 +30,8 @@ Review follow-ups ensure an understanding failure requires confirmation before u
 
 Search-limit and failed-understanding regressions verify that old successful snapshots are preserved and never selected silently.
 
+Saved lookup follow-ups are subject to the same failure-boundary check as other workflow reuses.
+
 ## Comments
 
 - 2026-10-30: Claimed after result contracts were implemented.

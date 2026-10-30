@@ -35,15 +35,50 @@ const searchIdentityGroupsSchema = z.object({
   ),
 });
 
-const searchPlayerRecordsDataSchema = z.object({
-  fm: fmReadResultSchema.optional(),
-  identityGroups: searchIdentityGroupsSchema,
-  query: z.array(
-    z.object({ provider: z.enum(["understat", "fm"]), sourceId: z.string() })
-  ),
-  requestedUnderstatSeasonStartYear: z.number().int().nullable().optional(),
-  understat: understatReadResultSchema.optional(),
-});
+const searchPlayerRecordsDataSchema = z
+  .object({
+    fm: fmReadResultSchema.optional(),
+    identityGroups: searchIdentityGroupsSchema,
+    query: z.array(
+      z.object({ provider: z.enum(["understat", "fm"]), sourceId: z.string() })
+    ),
+    requestedUnderstatSeasonStartYear: z.number().int().nullable().optional(),
+    understat: understatReadResultSchema.optional(),
+  })
+  .superRefine((result, context) => {
+    const requestedProviders = new Set(
+      result.query.map(({ provider }) => provider)
+    );
+
+    const requestedFm = requestedProviders.has("fm");
+    const requestedUnderstat = requestedProviders.has("understat");
+
+    if (result.query.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "A source result must include at least one queried source record.",
+        path: ["query"],
+      });
+    }
+
+    if (requestedFm !== (result.fm !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "FM query records and FM results must be present together.",
+        path: ["fm"],
+      });
+    }
+
+    if (requestedUnderstat !== (result.understat !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Understat query records and Understat results must be present together.",
+        path: ["understat"],
+      });
+    }
+  });
 
 const searchPlayerRecordsResultSchema = z.union([
   searchPlayerRecordsDataSchema,

@@ -960,7 +960,10 @@ describe("LangGraph player workflows", () => {
         registryStatus: "not_needed",
         unlinkedRecords: [],
       },
-      query: [],
+      query: [
+        { provider: "fm", sourceId: "kane-fm" },
+        { provider: "understat", sourceId: "kane-understat" },
+      ],
       understat: { records: [], status: "not_found" },
     });
 
@@ -1340,7 +1343,10 @@ describe("LangGraph player workflows", () => {
         registryStatus: "not_needed",
         unlinkedRecords: [],
       },
-      query: [],
+      query: [
+        { provider: "fm", sourceId: "kane-fm" },
+        { provider: "understat", sourceId: "kane-understat" },
+      ],
       understat: { records: [], status: "not_found" },
     });
 
@@ -1351,7 +1357,10 @@ describe("LangGraph player workflows", () => {
         registryStatus: "not_needed",
         unlinkedRecords: [],
       },
-      query: [],
+      query: [
+        { provider: "fm", sourceId: "kane-fm" },
+        { provider: "understat", sourceId: "kane-understat" },
+      ],
       understat: { records: [], status: "not_found" },
     });
 
@@ -1427,7 +1436,10 @@ describe("LangGraph player workflows", () => {
         registryStatus: "not_needed",
         unlinkedRecords: [],
       },
-      query: [],
+      query: [
+        { provider: "fm", sourceId: "kane-fm" },
+        { provider: "understat", sourceId: "kane-understat" },
+      ],
       understat: { records: [], status: "found" },
     });
 

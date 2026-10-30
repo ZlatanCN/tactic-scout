@@ -53,6 +53,26 @@ describe("workflow result contracts", () => {
     ).toBeFalsy();
   });
 
+  it("rejects a lookup result missing one of its queried providers", () => {
+    const result = {
+      fm: { records: [], status: "not_found" },
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
+      query: [
+        { provider: "fm", sourceId: "fm-demo" },
+        { provider: "understat", sourceId: "us-demo" },
+      ],
+      requestedUnderstatSeasonStartYear: null,
+    };
+
+    expect(
+      searchPlayerRecordsResultSchema.safeParse(result).success
+    ).toBeFalsy();
+  });
+
   it("rejects mismatched lookup outcome source and status", () => {
     expect(
       TurnOutcomeSchema.safeParse({
