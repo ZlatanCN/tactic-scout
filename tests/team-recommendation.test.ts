@@ -1444,6 +1444,9 @@ describe("team recommendation graph", () => {
     const explainMessage = "解释上次结果";
     const refineAgainMessage = "年龄上限改到 20 岁";
 
+    const wrongFilterExplainMessage =
+      "Explain the previous team recommendation with a 19-year limit.";
+
     const wrongTeamExplainMessage =
       "Explain the previous team recommendation for Chelsea.";
 
@@ -1549,6 +1552,14 @@ describe("team recommendation graph", () => {
           recommendation: { maxAge: 20 },
           teams: [],
         },
+        [wrongFilterExplainMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "team_recommendation",
+          players: [],
+          recommendation: { maxAge: 19 },
+          teams: [],
+        },
         [wrongTeamExplainMessage]: {
           constraints: [],
           continuationAction: "explain",
@@ -1586,6 +1597,11 @@ describe("team recommendation graph", () => {
       config
     );
 
+    const wrongFilterExplanation = await graph.invoke(
+      { messages: [new HumanMessage(wrongFilterExplainMessage)] },
+      config
+    );
+
     const wrongTeamExplanation = await graph.invoke(
       { messages: [new HumanMessage(wrongTeamExplainMessage)] },
       config
@@ -1613,6 +1629,8 @@ describe("team recommendation graph", () => {
       selectedTeam: resumed.conversationContext.activeTeamRecommendation?.team,
       teamInputAge: recommend.mock.calls[0]?.[0].maxAge,
       wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+      wrongFilterAnswer: wrongFilterExplanation.messages.at(-1)?.content,
+      wrongFilterOutcome: wrongFilterExplanation.outcome?.status,
       wrongTeamAnswer: wrongTeamExplanation.messages.at(-1)?.content,
       wrongTeamOutcome: wrongTeamExplanation.outcome?.status,
     }).toStrictEqual({
@@ -1628,6 +1646,9 @@ describe("team recommendation graph", () => {
       selectedTeam: arsenal,
       teamInputAge: 21,
       wasInterrupted: true,
+      wrongFilterAnswer:
+        "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      wrongFilterOutcome: "saved_result_unavailable",
       wrongTeamAnswer:
         "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
       wrongTeamOutcome: "saved_result_unavailable",

@@ -814,8 +814,10 @@ const savedTeamMatchesExplicitRequest = (
   }
 
   if (
-    extracted.recommendation?.position !== undefined &&
-    extracted.recommendation.position !== snapshot.position
+    !savedRecommendationPatchMatches(
+      recommendationPatchForRequest(extracted),
+      snapshot
+    )
   ) {
     return false;
   }
