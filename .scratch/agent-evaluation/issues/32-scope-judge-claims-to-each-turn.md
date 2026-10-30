@@ -8,4 +8,4 @@
 
 ## Answer
 
-Judge input now includes each turn's user-mentioned and resolved participants, their selected provider source IDs, identity-record competition/season metadata, and exact action inputs. Prompt v12 scopes claims such as “all participants” to that turn, uses action parameters to review filter claims, and forbids retroactive scope changes or treating identity-record scope as the requested query result. Offline regressions cover participant/source mappings and action parameters. V10 baseline and V11 smoke are recorded in issues 36 and 40; v12 calibration is tracked in issue 41.
+Judge input now includes each turn's user-mentioned and resolved participants, their selected provider source IDs, identity-record competition/season metadata, and exact action inputs. Prompt v13 scopes claims such as “all participants” to that turn, uses inputs from actual tool events to review filter claims, and forbids treating model-requested arguments as proof that a tool ran. Offline regressions cover participant/source mappings and action parameters. V10 baseline and V11 smoke are recorded in issues 36 and 40; v13 calibration is tracked in issue 41.

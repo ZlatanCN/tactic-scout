@@ -158,6 +158,16 @@ const promptRuleFailureForAnchor = (
   }
 
   if (
+    caseId === "false-execution-claim-04-v5" &&
+    (!systemPrompt.includes(
+      "Requested events record proposed tool arguments"
+    ) ||
+      !systemPrompt.includes("no competition filter was supplied"))
+  ) {
+    return "factual_contradiction";
+  }
+
+  if (
     caseId === "correct-paraphrase-result-retained-after-failure-v8" &&
     (!systemPrompt.includes("data_unavailable") ||
       !systemPrompt.includes("availableResultKinds") ||
@@ -3658,7 +3668,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v12",
+      judgePromptVersion: "scouting-semantic-judge-v13",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

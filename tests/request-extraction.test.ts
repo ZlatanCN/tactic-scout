@@ -419,42 +419,48 @@ describe("request understanding extraction", () => {
     });
   });
 
-  it("keeps a player-based recommendation out of the team workflow when no team was named", async () => {
-    const model = fakeModel();
-    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+  it.each([
+    "根据 Erling Haaland 推荐 stc 球员。",
+    "以 Erling Haaland 的能力画像推荐 stc 球员。",
+  ])(
+    "keeps a player-based recommendation out of the team workflow when no team was named: %s",
+    async (message) => {
+      const model = fakeModel();
+      const structuredOutput = vi.spyOn(model, "withStructuredOutput");
 
-    structuredOutput.mockReturnValue(
-      RunnableLambda.from(() => ({
-        constraints: [],
-        kind: "team_recommendation",
-        players: [
-          {
-            lookupName: null,
-            mention: "Erling Haaland",
-            recommendationRole: "reference",
-            referenceScope: "explicit",
-            referenceTargetMention: null,
-          },
-        ],
+      structuredOutput.mockReturnValue(
+        RunnableLambda.from(() => ({
+          constraints: [],
+          kind: "team_recommendation",
+          players: [
+            {
+              lookupName: null,
+              mention: "Erling Haaland",
+              recommendationRole: "reference",
+              referenceScope: "explicit",
+              referenceTargetMention: null,
+            },
+          ],
+          recommendation: { position: "stc" },
+          teams: [],
+        }))
+      );
+
+      const extractor = createRequestUnderstandingExtractor(model);
+
+      const result = await extractor(
+        message,
+        createInitialConversationContext()
+      );
+
+      expect(result).toMatchObject({
+        kind: "player_recommendation",
         recommendation: { position: "stc" },
+        recommendationAction: "replace",
         teams: [],
-      }))
-    );
-
-    const extractor = createRequestUnderstandingExtractor(model);
-
-    const result = await extractor(
-      "根据 Erling Haaland 推荐 stc 球员。",
-      createInitialConversationContext()
-    );
-
-    expect(result).toMatchObject({
-      kind: "player_recommendation",
-      recommendation: { position: "stc" },
-      recommendationAction: "replace",
-      teams: [],
-    });
-  });
+      });
+    }
+  );
 
   it("retries a transient request, then repairs one invalid structured response", async () => {
     const model = fakeModel();

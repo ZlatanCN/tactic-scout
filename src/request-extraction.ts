@@ -347,14 +347,20 @@ const playerBasedRecommendationFromText = (
 
   const messageKey = normalizeMentionText(message);
 
-  const hasExplicitPlayer = result.players.some(({ mention }) => {
-    const mentionKey = normalizeMentionText(mention);
+  const hasExplicitPlayer = result.players.some(
+    ({ mention, recommendationRole }) => {
+      if (recommendationRole === "exclude") {
+        return false;
+      }
 
-    return mentionKey.length > 0 && messageKey.includes(mentionKey);
-  });
+      const mentionKey = normalizeMentionText(mention);
+
+      return mentionKey.length > 0 && messageKey.includes(mentionKey);
+    }
+  );
 
   const isPlayerBased =
-    /(?:根据|基于|按照|参考).{0,60}(?:推荐|寻找|找)|\b(?:based on|using|similar to)\b/iu.test(
+    /(?:根据|基于|按照|参考|以).{0,80}(?:推荐|寻找|找)|\b(?:based on|using|similar to|like)\b/iu.test(
       message
     );
 
