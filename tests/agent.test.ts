@@ -1613,6 +1613,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        understat: { records: [], status: "not_found" },
       })
     );
 
