@@ -359,6 +359,25 @@ const requestFromExtraction = (
   return { ...requestFields, kind: extracted.kind };
 };
 
+const comparisonActionForRequest = (
+  extracted: ExtractedRequest,
+  workflow: RequestKind,
+  context: ConversationContext
+): "replace" | "add" | "refine" => {
+  if (workflow !== "player_comparison") {
+    return "replace";
+  }
+
+  if (extracted.comparisonAction !== undefined) {
+    return extracted.comparisonAction;
+  }
+
+  return extracted.players.length === 0 &&
+    context.activeComparison.players.length >= 2
+    ? "refine"
+    : "replace";
+};
+
 const recommendationActionForRequest = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
   context: ConversationContext
@@ -540,7 +559,13 @@ const requestFromCurrentTurn = (
   workflow: RequestKind
 ): RequestTurnBuild => {
   const { context, extracted, messageId, text } = input;
-  const routedExtraction = { ...extracted, kind: workflow };
+
+  const routedExtraction = {
+    ...extracted,
+    comparisonAction: comparisonActionForRequest(extracted, workflow, context),
+    kind: workflow,
+  };
+
   const confirmedAliases = findConfirmedPlayerAliasesInMessage(text, context);
 
   const extractedPlayers = [

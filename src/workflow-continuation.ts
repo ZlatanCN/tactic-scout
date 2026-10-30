@@ -379,6 +379,13 @@ const canReuseSavedWorkflowAfterTurn = (
   return previous.failureStage !== "answer" || previous.dataCompleted;
 };
 
+const recommendationPatchForRequest = (
+  extracted: ExtractedRequest
+): NonNullable<ExtractedRequest["recommendation"]> => ({
+  ...extracted.recommendation,
+  ...recommendationPatchFromConstraints(extracted.constraints),
+});
+
 const compatibleContinuationWorkflows = (
   extracted: ExtractedRequest,
   context: ConversationContext
@@ -389,10 +396,7 @@ const compatibleContinuationWorkflows = (
     return saved;
   }
 
-  const recommendationPatch = {
-    ...extracted.recommendation,
-    ...recommendationPatchFromConstraints(extracted.constraints),
-  };
+  const recommendationPatch = recommendationPatchForRequest(extracted);
 
   const hasRecommendationPatch = Object.keys(recommendationPatch).length > 0;
 
