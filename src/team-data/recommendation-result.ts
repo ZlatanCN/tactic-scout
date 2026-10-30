@@ -25,10 +25,25 @@ const teamRecommendationFiltersSchema = z.object({
   resultLimit: z.number().int().positive(),
 });
 
-const teamRecommendationRosterSchema = teamRosterCoverageSchema.extend({
-  retrievedAt: z.string(),
-  source: z.literal("API-Football"),
-});
+const teamRecommendationRosterSchema = teamRosterCoverageSchema
+  .extend({
+    retrievedAt: z.string(),
+    source: z.literal("API-Football"),
+  })
+  .superRefine((coverage, context) => {
+    const classifiedMembers =
+      coverage.mappedMembers +
+      coverage.noLocalProfileMembers +
+      coverage.pendingMembers;
+
+    if (classifiedMembers !== coverage.totalMembers) {
+      context.addIssue({
+        code: "custom",
+        message: "Roster mapping coverage counts must sum to total members.",
+        path: ["totalMembers"],
+      });
+    }
+  });
 
 const teamRecommendationResultSchema = z.union([
   z

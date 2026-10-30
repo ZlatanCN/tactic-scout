@@ -98,7 +98,7 @@ const containsNegatedPotential = (text: string): boolean =>
   potentialNegationPatterns.some((pattern) => pattern.test(text));
 
 const aliasRole = (
-  kind: string,
+  kind: RequestKind,
   mention: string,
   text: string
 ): "reference" | "exclude" | "ambiguous" => {

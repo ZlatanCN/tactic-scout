@@ -6,6 +6,7 @@ import {
 } from "../src/player-data/compare-records.js";
 import { recommendationResultSchema } from "../src/player-data/recommend-players.js";
 import { searchPlayerRecordsResultSchema } from "../src/player-data/search-records.js";
+import { TurnOutcomeSchema } from "../src/state.js";
 import { teamRecommendationResultSchema } from "../src/team-data/recommendation-result.js";
 import { recommendationToolResultSchema } from "../src/tools/recommend-player-candidates.js";
 import { decodeResultJson } from "../src/workflow-results.js";
@@ -49,6 +50,25 @@ describe("workflow result contracts", () => {
     ).toBeFalsy();
     expect(
       teamRecommendationResultSchema.safeParse({ status: "ready" }).success
+    ).toBeFalsy();
+  });
+
+  it("rejects mismatched lookup outcome source and status", () => {
+    expect(
+      TurnOutcomeSchema.safeParse({
+        kind: "player_lookup",
+        resultJson: "{}",
+        source: "saved",
+        status: "data_ready",
+      }).success
+    ).toBeFalsy();
+    expect(
+      TurnOutcomeSchema.safeParse({
+        kind: "player_lookup",
+        resultJson: "{}",
+        source: "executed",
+        status: "lookup_follow_up",
+      }).success
     ).toBeFalsy();
   });
 
@@ -137,6 +157,26 @@ describe("workflow result contracts", () => {
     ).toBeFalsy();
     expect(
       completedComparisonResultSchema.safeParse(unavailable).success
+    ).toBeFalsy();
+  });
+
+  it("rejects inconsistent team roster coverage totals", () => {
+    const result = decodeResultJson(
+      teamRecommendationResult("no_candidates", teamInput),
+      teamRecommendationResultSchema
+    ).data;
+
+    if (!("recommendation" in result)) {
+      throw new Error("Expected a completed team recommendation fixture.");
+    }
+
+    const inconsistent = {
+      ...result,
+      roster: { ...result.roster, totalMembers: 1 },
+    };
+
+    expect(
+      teamRecommendationResultSchema.safeParse(inconsistent).success
     ).toBeFalsy();
   });
 });

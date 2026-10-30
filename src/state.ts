@@ -283,8 +283,14 @@ const TurnOutcomeSchema = z.union([
   z.object({
     kind: z.literal("player_lookup"),
     resultJson: z.string(),
-    source: z.enum(["executed", "saved"]),
-    status: z.enum(["answer_ready", "data_ready", "lookup_follow_up"]),
+    source: z.literal("executed"),
+    status: z.enum(["answer_ready", "data_ready"]),
+  }),
+  z.object({
+    kind: z.literal("player_lookup"),
+    resultJson: z.string(),
+    source: z.literal("saved"),
+    status: z.literal("lookup_follow_up"),
   }),
   z.object({
     kind: z.literal("player_lookup"),
@@ -488,6 +494,7 @@ export {
   AgentState,
   RecommendationPlayerRoleSchema,
   RecommendationRequestSchema,
+  TurnOutcomeSchema,
   createInitialRecommendationRequest,
   createInitialConversationContext,
   createInitialFaultToleranceState,
