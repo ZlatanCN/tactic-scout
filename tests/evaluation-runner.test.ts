@@ -1677,21 +1677,21 @@ describe("local scouting evaluation entry", () => {
 
     const candidateId = "source:understat:3423";
 
-    const player = {
-      candidates: [
+    const selectedCandidate = {
+      candidateId,
+      canonicalIdentityId: null,
+      records: [
         {
-          candidateId,
-          canonicalIdentityId: null,
-          records: [
-            {
-              competition: "La_liga",
-              provider: "understat",
-              season: "2026/27",
-              sourceId: "3423",
-            },
-          ],
+          competition: "La_liga",
+          provider: "understat",
+          season: "2026/27",
+          sourceId: "3423",
         },
       ],
+    };
+
+    const player = {
+      candidates: [selectedCandidate],
       lookupName: "Kylian Mbappé",
       mention: "Kylian Mbappé",
       resolutionStatus: "resolved",
@@ -1742,20 +1742,7 @@ describe("local scouting evaluation entry", () => {
       identityLookupEvents: [
         {
           actionId: "identity-1",
-          candidates: [
-            {
-              candidateId,
-              canonicalIdentityId: null,
-              records: [
-                {
-                  competition: "La_liga",
-                  provider: "understat",
-                  season: "2026/27",
-                  sourceId: "3423",
-                },
-              ],
-            },
-          ],
+          candidates: [selectedCandidate],
           caseId: loadedCase.caseDefinition.caseId,
           durationMs: 1,
           error: null,
