@@ -25,3 +25,4 @@ Added complete source-owned schemas for lookup, comparison, player recommendatio
 - 2026-10-30: Lookup result schemas also require a result for every queried provider, so partial dual-source responses cannot replace a successful snapshot.
 - 2026-10-30: Recommendation results now require `potentialCandidates` to agree with the `includePotential` filter; team envelopes require outer/nested filter, position, and snapshot consistency.
 - 2026-10-30: Lookup results require Understat season metadata for Understat queries, and `no_confirmed_source_ids` is valid only with an empty query.
+- 2026-10-30: FM and Understat source results now require `found` to contain records and `not_found` to contain none; regression tests cover both contradictions for both providers.

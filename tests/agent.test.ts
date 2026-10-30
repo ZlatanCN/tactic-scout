@@ -328,7 +328,7 @@ describe("LangGraph player workflows", () => {
 
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
-        fm: { records: [], status: "found" },
+        fm: { records: [], status: "not_found" },
         identityGroups: {
           canonicalGroups: [],
           registryStatus: "not_needed",
@@ -534,7 +534,7 @@ describe("LangGraph player workflows", () => {
 
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
-        fm: { records: [], status: "found" },
+        fm: { records: [], status: "not_found" },
         identityGroups: {
           canonicalGroups: [],
           registryStatus: "not_needed",
@@ -1055,7 +1055,7 @@ describe("LangGraph player workflows", () => {
 
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
-        fm: { records: [], status: "found" },
+        fm: { records: [], status: "not_found" },
         identityGroups: {
           canonicalGroups: [],
           registryStatus: "not_needed",
@@ -1250,7 +1250,7 @@ describe("LangGraph player workflows", () => {
 
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
-        fm: { records: [], status: "found" },
+        fm: { records: [], status: "not_found" },
         identityGroups: {
           canonicalGroups: [],
           registryStatus: "not_needed",
@@ -1258,7 +1258,7 @@ describe("LangGraph player workflows", () => {
         },
         query: input.sourceRecords,
         requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
-        understat: { records: [], status: "found" },
+        understat: { records: [], status: "not_found" },
       })
     );
 
@@ -1365,7 +1365,7 @@ describe("LangGraph player workflows", () => {
     const secondMessage = "Refresh Harry Kane's local lookup.";
 
     const firstLookupResult = JSON.stringify({
-      fm: { records: [], status: "found" },
+      fm: { records: [], status: "not_found" },
       identityGroups: {
         canonicalGroups: [],
         registryStatus: "not_needed",
@@ -1460,7 +1460,7 @@ describe("LangGraph player workflows", () => {
     const followUp = "刚才查到的是什么赛季？";
 
     const lookupResult = JSON.stringify({
-      fm: { records: [], status: "found" },
+      fm: { records: [], status: "not_found" },
       identityGroups: {
         canonicalGroups: [],
         registryStatus: "not_needed",
@@ -1471,7 +1471,7 @@ describe("LangGraph player workflows", () => {
         { provider: "understat", sourceId: "kane-understat" },
       ],
       requestedUnderstatSeasonStartYear: null,
-      understat: { records: [], status: "found" },
+      understat: { records: [], status: "not_found" },
     });
 
     const search = vi.fn<PlayerSearch>(() => lookupResult);
@@ -1762,7 +1762,7 @@ describe("LangGraph player workflows", () => {
 
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
-        fm: { records: [], status: "found" },
+        fm: { records: [], status: "not_found" },
         identityGroups: {
           canonicalGroups: [],
           registryStatus: "not_needed",

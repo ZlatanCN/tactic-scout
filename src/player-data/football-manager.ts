@@ -87,8 +87,12 @@ const fmSearchRecordSchema = z.object({
 const fmReadResultSchema = z.discriminatedUnion("status", [
   unavailableSearchResultSchema,
   z.object({
-    records: z.array(fmSearchRecordSchema),
-    status: z.enum(["found", "not_found"]),
+    records: z.array(fmSearchRecordSchema).min(1),
+    status: z.literal("found"),
+  }),
+  z.object({
+    records: z.array(fmSearchRecordSchema).length(0),
+    status: z.literal("not_found"),
   }),
 ]);
 

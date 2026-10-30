@@ -99,6 +99,87 @@ describe("workflow result contracts", () => {
     ).toBeFalsy();
   });
 
+  it("requires source statuses to agree with whether provider records exist", () => {
+    const identityGroups = {
+      canonicalGroups: [],
+      registryStatus: "not_needed",
+      unlinkedRecords: [],
+    };
+
+    const fmRecord = {
+      attributes: {
+        accelerationRaw: null,
+        decisionsRaw: null,
+        finishingRaw: null,
+        first_touchRaw: null,
+        off_the_ballRaw: null,
+        paceRaw: null,
+        passingRaw: null,
+        strengthRaw: null,
+        techniqueRaw: null,
+        visionRaw: null,
+      },
+      birthDate: null,
+      currentAbility: 120,
+      heightCm: null,
+      identitySourceId: "fm-kane",
+      naturalPositions: "STC",
+      player: "Harry Kane",
+      potentialAbility: 150,
+      source: "Football Manager",
+      sourceRecordId: "fm-kane-record",
+    };
+
+    const understatRecord = {
+      assists: 1,
+      competition: "EPL",
+      expectedAssists: 0.5,
+      expectedGoals: 1.2,
+      goals: 1,
+      keyPasses: 4,
+      minutes: 900,
+      nonPenaltyExpectedGoals: 1.1,
+      player: "Harry Kane",
+      position: "F",
+      season: "2024/25",
+      shots: 10,
+      source: "Understat",
+      sourcePlayerId: "us-kane",
+      team: "Fixture FC",
+    };
+
+    const invalidResults = [
+      {
+        fm: { records: [], status: "found" },
+        identityGroups,
+        query: [{ provider: "fm", sourceId: "fm-kane" }],
+      },
+      {
+        fm: { records: [fmRecord], status: "not_found" },
+        identityGroups,
+        query: [{ provider: "fm", sourceId: "fm-kane" }],
+      },
+      {
+        identityGroups,
+        query: [{ provider: "understat", sourceId: "us-kane" }],
+        requestedUnderstatSeasonStartYear: 2024,
+        understat: { records: [], status: "found" },
+      },
+      {
+        identityGroups,
+        query: [{ provider: "understat", sourceId: "us-kane" }],
+        requestedUnderstatSeasonStartYear: 2024,
+        understat: { records: [understatRecord], status: "not_found" },
+      },
+    ];
+
+    for (const result of invalidResults) {
+      expect(
+        searchPlayerRecordsResultSchema.safeParse(result).success
+      ).toBeFalsy();
+    }
+  });
+
   it("rejects mismatched lookup outcome source and status", () => {
     expect(
       TurnOutcomeSchema.safeParse({

@@ -69,8 +69,12 @@ const unavailableSearchResultSchema = z.object({
 const understatReadResultSchema = z.discriminatedUnion("status", [
   unavailableSearchResultSchema,
   z.object({
-    records: z.array(understatSearchRecordSchema),
-    status: z.enum(["found", "not_found"]),
+    records: z.array(understatSearchRecordSchema).min(1),
+    status: z.literal("found"),
+  }),
+  z.object({
+    records: z.array(understatSearchRecordSchema).length(0),
+    status: z.literal("not_found"),
   }),
 ]);
 
