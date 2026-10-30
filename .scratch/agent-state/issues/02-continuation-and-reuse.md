@@ -34,6 +34,8 @@ Saved lookup follow-ups are subject to the same failure-boundary check as other 
 
 Lookup reuse also checks the selected source records and requested Understat season. A failed request for the same player in a different season cannot silently explain the older snapshot.
 
+An explicit player named in a saved lookup explanation must match that saved identity or a thread-confirmed alias.
+
 ## Comments
 
 - 2026-10-30: Claimed after result contracts were implemented.

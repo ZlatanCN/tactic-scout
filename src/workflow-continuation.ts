@@ -1,6 +1,7 @@
 import { completedComparisonResultSchema } from "./player-data/compare-records.js";
 import { selectedReferenceCandidate } from "./player-data/contracts.js";
 import { searchPlayerRecordsResultSchema } from "./player-data/search-records.js";
+import { normalizeMentionText } from "./player-mentions.js";
 import { recommendationPatchFromConstraints } from "./recommendation-constraints.js";
 import type {
   PreviousTurnSummary,
@@ -577,20 +578,79 @@ const savedOutcomeForWorkflow = (
   };
 };
 
+const savedLookupTargetMatches = (
+  extracted: ExtractedRequest,
+  context: ConversationContext
+): boolean => {
+  const { activeLookup } = context;
+
+  if (activeLookup === null) {
+    return false;
+  }
+
+  if (extracted.players.length === 0) {
+    return true;
+  }
+
+  const { referenceId } = activeLookup.player;
+
+  const aliases = context.playerAliases.flatMap(({ mention, reference }) =>
+    reference.referenceId === referenceId ? [mention] : []
+  );
+
+  const knownNames = new Set(
+    [
+      activeLookup.player.candidate.name,
+      ...activeLookup.player.candidate.records.map(({ name }) => name),
+      ...aliases,
+    ].map(normalizeMentionText)
+  );
+
+  return extracted.players.every((player) => {
+    if (player.referenceScope === "explicit") {
+      return knownNames.has(normalizeMentionText(player.mention));
+    }
+
+    return (
+      player.referenceScope === "prior_context" &&
+      context.focusPlayers.some(
+        ({ referenceId: focusedId }) => focusedId === referenceId
+      )
+    );
+  });
+};
+
+const savedOutcomeForRequest = (
+  workflow: WorkflowKind,
+  context: ConversationContext,
+  extracted: ExtractedRequest
+): TurnOutcome => {
+  if (
+    workflow === "player_lookup" &&
+    !savedLookupTargetMatches(extracted, context)
+  ) {
+    return savedResultUnavailable(workflow);
+  }
+
+  return savedOutcomeForWorkflow(workflow, context);
+};
+
 const savedOutcomeForTurn = (
   state: AgentStateType,
   context: ConversationContext,
   previous: PreviousTurnSummary,
-  workflow: WorkflowKind
+  workflow: WorkflowKind,
+  extracted: ExtractedRequest
 ): TurnOutcome =>
   canReuseSavedWorkflowAfterTurn(state, context, previous, workflow)
-    ? savedOutcomeForWorkflow(workflow, context)
+    ? savedOutcomeForRequest(workflow, context, extracted)
     : savedResultUnavailable(workflow);
 
 export {
   continuationChoice,
   canReuseSavedWorkflowAfterTurn,
   previousTurnSummary,
+  savedOutcomeForRequest,
   savedOutcomeForTurn,
   savedResultUnavailable,
   savedOutcomeForWorkflow,

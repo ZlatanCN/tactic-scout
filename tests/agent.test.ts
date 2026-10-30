@@ -1506,6 +1506,69 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("does not explain a saved lookup for a different explicitly named player", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
+    const firstMessage = "Look up Harry Kane.";
+    const explainMessage = "Explain the previous lookup for Kylian Mbappé.";
+    const search = vi.fn<PlayerSearch>(emptySearchResult);
+
+    const searchCall = {
+      args: { sourceRecords: [] },
+      name: "search_player_records",
+    };
+
+    const graph = createAgent({
+      model: fakeModel()
+        .respondWithTools([searchCall])
+        .respond(new AIMessage("Harry Kane's records loaded.")),
+      playerIdentityLookup: resolvedLookupFromCandidates([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [explainMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "player_lookup",
+          players: [
+            {
+              lookupName: null,
+              mention: "Kylian Mbappé",
+              recommendationRole: "reference",
+              referenceScope: "explicit",
+              referenceTargetMention: null,
+            },
+          ],
+          teams: [],
+        },
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "saved-lookup-target-mismatch" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const explained = await graph.invoke(
+      { messages: [new HumanMessage(explainMessage)] },
+      config
+    );
+
+    expect({
+      activePlayer:
+        explained.conversationContext.activeLookup?.player.candidate.name,
+      answer: explained.messages.at(-1)?.content,
+      outcome: explained.outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activePlayer: "Harry Kane",
+      answer: "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      outcome: "saved_result_unavailable",
+      searchCalls: 1,
+    });
+  });
+
   it("does not reuse a previous lookup after a different season request fails", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const kaneMessage = "Look up Harry Kane.";

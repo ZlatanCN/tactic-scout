@@ -29,7 +29,7 @@ import {
 } from "./state.js";
 import {
   canReuseSavedWorkflowAfterTurn,
-  savedOutcomeForWorkflow,
+  savedOutcomeForRequest,
 } from "./workflow-continuation.js";
 import type { WorkflowKind } from "./workflow-continuation.js";
 
@@ -717,7 +717,7 @@ const resumeWorkflowClarification = (
 
   const outcome =
     draft.operation === "explain"
-      ? savedOutcomeForWorkflow(workflow, context)
+      ? savedOutcomeForRequest(workflow, context, extracted)
       : built.outcome;
 
   return {
