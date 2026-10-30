@@ -335,6 +335,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
       })
     );
@@ -540,6 +541,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
       })
     );
@@ -625,6 +627,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
       })
     );
@@ -964,6 +967,7 @@ describe("LangGraph player workflows", () => {
         { provider: "fm", sourceId: "kane-fm" },
         { provider: "understat", sourceId: "kane-understat" },
       ],
+      requestedUnderstatSeasonStartYear: null,
       understat: { records: [], status: "not_found" },
     });
 
@@ -1036,6 +1040,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
       })
     );
@@ -1230,6 +1235,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "found" },
       })
     );
@@ -1347,6 +1353,7 @@ describe("LangGraph player workflows", () => {
         { provider: "fm", sourceId: "kane-fm" },
         { provider: "understat", sourceId: "kane-understat" },
       ],
+      requestedUnderstatSeasonStartYear: null,
       understat: { records: [], status: "not_found" },
     });
 
@@ -1361,6 +1368,7 @@ describe("LangGraph player workflows", () => {
         { provider: "fm", sourceId: "kane-fm" },
         { provider: "understat", sourceId: "kane-understat" },
       ],
+      requestedUnderstatSeasonStartYear: null,
       understat: { records: [], status: "not_found" },
     });
 
@@ -1440,6 +1448,7 @@ describe("LangGraph player workflows", () => {
         { provider: "fm", sourceId: "kane-fm" },
         { provider: "understat", sourceId: "kane-understat" },
       ],
+      requestedUnderstatSeasonStartYear: null,
       understat: { records: [], status: "found" },
     });
 
@@ -1676,6 +1685,7 @@ describe("LangGraph player workflows", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
       })
     );

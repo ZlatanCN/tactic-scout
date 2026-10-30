@@ -23,3 +23,4 @@ Added complete source-owned schemas for lookup, comparison, player recommendatio
 - 2026-10-30: Resolved. Focused graph tests and result-contract tests pass.
 - 2026-10-30: Review follow-ups: a search-limit outcome no longer replaces the previous lookup snapshot or focus; completed comparisons reject source-unavailable empty results and inconsistent coverage counts; recommendation status must agree with candidate presence; team roster coverage totals and lookup source/status pairs are checked.
 - 2026-10-30: Lookup result schemas also require a result for every queried provider, so partial dual-source responses cannot replace a successful snapshot.
+- 2026-10-30: Lookup results require Understat season metadata for Understat queries, and `no_confirmed_source_ids` is valid only with an empty query.

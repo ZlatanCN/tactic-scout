@@ -35,13 +35,16 @@ const searchIdentityGroupsSchema = z.object({
   ),
 });
 
+const searchQueryRecordSchema = z.object({
+  provider: z.enum(["understat", "fm"]),
+  sourceId: z.string(),
+});
+
 const searchPlayerRecordsDataSchema = z
   .object({
     fm: fmReadResultSchema.optional(),
     identityGroups: searchIdentityGroupsSchema,
-    query: z.array(
-      z.object({ provider: z.enum(["understat", "fm"]), sourceId: z.string() })
-    ),
+    query: z.array(searchQueryRecordSchema),
     requestedUnderstatSeasonStartYear: z.number().int().nullable().optional(),
     understat: understatReadResultSchema.optional(),
   })
@@ -52,6 +55,9 @@ const searchPlayerRecordsDataSchema = z
 
     const requestedFm = requestedProviders.has("fm");
     const requestedUnderstat = requestedProviders.has("understat");
+
+    const hasUnderstatSeason =
+      result.requestedUnderstatSeasonStartYear !== undefined;
 
     if (result.query.length === 0) {
       context.addIssue({
@@ -78,14 +84,21 @@ const searchPlayerRecordsDataSchema = z
         path: ["understat"],
       });
     }
+
+    if (requestedUnderstat !== hasUnderstatSeason) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Understat queries must include their requested season metadata.",
+        path: ["requestedUnderstatSeasonStartYear"],
+      });
+    }
   });
 
 const searchPlayerRecordsResultSchema = z.union([
   searchPlayerRecordsDataSchema,
   z.object({
-    query: z.array(
-      z.object({ provider: z.enum(["understat", "fm"]), sourceId: z.string() })
-    ),
+    query: z.array(searchQueryRecordSchema).length(0),
     result: z.literal("no_confirmed_source_ids"),
   }),
 ]);

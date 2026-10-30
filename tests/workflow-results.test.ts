@@ -73,6 +73,32 @@ describe("workflow result contracts", () => {
     ).toBeFalsy();
   });
 
+  it("requires season metadata for Understat queries and an empty query for missing source IDs", () => {
+    const identityGroups = {
+      canonicalGroups: [],
+      registryStatus: "not_needed",
+      unlinkedRecords: [],
+    };
+
+    const missingUnderstatSeason = {
+      identityGroups,
+      query: [{ provider: "understat", sourceId: "us-demo" }],
+      understat: { records: [], status: "not_found" },
+    };
+
+    const contradictoryNoIds = {
+      query: [{ provider: "fm", sourceId: "fm-demo" }],
+      result: "no_confirmed_source_ids",
+    };
+
+    expect(
+      searchPlayerRecordsResultSchema.safeParse(missingUnderstatSeason).success
+    ).toBeFalsy();
+    expect(
+      searchPlayerRecordsResultSchema.safeParse(contradictoryNoIds).success
+    ).toBeFalsy();
+  });
+
   it("rejects mismatched lookup outcome source and status", () => {
     expect(
       TurnOutcomeSchema.safeParse({
