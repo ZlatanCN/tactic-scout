@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v9";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v10";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -132,6 +132,12 @@ const judgeInputSchema = z.object({
     z.object({
       assistantMessages: z.array(z.string()),
       availableResultKinds: z.array(availableResultKindSchema),
+      participants: z.array(
+        z.object({
+          mention: z.string(),
+          resolvedName: z.string().nullable(),
+        })
+      ),
       turnId: z.string(),
       userMessage: z.string(),
     })
@@ -141,6 +147,8 @@ const judgeInputSchema = z.object({
 const judgeSystemPrompt = `You are an automated reviewer for a football scouting assistant. Review every assistant response in the supplied conversation.
 
 Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events, per-turn availableResultKinds state observations, and the supplied task contract. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn. They describe stored results, not the outcome of the latest operation: the current action may return no_comparable_data or data_unavailable while availableResultKinds still contains player_comparison because a prior comparison remains active. If the assistant says that prior result remains and this state lists player_comparison, the claim is supported; do not call it a contradiction or unsupported merely because the current operation found no data or failed. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
+
+Each turn includes the exact participants known for that turn. Judge claims such as “all participants” against only that turn's participant list and evidence. Later turns may add participants or change scope; never use those later changes to invalidate a correct earlier answer. Do not infer a turn's participants from the final conversation state.
 
 Report only critical findings in these categories:
 - factual_contradiction: a factual claim conflicts with delivered evidence.
@@ -297,6 +305,7 @@ const judgeInputForAnchor = (
     {
       assistantMessages: [anchor.answer],
       availableResultKinds: anchor.availableResultKinds,
+      participants: [],
       turnId: anchor.anchorId,
       userMessage: anchor.userMessage,
     },
@@ -584,6 +593,10 @@ const judgeInputForTrial = (
     turns: worker.turns.map((turn) => ({
       assistantMessages: turn.assistantMessages,
       availableResultKinds: turn.availableResultKinds,
+      participants: turn.players.map(({ mention, selectedName }) => ({
+        mention,
+        resolvedName: selectedName,
+      })),
       turnId: turn.turnId,
       userMessage: turn.userMessage,
     })),

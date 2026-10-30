@@ -4,6 +4,8 @@ import {
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
+import type { BaseMessage } from "@langchain/core/messages";
+import { RunnableLambda } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
@@ -11,6 +13,7 @@ import { z } from "zod/v3";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
+import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
 import {
@@ -267,6 +270,51 @@ describe("LangGraph player workflows", () => {
     expect(z.string().safeParse(systemMessage?.content).data).toContain(
       "请用户补充完整赛季范围"
     );
+  });
+
+  it("runs the resolved lookup when the model answers without requesting the search tool", async () => {
+    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
+    const message = "Look up Kylian Mbappé's 2024/25 La Liga xG.";
+    const search = vi.fn<PlayerSearch>(emptySearchResult);
+
+    const model = fakeModel()
+      .respond(
+        new AIMessage(
+          "I need the identity-resolved Understat source ID to look this up."
+        )
+      )
+      .respond(new AIMessage("The requested season was searched."));
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(mbappe),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [mbappe.name], {
+          constraints: [{ name: "understatSeasonStartYear", value: "2024" }],
+        }),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "lookup-model-omitted-tool-call" } }
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      searchCount: search.mock.calls.length,
+      searchedRecords: search.mock.calls[0]?.[0].sourceRecords,
+      searchedSeason: search.mock.calls[0]?.[0].seasonStartYear,
+    }).toStrictEqual({
+      answer: "The requested season was searched.",
+      searchCount: 1,
+      searchedRecords: [
+        { provider: "fm", sourceId: "mbappe-fm" },
+        { provider: "understat", sourceId: "mbappe-understat" },
+      ],
+      searchedSeason: 2024,
+    });
   });
 
   it.each(["Look up Harry Kane's xG.", "Look up Harry Kane's 24/25 xG."])(
@@ -1447,7 +1495,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: previousLookup,
       answer:
-        "本地球员数据源无法读取，已发起的数据查询或计算未能完成。此前已完成的结果仍保留。",
+        "本地数据快照缺少完成这次请求所需的记录，因此目前无法给出结果。此前已完成的结果仍保留。",
       modelCalls: 3,
       outcomeStatus: "data_unavailable",
       searchCalls: 2,
@@ -2036,6 +2084,226 @@ describe("LangGraph player workflows", () => {
       },
       resumedPosition: "stc",
       toolCalls: 3,
+    });
+  });
+
+  it("applies a condition-only refinement extracted without a workflow kind", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Find striker alternatives to Kane under 23.";
+    const refineMessage = "Lower the age limit to 21.";
+
+    const recommend = vi.fn<RecommendPlayerCandidates>((input) =>
+      JSON.stringify(
+        recommendationResultData("no_candidates", "stc", {
+          filters: {
+            includePotential: input.includePotential,
+            maxAge: input.maxAge,
+            minimumCurrentAbility: input.minimumCurrentAbility,
+            minimumPotentialAbility: input.minimumPotentialAbility,
+            resultLimit: input.resultLimit ?? 5,
+          },
+        })
+      )
+    );
+
+    const model = fakeModel()
+      .respond(new AIMessage("No candidates meet the original filters."))
+      .respond(new AIMessage("No candidates meet the refined filters."));
+
+    const extractor = createExtractor({
+      [firstMessage]: requestForPlayers("player_recommendation", ["Kane"], {
+        recommendation: { maxAge: 23, position: "stc" },
+        recommendationAction: "replace",
+      }),
+      [refineMessage]: requestForPlayers(null, [], {
+        continuationAction: "refine",
+        recommendation: { maxAge: 21 },
+        recommendationAction: "refine",
+      }),
+    });
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: extractor,
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const config = {
+      configurable: { thread_id: "recommendation-refine-null-kind" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(refineMessage)] },
+      config
+    );
+
+    expect({
+      activeMaxAge: refined.conversationContext.activeRecommendation?.maxAge,
+      calls: recommend.mock.calls.length,
+      refinedMaxAge: recommend.mock.calls[1]?.[0].maxAge,
+      workflow: refined.request.kind,
+    }).toStrictEqual({
+      activeMaxAge: 21,
+      calls: 2,
+      refinedMaxAge: 21,
+      workflow: "player_recommendation",
+    });
+  });
+
+  it("keeps a condition-only refinement through structured-output repair after identity confirmation", async () => {
+    const reference = playerCandidate("Synthetic Reference", "reference");
+
+    const addedReference = playerCandidate(
+      "Synthetic Close Candidate",
+      "close"
+    );
+
+    const firstMessage =
+      "请把 Synthetic Reference 作为参考球员，推荐 STC 位置相似球员。";
+
+    const addMessage = "再加上 Synthetic Close Candidate 作为参考。";
+    const refineMessage = "把年龄上限设为 21 岁。";
+    const repairAttempts = new Map<string, number>();
+
+    const identityLookup: ReferenceIdentityLookup = (mention) =>
+      mention === reference.name
+        ? {
+            candidateCount: 1,
+            candidates: [reference],
+            candidatesTruncated: false,
+            canonicalIdentityId: reference.canonicalIdentityId,
+            clarificationMessage: null,
+            mention,
+            selectedCandidateId: reference.candidateId,
+            selectedName: reference.name,
+            status: "resolved",
+          }
+        : {
+            candidateCount: 1,
+            candidates: [addedReference],
+            candidatesTruncated: false,
+            canonicalIdentityId: null,
+            clarificationMessage: "Please confirm Synthetic Close Candidate.",
+            mention,
+            selectedCandidateId: null,
+            selectedName: null,
+            status: "needs_confirmation",
+          };
+
+    const recommend = vi.fn<RecommendPlayerCandidates>((input) =>
+      JSON.stringify(
+        recommendationResultData("no_candidates", "stc", {
+          filters: {
+            includePotential: input.includePotential,
+            maxAge: input.maxAge,
+            minimumCurrentAbility: input.minimumCurrentAbility,
+            minimumPotentialAbility: input.minimumPotentialAbility,
+            resultLimit: input.resultLimit ?? 5,
+          },
+        })
+      )
+    );
+
+    const model = fakeModel()
+      .respond(new AIMessage("Initial recommendation saved."))
+      .respond(new AIMessage("Added reference recommendation saved."))
+      .respond(new AIMessage("Age-refined recommendation saved."));
+
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from((messages: BaseMessage[]) => {
+        const userMessage = z.string().parse(messages.at(-1)?.content);
+
+        const input = z
+          .object({
+            currentMessage: z.string(),
+            validationFeedback: z.string().optional(),
+          })
+          .passthrough()
+          .parse(JSON.parse(userMessage));
+
+        if (input.currentMessage === refineMessage) {
+          const attempts = repairAttempts.get(refineMessage) ?? 0;
+          repairAttempts.set(refineMessage, attempts + 1);
+
+          if (input.validationFeedback === undefined) {
+            throw Object.assign(new Error("Invalid structured request."), {
+              name: "OutputParserException",
+            });
+          }
+
+          return requestForPlayers(null, [], {
+            continuationAction: "refine",
+            recommendation: { maxAge: 21 },
+            recommendationAction: "refine",
+          });
+        }
+
+        if (input.currentMessage === firstMessage) {
+          return requestForPlayers(
+            "player_recommendation",
+            ["Synthetic Reference"],
+            {
+              recommendation: { position: "stc" },
+              recommendationAction: "replace",
+            }
+          );
+        }
+
+        return requestForPlayers(
+          "player_recommendation",
+          ["Synthetic Close Candidate"],
+          {
+            continuationAction: "refine",
+            recommendationAction: "add",
+          }
+        );
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createRequestUnderstandingExtractor(model),
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const config = {
+      configurable: { thread_id: "recommend-refine-after-extraction-repair" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(addMessage)] },
+      config
+    );
+
+    await graph.invoke(new Command({ resume: "1" }), config);
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(refineMessage)] },
+      config
+    );
+
+    expect({
+      activeMaxAge: refined.conversationContext.activeRecommendation?.maxAge,
+      interruptAsked: Object.hasOwn(interrupted, "__interrupt__"),
+      recommendationCalls: recommend.mock.calls.length,
+      refinedMaxAge: recommend.mock.calls.at(-1)?.[0].maxAge,
+      structuredOutputRepairs: repairAttempts.get(refineMessage),
+    }).toStrictEqual({
+      activeMaxAge: 21,
+      interruptAsked: true,
+      recommendationCalls: 3,
+      refinedMaxAge: 21,
+      structuredOutputRepairs: 2,
     });
   });
 

@@ -1,6 +1,7 @@
 import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { performance } from "node:perf_hooks";
 
 import { z } from "zod/v4";
 
@@ -10,12 +11,38 @@ type EvaluationGatewayProxy = {
   deniedRequests: () => number;
   exchanges: () => EvaluationGatewayExchange[];
   failedRequests: () => number;
+  metricsByRole: () => Record<
+    EvaluationGatewayRole,
+    EvaluationGatewayRoleMetrics
+  >;
   modelRequests: () => number;
   deniedRequestsByRole: () => Record<EvaluationGatewayRole, number>;
   requestsByRole: () => Record<EvaluationGatewayRole, number>;
 };
 
 type EvaluationGatewayRole = "agent" | "calibration" | "judge";
+
+type EvaluationGatewayRoleMetrics = {
+  deniedRequests: number;
+  dispatchedRequests: number;
+  latency: {
+    averageMs: number | null;
+    p50Ms: number | null;
+    p95Ms: number | null;
+    requestsWithLatency: number;
+  };
+  modelIds: string[];
+  tokenUsage: {
+    completionTokensReported: number | null;
+    promptTokensReported: number | null;
+    responsesWithCompletionTokens: number;
+    responsesWithPromptTokens: number;
+    responsesWithTotalTokens: number;
+    responsesWithUsage: number;
+    responsesWithoutUsage: number;
+    totalTokensReported: number | null;
+  };
+};
 
 type EvaluationGatewayExchange = {
   durationMs: number;
@@ -27,9 +54,9 @@ type EvaluationGatewayExchange = {
   responseBody: string | null;
   responseStatus: number | null;
   tokenUsage: {
-    completionTokens: number;
-    promptTokens: number;
-    totalTokens: number;
+    completionTokens: number | null;
+    promptTokens: number | null;
+    totalTokens: number | null;
   } | null;
 };
 
@@ -51,12 +78,103 @@ const modelResponseMetadataSchema = z.object({
   model: z.string().optional(),
   usage: z
     .object({
-      completion_tokens: z.number().int().nonnegative(),
-      prompt_tokens: z.number().int().nonnegative(),
-      total_tokens: z.number().int().nonnegative(),
+      completion_tokens: z.number().int().nonnegative().optional(),
+      input_tokens: z.number().int().nonnegative().optional(),
+      output_tokens: z.number().int().nonnegative().optional(),
+      prompt_tokens: z.number().int().nonnegative().optional(),
+      total_tokens: z.number().int().nonnegative().optional(),
     })
     .optional(),
 });
+
+const roundMilliseconds = (value: number): number =>
+  Math.round(value * 10) / 10;
+
+const percentile = (values: number[], proportion: number): number | null => {
+  if (values.length === 0) {
+    return null;
+  }
+
+  const sorted = values.toSorted((left, right) => left - right);
+  const index = Math.max(0, Math.ceil(sorted.length * proportion) - 1);
+  const value = sorted[index];
+
+  return value === undefined ? null : roundMilliseconds(value);
+};
+
+const roleMetrics = (
+  role: EvaluationGatewayRole,
+  exchanges: EvaluationGatewayExchange[],
+  dispatchedRequests: number,
+  deniedRequests: number
+): EvaluationGatewayRoleMetrics => {
+  const roleExchanges = exchanges.filter(
+    (exchange) => exchange.forwarded && exchange.role === role
+  );
+
+  const modelIds = [
+    ...new Set(
+      roleExchanges.flatMap((exchange) =>
+        exchange.model === null ? [] : [exchange.model]
+      )
+    ),
+  ].toSorted();
+
+  const usages = roleExchanges.flatMap((exchange) =>
+    exchange.tokenUsage === null ? [] : [exchange.tokenUsage]
+  );
+
+  const promptUsages = usages.flatMap(({ promptTokens }) =>
+    promptTokens === null ? [] : [promptTokens]
+  );
+
+  const completionUsages = usages.flatMap(({ completionTokens }) =>
+    completionTokens === null ? [] : [completionTokens]
+  );
+
+  const totalUsages = usages.flatMap(({ totalTokens }) =>
+    totalTokens === null ? [] : [totalTokens]
+  );
+
+  const durations = roleExchanges.map(({ durationMs }) => durationMs);
+
+  return {
+    deniedRequests,
+    dispatchedRequests,
+    latency: {
+      averageMs:
+        durations.length === 0
+          ? null
+          : roundMilliseconds(
+              durations.reduce((sum, duration) => sum + duration, 0) /
+                durations.length
+            ),
+      p50Ms: percentile(durations, 0.5),
+      p95Ms: percentile(durations, 0.95),
+      requestsWithLatency: durations.length,
+    },
+    modelIds,
+    tokenUsage: {
+      completionTokensReported:
+        completionUsages.length === 0
+          ? null
+          : completionUsages.reduce((sum, value) => sum + value, 0),
+      promptTokensReported:
+        promptUsages.length === 0
+          ? null
+          : promptUsages.reduce((sum, value) => sum + value, 0),
+      responsesWithCompletionTokens: completionUsages.length,
+      responsesWithPromptTokens: promptUsages.length,
+      responsesWithTotalTokens: totalUsages.length,
+      responsesWithUsage: usages.length,
+      responsesWithoutUsage: Math.max(0, dispatchedRequests - usages.length),
+      totalTokensReported:
+        totalUsages.length === 0
+          ? null
+          : totalUsages.reduce((sum, value) => sum + value, 0),
+    },
+  };
+};
 
 const parsedResponseFromText = (content: string) => {
   try {
@@ -165,6 +283,30 @@ const createEvaluationGatewayProxy = async (
 
   const exchanges: EvaluationGatewayExchange[] = [];
 
+  const metricsByRole = (): Record<
+    EvaluationGatewayRole,
+    EvaluationGatewayRoleMetrics
+  > => ({
+    agent: roleMetrics(
+      "agent",
+      exchanges,
+      roleCounts.agent,
+      deniedRoleCounts.agent
+    ),
+    calibration: roleMetrics(
+      "calibration",
+      exchanges,
+      roleCounts.calibration,
+      deniedRoleCounts.calibration
+    ),
+    judge: roleMetrics(
+      "judge",
+      exchanges,
+      roleCounts.judge,
+      deniedRoleCounts.judge
+    ),
+  });
+
   const handleRequest = async (
     request: IncomingMessage,
     response: ServerResponse
@@ -199,8 +341,12 @@ const createEvaluationGatewayProxy = async (
       return;
     }
 
+    let sanitizedRequestBody = "";
+    let upstreamStartedAt: number | null = null;
+
     try {
       const body = await requestBody(request);
+      sanitizedRequestBody = redactSecrets(body, redactedSecrets);
 
       if (modelRequests >= maxModelRequests) {
         deniedRequests += 1;
@@ -219,7 +365,7 @@ const createEvaluationGatewayProxy = async (
           durationMs: 0,
           forwarded: false,
           model: null,
-          requestBody: redactSecrets(body, redactedSecrets),
+          requestBody: sanitizedRequestBody,
           requestPath: forwardedPath + incomingPath.search,
           responseBody: redactSecrets(responseBody, redactedSecrets),
           responseStatus: 429,
@@ -239,7 +385,7 @@ const createEvaluationGatewayProxy = async (
       modelRequests += 1;
       roleCounts[role] += 1;
 
-      const startedAt = Date.now();
+      upstreamStartedAt = performance.now();
 
       const upstreamResponse = await fetch(
         upstream.origin + forwardedPath + incomingPath.search,
@@ -258,24 +404,35 @@ const createEvaluationGatewayProxy = async (
         parsedResponseFromText(responseText)
       );
 
+      const usage =
+        parsedMetadata.success && parsedMetadata.data.usage !== undefined
+          ? {
+              completionTokens:
+                parsedMetadata.data.usage.output_tokens ??
+                parsedMetadata.data.usage.completion_tokens ??
+                null,
+              promptTokens:
+                parsedMetadata.data.usage.input_tokens ??
+                parsedMetadata.data.usage.prompt_tokens ??
+                null,
+              totalTokens: parsedMetadata.data.usage.total_tokens ?? null,
+            }
+          : null;
+
       exchanges.push({
-        durationMs: Date.now() - startedAt,
+        durationMs: performance.now() - upstreamStartedAt,
         forwarded: true,
         model: parsedMetadata.success
           ? (parsedMetadata.data.model ?? null)
           : null,
-        requestBody: redactSecrets(body, redactedSecrets),
+        requestBody: sanitizedRequestBody,
         requestPath: forwardedPath + incomingPath.search,
         responseBody: redactSecrets(responseText, redactedSecrets),
         responseStatus: upstreamResponse.status,
         role,
         tokenUsage:
-          parsedMetadata.success && parsedMetadata.data.usage !== undefined
-            ? {
-                completionTokens: parsedMetadata.data.usage.completion_tokens,
-                promptTokens: parsedMetadata.data.usage.prompt_tokens,
-                totalTokens: parsedMetadata.data.usage.total_tokens,
-              }
+          usage !== null && Object.values(usage).some((value) => value !== null)
+            ? usage
             : null,
       });
 
@@ -285,18 +442,21 @@ const createEvaluationGatewayProxy = async (
       );
       response.end(responseBody);
     } catch {
-      failedRequests += 1;
-      exchanges.push({
-        durationMs: 0,
-        forwarded: true,
-        model: null,
-        requestBody: "",
-        requestPath: forwardedPath + incomingPath.search,
-        responseBody: null,
-        responseStatus: null,
-        role,
-        tokenUsage: null,
-      });
+      if (upstreamStartedAt !== null) {
+        failedRequests += 1;
+        exchanges.push({
+          durationMs: performance.now() - upstreamStartedAt,
+          forwarded: true,
+          model: null,
+          requestBody: sanitizedRequestBody,
+          requestPath: forwardedPath + incomingPath.search,
+          responseBody: null,
+          responseStatus: null,
+          role,
+          tokenUsage: null,
+        });
+      }
+
       replyWithError(
         response,
         502,
@@ -329,6 +489,7 @@ const createEvaluationGatewayProxy = async (
     deniedRequestsByRole: () => ({ ...deniedRoleCounts }),
     exchanges: () => structuredClone(exchanges),
     failedRequests: () => failedRequests,
+    metricsByRole,
     modelRequests: () => modelRequests,
     requestsByRole: () => ({ ...roleCounts }),
   };
@@ -340,4 +501,5 @@ export type {
   EvaluationGatewayExchange,
   EvaluationGatewayProxy,
   EvaluationGatewayRole,
+  EvaluationGatewayRoleMetrics,
 };

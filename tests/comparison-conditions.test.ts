@@ -1,4 +1,5 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { RunnableLambda } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
@@ -6,6 +7,7 @@ import { z } from "zod/v3";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
+import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
 import { ActiveComparisonSchema } from "../src/state.js";
@@ -122,6 +124,49 @@ const createExtractor =
   };
 
 describe("comparison workflow state", () => {
+  it("clarifies an exact season when relative season extraction is omitted", async () => {
+    const message = "Compare Harry Kane and Kylian Mbappé from last season.";
+
+    const players = [
+      candidate("Harry Kane", "kane"),
+      candidate("Kylian Mbappé", "mbappe"),
+    ];
+
+    const search = vi.fn<PlayerSearch>((input) => searchResult(input));
+
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => compareRequest(players.map(({ name }) => name)))
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: createLookup(players),
+      requestUnderstandingExtractor: createRequestUnderstandingExtractor(model),
+      tools: createTools(search),
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      {
+        configurable: { thread_id: "comparison-relative-season-clarification" },
+      }
+    );
+
+    expect({
+      pendingKind: result.pendingClarification?.kind,
+      searchCalls: search.mock.calls.length,
+      status: result.outcome?.status,
+    }).toStrictEqual({
+      pendingKind: "season",
+      searchCalls: 0,
+      status: "season_clarification_required",
+    });
+  });
+
   it("inherits explicitly requested season and competition when adding players to a saved comparison", async () => {
     const players = [
       candidate("Harry Kane", "kane"),
@@ -901,7 +946,7 @@ describe("comparison workflow state", () => {
       outcome: result.outcome?.status,
       searchCalls: search.mock.calls.length,
     }).toStrictEqual({
-      answer: "本地球员数据源无法读取，已发起的数据查询或计算未能完成。",
+      answer: "本地数据快照缺少完成这次请求所需的记录，因此目前无法给出结果。",
       outcome: "data_unavailable",
       searchCalls: 2,
     });

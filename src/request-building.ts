@@ -382,15 +382,30 @@ const recommendationActionForRequest = (
   return extracted.recommendationAction ?? "replace";
 };
 
+const normalizeTeamName = (teamName: string): string =>
+  teamName.normalize("NFKC").trim().toLocaleLowerCase();
+
 const teamRecommendationActionForRequest = (
   extracted: ExtractedRequest,
   context: ConversationContext
-): "replace" | "refine" =>
-  extracted.kind === "team_recommendation" &&
-  extracted.teams.length === 0 &&
-  context.activeTeamRecommendation !== null
+): "replace" | "refine" => {
+  const active = context.activeTeamRecommendation;
+
+  if (extracted.kind !== "team_recommendation" || active === null) {
+    return "replace";
+  }
+
+  const [requestedTeamName] = uniqueText(extracted.teams);
+
+  if (requestedTeamName === undefined) {
+    return "refine";
+  }
+
+  return extracted.continuationAction === "refine" &&
+    normalizeTeamName(requestedTeamName) === normalizeTeamName(active.team.name)
     ? "refine"
     : "replace";
+};
 
 const recommendationPlayersFromContext = (
   context: ConversationContext,
@@ -441,21 +456,23 @@ const teamFiltersFromPatch = (
 
 const teamRecommendationFromText = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
-  context: ConversationContext
+  context: ConversationContext,
+  action: "replace" | "refine"
 ): TeamRecommendationRequestState => {
   const existing = context.activeTeamRecommendation;
   const teamNames = uniqueText(extracted.teams);
-  const hasNewTeam = teamNames.length > 0;
+  const reuseExistingTeam = existing !== null && action === "refine";
+  const hasNewTeam = teamNames.length > 0 && !reuseExistingTeam;
   const patch = recommendationPatchFromRequest(extracted);
 
-  const baseline =
-    existing !== null && !hasNewTeam
-      ? existing
-      : createInitialTeamRecommendationRequest();
+  const baseline = reuseExistingTeam
+    ? existing
+    : createInitialTeamRecommendationRequest();
 
   let position = hasNewTeam ? null : baseline.position;
 
-  let teamSearchName: string | null = existing?.team.name ?? null;
+  let teamSearchName: string | null =
+    reuseExistingTeam && existing !== null ? existing.team.name : null;
 
   if (patchHasField(patch, "position")) {
     position = patch.position ?? null;
@@ -475,7 +492,9 @@ const teamRecommendationFromText = (
     referenceMode: baseline.referenceMode,
     roster: hasNewTeam ? null : baseline.roster,
     team: hasNewTeam ? null : baseline.team,
-    teamName: teamNames[0] ?? existing?.team.name ?? null,
+    teamName: hasNewTeam
+      ? (teamNames[0] ?? null)
+      : (existing?.team.name ?? null),
     teamSearchName,
   };
 };
@@ -575,14 +594,15 @@ const requestFromCurrentTurn = (
     recommendationAction
   );
 
-  const teamRecommendation = teamRecommendationFromText(
+  const teamRecommendationAction = teamRecommendationActionForRequest(
     routedExtraction,
     context
   );
 
-  const teamRecommendationAction = teamRecommendationActionForRequest(
+  const teamRecommendation = teamRecommendationFromText(
     routedExtraction,
-    context
+    context,
+    teamRecommendationAction
   );
 
   const isComparisonContinuation =

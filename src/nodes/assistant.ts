@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { LanguageModelLike } from "@langchain/core/language_models/base";
 import {
   AIMessage,
@@ -123,6 +125,93 @@ const pinSearchToResolvedIdentity = (
     : response;
 };
 
+const requiredLookupToolCall = (
+  player: RequestPlayerState,
+  requestedSeasonStartYear?: number
+): AIMessage => {
+  const sourceRecords = resolvedRecords(player);
+
+  return new AIMessage({
+    content: "",
+    tool_calls: [
+      {
+        args:
+          requestedSeasonStartYear === undefined
+            ? { sourceRecords }
+            : { seasonStartYear: requestedSeasonStartYear, sourceRecords },
+        id: `lookup-${randomUUID()}`,
+        name: "search_player_records",
+        type: "tool_call",
+      },
+    ],
+  });
+};
+
+const executedLookupOutcome = (state: AgentStateType) => {
+  const { outcome } = state;
+
+  return outcome?.kind === "player_lookup" &&
+    "source" in outcome &&
+    outcome.source === "executed"
+    ? outcome
+    : null;
+};
+
+const lookupSearchIsRequired = (input: {
+  hasExecutedLookup: boolean;
+  message: BaseMessage;
+  player: RequestPlayerState | undefined;
+  searchExecutions: number;
+}): boolean => {
+  if (!(input.message instanceof AIMessage)) {
+    return false;
+  }
+
+  if ((input.message.tool_calls ?? []).length > 0) {
+    return false;
+  }
+
+  if ((input.message.invalid_tool_calls ?? []).length > 0) {
+    return false;
+  }
+
+  return (
+    input.player !== undefined &&
+    input.searchExecutions === 0 &&
+    !input.hasExecutedLookup
+  );
+};
+
+const lookupAssistantUpdate = (
+  state: AgentStateType,
+  assistantMessage: BaseMessage
+) => {
+  const hasToolCalls =
+    assistantMessage instanceof AIMessage &&
+    (assistantMessage.tool_calls ?? []).length > 0;
+
+  const executed = executedLookupOutcome(state);
+
+  if (hasToolCalls || executed !== null) {
+    return {
+      messages: [assistantMessage],
+      outcome:
+        !hasToolCalls && executed !== null
+          ? { ...executed, status: "answer_ready" as const }
+          : state.outcome,
+    };
+  }
+
+  return {
+    messages: [assistantMessage],
+    outcome: {
+      kind: "player_lookup" as const,
+      resultJson: null,
+      status: "answer_ready" as const,
+    },
+  };
+};
+
 const unresolvedIdentityAnswer = (state: AgentStateType): string => {
   const unresolved = state.request.players.find(
     (player) => player.resolution?.status !== "resolved"
@@ -206,7 +295,7 @@ const requestBoundaryAnswer = (state: AgentStateType): string => {
 const fixedOutcomeMessages = new Map<string, string>([
   [
     "data_unavailable",
-    "本地球员数据源无法读取，已发起的数据查询或计算未能完成。",
+    "本地数据快照缺少完成这次请求所需的记录，因此目前无法给出结果。",
   ],
   [
     "excluded_profile_missing",
@@ -546,7 +635,7 @@ const createLookupPlayerNode =
     const modelMessage =
       response instanceof BaseMessage ? response : new AIMessage(response);
 
-    const assistantMessage =
+    const pinnedMessage =
       modelMessage instanceof AIMessage && player !== undefined
         ? pinSearchToResolvedIdentity(
             modelMessage,
@@ -555,38 +644,19 @@ const createLookupPlayerNode =
           )
         : modelMessage;
 
-    const hasToolCalls =
-      assistantMessage instanceof AIMessage &&
-      (assistantMessage.tool_calls ?? []).length > 0;
+    const assistantMessage = lookupSearchIsRequired({
+      hasExecutedLookup: executedLookupOutcome(state) !== null,
+      message: pinnedMessage,
+      player,
+      searchExecutions: state.faultTolerance.lookupSearchExecutions,
+    })
+      ? requiredLookupToolCall(
+          player,
+          seasonStartYearFromConstraints(state.request.constraints)
+        )
+      : pinnedMessage;
 
-    if (
-      hasToolCalls ||
-      (state.outcome?.kind === "player_lookup" &&
-        "source" in state.outcome &&
-        state.outcome.source === "executed")
-    ) {
-      let { outcome } = state;
-
-      if (
-        !hasToolCalls &&
-        outcome?.kind === "player_lookup" &&
-        "source" in outcome &&
-        outcome.source === "executed"
-      ) {
-        outcome = { ...outcome, status: "answer_ready" };
-      }
-
-      return { messages: [assistantMessage], outcome };
-    }
-
-    return {
-      messages: [assistantMessage],
-      outcome: {
-        kind: "player_lookup",
-        resultJson: null,
-        status: "answer_ready",
-      },
-    };
+    return lookupAssistantUpdate(state, assistantMessage);
   };
 
 const createAnswerNode = (

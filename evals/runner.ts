@@ -27,7 +27,7 @@ import type {
   EvaluationTrialReport,
 } from "./contracts.js";
 import { createEvaluationGatewayProxy } from "./gateway-proxy.js";
-import type { EvaluationGatewayRole } from "./gateway-proxy.js";
+import type { EvaluationGatewayRoleMetrics } from "./gateway-proxy.js";
 import {
   createSemanticJudge,
   judgeInputForTrial,
@@ -101,71 +101,82 @@ const databasePathsForTrial = (
   };
 };
 
-const roleLedgerFromGateway = (
-  role: EvaluationGatewayRole,
-  gateway: EvaluationRunContext["gateway"]
-): EvaluationReport["tokenUsageByRole"]["agent"] => {
-  const dispatchedRequests = gateway?.requestsByRole()[role] ?? 0;
-  const deniedRequests = gateway?.deniedRequestsByRole()[role] ?? 0;
+const emptyRoleLedger = (): EvaluationReport["tokenUsageByRole"]["agent"] => ({
+  completionTokensReported: null,
+  deniedRequests: 0,
+  dispatchedRequests: 0,
+  modelIds: [],
+  promptTokensReported: null,
+  responsesWithCompletionTokens: 0,
+  responsesWithPromptTokens: 0,
+  responsesWithTotalTokens: 0,
+  responsesWithUsage: 0,
+  responsesWithoutUsage: 0,
+  totalTokensReported: null,
+});
 
-  const exchanges =
-    gateway
-      ?.exchanges()
-      .filter((exchange) => exchange.forwarded && exchange.role === role) ?? [];
+const roleLedgerFromMetrics = (
+  metrics: EvaluationGatewayRoleMetrics
+): EvaluationReport["tokenUsageByRole"]["agent"] => ({
+  ...metrics.tokenUsage,
+  deniedRequests: metrics.deniedRequests,
+  dispatchedRequests: metrics.dispatchedRequests,
+  modelIds: metrics.modelIds,
+});
 
-  const modelIds = new Set<string>();
-  let responsesWithUsage = 0;
-  let promptTokensReported = 0;
-  let completionTokensReported = 0;
-  let totalTokensReported = 0;
-
-  for (const exchange of exchanges) {
-    if (exchange.model !== null) {
-      modelIds.add(exchange.model);
-    }
-
-    if (exchange.tokenUsage === null) {
-      continue;
-    }
-
-    responsesWithUsage += 1;
-    promptTokensReported += exchange.tokenUsage.promptTokens;
-    completionTokensReported += exchange.tokenUsage.completionTokens;
-    totalTokensReported += exchange.tokenUsage.totalTokens;
-  }
-
-  return {
-    completionTokensReported:
-      responsesWithUsage > 0 ? completionTokensReported : null,
-    deniedRequests,
-    dispatchedRequests,
-    modelIds: [...modelIds].toSorted(),
-    promptTokensReported: responsesWithUsage > 0 ? promptTokensReported : null,
-    responsesWithUsage,
-    responsesWithoutUsage: Math.max(0, dispatchedRequests - responsesWithUsage),
-    totalTokensReported: responsesWithUsage > 0 ? totalTokensReported : null,
-  };
-};
+const emptyRequestLatency = (): EvaluationReport["latencyByRole"]["agent"] => ({
+  averageMs: null,
+  p50Ms: null,
+  p95Ms: null,
+  requestsWithLatency: 0,
+});
 
 const updateGatewayLedger = (
   report: EvaluationReport,
   gateway: EvaluationRunContext["gateway"]
 ): void => {
-  report.requestCountsByRole = {
-    agent: gateway?.requestsByRole().agent ?? 0,
-    calibration: gateway?.requestsByRole().calibration ?? 0,
-    judge: gateway?.requestsByRole().judge ?? 0,
-  };
-  report.deniedRequestsByRole = {
-    agent: gateway?.deniedRequestsByRole().agent ?? 0,
-    calibration: gateway?.deniedRequestsByRole().calibration ?? 0,
-    judge: gateway?.deniedRequestsByRole().judge ?? 0,
-  };
-  report.tokenUsageByRole = {
-    agent: roleLedgerFromGateway("agent", gateway),
-    calibration: roleLedgerFromGateway("calibration", gateway),
-    judge: roleLedgerFromGateway("judge", gateway),
-  };
+  const metrics = gateway?.metricsByRole() ?? null;
+
+  report.requestCountsByRole =
+    metrics === null
+      ? { agent: 0, calibration: 0, judge: 0 }
+      : {
+          agent: metrics.agent.dispatchedRequests,
+          calibration: metrics.calibration.dispatchedRequests,
+          judge: metrics.judge.dispatchedRequests,
+        };
+  report.deniedRequestsByRole =
+    metrics === null
+      ? { agent: 0, calibration: 0, judge: 0 }
+      : {
+          agent: metrics.agent.deniedRequests,
+          calibration: metrics.calibration.deniedRequests,
+          judge: metrics.judge.deniedRequests,
+        };
+  report.tokenUsageByRole =
+    metrics === null
+      ? {
+          agent: emptyRoleLedger(),
+          calibration: emptyRoleLedger(),
+          judge: emptyRoleLedger(),
+        }
+      : {
+          agent: roleLedgerFromMetrics(metrics.agent),
+          calibration: roleLedgerFromMetrics(metrics.calibration),
+          judge: roleLedgerFromMetrics(metrics.judge),
+        };
+  report.latencyByRole =
+    metrics === null
+      ? {
+          agent: emptyRequestLatency(),
+          calibration: emptyRequestLatency(),
+          judge: emptyRequestLatency(),
+        }
+      : {
+          agent: metrics.agent.latency,
+          calibration: metrics.calibration.latency,
+          judge: metrics.judge.latency,
+        };
 };
 
 const signalIsAborted = (signal: AbortSignal | undefined): boolean =>
@@ -654,6 +665,26 @@ const runEvaluation = async (
     gatewayOrigin: null,
     judgeCalibration: null,
     judgeEnabled,
+    latencyByRole: {
+      agent: {
+        averageMs: null,
+        p50Ms: null,
+        p95Ms: null,
+        requestsWithLatency: 0,
+      },
+      calibration: {
+        averageMs: null,
+        p50Ms: null,
+        p95Ms: null,
+        requestsWithLatency: 0,
+      },
+      judge: {
+        averageMs: null,
+        p50Ms: null,
+        p95Ms: null,
+        requestsWithLatency: 0,
+      },
+    },
     maxModelRequests,
     mode: options.mode,
     modelRequests: 0,
@@ -665,9 +696,9 @@ const runEvaluation = async (
     startedAt,
     status: "partial",
     tokenUsageByRole: {
-      agent: roleLedgerFromGateway("agent", null),
-      calibration: roleLedgerFromGateway("calibration", null),
-      judge: roleLedgerFromGateway("judge", null),
+      agent: emptyRoleLedger(),
+      calibration: emptyRoleLedger(),
+      judge: emptyRoleLedger(),
     },
     trials: [],
   };

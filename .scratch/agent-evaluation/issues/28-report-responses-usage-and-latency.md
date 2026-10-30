@@ -4,8 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** open
-**Label:** ready-for-agent
+**Status:** resolved
 
 ## Evidence
 
@@ -18,3 +17,7 @@ Development run `38e8d637-8ebc-47ad-878f-f9500cf7bef1` recorded 398 physical req
 - Report physical request counts, token usage when returned, and latency by role; distinguish unavailable metadata from zero usage.
 - Add fake-gateway tests for Responses usage parsing, Chat Completions usage parsing, missing usage, and calibration-role accounting.
 - Keep raw request/response payloads local and preserve the existing whole-run request cap.
+
+## Resolution
+
+The gateway proxy now normalizes Responses API `input_tokens`/`output_tokens` and Chat Completions `prompt_tokens`/`completion_tokens` without deriving values that were not returned. It retains per-role aggregates for agent, judge, and calibration usage and mean/p50/p95 request latency, including failed upstream attempts. Markdown reports render all three roles. A loopback fake-gateway regression covers Responses usage, Chat Completions usage, absent metadata, calibration accounting, and measured latency. No prompt or response payload was added to application State.

@@ -21,11 +21,13 @@ import {
   availableResultKindSchema,
   evaluationCaseSchema,
   evaluationReportSchema,
+  workerTrialResultSchema,
 } from "../evals/contracts.js";
 import type {
   EvaluationCase,
   EvaluationTrialReport,
 } from "../evals/contracts.js";
+import { judgeInputForTrial } from "../evals/judge.js";
 import { compareEvaluationReportFiles } from "../evals/report.js";
 import { runEvaluation } from "../evals/runner.js";
 
@@ -1371,6 +1373,133 @@ describe("local scouting evaluation entry", () => {
     }
   });
 
+  it("keeps each judge turn's participant set separate from later additions", () => {
+    const [loadedCase] = loadEvaluationCases("smoke", [
+      "compare-add-third-synthetic-v1",
+    ]);
+
+    if (loadedCase === undefined) {
+      throw new Error("The comparison evaluation case was not loaded.");
+    }
+
+    const [firstCaseTurn, secondCaseTurn] = loadedCase.caseDefinition.turns;
+
+    if (firstCaseTurn === undefined || secondCaseTurn === undefined) {
+      throw new Error("The comparison evaluation case needs two turns.");
+    }
+
+    const firstTurnPlayers = [
+      {
+        candidates: [],
+        lookupName: null,
+        mention: "Elias Demo",
+        resolutionStatus: "resolved",
+        selectedCandidateId: "candidate:Elias Demo",
+        selectedName: "Elias Demo",
+      },
+      {
+        candidates: [],
+        lookupName: null,
+        mention: "Synthetic Midfielder",
+        resolutionStatus: "resolved",
+        selectedCandidateId: "candidate:Synthetic Midfielder",
+        selectedName: "Synthetic Midfielder",
+      },
+    ];
+
+    const secondTurnPlayers = [
+      ...firstTurnPlayers,
+      {
+        candidates: [],
+        lookupName: null,
+        mention: "Synthetic Winger",
+        resolutionStatus: "resolved",
+        selectedCandidateId: "candidate:Synthetic Winger",
+        selectedName: "Synthetic Winger",
+      },
+    ];
+
+    const worker = workerTrialResultSchema.parse({
+      actionEvents: [],
+      activeLookupResult: null,
+      activeResults: {
+        comparison: null,
+        lookup: null,
+        playerRecommendation: null,
+        teamRecommendation: null,
+      },
+      conversationContext: [],
+      deliveredEvidence: [],
+      driverIssue: null,
+      failureCategory: null,
+      identityLookupEvents: [],
+      outcomeKind: "player_comparison",
+      outcomeStatus: "ready",
+      players: secondTurnPlayers,
+      requestKind: "player_comparison",
+      teamRosterCoverage: null,
+      toolMessages: [],
+      turns: [
+        {
+          assistantMessages: ["The comparison covers all participants."],
+          availableResultKinds: ["player_comparison"],
+          clarificationAnswers: [],
+          clarificationKinds: [],
+          deliveredEvidenceIds: [],
+          effectiveConditions: null,
+          effectiveConstraints: [],
+          outcomeKind: "player_comparison",
+          outcomeStatus: "ready",
+          players: firstTurnPlayers,
+          requestKind: "player_comparison",
+          reuse: null,
+          turnId: firstCaseTurn.turnId,
+          userMessage: firstCaseTurn.userMessage,
+        },
+        {
+          assistantMessages: ["A third player was added."],
+          availableResultKinds: ["player_comparison"],
+          clarificationAnswers: [],
+          clarificationKinds: [],
+          deliveredEvidenceIds: [],
+          effectiveConditions: null,
+          effectiveConstraints: [],
+          outcomeKind: "player_comparison",
+          outcomeStatus: "ready",
+          players: secondTurnPlayers,
+          requestKind: "player_comparison",
+          reuse: null,
+          turnId: secondCaseTurn.turnId,
+          userMessage: secondCaseTurn.userMessage,
+        },
+      ],
+    });
+
+    const judgeInput = judgeInputForTrial(loadedCase.caseDefinition, worker);
+
+    expect(judgeInput.turns).toMatchObject([
+      {
+        participants: [
+          { mention: "Elias Demo", resolvedName: "Elias Demo" },
+          {
+            mention: "Synthetic Midfielder",
+            resolvedName: "Synthetic Midfielder",
+          },
+        ],
+      },
+      {
+        participants: [
+          { mention: "Elias Demo", resolvedName: "Elias Demo" },
+          {
+            mention: "Synthetic Midfielder",
+            resolvedName: "Synthetic Midfielder",
+          },
+          { mention: "Synthetic Winger", resolvedName: "Synthetic Winger" },
+        ],
+      },
+    ]);
+  });
+
   it.each([
     "player_lookup",
     "player_comparison",
@@ -1759,6 +1888,11 @@ describe("local scouting evaluation entry", () => {
       identityClarificationOutcome:
         identityClarificationTrial.observation.outcomeStatus,
       identityClarificationStatus: identityClarificationTrial.status,
+      latencyByRole: {
+        agent: report.latencyByRole.agent.requestsWithLatency,
+        calibration: report.latencyByRole.calibration.requestsWithLatency,
+        judge: report.latencyByRole.judge.requestsWithLatency,
+      },
       modelRequests: report.modelRequests,
       observationError: lookupTrial.observation.error ?? null,
       requestCount,
@@ -1915,6 +2049,7 @@ describe("local scouting evaluation entry", () => {
       identityClarificationCheck: "passed",
       identityClarificationOutcome: "identity_data_unavailable",
       identityClarificationStatus: "not_assessed",
+      latencyByRole: { agent: 16, calibration: 0, judge: 0 },
       modelRequests: 16,
       observationError: null,
       requestCount: 16,
@@ -1931,6 +2066,9 @@ describe("local scouting evaluation entry", () => {
         dispatchedRequests: 16,
         modelIds: ["eval-fixture-model"],
         promptTokensReported: 384,
+        responsesWithCompletionTokens: 16,
+        responsesWithPromptTokens: 16,
+        responsesWithTotalTokens: 16,
         responsesWithUsage: 16,
         responsesWithoutUsage: 0,
         totalTokensReported: 576,
@@ -1971,14 +2109,19 @@ describe("local scouting evaluation entry", () => {
       "utf-8"
     );
 
+    const markdownContainsEvaluationDetails = [
+      "Expected vs observed checks",
+      "Evidence delivered to the model",
+      "search_player_records",
+      "Calibration tokens reported",
+      "Agent request latency",
+    ].every((text) => savedMarkdown.includes(text));
+
     expect({
       markdownContainsCase:
         savedMarkdown.includes("lookup-smoke-v1") &&
         savedMarkdown.includes("lookup-identity-unavailable-v1"),
-      markdownContainsEvaluationDetails:
-        savedMarkdown.includes("Expected vs observed checks") &&
-        savedMarkdown.includes("Evidence delivered to the model") &&
-        savedMarkdown.includes("search_player_records"),
+      markdownContainsEvaluationDetails,
       savedRunId: savedReport.runId,
       savedStatus: savedReport.trials[0]?.status,
     }).toStrictEqual({
@@ -3328,6 +3471,15 @@ describe("local scouting evaluation entry", () => {
       anchorVersion: report.judgeCalibration?.anchorVersion,
       calibrationRequests: report.requestCountsByRole.calibration,
       calibrationStatus: report.judgeCalibration?.status,
+      calibrationTelemetry: {
+        inputTokens: report.tokenUsageByRole.calibration.promptTokensReported,
+        outputTokens:
+          report.tokenUsageByRole.calibration.completionTokensReported,
+        requestsWithLatency:
+          report.latencyByRole.calibration.requestsWithLatency,
+        responsesWithUsage:
+          report.tokenUsageByRole.calibration.responsesWithUsage,
+      },
       judgeEnabled: preview.judgeEnabled && report.judgeEnabled,
       judgePromptVersion: report.judgeCalibration?.judgePromptVersion,
       judgeRequests: report.requestCountsByRole.judge,
@@ -3349,8 +3501,14 @@ describe("local scouting evaluation entry", () => {
       anchorVersion: "scouting-judge-anchors-v8",
       calibrationRequests: 32,
       calibrationStatus: "passed",
+      calibrationTelemetry: {
+        inputTokens: 768,
+        outputTokens: 384,
+        requestsWithLatency: 32,
+        responsesWithUsage: 32,
+      },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v9",
+      judgePromptVersion: "scouting-semantic-judge-v10",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

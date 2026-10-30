@@ -3300,7 +3300,7 @@
       ]
     },
     {
-      "clarificationAlternatives": [],
+      "clarificationAlternatives": [[]],
       "turnId": "team-real-madrid-refine-dev-v1-turn-2",
       "userMessage": "为 Real Madrid 继续推荐 stc 球员，CA 下限 150。",
       "clarificationAnswers": [

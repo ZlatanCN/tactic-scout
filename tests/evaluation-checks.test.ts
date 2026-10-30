@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { checkCaseContract, emptyWorkerResult } from "../evals/checks.js";
 import { evaluationCaseSchema } from "../evals/contracts.js";
+import type { WorkerTrialResult } from "../evals/contracts.js";
 
 describe("evaluation identity lookup checks", () => {
   it("keeps distinct Chinese player names distinct while normalizing accents", () => {
@@ -62,5 +63,69 @@ describe("evaluation identity lookup checks", () => {
     );
 
     expect(check?.status).toBe("failed");
+  });
+
+  it("accepts no repeat team clarification only when the case declares that path", () => {
+    const caseDefinition = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(
+            process.cwd(),
+            "evals/cases/team-real-madrid-refine-dev-v1.json"
+          ),
+          "utf-8"
+        )
+      )
+    );
+
+    const turns = caseDefinition.turns.map((turn, index) => ({
+      assistantMessages: [],
+      availableResultKinds: [],
+      clarificationAnswers: index === 0 ? [{ kind: "team", value: "1" }] : [],
+      clarificationKinds: index === 0 ? ["team"] : [],
+      deliveredEvidenceIds: [],
+      effectiveConditions: null,
+      effectiveConstraints: [],
+      outcomeKind: "team_recommendation",
+      outcomeStatus: "team_roster_member_unmapped",
+      players: [],
+      requestKind: "team_recommendation",
+      reuse: null,
+      turnId: turn.turnId,
+      userMessage: turn.userMessage,
+    }));
+
+    const worker = {
+      ...emptyWorkerResult(""),
+      outcomeKind: "team_recommendation",
+      outcomeStatus: "team_roster_member_unmapped",
+      requestKind: "team_recommendation",
+      turns,
+    } satisfies WorkerTrialResult;
+
+    const secondTurnIndex = 1;
+
+    const caseWithoutNoAnswerAlternative = {
+      ...caseDefinition,
+      turns: caseDefinition.turns.map((turn, index) =>
+        index === secondTurnIndex
+          ? { ...turn, clarificationAlternatives: [] }
+          : turn
+      ),
+    };
+
+    const checkForCase = (caseToCheck: typeof caseDefinition) =>
+      checkCaseContract(caseToCheck, worker).find(
+        ({ id }) => id === "scripted-clarifications"
+      );
+
+    expect({
+      actualCase: checkForCase(caseDefinition)?.status,
+      withoutNoAnswerAlternative: checkForCase(caseWithoutNoAnswerAlternative)
+        ?.status,
+    }).toStrictEqual({
+      actualCase: "passed",
+      withoutNoAnswerAlternative: "failed",
+    });
   });
 });

@@ -20,6 +20,20 @@ const escapeMarkdownCell = (value: string): string =>
 const usageLabel = (value: number | null): string =>
   value === null ? "unavailable" : String(value);
 
+const latencyLabel = (value: number | null): string =>
+  value === null ? "unavailable" : value.toFixed(1);
+
+const roleTelemetryLines = (
+  role: string,
+  usage: EvaluationReport["tokenUsageByRole"]["agent"],
+  latency: EvaluationReport["latencyByRole"]["agent"]
+): string[] => [
+  `- ${role} response models: ${usage.modelIds.join(", ") || "unavailable"}`,
+  `- ${role} tokens reported (input/output/total): ${usageLabel(usage.promptTokensReported)} / ${usageLabel(usage.completionTokensReported)} / ${usageLabel(usage.totalTokensReported)}`,
+  `- ${role} responses with usage metadata: ${usage.responsesWithUsage}; without: ${usage.responsesWithoutUsage}`,
+  `- ${role} request latency (mean/p50/p95 ms): ${latencyLabel(latency.averageMs)} / ${latencyLabel(latency.p50Ms)} / ${latencyLabel(latency.p95Ms)} · ${latency.requestsWithLatency} requests measured`,
+];
+
 const retiredAnchorLabel = (
   calibration: EvaluationReport["judgeCalibration"]
 ): string => {
@@ -293,9 +307,21 @@ const markdownReport = (report: EvaluationReport): string => {
     `- Network failures: ${report.networkFailures}`,
     `- Requests by role: agent ${report.requestCountsByRole.agent}, judge ${report.requestCountsByRole.judge}, calibration ${report.requestCountsByRole.calibration}`,
     `- Denied by role: agent ${report.deniedRequestsByRole.agent}, judge ${report.deniedRequestsByRole.judge}, calibration ${report.deniedRequestsByRole.calibration}`,
-    `- Agent response models: ${report.tokenUsageByRole.agent.modelIds.join(", ") || "unavailable"}`,
-    `- Agent tokens reported (prompt/completion/total): ${usageLabel(report.tokenUsageByRole.agent.promptTokensReported)} / ${usageLabel(report.tokenUsageByRole.agent.completionTokensReported)} / ${usageLabel(report.tokenUsageByRole.agent.totalTokensReported)}`,
-    `- Agent responses with usage metadata: ${report.tokenUsageByRole.agent.responsesWithUsage}; without: ${report.tokenUsageByRole.agent.responsesWithoutUsage}`,
+    ...roleTelemetryLines(
+      "Agent",
+      report.tokenUsageByRole.agent,
+      report.latencyByRole.agent
+    ),
+    ...roleTelemetryLines(
+      "Judge",
+      report.tokenUsageByRole.judge,
+      report.latencyByRole.judge
+    ),
+    ...roleTelemetryLines(
+      "Calibration",
+      report.tokenUsageByRole.calibration,
+      report.latencyByRole.calibration
+    ),
     `- Status: ${report.status}`,
     ...aggregateSummary(report),
     ...(report.preflightErrors.length > 0

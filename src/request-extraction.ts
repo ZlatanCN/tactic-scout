@@ -8,6 +8,7 @@ import {
 } from "./fault-tolerance.js";
 import { isRequestOutputValidationError } from "./model-requests.js";
 import type { ModelRequestBudget } from "./model-requests.js";
+import { supportedPositionCodes } from "./player-data/position-features.js";
 import {
   findPlayerReferenceMention,
   isPlayerReferenceMention,
@@ -210,6 +211,9 @@ const addToRecommendationPattern =
 const explicitUnderstatSeasonPattern =
   /\b(?<startYear>20\d{2})\s*[/\-\u2010-\u2015]\s*(?:\d{2}|20\d{2})\b/u;
 
+const relativeComparisonSeasonPattern =
+  /\b(?:last|previous|current|this) season\b|上赛季|本赛季|这个赛季/iu;
+
 const savedResultExplanationPattern =
   /(?:上次|之前|刚才).{0,12}(?:解释|说明|结果|推荐|比较)|\b(?:explain|describe)\b.{0,20}\b(?:previous|last|saved)\b/iu;
 
@@ -217,7 +221,7 @@ const requestExtractionPrompt = `把用户本轮消息整理为一个请求类�
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；null：用户只说“年龄改到 22”“解释上次结果”等续接，但没说类型；other：普通聊天或无关请求。
 continuationAction 为 explain 时只解释已保存结果，不得重跑工具；refine 表示把本轮明确条件补丁应用于选定成功快照。显式提到任务类型时必须填写对应 kind，不能因为其他 workflow 存在而改写用户目标。
 player_lookup 的 Understat 赛季范围由程序从本轮原话解析；不要从上下文或模型知识补一个赛季。球员查询暂不按联赛过滤，competition 只用于球员比较范围。
-team_recommendation 需要一个明确的球队和一个明确的 FM 位置。球队推荐的 recommendation 字段表示位置、年龄、CA、PA、结果数和高潜名单条件。teams 必须保留用户原话；若用户使用中文球队名或简称，teamSearchName 可给出 API-Football 常用搜索名称，但这只用于查候选，不能据此自动认定球队。用户只修改上次成功团队推荐的筛选条件时，teams 为空；明确换球队时照抄新球队名称，程序会重置旧球队上下文。
+team_recommendation 需要一个明确的球队和一个明确的 FM 位置。球队推荐的 recommendation 字段表示位置、年龄、CA、PA、结果数和高潜名单条件。team_recommendation 中，用户直接写出的受支持位置代码（如 stc、dc、dm）必须填入 recommendation.position，不能因为用户也提供了球队而省略。teams 必须保留本轮原话中出现的球队名；即使该球队与上次相同、用户同时细化筛选条件，也必须照抄到 teams。只有本轮没有写出球队名、且可从最近一次成功团队推荐继承时，teams 才留空。若用户使用中文球队名或简称，teamSearchName 可给出 API-Football 常用搜索名称，但这只用于查候选，不能据此自动认定球队。明确写出另一支球队时照抄新球队名称，程序会重置旧球队上下文。
 如果用户在追问最近成功球员查询中的赛季、赛事或来源，仍分类为 player_lookup；引用之前结果时不要要求用户重报球员。
 comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；只修改最近成功比较的赛季或赛事范围时设为 refine；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补或条件细化语义时一律 replace。add 时 players 只列本轮新增的称呼；refine 时 players 为空；程序负责继承已有参与者和条件。
 recommendationAction 仅在 player_recommendation 时有意义。明确给出新参考名单时用 replace；明确要求把新球员加入最近成功推荐的参考名单时用 add；只修改最近成功推荐的条件、位置或结果数且没有新球员时用 refine。refine 时 players 为空，程序会继承最近成功推荐的已确认参考和排除身份。
@@ -256,6 +260,77 @@ const explicitUnderstatSeasonStartYearFromText = (
     explicitUnderstatSeasonPattern.exec(text)?.groups?.startYear;
 
   return startYear === undefined ? null : Number(startYear);
+};
+
+const relativeComparisonSeasonFromText = (text: string): string | null => {
+  if (explicitUnderstatSeasonPattern.test(text)) {
+    return null;
+  }
+
+  return relativeComparisonSeasonPattern.exec(text)?.[0] ?? null;
+};
+
+const explicitTeamPositionFromText = (text: string): string | null => {
+  const normalizedText = text.normalize("NFKC");
+
+  const pattern = new RegExp(
+    `(?:^|[^a-z0-9])(${supportedPositionCodes.join("|")})(?=$|[^a-z0-9])`,
+    "giu"
+  );
+
+  const matches = [...normalizedText.matchAll(pattern)];
+
+  if (matches.length !== 1) {
+    return null;
+  }
+
+  const [match] = matches;
+  const matchIndex = match?.index ?? 0;
+
+  const precedingText = normalizedText.slice(
+    Math.max(0, matchIndex - 8),
+    matchIndex
+  );
+
+  if (/(?:不要|不需要|不考虑|不选|排除|no|not)\s*$/iu.test(precedingText)) {
+    return null;
+  }
+
+  return match?.[1]?.toLowerCase() ?? null;
+};
+
+const teamRecommendationFromText = (
+  text: string
+): { position: string; team: string } | null => {
+  const position = explicitTeamPositionFromText(text);
+
+  if (position === null) {
+    return null;
+  }
+
+  const chinesePattern = new RegExp(
+    `(?:为|给)\\s*(?<team>[\\p{L}\\p{N}][\\p{L}\\p{N} .&'’\\-]{0,60}?)\\s*(?:推荐|寻找|找)\\s*(?:(?:一个|一名|一些)\\s*)?${position}\\s*(?:位置的?)?\\s*(?:球员|球员候选|人)(?=$|[。.!?])`,
+    "iu"
+  );
+
+  const englishPattern = new RegExp(
+    `\\b(?:recommend|find)\\s+(?:an?\\s+)?${position}\\s+(?:players?|prospects?)\\s+for\\s+(?<team>[\\p{L}\\p{N}][\\p{L}\\p{N} .&'’\\-]{0,60}?)(?:[.!?]|$)`,
+    "iu"
+  );
+
+  const match = chinesePattern.exec(text) ?? englishPattern.exec(text);
+  const team = match?.groups?.team?.trim() ?? "";
+
+  if (
+    !team ||
+    new Set(["我", "我们", "你", "你们", "me", "us", "you"]).has(
+      team.toLocaleLowerCase()
+    )
+  ) {
+    return null;
+  }
+
+  return { position, team };
 };
 
 const recommendationActionFromResult = (
@@ -332,45 +407,85 @@ const normalizeRequestExtraction = (
   result: ExtractedRequest,
   message: string,
   context: ConversationContext
-): ExtractedRequest => ({
-  comparisonAction: comparisonActionFromResult(result, context, message),
-  constraints: result.constraints.flatMap((constraint) => {
+): ExtractedRequest => {
+  const teamRecommendation = teamRecommendationFromText(message);
+
+  const kind =
+    teamRecommendation === null ? result.kind : "team_recommendation";
+
+  const normalizedConstraints = result.constraints.flatMap((constraint) => {
     const name = constraint.name.trim();
     const value = constraint.value.trim();
 
     return name && value ? [{ name, value }] : [];
-  }),
-  continuationAction: continuationActionFromResult(result, message),
-  kind: result.kind,
-  players: result.players.flatMap((player) => {
-    const mention = player.mention.trim();
+  });
 
-    return mention
-      ? [
-          {
-            lookupName: player.lookupName?.trim() ?? null,
-            mention,
-            recommendationRole: player.recommendationRole ?? "reference",
-            referenceScope: player.referenceScope ?? "explicit",
-            referenceTargetMention:
-              player.referenceTargetMention?.trim() ?? null,
-          },
-        ]
-      : [];
-  }),
-  recommendation: result.recommendation,
-  recommendationAction:
-    result.kind === null
-      ? result.recommendationAction
-      : recommendationActionFromResult(result, context, message),
-  teamSearchName: result.teamSearchName?.trim() ?? null,
-  teams: uniqueText(result.teams),
-});
+  const relativeSeason =
+    result.kind === "player_comparison"
+      ? relativeComparisonSeasonFromText(message)
+      : null;
+
+  const constraints =
+    relativeSeason === null
+      ? normalizedConstraints
+      : [
+          ...normalizedConstraints.filter(
+            ({ name }) => !/season|赛季/iu.test(name)
+          ),
+          { name: "season", value: relativeSeason },
+        ];
+
+  const explicitTeamPosition =
+    kind === "team_recommendation"
+      ? explicitTeamPositionFromText(message)
+      : null;
+
+  const recommendation =
+    explicitTeamPosition === null
+      ? result.recommendation
+      : { ...result.recommendation, position: explicitTeamPosition };
+
+  return {
+    comparisonAction: comparisonActionFromResult(result, context, message),
+    constraints,
+    continuationAction: continuationActionFromResult(result, message),
+    kind,
+    players: result.players.flatMap((player) => {
+      const mention = player.mention.trim();
+
+      return mention
+        ? [
+            {
+              lookupName: player.lookupName?.trim() ?? null,
+              mention,
+              recommendationRole: player.recommendationRole ?? "reference",
+              referenceScope: player.referenceScope ?? "explicit",
+              referenceTargetMention:
+                player.referenceTargetMention?.trim() ?? null,
+            },
+          ]
+        : [];
+    }),
+    recommendation,
+    recommendationAction:
+      result.kind === null
+        ? result.recommendationAction
+        : recommendationActionFromResult(result, context, message),
+    teamSearchName: result.teamSearchName?.trim() ?? null,
+    teams:
+      teamRecommendation === null
+        ? uniqueText(result.teams)
+        : [teamRecommendation.team],
+  };
+};
 
 const recommendationPatchFromRequest = (extracted: ExtractedRequest) => ({
   ...extracted.recommendation,
   ...recommendationPatchFromConstraints(extracted.constraints),
 });
+
+const requestExtractionSchemaReminder =
+  "必需字段 constraints、kind、players、teams 必须全部返回；没有内容时用空数组，kind 可以为 null。可选枚举字段 comparisonAction 和 recommendationAction 未指定时必须省略，不能填 null。";
 
 const requestValidationFeedback = (error: Error): string => {
   const issueSchema = z.looseObject({
@@ -391,11 +506,11 @@ const requestValidationFeedback = (error: Error): string => {
     });
 
     if (paths.length > 0) {
-      return `结构化输出未通过校验。请修正这些字段后重新输出：${[...new Set(paths)].join("、")}。`;
+      return `结构化输出未通过校验。请修正这些字段后重新输出：${[...new Set(paths)].join("、")}。${requestExtractionSchemaReminder}`;
     }
   }
 
-  return "结构化输出未通过 request schema 校验。请根据原始请求重新输出完整、符合 schema 的结构化结果，不要补猜。";
+  return `结构化输出未通过 request schema 校验。请根据原始请求重新输出完整、符合 schema 的结构化结果，不要补猜。${requestExtractionSchemaReminder}`;
 };
 
 const invalidRequestOutputFailure = (

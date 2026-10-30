@@ -417,6 +417,91 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("fails safely when structured extraction omits the explicit team", async () => {
+    const message = "为 Real Madrid 继续推荐 stc 球员，CA 下限 150。";
+
+    const realMadrid: TeamIdentity = {
+      country: "Spain",
+      id: 541,
+      name: "Real Madrid",
+    };
+
+    const directory = createDirectory(
+      [realMadrid],
+      [{ id: 730, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest(null, "stc", { minimumCurrentAbility: 150 }),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-explicit-mention-not-extracted" } }
+    );
+
+    expect({
+      outcomeStatus: result.outcome?.status,
+      searchedTeams: directory.searchTeams.mock.calls.map(([query]) => query),
+    }).toStrictEqual({
+      outcomeStatus: "team_required",
+      searchedTeams: [],
+    });
+  });
+
+  it("searches the team when structured extraction includes the explicit mention", async () => {
+    const message = "为 Real Madrid 继续推荐 stc 球员，CA 下限 150。";
+
+    const realMadrid: TeamIdentity = {
+      country: "Spain",
+      id: 541,
+      name: "Real Madrid",
+    };
+
+    const directory = createDirectory(
+      [realMadrid],
+      [{ id: 730, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest(
+          "Real Madrid",
+          "stc",
+          { minimumCurrentAbility: 150 },
+          "Real Madrid"
+        ),
+      }),
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-explicit-mention-extracted" } }
+    );
+
+    expect({
+      outcomeStatus: result.outcome?.status ?? null,
+      searchedTeams: directory.searchTeams.mock.calls.map(([query]) => query),
+    }).toStrictEqual({
+      outcomeStatus: "ready",
+      searchedTeams: ["Real Madrid"],
+    });
+  });
+
   it("stops safely when the provider returns an empty squad", async () => {
     const message = "Recommend a striker for Arsenal.";
     const directory = createDirectory([arsenal], []);
@@ -1254,7 +1339,81 @@ describe("team recommendation graph", () => {
     expect(
       first.conversationContext.activeTeamRecommendation?.resultJson
     ).toContain('"name":"First result marker"');
-    expect(failed.messages.at(-1)?.content).toContain("本地球员数据源无法读取");
+    expect(failed.messages.at(-1)?.content).toContain(
+      "本地数据快照缺少完成这次请求所需的记录"
+    );
+  });
+
+  it("inherits saved filters when the same team is explicitly named during refinement", async () => {
+    const firstMessage = "Recommend a striker for Arsenal under 25.";
+    const refinementMessage = "为 Arsenal 继续推荐 stc 球员，CA 下限 130。";
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: 4101, name: "Squad Player", position: "Attacker" }]
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [firstMessage]: teamRequest(
+          "Arsenal",
+          "stc",
+          { maxAge: 25 },
+          "Arsenal"
+        ),
+        [refinementMessage]: {
+          ...teamRequest(
+            "Arsenal",
+            "stc",
+            { minimumCurrentAbility: 130 },
+            "Arsenal"
+          ),
+          continuationAction: "refine",
+        },
+      }),
+      model: fakeModel()
+        .respond(new AIMessage("First team list."))
+        .respond(new AIMessage("Refined team list.")),
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "team-explicit-same-team-refinement" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(refinementMessage)] },
+      config
+    );
+
+    if (refined.request.kind !== "team_recommendation") {
+      throw new Error("Expected a team refinement request.");
+    }
+
+    expect({
+      action: refined.request.teamRecommendationAction,
+      filters: recommend.mock.calls.map(([input]) => ({
+        maxAge: input.maxAge,
+        minimumCurrentAbility: input.minimumCurrentAbility,
+      })),
+      getSquadCalls: directory.getSquad.mock.calls.length,
+      searchCalls: directory.searchTeams.mock.calls.length,
+    }).toStrictEqual({
+      action: "refine",
+      filters: [
+        { maxAge: 25, minimumCurrentAbility: null },
+        { maxAge: 25, minimumCurrentAbility: 130 },
+      ],
+      getSquadCalls: 1,
+      searchCalls: 1,
+    });
   });
 
   it("resets filters and roster when the scout names another team", async () => {

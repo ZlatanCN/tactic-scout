@@ -502,12 +502,26 @@ const gatewayExchangeSchema = z.object({
   role: z.enum(["agent", "judge", "calibration"]),
   tokenUsage: z
     .object({
-      completionTokens: z.number().int().nonnegative(),
-      promptTokens: z.number().int().nonnegative(),
-      totalTokens: z.number().int().nonnegative(),
+      completionTokens: z.number().int().nonnegative().nullable(),
+      promptTokens: z.number().int().nonnegative().nullable(),
+      totalTokens: z.number().int().nonnegative().nullable(),
     })
     .nullable(),
 });
+
+const requestLatencySchema = z.object({
+  averageMs: z.number().nonnegative().nullable(),
+  p50Ms: z.number().nonnegative().nullable(),
+  p95Ms: z.number().nonnegative().nullable(),
+  requestsWithLatency: z.number().int().nonnegative(),
+});
+
+const emptyRequestLatency = {
+  averageMs: null,
+  p50Ms: null,
+  p95Ms: null,
+  requestsWithLatency: 0,
+};
 
 const evaluationCheckSchema = z.object({
   actual: z.string(),
@@ -659,6 +673,17 @@ const evaluationReportSchema = z.object({
   gatewayOrigin: z.string().nullable(),
   judgeCalibration: judgeCalibrationSchema.nullable(),
   judgeEnabled: z.boolean(),
+  latencyByRole: z
+    .object({
+      agent: requestLatencySchema,
+      calibration: requestLatencySchema,
+      judge: requestLatencySchema,
+    })
+    .default({
+      agent: emptyRequestLatency,
+      calibration: emptyRequestLatency,
+      judge: emptyRequestLatency,
+    }),
   maxModelRequests: z.number().int().positive(),
   mode: z.enum(["development", "held_out", "smoke"]),
   modelRequests: z.number().int().nonnegative(),
@@ -687,6 +712,9 @@ const evaluationReportSchema = z.object({
       dispatchedRequests: z.number().int().nonnegative(),
       modelIds: z.array(z.string()),
       promptTokensReported: z.number().int().nonnegative().nullable(),
+      responsesWithCompletionTokens: z.number().int().nonnegative().default(0),
+      responsesWithPromptTokens: z.number().int().nonnegative().default(0),
+      responsesWithTotalTokens: z.number().int().nonnegative().default(0),
       responsesWithUsage: z.number().int().nonnegative(),
       responsesWithoutUsage: z.number().int().nonnegative(),
       totalTokensReported: z.number().int().nonnegative().nullable(),
@@ -697,6 +725,9 @@ const evaluationReportSchema = z.object({
       dispatchedRequests: z.number().int().nonnegative(),
       modelIds: z.array(z.string()),
       promptTokensReported: z.number().int().nonnegative().nullable(),
+      responsesWithCompletionTokens: z.number().int().nonnegative().default(0),
+      responsesWithPromptTokens: z.number().int().nonnegative().default(0),
+      responsesWithTotalTokens: z.number().int().nonnegative().default(0),
       responsesWithUsage: z.number().int().nonnegative(),
       responsesWithoutUsage: z.number().int().nonnegative(),
       totalTokensReported: z.number().int().nonnegative().nullable(),
@@ -707,6 +738,9 @@ const evaluationReportSchema = z.object({
       dispatchedRequests: z.number().int().nonnegative(),
       modelIds: z.array(z.string()),
       promptTokensReported: z.number().int().nonnegative().nullable(),
+      responsesWithCompletionTokens: z.number().int().nonnegative().default(0),
+      responsesWithPromptTokens: z.number().int().nonnegative().default(0),
+      responsesWithTotalTokens: z.number().int().nonnegative().default(0),
       responsesWithUsage: z.number().int().nonnegative(),
       responsesWithoutUsage: z.number().int().nonnegative(),
       totalTokensReported: z.number().int().nonnegative().nullable(),

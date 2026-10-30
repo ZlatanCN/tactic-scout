@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 
 import { HumanMessage } from "@langchain/core/messages";
+import type { BaseMessage } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
@@ -10,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 
 import { modelRequestTimeoutMs } from "../src/fault-tolerance.js";
+import type { ModelRequestBudget } from "../src/model-requests.js";
 import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
 import { createInitialConversationContext } from "../src/state.js";
 
@@ -226,6 +228,45 @@ describe("request understanding extraction", () => {
     expect(result.request.recommendation.maxAge).toBe(21);
   });
 
+  it("preserves a relative comparison season when structured extraction omits it", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "player_comparison",
+        players: [
+          {
+            lookupName: null,
+            mention: "Elias Demo",
+            referenceScope: "explicit",
+            referenceTargetMention: null,
+          },
+          {
+            lookupName: null,
+            mention: "Synthetic Midfielder",
+            referenceScope: "explicit",
+            referenceTargetMention: null,
+          },
+        ],
+        teams: [],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "Compare Elias Demo and Synthetic Midfielder from last season.",
+      createInitialConversationContext()
+    );
+
+    expect(result.constraints).toContainEqual({
+      name: "season",
+      value: "last season",
+    });
+  });
+
   it("keeps the user's team mention separate from the provider search name", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");
@@ -253,6 +294,128 @@ describe("request understanding extraction", () => {
       recommendation: { position: "stc" },
       teamSearchName: "Arsenal",
       teams: ["阿森纳"],
+    });
+  });
+
+  it("preserves an explicitly written supported position code for team recommendations", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "team_recommendation",
+        players: [],
+        teamSearchName: "Synthetic Town",
+        teams: ["Synthetic Town"],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "为 Synthetic Town 推荐 stc 球员。",
+      createInitialConversationContext()
+    );
+
+    expect(result.recommendation?.position).toBe("stc");
+  });
+
+  it("requires repeated explicit team names to stay in the team list during refinement", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let systemPrompt = "";
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from((messages: BaseMessage[]) => {
+        const [firstMessage] = messages;
+        systemPrompt = z.string().parse(firstMessage?.content);
+
+        return {
+          constraints: [],
+          kind: "team_recommendation",
+          players: [],
+          recommendation: { minimumCurrentAbility: 150, position: "stc" },
+          teamSearchName: "Real Madrid",
+          teams: ["Real Madrid"],
+        };
+      })
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+    const message = "为 Real Madrid 继续推荐 stc 球员，CA 下限 150。";
+    const result = await extractor(message, createInitialConversationContext());
+
+    expect({
+      keepsExplicitSameTeamDuringRefinement: systemPrompt.includes(
+        "即使该球队与上次相同、用户同时细化筛选条件，也必须照抄到 teams"
+      ),
+      teams: result.teams,
+    }).toStrictEqual({
+      keepsExplicitSameTeamDuringRefinement: true,
+      teams: ["Real Madrid"],
+    });
+  });
+
+  it("maps an explicit supported position code even when structured extraction omits it", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let systemPrompt = "";
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from((messages: BaseMessage[]) => {
+        const [firstMessage] = messages;
+        systemPrompt = z.string().parse(firstMessage?.content);
+
+        return {
+          constraints: [],
+          kind: "team_recommendation",
+          players: [],
+          teamSearchName: "Synthetic Town",
+          teams: ["Synthetic Town"],
+        };
+      })
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "为 Synthetic Town 推荐 stc 球员。",
+      createInitialConversationContext()
+    );
+
+    expect({
+      position: result.recommendation?.position ?? null,
+      promptRule: systemPrompt.includes(
+        "team_recommendation 中，用户直接写出的受支持位置代码（如 stc、dc、dm）必须填入 recommendation.position"
+      ),
+    }).toStrictEqual({ position: "stc", promptRule: true });
+  });
+
+  it("recovers an explicit team recommendation when structured extraction says other", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "other",
+        players: [],
+        teams: [],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "为 Real Madrid 推荐 stc 球员。",
+      createInitialConversationContext()
+    );
+
+    expect(result).toMatchObject({
+      kind: "team_recommendation",
+      recommendation: { position: "stc" },
+      teams: ["Real Madrid"],
     });
   });
 
@@ -347,6 +510,80 @@ describe("request understanding extraction", () => {
       response: "请求理解模型暂时不可用，因此没有执行这条新请求。",
     });
     expect(result).not.toHaveProperty("request");
+  });
+
+  it("reminds structured-output repair to include required request fields", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    let repairFeedback = "";
+    let requestsUsed = 0;
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from((messages: BaseMessage[]) => {
+        const userMessage = z.string().parse(messages.at(-1)?.content);
+
+        const input = z
+          .looseObject({
+            currentMessage: z.string(),
+            validationFeedback: z.string().optional(),
+          })
+          .parse(JSON.parse(userMessage));
+
+        if (input.validationFeedback === undefined) {
+          throw Object.assign(new Error("Invalid structured request."), {
+            name: "OutputParserException",
+          });
+        }
+
+        repairFeedback = input.validationFeedback;
+
+        return {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [],
+          recommendation: { maxAge: 21 },
+          recommendationAction: "refine",
+          teams: [],
+        };
+      })
+    );
+
+    const budget: ModelRequestBudget = {
+      canMakeRequest: () => true,
+      invoke: async <Value>(
+        request: (signal?: AbortSignal) => Promise<Value>
+      ) => {
+        requestsUsed += 1;
+
+        return await request();
+      },
+      lastRequestDurationMs: () => 0,
+      logRepair: () => {},
+      requestsUsed: () => requestsUsed,
+    };
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "把年龄上限设为 21 岁。",
+      createInitialConversationContext(),
+      budget
+    );
+
+    expect({
+      hasRequiredFields: ["constraints", "kind", "players", "teams"].every(
+        (field) => repairFeedback.includes(field)
+      ),
+      maxAge: result.recommendation?.maxAge,
+      removesNullComparisonAction: repairFeedback.includes("comparisonAction"),
+      requestsUsed,
+    }).toStrictEqual({
+      hasRequiredFields: true,
+      maxAge: 21,
+      removesNullComparisonAction: true,
+      requestsUsed: 2,
+    });
   });
 
   it("stops after a timed-out structured repair instead of restarting extraction", async () => {
