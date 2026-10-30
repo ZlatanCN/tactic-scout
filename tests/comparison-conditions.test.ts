@@ -79,6 +79,7 @@ const searchResult = (input: PlayerSearchInput): string =>
       unlinkedRecords: [],
     },
     query: input.sourceRecords,
+    requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
     understat: { records: [], status: "not_found" },
   });
 
@@ -203,6 +204,7 @@ describe("comparison workflow state", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: {
           records: input.sourceRecords.flatMap(({ provider, sourceId }) =>
             provider === "understat"
@@ -354,6 +356,7 @@ describe("comparison workflow state", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: {
           records,
           status: records.length > 0 ? "found" : "not_found",
@@ -764,6 +767,7 @@ describe("comparison workflow state", () => {
           unlinkedRecords: [],
         },
         query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
       })
     );
