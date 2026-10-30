@@ -4,49 +4,15 @@ import { z } from "zod/v4";
 
 import { comparisonContextFromRequest } from "../comparison-context.js";
 import { logLocalDataFailure } from "../fault-tolerance.js";
+import { comparisonResultSchema } from "../player-data/compare-records.js";
 import type { ComparePlayerRecordsInput } from "../player-data/compare-records.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { AgentState, RequestPlayerState, RequestState } from "../state.js";
+import { decodeResultJson } from "../workflow-results.js";
 
 const seasonPattern = /\b(?<start>20\d{2})\s*\/\s*(?<end>\d{2}|20\d{2})\b/u;
 const seasonConstraintPattern = /season|赛季/iu;
 const competitionConstraintPattern = /^competition$/iu;
-
-const comparisonResultSchema = z.object({
-  status: z.string(),
-});
-
-const comparisonDataAvailabilitySchema = z.object({
-  players: z
-    .array(
-      z.object({
-        fm: z.object({ status: z.string() }).nullable().optional(),
-        understat: z.object({ status: z.string() }).nullable().optional(),
-      })
-    )
-    .optional(),
-});
-
-const hasUnavailableComparisonData = (resultJson: string): boolean => {
-  let parsedResult: unknown;
-
-  try {
-    parsedResult = JSON.parse(resultJson);
-  } catch {
-    return false;
-  }
-
-  const parsed = comparisonDataAvailabilitySchema.safeParse(parsedResult);
-
-  return (
-    parsed.success &&
-    parsed.data.players?.some(
-      (player) =>
-        player.fm?.status === "unavailable" ||
-        player.understat?.status === "unavailable"
-    ) === true
-  );
-};
 
 const comparisonPlayer = (player: RequestPlayerState) => {
   const candidate = selectedReferenceCandidate(player.resolution);
@@ -210,9 +176,18 @@ const createComparePlayersNode =
       throw new Error("比较工具未返回 JSON 文本。");
     }
 
-    const jsonValue: unknown = JSON.parse(parsedString.data);
-    const result = comparisonResultSchema.parse(jsonValue);
-    const hasUnavailableData = hasUnavailableComparisonData(parsedString.data);
+    const { data: result, resultJson } = decodeResultJson(
+      parsedString.data,
+      comparisonResultSchema
+    );
+
+    const hasUnavailableData =
+      "coverage" in result &&
+      result.players.some(
+        (player) =>
+          player.fm?.status === "unavailable" ||
+          player.understat?.status === "unavailable"
+      );
 
     if (hasUnavailableData) {
       logLocalDataFailure(
@@ -227,7 +202,7 @@ const createComparePlayersNode =
       return {
         outcome: {
           kind: "player_comparison",
-          resultJson: parsedString.data,
+          resultJson,
           status: result.status,
         },
       };
@@ -237,14 +212,18 @@ const createComparePlayersNode =
       return {
         outcome: {
           kind: "player_comparison",
-          resultJson: parsedString.data,
+          resultJson,
           status: "data_unavailable",
         },
       };
     }
 
     const previousContext = state.conversationContext;
-    const activeComparison = comparisonContextFromRequest(request);
+
+    const activeComparison = {
+      ...comparisonContextFromRequest(request),
+      resultJson,
+    };
 
     return {
       conversationContext:
@@ -253,7 +232,8 @@ const createComparePlayersNode =
           : previousContext,
       outcome: {
         kind: "player_comparison",
-        resultJson: parsedString.data,
+        resultJson,
+        source: "executed",
         status: result.status,
       },
     };

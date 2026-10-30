@@ -10,6 +10,7 @@ import type { RequestUnderstandingExtractor } from "../src/request-extraction.js
 import type { ReferenceCandidate } from "../src/state.js";
 import { ActiveComparisonSchema } from "../src/state.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
+import { comparisonResult } from "./fixtures/workflow-results.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 
@@ -56,7 +57,7 @@ const candidate = (name: string, id: string): ReferenceCandidate => ({
 const compareRequest = (
   players: string[],
   constraints: ExtractedRequest["constraints"] = [],
-  comparisonAction: "replace" | "add" = "replace"
+  comparisonAction: "replace" | "add" | "refine" = "replace"
 ): ExtractedRequest => ({
   comparisonAction,
   constraints,
@@ -72,7 +73,11 @@ const compareRequest = (
 const searchResult = (input: PlayerSearchInput): string =>
   JSON.stringify({
     fm: { records: [], status: "not_found" },
-    identityGroups: { canonicalGroups: [] },
+    identityGroups: {
+      canonicalGroups: [],
+      registryStatus: "not_needed",
+      unlinkedRecords: [],
+    },
     query: input.sourceRecords,
     understat: { records: [], status: "not_found" },
   });
@@ -192,7 +197,11 @@ describe("comparison workflow state", () => {
       await Promise.resolve();
 
       return JSON.stringify({
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: {
           records: input.sourceRecords.flatMap(({ provider, sourceId }) =>
@@ -339,7 +348,11 @@ describe("comparison workflow state", () => {
 
       return JSON.stringify({
         fm: { records: [], status: "not_found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: {
           records,
@@ -570,6 +583,116 @@ describe("comparison workflow state", () => {
     ).toStrictEqual(remembered);
   });
 
+  it("refines comparison conditions while inheriting the completed participants", async () => {
+    const kane = candidate("Harry Kane", "kane");
+    const mbappe = candidate("Kylian Mbappé", "mbappe");
+    const firstMessage = "Compare Harry Kane and Kylian Mbappé in 2024/25.";
+    const refineMessage = "Change the comparison season to 2025/26.";
+    const search = vi.fn<PlayerSearch>(searchResult);
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel()
+        .respond(new AIMessage("The first comparison has no shared records."))
+        .respond(
+          new AIMessage("The refined comparison has no shared records.")
+        ),
+      playerIdentityLookup: createLookup([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: compareRequest(
+          ["Harry Kane", "Kylian Mbappé"],
+          [{ name: "season", value: "2024/25" }]
+        ),
+        [refineMessage]: compareRequest(
+          [],
+          [{ name: "season", value: "2025/26" }],
+          "refine"
+        ),
+      }),
+      tools: createTools(search),
+    });
+
+    const config = {
+      configurable: { thread_id: "comparison-condition-refinement" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(refineMessage)] },
+      config
+    );
+
+    expect({
+      participants: refined.conversationContext.activeComparison.players.map(
+        ({ candidate: item }) => item.name
+      ),
+      requestedSeasons: search.mock.calls.map(
+        ([input]) => input.seasonStartYear
+      ),
+      storedSeason: refined.conversationContext.activeComparison.constraints,
+    }).toStrictEqual({
+      participants: ["Harry Kane", "Kylian Mbappé"],
+      requestedSeasons: [2024, 2024, 2025, 2025],
+      storedSeason: [{ name: "season", value: "2025/26" }],
+    });
+  });
+
+  it("explains a saved comparison without rerunning participant searches", async () => {
+    const kane = candidate("Harry Kane", "kane");
+    const mbappe = candidate("Kylian Mbappé", "mbappe");
+    const firstMessage = "Compare Harry Kane and Kylian Mbappé.";
+    const explainMessage = "Explain the previous comparison.";
+    const search = vi.fn<PlayerSearch>(searchResult);
+
+    const model = fakeModel()
+      .respond(new AIMessage("The comparison has no shared data."))
+      .respond(new AIMessage("The saved comparison has no shared data."));
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: createLookup([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [explainMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "player_comparison",
+          players: [],
+          teams: [],
+        },
+        [firstMessage]: compareRequest(["Harry Kane", "Kylian Mbappé"]),
+      }),
+      tools: createTools(search),
+    });
+
+    const config = {
+      configurable: { thread_id: "saved-comparison-explanation" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const explained = await graph.invoke(
+      { messages: [new HumanMessage(explainMessage)] },
+      config
+    );
+
+    const { outcome } = explained;
+
+    expect({
+      answer: explained.messages.at(-1)?.content,
+      outcomeSource:
+        outcome !== null && "source" in outcome ? outcome.source : null,
+      outcomeStatus: outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      answer: "The saved comparison has no shared data.",
+      outcomeSource: "saved",
+      outcomeStatus: "no_comparable_data",
+      searchCalls: 2,
+    });
+  });
+
   it("retains a completed comparison when its final model explanation fails", async () => {
     const kane = candidate("Harry Kane", "kane");
     const mbappe = candidate("Kylian Mbappé", "mbappe");
@@ -635,7 +758,11 @@ describe("comparison workflow state", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { reason: "FM snapshot missing", status: "unavailable" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: { records: [], status: "not_found" },
       })
@@ -703,7 +830,7 @@ describe("comparison workflow state", () => {
         ],
       }),
       new ToolMessage({
-        content: JSON.stringify({ status: "ready" }),
+        content: comparisonResult(["Harry Kane", "Kylian Mbappé"], "ready"),
         name: "compare_player_records",
         tool_call_id: priorCallId,
       }),

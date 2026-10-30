@@ -287,6 +287,7 @@ const readUnderstatReferenceRecords = (
 export {
   readUnderstatBySourceIds,
   readUnderstatReferenceRecords,
+  understatSearchRecordSchema,
   understatReadResultSchema,
 };
 

@@ -1,20 +1,67 @@
+import { z } from "zod/v4";
+
 import type { PlayerSearchQuery } from "./contracts.js";
-import { readFmProfilesBySourceIds } from "./football-manager.js";
+import {
+  readFmProfilesBySourceIds,
+  fmReadResultSchema,
+} from "./football-manager.js";
 import type { FmReadResult } from "./football-manager.js";
 import { resolveSearchIdentityGroups } from "./reep-registry.js";
 import { assertModelProcessingAllowed } from "./shared.js";
-import { readUnderstatBySourceIds } from "./understat.js";
+import {
+  readUnderstatBySourceIds,
+  understatReadResultSchema,
+} from "./understat.js";
 import type { UnderstatReadResult } from "./understat.js";
 
-type PlayerSearch = (input: PlayerSearchQuery) => Promise<string> | string;
+const searchIdentityRecordSchema = z.object({
+  identitySourceId: z.string(),
+  name: z.string(),
+  provider: z.enum(["understat", "fm"]),
+  recordId: z.string(),
+});
 
-type SearchPlayerRecordsResult = {
-  fm?: FmReadResult;
-  identityGroups: ReturnType<typeof resolveSearchIdentityGroups>;
-  query: PlayerSearchQuery["sourceRecords"];
-  requestedUnderstatSeasonStartYear?: number | null;
-  understat?: UnderstatReadResult;
-};
+const searchIdentityGroupsSchema = z.object({
+  canonicalGroups: z.array(
+    z.object({
+      canonicalIdentityId: z.string(),
+      name: z.string(),
+      records: z.array(searchIdentityRecordSchema),
+    })
+  ),
+  registryStatus: z.enum(["not_needed", "available", "unavailable"]),
+  unlinkedRecords: z.array(
+    searchIdentityRecordSchema.extend({ reason: z.string() })
+  ),
+});
+
+const searchPlayerRecordsDataSchema = z.object({
+  fm: fmReadResultSchema.optional(),
+  identityGroups: searchIdentityGroupsSchema,
+  query: z.array(
+    z.object({ provider: z.enum(["understat", "fm"]), sourceId: z.string() })
+  ),
+  requestedUnderstatSeasonStartYear: z.number().int().nullable().optional(),
+  understat: understatReadResultSchema.optional(),
+});
+
+const searchPlayerRecordsResultSchema = z.union([
+  searchPlayerRecordsDataSchema,
+  z.object({
+    query: z.array(
+      z.object({ provider: z.enum(["understat", "fm"]), sourceId: z.string() })
+    ),
+    result: z.literal("no_confirmed_source_ids"),
+  }),
+]);
+
+type SearchPlayerRecordsResult = z.output<
+  typeof searchPlayerRecordsResultSchema
+>;
+
+type SearchPlayerRecordsData = z.output<typeof searchPlayerRecordsDataSchema>;
+
+type PlayerSearch = (input: PlayerSearchQuery) => Promise<string> | string;
 
 const searchPlayerRecords: PlayerSearch = (input) => {
   const sourceRecords = input.sourceRecords.filter(
@@ -54,7 +101,7 @@ const searchPlayerRecords: PlayerSearch = (input) => {
     );
   }
 
-  const result: SearchPlayerRecordsResult = {
+  const result: SearchPlayerRecordsData = {
     identityGroups: resolveSearchIdentityGroups(understatResult, fmResult),
     query: sourceRecords,
   };
@@ -73,4 +120,10 @@ const searchPlayerRecords: PlayerSearch = (input) => {
 
 export { searchPlayerRecords };
 
-export type { PlayerSearch };
+export { searchPlayerRecordsResultSchema };
+
+export type {
+  PlayerSearch,
+  SearchPlayerRecordsData,
+  SearchPlayerRecordsResult,
+};

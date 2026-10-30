@@ -74,6 +74,7 @@ const ConversationPlayerAliasSchema = z.object({
 const ActiveComparisonSchema = z.object({
   constraints: z.array(RequestConstraintSchema),
   players: z.array(ConversationPlayerReferenceSchema),
+  resultJson: z.string(),
 });
 
 const ActiveLookupSchema = z.object({
@@ -106,7 +107,7 @@ const ActiveTeamRecommendationSchema = TeamRecommendationFiltersSchema.extend({
 });
 
 const createInitialConversationContext = () => ({
-  activeComparison: { constraints: [], players: [] },
+  activeComparison: { constraints: [], players: [], resultJson: "" },
   activeLookup: null,
   activeRecommendation: null,
   activeTeamRecommendation: null,
@@ -118,6 +119,7 @@ const ConversationContextSchema = z.object({
   activeComparison: ActiveComparisonSchema.default(() => ({
     constraints: [],
     players: [],
+    resultJson: "",
   })),
   activeLookup: ActiveLookupSchema.nullable().default(null),
   activeRecommendation: ActiveRecommendationSchema.nullable().default(null),
@@ -156,7 +158,7 @@ const RequestStateSchema = z.discriminatedUnion("kind", [
   z.object({ ...requestFields, kind: z.literal("player_lookup") }),
   z.object({
     ...requestFields,
-    comparisonAction: z.enum(["replace", "add"]),
+    comparisonAction: z.enum(["replace", "add", "refine"]),
     kind: z.literal("player_comparison"),
   }),
   z.object({
@@ -171,6 +173,32 @@ const RequestStateSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ ...requestFields, kind: z.literal("other") }),
 ]);
+
+const WorkflowDraftSchema = z.object({
+  comparisonAction: z.enum(["replace", "add", "refine"]).nullable(),
+  constraints: z.array(RequestConstraintSchema),
+  operation: z.enum(["explain", "refine"]),
+  players: z.array(
+    z.object({
+      lookupName: z.string().nullable(),
+      mention: z.string(),
+      recommendationRole: RecommendationPlayerRoleSchema,
+      referenceScope: z.enum([
+        "explicit",
+        "prior_context",
+        "same_turn",
+        "ambiguous",
+      ]),
+      referenceTargetMention: z.string().nullable(),
+    })
+  ),
+  processedMessageId: z.string().nullable(),
+  recommendation: RecommendationRequestSchema.partial(),
+  recommendationAction: z.enum(["replace", "add", "refine"]).nullable(),
+  teamSearchName: z.string().nullable(),
+  teams: z.array(z.string()),
+  text: z.string(),
+});
 
 const createInitialRequestState = () => ({
   constraints: [],
@@ -235,18 +263,130 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
     question: z.string(),
     rosterIndex: z.number().int().nonnegative(),
   }),
+  z.object({
+    answer: z.string().nullable(),
+    draft: WorkflowDraftSchema,
+    kind: z.literal("workflow"),
+    options: z.array(
+      z.enum([
+        "player_lookup",
+        "player_comparison",
+        "player_recommendation",
+        "team_recommendation",
+      ])
+    ),
+    question: z.string(),
+  }),
 ]);
 
-const TurnOutcomeSchema = z.object({
-  kind: z.enum([
-    "player_lookup",
-    "player_comparison",
-    "player_recommendation",
-    "team_recommendation",
-  ]),
-  resultJson: z.string().nullable(),
-  status: z.string(),
-});
+const TurnOutcomeSchema = z.union([
+  z.object({
+    kind: z.literal("player_lookup"),
+    resultJson: z.string(),
+    source: z.enum(["executed", "saved"]),
+    status: z.enum(["answer_ready", "data_ready", "lookup_follow_up"]),
+  }),
+  z.object({
+    kind: z.literal("player_lookup"),
+    resultJson: z.null(),
+    status: z.enum([
+      "answer_ready",
+      "data_unavailable",
+      "identity_data_unavailable",
+      "lookup_search_limit",
+      "lookup_tool_unavailable",
+      "no_confirmed_source_records",
+      "saved_result_unavailable",
+      "tool_error",
+    ]),
+  }),
+  z.object({
+    kind: z.literal("player_comparison"),
+    resultJson: z.string(),
+    source: z.enum(["executed", "saved"]),
+    status: z.enum(["ready", "no_comparable_data"]),
+  }),
+  z.object({
+    kind: z.literal("player_comparison"),
+    resultJson: z.string().nullable(),
+    status: z.enum([
+      "comparison_tool_unavailable",
+      "data_unavailable",
+      "identity_data_unavailable",
+      "insufficient_distinct_players",
+      "invalid_task_state",
+      "saved_result_unavailable",
+      "season_clarification_required",
+      "unsupported_constraints",
+      "tool_error",
+    ]),
+  }),
+  z.object({
+    kind: z.literal("player_recommendation"),
+    resultJson: z.string(),
+    source: z.enum(["executed", "saved"]),
+    status: z.enum(["ready", "no_candidates"]),
+  }),
+  z.object({
+    kind: z.literal("player_recommendation"),
+    resultJson: z.string().nullable(),
+    status: z.enum([
+      "data_unavailable",
+      "excluded_profile_missing",
+      "identity_data_unavailable",
+      "insufficient_reference_data",
+      "invalid_constraint",
+      "invalid_task_state",
+      "position_required",
+      "recommendation_tool_unavailable",
+      "reference_not_position_capable",
+      "reference_profile_ambiguous",
+      "reference_profile_missing",
+      "reference_required",
+      "saved_result_unavailable",
+      "unsupported_constraints",
+      "unsupported_position",
+      "tool_error",
+    ]),
+  }),
+  z.object({
+    kind: z.literal("team_recommendation"),
+    resultJson: z.string(),
+    source: z.enum(["executed", "saved"]),
+    status: z.enum(["ready", "no_candidates"]),
+  }),
+  z.object({
+    kind: z.literal("team_recommendation"),
+    resultJson: z.string().nullable(),
+    status: z.enum([
+      "data_unavailable",
+      "excluded_profile_missing",
+      "identity_data_unavailable",
+      "insufficient_reference_data",
+      "invalid_constraint",
+      "invalid_task_state",
+      "one_team_required",
+      "position_required",
+      "recommendation_tool_unavailable",
+      "reference_not_position_capable",
+      "reference_profile_ambiguous",
+      "reference_profile_missing",
+      "reference_required",
+      "saved_result_unavailable",
+      "team_identity_error",
+      "team_not_found",
+      "team_position_unavailable",
+      "team_provider_error",
+      "team_recommendation_tool_unavailable",
+      "team_required",
+      "team_roster_empty",
+      "team_roster_member_unmapped",
+      "unsupported_constraints",
+      "unsupported_position",
+      "tool_error",
+    ]),
+  }),
+]);
 
 const FaultToleranceSchema = z.object({
   apiOperation: z.enum(["team_search", "team_roster"]).nullable(),
@@ -316,7 +456,7 @@ type ConversationPlayerReference = z.infer<
   typeof ConversationPlayerReferenceSchema
 >;
 
-type ComparisonAction = "replace" | "add";
+type ComparisonAction = "replace" | "add" | "refine";
 
 type RequestConstraint = z.infer<typeof RequestConstraintSchema>;
 
@@ -335,6 +475,8 @@ type RecommendationRequestState = z.infer<typeof RecommendationRequestSchema>;
 type RequestState = z.infer<typeof RequestStateSchema>;
 
 type PendingClarification = z.infer<typeof PendingClarificationSchema>;
+
+type WorkflowDraft = z.infer<typeof WorkflowDraftSchema>;
 
 type TurnOutcome = z.infer<typeof TurnOutcomeSchema>;
 
@@ -373,6 +515,7 @@ export type {
   RequestState,
   TeamRecommendationRequestState,
   TurnOutcome,
+  WorkflowDraft,
 };
 
 export type {

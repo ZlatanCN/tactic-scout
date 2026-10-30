@@ -16,6 +16,7 @@ import type {
   ReferenceCandidate,
   RequestPlayerState,
   RequestState,
+  TurnOutcome,
 } from "../state.js";
 import {
   createInitialConversationContext,
@@ -1257,7 +1258,7 @@ const outcomeKindForRequest = (
   return "player_lookup";
 };
 
-const dataUnavailableOutcome = (request: RequestState) => ({
+const dataUnavailableOutcome = (request: RequestState): TurnOutcome => ({
   kind: outcomeKindForRequest(request),
   resultJson: null,
   status: "identity_data_unavailable",

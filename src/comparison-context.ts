@@ -56,6 +56,7 @@ const activeComparisonContext = (
     context.activeComparison.constraints
   ),
   players: uniqueReferences(context.activeComparison.players),
+  resultJson: context.activeComparison.resultJson,
 });
 
 const requestPlayerFromReference = (
@@ -111,6 +112,7 @@ const comparisonContextFromRequest = (
           ];
     })
   ),
+  resultJson: "",
 });
 
 export {

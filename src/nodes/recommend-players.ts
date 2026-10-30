@@ -11,9 +11,9 @@ import type {
   PendingClarification,
   RequestPlayerState,
 } from "../state.js";
+import { recommendationToolResultSchema } from "../tools/recommend-player-candidates.js";
 import type { RecommendationIdentityGroup } from "../tools/recommend-player-candidates.js";
-
-const recommendationResultSchema = z.object({ status: z.string() });
+import { decodeResultJson } from "../workflow-results.js";
 
 const recommendationGroups = (
   players: RequestPlayerState[],
@@ -170,9 +170,10 @@ const createRecommendPlayersNode =
       throw new Error("推荐工具未返回 JSON 文本。");
     }
 
-    const resultJson = parsedString.data;
-    const parsedResult: unknown = JSON.parse(resultJson);
-    const result = recommendationResultSchema.parse(parsedResult);
+    const { data: result, resultJson } = decodeResultJson(
+      parsedString.data,
+      recommendationToolResultSchema
+    );
 
     if (result.status === "data_unavailable") {
       logLocalDataFailure(
@@ -184,20 +185,13 @@ const createRecommendPlayersNode =
     }
 
     if (result.status === "position_required") {
-      const positionClarification = z
-        .object({
-          commonNaturalPositions: z.array(z.string()),
-          positionOptions: z.array(z.string()),
-        })
-        .parse(parsedResult);
-
       const options =
-        positionClarification.commonNaturalPositions.length > 0
-          ? positionClarification.commonNaturalPositions
-          : positionClarification.positionOptions;
+        result.commonNaturalPositions.length > 0
+          ? result.commonNaturalPositions
+          : result.positionOptions;
 
       const question =
-        positionClarification.commonNaturalPositions.length > 0
+        result.commonNaturalPositions.length > 0
           ? `参考球员共有自然位置：${options.join("、")}。请选择一个位置代码或编号。`
           : `参考球员没有唯一共同自然位置。可选位置：${options.join("、")}。请选择一个位置代码或编号。`;
 
@@ -246,9 +240,7 @@ const createRecommendPlayersNode =
       return reference === null ? [] : [reference];
     });
 
-    const resultPosition = z
-      .object({ position: z.string() })
-      .parse(parsedResult).position;
+    const resultPosition = result.position;
 
     const resultLimit = recommendation.resultLimit ?? 5;
 
@@ -271,6 +263,7 @@ const createRecommendPlayersNode =
       outcome: {
         kind: "player_recommendation",
         resultJson,
+        source: "executed",
         status: result.status,
       },
     };

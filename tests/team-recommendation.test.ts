@@ -9,6 +9,7 @@ import type { ReferenceIdentityLookup } from "../src/player-data/resolve-referen
 import { createLocalDataError } from "../src/player-data/shared.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
+import { createInitialConversationContext } from "../src/state.js";
 import type {
   ApiFootballClient,
   ApiFootballRosterPlayer,
@@ -18,6 +19,12 @@ import type { TeamIdentity } from "../src/team-data/contracts.js";
 import type { TeamRosterIdentityLookup } from "../src/team-data/roster-identity.js";
 import type { RecommendTeamPlayerCandidates } from "../src/tools/recommend-team-player-candidates.js";
 import { createRecommendTeamPlayerCandidatesTool } from "../src/tools/recommend-team-player-candidates.js";
+import {
+  recommendationResult,
+  teamPositionUnavailableResult,
+  teamRecommendationFailureResult,
+  teamRecommendationResult,
+} from "./fixtures/workflow-results.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 
@@ -196,10 +203,22 @@ describe("team recommendation graph", () => {
       [{ id: 1001, name: "Squad Player", position: "Attacker" }]
     );
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({
-        recommendation: { currentCandidates: [{ fmId: "candidate-1" }] },
-        status: "ready",
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input, {
+        currentCandidates: [
+          {
+            age: 24,
+            attributes: [],
+            currentAbility: 140,
+            currentDistance: 0.5,
+            fmId: "candidate-1",
+            name: "Candidate One",
+            positionRating: 18,
+            potentialAbility: 160,
+            rank: 1,
+            sourceRecordId: "candidate-record-1",
+          },
+        ],
       })
     );
 
@@ -253,13 +272,12 @@ describe("team recommendation graph", () => {
       [{ id: 1001, name: "Squad Player", position: "Attacker" }]
     );
 
-    const recommendation = JSON.stringify({
-      fmSnapshotDate: "2025-11-23",
-      position: "stc",
-      recommendation: {
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input, {
         currentCandidates: [
           {
             age: 18,
+            attributes: [],
             currentAbility: 124,
             currentDistance: 2.7,
             fmId: "fm-future-01",
@@ -267,12 +285,13 @@ describe("team recommendation graph", () => {
             positionRating: 19,
             potentialAbility: 195,
             rank: 1,
+            sourceRecordId: "fm-future-record-01",
           },
         ],
-        filterCounts: { excludedMissingPotentialForPotentialList: 1 },
         potentialCandidates: [
           {
             age: 19,
+            attributes: [],
             currentAbility: 121,
             currentDistance: 3.42,
             fmId: "fm-high-pa-01",
@@ -280,27 +299,10 @@ describe("team recommendation graph", () => {
             positionRating: 18,
             potentialAbility: 199,
             rank: 1,
+            sourceRecordId: "fm-high-pa-record-01",
           },
         ],
-        references: [],
-        status: "ready",
-      },
-      roster: {
-        mappedMembers: 1,
-        noLocalProfileMembers: 0,
-        pendingMembers: 0,
-        reepBridgeMappings: 1,
-        retrievedAt: "2025-11-20T12:00:00.000Z",
-        source: "API-Football",
-        totalMembers: 1,
-        userConfirmedMappings: 0,
-      },
-      status: "ready",
-      team: arsenal,
-    });
-
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(
-      () => recommendation
+      })
     );
 
     const model = fakeModel().respond(
@@ -371,8 +373,8 @@ describe("team recommendation graph", () => {
       [{ id: 1001, name: "Squad Player", position: "Attacker" }]
     );
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({ status: "ready" })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -416,8 +418,8 @@ describe("team recommendation graph", () => {
     const message = "Recommend a striker for Arsenal.";
     const directory = createDirectory([arsenal], []);
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({ status: "ready" })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -474,11 +476,8 @@ describe("team recommendation graph", () => {
 
     const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({
-        recommendation: { currentCandidates: [] },
-        status: "ready",
-      })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -533,11 +532,8 @@ describe("team recommendation graph", () => {
 
     const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({
-        recommendation: { currentCandidates: [] },
-        status: "ready",
-      })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -594,11 +590,8 @@ describe("team recommendation graph", () => {
 
     const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({
-        recommendation: { currentCandidates: [] },
-        status: "ready",
-      })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -665,11 +658,8 @@ describe("team recommendation graph", () => {
 
     const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({
-        recommendation: { currentCandidates: [] },
-        status: "ready",
-      })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -744,11 +734,8 @@ describe("team recommendation graph", () => {
 
     const directory = createApiFootballClient({ apiKey: "test-key", fetcher });
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({
-        recommendation: { currentCandidates: [] },
-        status: "ready",
-      })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -946,8 +933,8 @@ describe("team recommendation graph", () => {
       [{ id: 1101, name: "Squad Player", position: "Attacker" }]
     );
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({ status: "ready" })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -1002,8 +989,8 @@ describe("team recommendation graph", () => {
       status: "needs_confirmation",
     }));
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({ status: "no_candidates" })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
     );
 
     const graph = createTeamAgent({
@@ -1115,8 +1102,8 @@ describe("team recommendation graph", () => {
       [{ id: 3001, name: "Unmapped Player", position: "Attacker" }]
     );
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({ status: "ready" })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -1159,10 +1146,31 @@ describe("team recommendation graph", () => {
 
     const recommend = vi
       .fn<RecommendTeamPlayerCandidates>()
-      .mockReturnValueOnce(JSON.stringify({ result: 1, status: "ready" }))
-      .mockReturnValueOnce(JSON.stringify({ status: "data_unavailable" }))
-      .mockReturnValueOnce(JSON.stringify({ result: 3, status: "ready" }))
-      .mockReturnValueOnce(JSON.stringify({ result: 4, status: "ready" }));
+      .mockImplementationOnce((input) =>
+        teamRecommendationResult("ready", input, {
+          currentCandidates: [
+            {
+              age: 24,
+              attributes: [],
+              currentAbility: 140,
+              currentDistance: 1,
+              fmId: "fixture-result-1",
+              name: "First result marker",
+              positionRating: 20,
+              potentialAbility: 150,
+              rank: 1,
+              sourceRecordId: "fixture-result-record-1",
+            },
+          ],
+        })
+      )
+      .mockImplementationOnce((input) => teamRecommendationFailureResult(input))
+      .mockImplementationOnce((input) =>
+        teamRecommendationResult("ready", input)
+      )
+      .mockImplementationOnce((input) =>
+        teamRecommendationResult("ready", input)
+      );
 
     const model = fakeModel()
       .respond(new AIMessage("First team list."))
@@ -1242,7 +1250,7 @@ describe("team recommendation graph", () => {
     });
     expect(
       first.conversationContext.activeTeamRecommendation?.resultJson
-    ).toContain('"result":1');
+    ).toContain('"name":"First result marker"');
     expect(failed.messages.at(-1)?.content).toContain("本地球员数据源无法读取");
   });
 
@@ -1263,7 +1271,7 @@ describe("team recommendation graph", () => {
 
     const recommend = vi
       .fn<RecommendTeamPlayerCandidates>()
-      .mockReturnValue(JSON.stringify({ status: "ready" }));
+      .mockImplementation((input) => teamRecommendationResult("ready", input));
 
     const graph = createTeamAgent({
       directory,
@@ -1329,10 +1337,10 @@ describe("team recommendation graph", () => {
 
     const recommend = vi
       .fn<RecommendTeamPlayerCandidates>()
-      .mockReturnValueOnce(
-        JSON.stringify({ status: "team_position_unavailable" })
-      )
-      .mockReturnValueOnce(JSON.stringify({ status: "ready" }));
+      .mockImplementationOnce((input) => teamPositionUnavailableResult(input))
+      .mockImplementationOnce((input) =>
+        teamRecommendationResult("ready", input)
+      );
 
     const graph = createTeamAgent({
       directory,
@@ -1387,8 +1395,8 @@ describe("team recommendation graph", () => {
       [{ id: 7001, name: "Squad Player", position: "Attacker" }]
     );
 
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(() =>
-      JSON.stringify({ status: "ready" })
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const graph = createTeamAgent({
@@ -1427,6 +1435,283 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("preserves a filter patch while asking which of two saved recommendations to refine", async () => {
+    const message = "把年龄上限改成 21 岁";
+    const otherMessage = "谢谢";
+    const explainMessage = "解释上次结果";
+    const refineAgainMessage = "年龄上限改到 20 岁";
+
+    const roster = {
+      members: [
+        {
+          apiFootballPlayerId: 1001,
+          fmCandidates: [],
+          fmId: "fm-1001",
+          mappingMethod: "reep_bridge" as const,
+          mappingStatus: "resolved" as const,
+          name: "Squad Player",
+          position: "Attacker",
+        },
+      ],
+      retrievedAt: "2026-10-26T10:00:00.000Z",
+      team: arsenal,
+    };
+
+    const teamInput = {
+      includePotential: false,
+      maxAge: 25,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: ["fm-1001"],
+      referenceMode: "squad" as const,
+      resultLimit: 5,
+      roster,
+      team: arsenal,
+    };
+
+    const initialContext = createInitialConversationContext();
+
+    const conversationContext = {
+      ...initialContext,
+      activeRecommendation: {
+        excludePlayers: [],
+        includePotential: false,
+        maxAge: 25,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referencePlayers: [],
+        resultJson: recommendationResult("no_candidates"),
+        resultLimit: 5,
+        status: "no_candidates" as const,
+      },
+      activeTeamRecommendation: {
+        includePotential: false,
+        maxAge: 25,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceMode: "squad" as const,
+        referencePlayers: [],
+        resultJson: teamRecommendationResult("no_candidates", teamInput),
+        resultLimit: 5,
+        roster,
+        status: "no_candidates" as const,
+        team: arsenal,
+      },
+    };
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const model = fakeModel()
+      .respond(new AIMessage("Team filters updated."))
+      .respond(new AIMessage("This is the saved team recommendation."))
+      .respond(new AIMessage("The team filter was updated again."));
+
+    const graph = createTeamAgent({
+      directory: createDirectory([arsenal], []),
+      extractor: createExtractor({
+        [explainMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: null,
+          players: [],
+          teams: [],
+        },
+        [message]: {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [],
+          recommendation: { maxAge: 21 },
+          teams: [],
+        },
+        [otherMessage]: {
+          constraints: [],
+          kind: "other",
+          players: [],
+          teams: [],
+        },
+        [refineAgainMessage]: {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [],
+          recommendation: { maxAge: 20 },
+          teams: [],
+        },
+      }),
+      model,
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "workflow-clarification-retains-patch" },
+    };
+
+    const interrupted = await graph.invoke(
+      { conversationContext, messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const resumed = await graph.invoke(new Command({ resume: "2" }), config);
+    await graph.invoke({ messages: [new HumanMessage(otherMessage)] }, config);
+
+    const explanationInterrupted = await graph.invoke(
+      { messages: [new HumanMessage(explainMessage)] },
+      config
+    );
+
+    const explained = await graph.invoke(new Command({ resume: "2" }), config);
+
+    const refinedAgain = await graph.invoke(
+      { messages: [new HumanMessage(refineAgainMessage)] },
+      config
+    );
+
+    expect({
+      activePlayerRecommendation:
+        resumed.conversationContext.activeRecommendation?.maxAge,
+      activeTeamRecommendation:
+        resumed.conversationContext.activeTeamRecommendation?.maxAge,
+      explanationAnswer: explained.messages.at(-1)?.content,
+      explanationRequestKind: explained.request.kind,
+      explanationSource:
+        explained.outcome !== null && "source" in explained.outcome
+          ? explained.outcome.source
+          : null,
+      explanationWasInterrupted: Object.hasOwn(
+        explanationInterrupted,
+        "__interrupt__"
+      ),
+      nextRefinementAge:
+        refinedAgain.conversationContext.activeTeamRecommendation?.maxAge,
+      nextRefinementRequestKind: refinedAgain.request.kind,
+      recommendationCalls: recommend.mock.calls.length,
+      selectedTeam: resumed.conversationContext.activeTeamRecommendation?.team,
+      teamInputAge: recommend.mock.calls[0]?.[0].maxAge,
+      wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toStrictEqual({
+      activePlayerRecommendation: 25,
+      activeTeamRecommendation: 21,
+      explanationAnswer: "This is the saved team recommendation.",
+      explanationRequestKind: "team_recommendation",
+      explanationSource: "saved",
+      explanationWasInterrupted: true,
+      nextRefinementAge: 20,
+      nextRefinementRequestKind: "team_recommendation",
+      recommendationCalls: 2,
+      selectedTeam: arsenal,
+      teamInputAge: 21,
+      wasInterrupted: true,
+    });
+  });
+
+  it("does not apply a refinement to an old team result after a different team request fails", async () => {
+    const failedRequestMessage = "为切尔西找一个中锋";
+    const refinementMessage = "年龄上限改到 21 岁";
+
+    const roster = {
+      members: [],
+      retrievedAt: "2026-10-26T10:00:00.000Z",
+      team: arsenal,
+    };
+
+    const teamInput = {
+      includePotential: false,
+      maxAge: 25,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: [],
+      referenceMode: "squad" as const,
+      resultLimit: 5,
+      roster,
+      team: arsenal,
+    };
+
+    const initialContext = createInitialConversationContext();
+
+    const conversationContext = {
+      ...initialContext,
+      activeTeamRecommendation: {
+        includePotential: false,
+        maxAge: 25,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceMode: "squad" as const,
+        referencePlayers: [],
+        resultJson: teamRecommendationResult("no_candidates", teamInput),
+        resultLimit: 5,
+        roster,
+        status: "no_candidates" as const,
+        team: arsenal,
+      },
+    };
+
+    const directory = createDirectory([], []);
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [failedRequestMessage]: teamRequest("切尔西", "stc", {
+          position: "stc",
+        }),
+        [refinementMessage]: {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [],
+          recommendation: { maxAge: 21 },
+          teams: [],
+        },
+      }),
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "failed-team-task-does-not-fall-back" },
+    };
+
+    const failed = await graph.invoke(
+      {
+        conversationContext,
+        messages: [new HumanMessage(failedRequestMessage)],
+      },
+      config
+    );
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(refinementMessage)] },
+      config
+    );
+
+    expect({
+      failedStatus: failed.outcome?.status,
+      preservedAge:
+        refined.conversationContext.activeTeamRecommendation?.maxAge,
+      preservedTeam: refined.conversationContext.activeTeamRecommendation?.team,
+      recommendationCalls: recommend.mock.calls.length,
+      requestKind: refined.request.kind,
+      searchCalls: directory.searchTeams.mock.calls.length,
+    }).toStrictEqual({
+      failedStatus: "team_not_found",
+      preservedAge: 25,
+      preservedTeam: arsenal,
+      recommendationCalls: 0,
+      requestKind: "other",
+      searchCalls: 1,
+    });
+  });
+
   it("retains a completed team recommendation when its final explanation fails", async () => {
     const message = "Recommend a striker for Arsenal.";
 
@@ -1435,13 +1720,8 @@ describe("team recommendation graph", () => {
       [{ id: 1001, name: "Squad Player", position: "Attacker" }]
     );
 
-    const recommendation = JSON.stringify({
-      recommendation: { currentCandidates: [] },
-      status: "ready",
-    });
-
-    const recommend = vi.fn<RecommendTeamPlayerCandidates>(
-      () => recommendation
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
     );
 
     const model = fakeModel()
@@ -1477,12 +1757,12 @@ describe("team recommendation graph", () => {
 
     expect({
       activeRecommendation:
-        result.conversationContext.activeTeamRecommendation?.resultJson,
+        result.conversationContext.activeTeamRecommendation?.status,
       answer: result.messages.at(-1)?.content,
       outcome: result.outcome?.status,
       recommendationCalls: recommend.mock.calls.length,
     }).toStrictEqual({
-      activeRecommendation: recommendation,
+      activeRecommendation: "ready",
       answer:
         "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。",
       outcome: "ready",

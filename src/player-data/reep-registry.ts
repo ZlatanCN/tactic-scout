@@ -355,7 +355,7 @@ const resolveSearchIdentityGroups = (
   if (records.length === 0) {
     return {
       canonicalGroups: [],
-      registryStatus: "not_needed",
+      registryStatus: "not_needed" as const,
       unlinkedRecords: [],
     };
   }
@@ -367,7 +367,7 @@ const resolveSearchIdentityGroups = (
 
   const unavailable = () => ({
     canonicalGroups: [],
-    registryStatus: "unavailable",
+    registryStatus: "unavailable" as const,
     unlinkedRecords: records.map((record) => ({
       ...record,
       reason: "registry_unavailable",
@@ -434,7 +434,7 @@ const resolveSearchIdentityGroups = (
 
     return {
       canonicalGroups: [...groups.values()],
-      registryStatus: "available",
+      registryStatus: "available" as const,
       unlinkedRecords,
     };
   } catch (error) {

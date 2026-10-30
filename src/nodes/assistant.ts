@@ -242,6 +242,10 @@ const fixedOutcomeMessages = new Map<string, string>([
     "请提供至少一名身份已确认的参考球员，再进行能力推荐。",
   ],
   [
+    "saved_result_unavailable",
+    "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+  ],
+  [
     "lookup_search_limit",
     "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
   ],
@@ -551,17 +555,37 @@ const createLookupPlayerNode =
           )
         : modelMessage;
 
+    const hasToolCalls =
+      assistantMessage instanceof AIMessage &&
+      (assistantMessage.tool_calls ?? []).length > 0;
+
+    if (
+      hasToolCalls ||
+      (state.outcome?.kind === "player_lookup" &&
+        "source" in state.outcome &&
+        state.outcome.source === "executed")
+    ) {
+      let { outcome } = state;
+
+      if (
+        !hasToolCalls &&
+        outcome?.kind === "player_lookup" &&
+        "source" in outcome &&
+        outcome.source === "executed"
+      ) {
+        outcome = { ...outcome, status: "answer_ready" };
+      }
+
+      return { messages: [assistantMessage], outcome };
+    }
+
     return {
       messages: [assistantMessage],
-      outcome:
-        assistantMessage instanceof AIMessage &&
-        (assistantMessage.tool_calls ?? []).length > 0
-          ? state.outcome
-          : {
-              kind: "player_lookup",
-              resultJson: null,
-              status: "answer_ready",
-            },
+      outcome: {
+        kind: "player_lookup",
+        resultJson: null,
+        status: "answer_ready",
+      },
     };
   };
 
@@ -612,7 +636,10 @@ const createAnswerNode = (
         return { messages: [response] };
       }
 
-      if (outcome.status === "answer_ready") {
+      if (
+        outcome.status === "answer_ready" ||
+        outcome.status === "data_ready"
+      ) {
         return {};
       }
 

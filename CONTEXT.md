@@ -50,11 +50,15 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Active lookup**: The exact source-tagged result from the latest successful single-player lookup, associated with its resolved player. A factual follow-up may use that saved result without rerunning name resolution or querying a different identity.
 
-**Active comparison**: The confirmed participants and effective conditions from the latest completed comparison in a thread. Conditions can include the season and Understat competition scope. Adding a player inherits those conditions unless the current message explicitly overrides them. A new comparison establishes its own conditions.
+**Active comparison**: The confirmed participants, effective conditions, and completed result from the latest successful comparison in a thread. Conditions can include the season and Understat competition scope. Adding a player or refining conditions inherits that context unless the current message explicitly overrides a condition. A replacement comparison establishes its own participants and conditions.
 
 **Active recommendation**: The confirmed reference and excluded identities, target position, effective filters, result limit, and completed result from the latest successful player recommendation in a thread. Condition refinements inherit this context; failed or interrupted attempts do not replace it.
 
 **Active team recommendation**: The selected API-Football team, mapped roster snapshot, target position, effective filters, named reference if used, and completed result from the latest successful team recommendation in a thread. Filter refinements inherit this context; selecting another team starts a fresh team request, and failed or interrupted attempts do not replace it.
+
+**Saved-result reuse**: A request to explain a completed result reads the validated result attached to its active workflow snapshot and marks the outcome as saved. It does not repeat identity resolution, provider reads, or ranking.
+
+**Workflow continuation**: A follow-up without an explicit target continues the last compatible successful workflow when that is unambiguous. If multiple active snapshots can accept the current change, the agent asks which one; the pending clarification retains the current-turn patch until the user chooses.
 
 **Scouting evaluation case**: A versioned scouting request or conversation paired with fixed source evidence and expected workflow behavior. Its evaluation covers task completion and whether the answer's factual claims are supported by that evidence.
 
@@ -81,8 +85,9 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - Team-directed recommendation requires a user-selected team and target position; it does not infer weak positions or formations from squad data. API-Football teams use their provider IDs, roster snapshots are cached in process for seven days, and roster players map to FM only through a Reep bridge or explicit user confirmation. A provider search name translated from the user's original team mention must be confirmed even when it yields one result.
 - Current-squad acquisition is a retryable provider node that commits the roster before a separate deterministic node maps roster members to FM profiles and asks for confirmations.
 - Team roster source dates and FM ability snapshot dates are shown separately. Incomplete roster-to-FM identity resolution pauses the request rather than guessing.
-- One typed pending clarification resumes identity, FM profile, position, age, role, or season questions within the same request. Request state does not duplicate that lifecycle with status flags or an active player index.
-- Successful lookup, comparison, player recommendation, and team recommendation contexts are committed with their data outcomes before answer generation. Historical tool messages do not reconstruct missing context.
+- One typed pending clarification resumes identity, FM profile, position, age, role, season, or workflow-selection questions within the same request. Workflow selection retains the current-turn patch until a target is chosen. Request state does not duplicate that lifecycle with status flags or an active player index.
+- Each active workflow snapshot stores a complete validated result. The snapshot and its completed outcome are committed together before answer generation; valid empty results count as completed, malformed results surface as contract errors, and failed or interrupted work does not replace a snapshot.
+- Completed outcomes identify whether data was executed this turn or reused from a saved result. Saved-result explanations route directly to the answer node. Historical tool messages do not reconstruct missing context.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
 - Thread checkpointing uses LangGraph's in-memory saver. There is no Store. Restarting the process loses thread state.
 - There is no frontend, RAG pipeline, or application database in this branch.

@@ -19,11 +19,16 @@ import {
 } from "../request-extraction.js";
 import type {
   AgentState,
+  AgentStateType,
   ConversationContext,
   RecommendationRequestState,
   RequestConstraint,
+  RequestKind,
   RequestPlayerState,
+  RequestState,
   TeamRecommendationRequestState,
+  TurnOutcome,
+  WorkflowDraft,
 } from "../state.js";
 import {
   createInitialConversationContext,
@@ -32,6 +37,16 @@ import {
   createInitialRequestState,
   createInitialTeamRecommendationRequest,
 } from "../state.js";
+import {
+  continuationChoice,
+  previousTurnSummary,
+  savedOutcomeForWorkflow,
+} from "../workflow-continuation.js";
+import type { WorkflowKind } from "../workflow-continuation.js";
+
+type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
+
+type RequestTurnBuild = { outcome: TurnOutcome | null; request: RequestState };
 
 type RecommendationAction = "replace" | "add" | "refine";
 
@@ -281,7 +296,7 @@ const recommendationFromText = (
   );
 
 const requestFromExtraction = (
-  extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
+  extracted: ExtractedRequest & { kind: RequestKind },
   fields: {
     constraints: RequestConstraint[];
     players: RequestPlayerState[];
@@ -507,6 +522,218 @@ const constraintsForRequest = (
   return extracted.constraints;
 };
 
+const requestFromCurrentTurn = (
+  extracted: ExtractedRequest,
+  workflow: RequestKind,
+  context: ConversationContext,
+  text: string,
+  messageId: string | null
+): RequestTurnBuild => {
+  const routedExtraction = { ...extracted, kind: workflow };
+  const confirmedAliases = findConfirmedPlayerAliasesInMessage(text, context);
+
+  const extractedPlayers = [
+    ...routedExtraction.players,
+    ...confirmedAliases.map((mention) => ({
+      lookupName: null,
+      mention,
+      recommendationRole: aliasRole(workflow, mention, text),
+      referenceScope: "explicit" as const,
+    })),
+  ];
+
+  const recommendationAction = recommendationActionForRequest(
+    routedExtraction,
+    context
+  );
+
+  const recommendation = recommendationFromText(
+    routedExtraction,
+    text,
+    context,
+    recommendationAction
+  );
+
+  const teamRecommendation = teamRecommendationFromText(
+    routedExtraction,
+    context
+  );
+
+  const isComparisonContinuation =
+    workflow === "player_comparison" &&
+    routedExtraction.comparisonAction !== "replace";
+
+  const inheritedComparisonPlayers = isComparisonContinuation
+    ? context.activeComparison.players.map(requestPlayerFromReference)
+    : [];
+
+  const inheritedRecPlayers =
+    workflow === "player_recommendation" && recommendationAction !== "replace"
+      ? recommendationPlayersFromContext(context, recommendationAction)
+      : [];
+
+  const inheritedTeamPlayers =
+    workflow === "team_recommendation"
+      ? teamRecommendationPlayersFromContext(context, teamRecommendation)
+      : [];
+
+  const constraints = constraintsForRequest(
+    routedExtraction,
+    context,
+    text,
+    isComparisonContinuation
+  );
+
+  const currentTurnPlayers =
+    workflow === "team_recommendation"
+      ? []
+      : normalizeExtractedPlayers(text, extractedPlayers).map((player) => ({
+          ...player,
+          attempts: 0,
+          resolution: null,
+        }));
+
+  const request = requestFromExtraction(
+    routedExtraction,
+    {
+      constraints,
+      players: [
+        ...inheritedComparisonPlayers,
+        ...inheritedRecPlayers,
+        ...inheritedTeamPlayers,
+        ...currentTurnPlayers,
+      ],
+      processedMessageId: messageId,
+      teams: uniqueText(routedExtraction.teams),
+    },
+    recommendation,
+    teamRecommendation
+  );
+
+  const lookupResultJson = context.activeLookup?.resultJson;
+
+  const outcome: TurnOutcome | null =
+    isLookupFollowUpRequest(routedExtraction, text, context) &&
+    lookupResultJson !== undefined
+      ? {
+          kind: "player_lookup",
+          resultJson: lookupResultJson,
+          source: "saved",
+          status: "lookup_follow_up",
+        }
+      : null;
+
+  return { outcome, request };
+};
+
+const workflowDraftFromExtraction = (
+  extracted: ExtractedRequest,
+  text: string,
+  messageId: string | null,
+  context: ConversationContext
+): WorkflowDraft => {
+  const players = normalizeExtractedPlayers(text, [
+    ...extracted.players,
+    ...findConfirmedPlayerAliasesInMessage(text, context).map((mention) => ({
+      lookupName: null,
+      mention,
+      recommendationRole: aliasRole("player_recommendation", mention, text),
+      referenceScope: "explicit" as const,
+    })),
+  ]);
+
+  return {
+    comparisonAction: extracted.comparisonAction ?? null,
+    constraints: extracted.constraints,
+    operation:
+      extracted.continuationAction === "explain" ? "explain" : "refine",
+    players,
+    processedMessageId: messageId,
+    recommendation: extracted.recommendation ?? {},
+    recommendationAction: extracted.recommendationAction ?? null,
+    teamSearchName: extracted.teamSearchName ?? null,
+    teams: uniqueText(extracted.teams),
+    text,
+  };
+};
+
+const recommendationPatchFromWorkflowDraft = (
+  draft: WorkflowDraft
+): NonNullable<ExtractedRequest["recommendation"]> => {
+  const source = draft.recommendation;
+  const patch: NonNullable<ExtractedRequest["recommendation"]> = {};
+
+  if (Object.hasOwn(source, "includePotential")) {
+    patch.includePotential = source.includePotential;
+  }
+
+  if (Object.hasOwn(source, "maxAge")) {
+    patch.maxAge = source.maxAge;
+  }
+
+  if (Object.hasOwn(source, "minimumCurrentAbility")) {
+    patch.minimumCurrentAbility = source.minimumCurrentAbility;
+  }
+
+  if (Object.hasOwn(source, "minimumPotentialAbility")) {
+    patch.minimumPotentialAbility = source.minimumPotentialAbility;
+  }
+
+  if (Object.hasOwn(source, "position")) {
+    patch.position = source.position;
+  }
+
+  if (Object.hasOwn(source, "resultLimit")) {
+    patch.resultLimit = source.resultLimit;
+  }
+
+  return patch;
+};
+
+const resumeWorkflowClarification = (
+  state: AgentStateType,
+  draft: WorkflowDraft,
+  workflow: WorkflowKind
+) => {
+  const context = {
+    ...state.conversationContext,
+    activeComparison: activeComparisonContext(state.conversationContext),
+  };
+
+  const extracted: ExtractedRequest = {
+    comparisonAction: draft.comparisonAction ?? undefined,
+    constraints: draft.constraints,
+    continuationAction: draft.operation,
+    kind: workflow,
+    players: draft.players,
+    recommendation: recommendationPatchFromWorkflowDraft(draft),
+    recommendationAction: draft.recommendationAction ?? undefined,
+    teamSearchName: draft.teamSearchName,
+    teams: draft.teams,
+  };
+
+  const built = requestFromCurrentTurn(
+    extracted,
+    workflow,
+    context,
+    draft.text,
+    draft.processedMessageId
+  );
+
+  const outcome =
+    draft.operation === "explain"
+      ? savedOutcomeForWorkflow(workflow, context)
+      : built.outcome;
+
+  return {
+    conversationContext: context,
+    faultTolerance: createInitialFaultToleranceState(),
+    outcome,
+    pendingClarification: null,
+    request: built.request,
+  };
+};
+
 const createRequestUnderstandingNode =
   (
     extractRequest: RequestUnderstandingExtractor
@@ -536,125 +763,129 @@ const createRequestUnderstandingNode =
 
     const text = messageText(latestUserMessage);
     const budget = createModelRequestBudget(runtime, "understand_request");
-    const extracted = await extractRequest(text, contextWithComparison, budget);
+    const previous = previousTurnSummary(state);
 
-    const isLookupFollowUp = isLookupFollowUpRequest(
-      extracted,
-      text,
-      contextWithComparison
-    );
-
-    const outcome = isLookupFollowUp
-      ? {
-          kind: "player_lookup" as const,
-          resultJson: contextWithComparison.activeLookup?.resultJson ?? null,
-          status: "lookup_follow_up",
-        }
-      : null;
-
-    const confirmedAliases = findConfirmedPlayerAliasesInMessage(
-      text,
-      contextWithComparison
-    );
-
-    const extractedPlayers = [
-      ...extracted.players,
-      ...confirmedAliases.map((mention) => ({
-        lookupName: null,
-        mention,
-        recommendationRole: aliasRole(extracted.kind, mention, text),
-        referenceScope: "explicit" as const,
-      })),
-    ];
-
-    const recommendationAction = recommendationActionForRequest(
-      extracted,
-      contextWithComparison
-    );
-
-    const recommendation = recommendationFromText(
-      extracted,
+    const extracted = await extractRequest(
       text,
       contextWithComparison,
-      recommendationAction
+      budget,
+      previous
     );
 
-    const teamRecommendation = teamRecommendationFromText(
+    if (extracted.kind === null) {
+      const choice = continuationChoice(
+        state,
+        contextWithComparison,
+        extracted,
+        previous
+      );
+
+      if (choice.options.length > 1) {
+        const labels: Record<WorkflowKind, string> = {
+          player_comparison: "球员比较",
+          player_lookup: "球员查询",
+          player_recommendation: "球员推荐",
+          team_recommendation: "球队推荐",
+        };
+
+        const optionsText = choice.options
+          .map((workflow, index) => `${index + 1}. ${labels[workflow]}`)
+          .join("；");
+
+        return {
+          conversationContext: contextWithComparison,
+          faultTolerance: createInitialFaultToleranceState(),
+          outcome: null,
+          pendingClarification: {
+            answer: null,
+            draft: workflowDraftFromExtraction(
+              extracted,
+              text,
+              messageId,
+              contextWithComparison
+            ),
+            kind: "workflow",
+            options: choice.options,
+            question: `你这次的修改可能指向多个已完成结果：${optionsText}。请选择一个编号。`,
+          },
+          request: {
+            ...createInitialRequestState(),
+            processedMessageId: messageId,
+          },
+        };
+      }
+
+      const workflow = choice.workflow ?? "other";
+
+      const built = requestFromCurrentTurn(
+        extracted,
+        workflow,
+        contextWithComparison,
+        text,
+        messageId
+      );
+
+      const outcome =
+        workflow !== "other" && extracted.continuationAction === "explain"
+          ? savedOutcomeForWorkflow(workflow, contextWithComparison)
+          : built.outcome;
+
+      return {
+        conversationContext: contextWithComparison,
+        faultTolerance: createInitialFaultToleranceState(),
+        outcome,
+        pendingClarification: null,
+        request: built.request,
+      };
+    }
+
+    const built = requestFromCurrentTurn(
       extracted,
-      contextWithComparison
-    );
-
-    const isComparisonAddition =
-      extracted.kind === "player_comparison" &&
-      extracted.comparisonAction === "add";
-
-    const inheritedComparisonPlayers = isComparisonAddition
-      ? contextWithComparison.activeComparison.players.map(
-          requestPlayerFromReference
-        )
-      : [];
-
-    const isRecommendationContinuation =
-      extracted.kind === "player_recommendation" &&
-      recommendationAction !== "replace";
-
-    const inheritedRecPlayers = isRecommendationContinuation
-      ? recommendationPlayersFromContext(
-          contextWithComparison,
-          recommendationAction
-        )
-      : [];
-
-    const inheritedTeamPlayers =
-      extracted.kind === "team_recommendation"
-        ? teamRecommendationPlayersFromContext(
-            contextWithComparison,
-            teamRecommendation
-          )
-        : [];
-
-    const constraints = constraintsForRequest(
-      extracted,
+      extracted.kind,
       contextWithComparison,
       text,
-      isComparisonAddition
+      messageId
     );
 
-    const currentTurnPlayers =
-      extracted.kind === "team_recommendation"
-        ? []
-        : normalizeExtractedPlayers(text, extractedPlayers).map((player) => ({
-            ...player,
-            attempts: 0,
-            resolution: null,
-          }));
-
-    const players = [
-      ...inheritedComparisonPlayers,
-      ...inheritedRecPlayers,
-      ...inheritedTeamPlayers,
-      ...currentTurnPlayers,
-    ];
-
-    const request = requestFromExtraction(
-      extracted,
-      {
-        constraints,
-        players,
-        processedMessageId: messageId,
-        teams: uniqueText(extracted.teams),
-      },
-      recommendation,
-      teamRecommendation
-    );
+    const outcome =
+      extracted.kind !== "other" && extracted.continuationAction === "explain"
+        ? savedOutcomeForWorkflow(extracted.kind, contextWithComparison)
+        : built.outcome;
 
     return {
       conversationContext: contextWithComparison,
       faultTolerance: createInitialFaultToleranceState(),
       outcome,
       pendingClarification: null,
-      request,
+      request: built.request,
     };
   };
 
-export { createRequestUnderstandingNode };
+const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
+  if (state.pendingClarification?.kind === "workflow") {
+    return "clarify";
+  }
+
+  if (state.outcome?.status === "saved_result_unavailable") {
+    return "answer";
+  }
+
+  if (
+    state.outcome?.kind === "player_lookup" &&
+    state.outcome.status === "lookup_follow_up"
+  ) {
+    return "answer";
+  }
+
+  if (state.outcome !== null && "source" in state.outcome) {
+    return state.outcome.source === "saved" ? "answer" : "resolve_entities";
+  }
+
+  return "resolve_entities";
+};
+
+export {
+  createRequestUnderstandingNode,
+  resumeWorkflowClarification,
+  routeAfterRequestUnderstanding,
+};

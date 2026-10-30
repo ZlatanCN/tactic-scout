@@ -5,7 +5,10 @@ import type { FmReadResult } from "./football-manager.js";
 import { fmReadResultSchema } from "./football-manager.js";
 import type { PlayerSearch as SearchPlayer } from "./search-records.js";
 import type { UnderstatReadResult } from "./understat.js";
-import { understatReadResultSchema } from "./understat.js";
+import {
+  understatReadResultSchema,
+  understatSearchRecordSchema,
+} from "./understat.js";
 
 const comparisonSourceRecordSchema = z.object({
   provider: z.enum(["understat", "fm"]),
@@ -53,6 +56,56 @@ const comparisonSearchResultSchema = z.object({
   query: z.array(comparisonSourceRecordSchema),
   understat: understatReadResultSchema.optional(),
 });
+
+const comparisonPlayerResultSchema = z.object({
+  fm: fmReadResultSchema.nullable(),
+  identityBasis: comparisonPlayerSchema.shape.identityBasis,
+  playerName: z.string().min(2).max(100),
+  understat: understatReadResultSchema.nullable(),
+});
+
+const comparisonReadyResultSchema = z.object({
+  coverage: z.object({
+    commonUnderstatScopeCount: z.number().int().nonnegative(),
+    fmPlayerCount: z.number().int().nonnegative(),
+    hasFmRecords: z.boolean(),
+    hasUnderstatRecords: z.boolean(),
+    playerCount: z.number().int().min(2),
+  }),
+  players: z.array(comparisonPlayerResultSchema).min(2),
+  status: z.enum(["ready", "no_comparable_data"]),
+  understatScopeGroups: z.array(
+    z.object({
+      competition: z.string(),
+      coverage: z.object({
+        coveredPlayerCount: z.number().int().min(2),
+        coversAllParticipants: z.boolean(),
+        participantCount: z.number().int().min(2),
+      }),
+      players: z.array(
+        z.object({
+          playerName: z.string(),
+          record: understatSearchRecordSchema.nullable(),
+        })
+      ),
+      season: z.string(),
+    })
+  ),
+});
+
+const comparisonResultSchema = z.union([
+  comparisonReadyResultSchema,
+  z.object({
+    playerCount: z.number().int().nonnegative(),
+    players: z.array(
+      z.object({
+        identityBasis: comparisonPlayerSchema.shape.identityBasis,
+        playerName: z.string().min(2).max(100),
+      })
+    ),
+    status: z.literal("insufficient_distinct_players"),
+  }),
+]);
 
 type ComparisonPlayer = z.output<typeof comparisonPlayerSchema>;
 
@@ -296,6 +349,10 @@ const comparePlayerRecords = async (
   });
 };
 
-export { comparePlayerRecords, comparePlayerRecordsInputSchema };
+export {
+  comparePlayerRecords,
+  comparePlayerRecordsInputSchema,
+  comparisonResultSchema,
+};
 
 export type { ComparePlayerRecordsInput, ComparisonPlayer };

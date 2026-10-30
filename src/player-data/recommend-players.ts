@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+
 import type {
   FmRecommendationProfile,
   FmRecommendationReferenceMetadata,
@@ -63,57 +65,12 @@ type RecommendationFilterCounts = {
   excludedMissingPotentialForPotentialList: number;
 };
 
-type RecommendationFailure =
-  | {
-      missingReferenceFmIds: string[];
-      position: string;
-      status: "insufficient_reference_data";
-    }
-  | {
-      position: string;
-      references: RecommendationReference[];
-      status: "reference_not_position_capable";
-    }
-  | {
-      position: string;
-      reason: string;
-      status: "invalid_constraint";
-    }
-  | {
-      position: string;
-      reason: string;
-      status: "unsupported_position";
-    }
-  | {
-      reason: string;
-      status: "data_unavailable";
-    };
+type RecommendationResult = z.output<typeof recommendationResultSchema>;
 
-type RecommendationResult =
-  | {
-      currentCandidates: RecommendationCandidate[];
-      filterCounts: RecommendationFilterCounts;
-      filters: {
-        maxAge: number | null;
-        minimumCurrentAbility: number | null;
-        minimumPotentialAbility: number | null;
-        resultLimit: number;
-      };
-      formula: "rmse";
-      gameBuild: string;
-      manifestSha256: string;
-      position: string;
-      positionFeatureMapSha256: string;
-      positionFeatureSetVersion: string;
-      potentialCandidates: RecommendationCandidate[] | null;
-      referenceFmIds: string[];
-      referenceMeanAttributes: Record<string, number>;
-      references: RecommendationReference[];
-      snapshotDate: string;
-      status: "ready" | "no_candidates";
-      strategyVersion: string;
-    }
-  | RecommendationFailure;
+type RecommendationFailure = Exclude<
+  RecommendationResult,
+  { status: "ready" | "no_candidates" }
+>;
 
 type RecommendationPositionResolution =
   | { position: string; status: "selected" }
@@ -135,6 +92,96 @@ type TeamRecommendationCalculation =
       snapshotDate: string;
       status: "team_position_unavailable";
     };
+
+const recommendationAttributeDifferenceSchema = z.object({
+  attribute: z.string(),
+  candidateValue: z.number(),
+  difference: z.number(),
+  referenceMean: z.number(),
+});
+
+const recommendationCandidateSchema = z.object({
+  age: z.number().int().nullable(),
+  attributes: z.array(recommendationAttributeDifferenceSchema),
+  currentAbility: z.number().nullable(),
+  currentDistance: z.number(),
+  fmId: z.string(),
+  name: z.string(),
+  positionRating: z.number(),
+  potentialAbility: z.number().nullable(),
+  rank: z.number().int().positive(),
+  sourceRecordId: z.string(),
+});
+
+const recommendationReferenceSchema = z.object({
+  currentAbility: z.number().nullable(),
+  fmId: z.string(),
+  name: z.string(),
+  positionRating: z.number(),
+  potentialAbility: z.number().nullable(),
+  sourceRecordId: z.string(),
+});
+
+const recommendationFilterCountsSchema = z.object({
+  afterAge: z.number().int().nonnegative(),
+  afterCurrentAbility: z.number().int().nonnegative(),
+  afterIdentityExclusion: z.number().int().nonnegative(),
+  afterPotentialAbility: z.number().int().nonnegative(),
+  currentAttributeComplete: z.number().int().nonnegative(),
+  eligiblePositionProfiles: z.number().int().nonnegative(),
+  excludedMissingAttribute: z.number().int().nonnegative(),
+  excludedMissingFmIdCandidates: z.number().int().nonnegative(),
+  excludedMissingPotentialForPotentialList: z.number().int().nonnegative(),
+});
+
+const recommendationReadyResultSchema = z.object({
+  currentCandidates: z.array(recommendationCandidateSchema),
+  filterCounts: recommendationFilterCountsSchema,
+  filters: z.object({
+    maxAge: z.number().int().nullable(),
+    minimumCurrentAbility: z.number().int().nullable(),
+    minimumPotentialAbility: z.number().int().nullable(),
+    resultLimit: z.number().int().positive(),
+  }),
+  formula: z.literal("rmse"),
+  gameBuild: z.string(),
+  manifestSha256: z.string(),
+  position: z.string(),
+  positionFeatureMapSha256: z.string(),
+  positionFeatureSetVersion: z.string(),
+  potentialCandidates: z.array(recommendationCandidateSchema).nullable(),
+  referenceFmIds: z.array(z.string()),
+  referenceMeanAttributes: z.record(z.string(), z.number()),
+  references: z.array(recommendationReferenceSchema),
+  snapshotDate: z.string(),
+  status: z.enum(["ready", "no_candidates"]),
+  strategyVersion: z.string(),
+});
+
+const recommendationResultSchema = z.union([
+  recommendationReadyResultSchema,
+  z.object({
+    missingReferenceFmIds: z.array(z.string()),
+    position: z.string(),
+    status: z.literal("insufficient_reference_data"),
+  }),
+  z.object({
+    position: z.string(),
+    references: z.array(recommendationReferenceSchema),
+    status: z.literal("reference_not_position_capable"),
+  }),
+  z.object({
+    position: z.string(),
+    reason: z.string(),
+    status: z.literal("invalid_constraint"),
+  }),
+  z.object({
+    position: z.string(),
+    reason: z.string(),
+    status: z.literal("unsupported_position"),
+  }),
+  z.object({ reason: z.string(), status: z.literal("data_unavailable") }),
+]);
 
 type NormalizedRequest = {
   excludeFmIds: string[];
@@ -875,7 +922,11 @@ const recommendTeamPlayers = (
   return { recommendation, referenceFmIds, status: "calculated" };
 };
 
-export { recommendPlayers, resolveRecommendationPosition };
+export {
+  recommendPlayers,
+  recommendationResultSchema,
+  resolveRecommendationPosition,
+};
 
 export { recommendTeamPlayers };
 

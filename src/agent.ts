@@ -37,7 +37,10 @@ import { createGuardLookupSearchNode } from "./nodes/guard-lookup-search.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
-import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
+import {
+  createRequestUnderstandingNode,
+  routeAfterRequestUnderstanding,
+} from "./nodes/request-understanding.js";
 import { createResolveTeamRosterNode } from "./nodes/resolve-team-roster.js";
 import { createResolveTeamNode } from "./nodes/resolve-team.js";
 import { createUnavailableTaskNode } from "./nodes/unavailable-task.js";
@@ -543,7 +546,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     })
     .addNode("answer_failure", createFaultAnswerNode())
     .addEdge(START, "understand_request")
-    .addEdge("understand_request", "resolve_entities")
+    .addConditionalEdges("understand_request", routeAfterRequestUnderstanding, [
+      "clarify",
+      "answer",
+      "resolve_entities",
+    ])
     .addConditionalEdges(
       "resolve_entities",
       (state) => routeResolvedRequest(state),
@@ -566,6 +573,13 @@ const createAgent = (options: CreateAgentOptions = {}) => {
           return state.pendingClarification.answer === null
             ? "clarify"
             : "resolve_entities";
+        }
+
+        if (
+          state.pendingClarification === null &&
+          routeAfterRequestUnderstanding(state) === "answer"
+        ) {
+          return "answer";
         }
 
         return state.pendingClarification === null

@@ -40,7 +40,8 @@ type ExtractedPlayerMention = {
 
 type ExtractedRequest = {
   comparisonAction?: ComparisonAction;
-  kind: RequestKind;
+  kind: RequestKind | null;
+  continuationAction?: "explain" | "refine" | null;
   players: ExtractedPlayerMention[];
   recommendationAction?: RecommendationAction;
   recommendation?: RecommendationRequestPatch;
@@ -63,8 +64,16 @@ type RecommendationRequestPatch = {
 type RequestUnderstandingExtractor = (
   message: string,
   context: ConversationContext,
-  budget?: ModelRequestBudget
+  budget?: ModelRequestBudget,
+  previousTurn?: PreviousTurnSummary
 ) => Promise<ExtractedRequest>;
+
+type PreviousTurnSummary = {
+  dataCompleted: boolean;
+  failureStage?: "understanding" | "data" | "answer";
+  source: "executed" | "saved" | null;
+  workflow: RequestKind | null;
+};
 
 type NormalizedExtractedPlayerMention = {
   mention: string;
@@ -110,10 +119,10 @@ const recommendationExtractionSchema = z.object({
 
 const requestExtractionSchema = z.object({
   comparisonAction: z
-    .enum(["replace", "add"])
+    .enum(["replace", "add", "refine"])
     .optional()
     .describe(
-      "球员比较请求：replace 表示本轮提供的是完整比较名单；add 仅用于明确要求把球员加入当前 thread 已有比较。"
+      "球员比较请求：replace 使用本轮完整名单；add 明确将球员加入当前比较；refine 表示只修改最近一次成功比较的条件并继承参与者。"
     ),
   constraints: z
     .array(
@@ -127,13 +136,25 @@ const requestExtractionSchema = z.object({
       })
     )
     .describe("只记录用户明确提出且当前数据工具支持的范围，不要补猜。"),
-  kind: z.enum([
-    "player_lookup",
-    "player_comparison",
-    "player_recommendation",
-    "team_recommendation",
-    "other",
-  ]),
+  continuationAction: z
+    .enum(["explain", "refine"])
+    .nullable()
+    .optional()
+    .describe(
+      "引用已完成结果要求解释时为 explain；只改已完成任务条件时为 refine；其他新任务或普通聊天填 null。"
+    ),
+  kind: z
+    .enum([
+      "player_lookup",
+      "player_comparison",
+      "player_recommendation",
+      "team_recommendation",
+      "other",
+    ])
+    .nullable()
+    .describe(
+      "明确说出任务类型时填对应 workflow；只续接之前结果但没说类型时填 null；普通聊天和无关请求填 other。"
+    ),
   players: z.array(
     z.object({
       lookupName: z
@@ -185,12 +206,16 @@ const addToComparisonPattern =
 const addToRecommendationPattern =
   /(?:加入|加上|添加|纳入).{0,12}(?:参考|参考球员|推荐参考)|\b(?:add|include)\b.{0,80}\b(?:reference|recommendation reference)\b/iu;
 
+const savedResultExplanationPattern =
+  /(?:上次|之前|刚才).{0,12}(?:解释|说明|结果|推荐|比较)|\b(?:explain|describe)\b.{0,20}\b(?:previous|last|saved)\b/iu;
+
 const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定、最近一次成功球员查询和最近一次成功推荐。
-player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；other：其他请求。
+player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；null：用户只说“年龄改到 22”“解释上次结果”等续接，但没说类型；other：普通聊天或无关请求。
+continuationAction 为 explain 时只解释已保存结果，不得重跑工具；refine 表示把本轮明确条件补丁应用于选定成功快照。显式提到任务类型时必须填写对应 kind，不能因为其他 workflow 存在而改写用户目标。
 player_lookup 的 Understat 赛季范围由程序从本轮原话解析；不要从上下文或模型知识补一个赛季。球员查询暂不按联赛过滤，competition 只用于球员比较范围。
 team_recommendation 需要一个明确的球队和一个明确的 FM 位置。球队推荐的 recommendation 字段表示位置、年龄、CA、PA、结果数和高潜名单条件。teams 必须保留用户原话；若用户使用中文球队名或简称，teamSearchName 可给出 API-Football 常用搜索名称，但这只用于查候选，不能据此自动认定球队。用户只修改上次成功团队推荐的筛选条件时，teams 为空；明确换球队时照抄新球队名称，程序会重置旧球队上下文。
 如果用户在追问最近成功球员查询中的赛季、赛事或来源，仍分类为 player_lookup；引用之前结果时不要要求用户重报球员。
-comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补语义时一律 replace。add 时 players 仍只列本轮新增的称呼，已有比较对象会由程序从 thread 状态合并，不要重复输出。
+comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；只修改最近成功比较的赛季或赛事范围时设为 refine；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补或条件细化语义时一律 replace。add 时 players 只列本轮新增的称呼；refine 时 players 为空；程序负责继承已有参与者和条件。
 recommendationAction 仅在 player_recommendation 时有意义。明确给出新参考名单时用 replace；明确要求把新球员加入最近成功推荐的参考名单时用 add；只修改最近成功推荐的条件、位置或结果数且没有新球员时用 refine。refine 时 players 为空，程序会继承最近成功推荐的已确认参考和排除身份。
 player_comparison 的 constraints 只表示范围：赛季用 name=season，联赛用 name=competition，value 保留用户说的赛季或联赛名。比如“比较 2026/27 EPL 表现和 FM ability”应提取 season=2026/27、competition=EPL；“FM ability”是要展示的比较维度，不是筛选条件，不要提取为 attribute=FM ability。比较工具会单独展示 FM 能力，并只把同一联赛和赛季的 Understat 记录作为共同表现范围。
 constraints 只提取本轮原文明确指定且当前工作流支持的条件，不要复制 activeComparison.constraints；程序负责继承。其他指标名称、数据来源或展示维度不是硬筛选条件，不要补猜或改写成条件。
@@ -222,7 +247,7 @@ const uniqueText = (values: string[]): string[] => {
 
 const recommendationActionFromResult = (
   result: {
-    kind: RequestKind;
+    kind: RequestKind | null;
     players: { mention: string }[];
     recommendationAction?: RecommendationAction;
   },
@@ -247,21 +272,62 @@ const recommendationActionFromResult = (
   return undefined;
 };
 
+const continuationActionFromResult = (
+  result: ExtractedRequest,
+  message: string
+): ExtractedRequest["continuationAction"] => {
+  if (result.continuationAction !== undefined) {
+    return result.continuationAction;
+  }
+
+  if (savedResultExplanationPattern.test(message)) {
+    return "explain";
+  }
+
+  return result.kind === null ? "refine" : null;
+};
+
+const comparisonActionFromResult = (
+  result: ExtractedRequest,
+  context: ConversationContext,
+  message: string
+): ComparisonAction | undefined => {
+  if (
+    result.comparisonAction === "add" ||
+    addToComparisonPattern.test(message)
+  ) {
+    return "add";
+  }
+
+  if (result.kind === null || result.comparisonAction === "refine") {
+    return result.comparisonAction;
+  }
+
+  if (
+    result.kind === "player_comparison" &&
+    result.players.length === 0 &&
+    context.activeComparison.players.length >= 2 &&
+    result.constraints.length > 0
+  ) {
+    return "refine";
+  }
+
+  return "replace";
+};
+
 const normalizeRequestExtraction = (
   result: ExtractedRequest,
   message: string,
   context: ConversationContext
 ): ExtractedRequest => ({
-  comparisonAction:
-    result.comparisonAction === "add" || addToComparisonPattern.test(message)
-      ? "add"
-      : "replace",
+  comparisonAction: comparisonActionFromResult(result, context, message),
   constraints: result.constraints.flatMap((constraint) => {
     const name = constraint.name.trim();
     const value = constraint.value.trim();
 
     return name && value ? [{ name, value }] : [];
   }),
+  continuationAction: continuationActionFromResult(result, message),
   kind: result.kind,
   players: result.players.flatMap((player) => {
     const mention = player.mention.trim();
@@ -280,11 +346,10 @@ const normalizeRequestExtraction = (
       : [];
   }),
   recommendation: result.recommendation,
-  recommendationAction: recommendationActionFromResult(
-    result,
-    context,
-    message
-  ),
+  recommendationAction:
+    result.kind === null
+      ? result.recommendationAction
+      : recommendationActionFromResult(result, context, message),
   teamSearchName: result.teamSearchName?.trim() ?? null,
   teams: uniqueText(result.teams),
 });
@@ -335,7 +400,7 @@ const createRequestUnderstandingExtractor = (
     method: "functionCalling",
   });
 
-  return async (message, context, budget) => {
+  return async (message, context, budget, previousTurn) => {
     const contextInput = {
       activeComparison: {
         constraints: context.activeComparison.constraints,
@@ -418,6 +483,7 @@ const createRequestUnderstandingExtractor = (
         name: candidate.name,
         referenceId,
       })),
+      previousTurn: previousTurn ?? null,
     };
 
     const invokeStructuredOutput = async (feedback?: string) => {
@@ -631,4 +697,4 @@ export {
   uniqueText,
 };
 
-export type { RequestUnderstandingExtractor };
+export type { PreviousTurnSummary, RequestUnderstandingExtractor };

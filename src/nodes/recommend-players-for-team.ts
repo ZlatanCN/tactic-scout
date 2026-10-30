@@ -13,8 +13,8 @@ import type {
   PendingClarification,
   RequestPlayerState,
 } from "../state.js";
-
-const teamRecommendationEnvelopeSchema = z.object({ status: z.string() });
+import { teamRecommendationResultSchema } from "../team-data/recommendation-result.js";
+import { decodeResultJson } from "../workflow-results.js";
 
 const fmIdsForPlayer = (player: RequestPlayerState): string[] => {
   const candidate = selectedReferenceCandidate(player.resolution);
@@ -180,9 +180,10 @@ const createRecommendPlayersForTeamNode =
       throw new Error("球队推荐工具没有返回 JSON 文本。");
     }
 
-    const resultJson = parsedString.data;
-    const parsedResult: unknown = JSON.parse(resultJson);
-    const result = teamRecommendationEnvelopeSchema.parse(parsedResult);
+    const { data: result, resultJson } = decodeResultJson(
+      parsedString.data,
+      teamRecommendationResultSchema
+    );
 
     if (result.status === "data_unavailable") {
       logLocalDataFailure(
@@ -241,6 +242,7 @@ const createRecommendPlayersForTeamNode =
       outcome: {
         kind: "team_recommendation",
         resultJson,
+        source: "executed",
         status: result.status,
       },
     };

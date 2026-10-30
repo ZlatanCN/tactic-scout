@@ -4,40 +4,14 @@ import { z } from "zod/v4";
 
 import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
+import { searchPlayerRecordsResultSchema } from "../player-data/search-records.js";
 import { messagesInCurrentTurn } from "../player-mentions.js";
 import type {
   AgentState,
   AgentStateType,
   ConversationPlayerReference,
 } from "../state.js";
-
-const lookupResultSchema = z.object({
-  fm: z.object({ status: z.string() }).optional(),
-  understat: z.object({ status: z.string() }).optional(),
-});
-
-const lookupResultFromToolMessage = (message: ToolMessage) => {
-  const content = z.string().safeParse(message.content);
-
-  if (!content.success) {
-    return null;
-  }
-
-  let parsedJson: unknown;
-
-  try {
-    parsedJson = JSON.parse(content.data);
-  } catch {
-    return null;
-  }
-
-  const result = lookupResultSchema.safeParse(parsedJson);
-
-  return result.success &&
-    (result.data.fm !== undefined || result.data.understat !== undefined)
-    ? result.data
-    : null;
-};
+import { decodeResultJson } from "../workflow-results.js";
 
 const resolvedReference = (
   state: AgentStateType,
@@ -56,6 +30,8 @@ const resolvedReference = (
       };
 };
 
+const lookupLimitToolMessage = "本轮搜索次数已达上限，该搜索未执行。";
+
 const createCommitLookupResultsNode =
   (): GraphNode<typeof AgentState> => (state, runtime) => {
     if (state.faultTolerance.lookupToolStartedAt === null) {
@@ -66,22 +42,57 @@ const createCommitLookupResultsNode =
       (message): message is ToolMessage =>
         message instanceof ToolMessage &&
         message.name === "search_player_records" &&
-        lookupResultFromToolMessage(message) !== null
+        !(
+          state.faultTolerance.lookupLimitReached &&
+          message.content === lookupLimitToolMessage
+        )
     );
 
     if (latestSearchResult === undefined) {
+      const faultTolerance = {
+        ...state.faultTolerance,
+        lookupToolStartedAt: null,
+      };
+
+      return state.faultTolerance.lookupLimitReached
+        ? {
+            faultTolerance,
+            outcome: {
+              kind: "player_lookup",
+              resultJson: null,
+              status: "lookup_search_limit",
+            },
+          }
+        : {
+            faultTolerance,
+          };
+    }
+
+    const content = z.string().parse(latestSearchResult.content);
+
+    const { data: lookupResult, resultJson } = decodeResultJson(
+      content,
+      searchPlayerRecordsResultSchema
+    );
+
+    if ("result" in lookupResult) {
       return {
         faultTolerance: {
           ...state.faultTolerance,
           lookupToolStartedAt: null,
         },
+        outcome: {
+          kind: "player_lookup",
+          resultJson: null,
+          status: "no_confirmed_source_records",
+        },
       };
     }
 
-    const lookupResult = lookupResultFromToolMessage(latestSearchResult);
-
-    if (lookupResult === null) {
-      throw new Error("The completed lookup result failed validation.");
+    if (lookupResult.fm === undefined && lookupResult.understat === undefined) {
+      throw new Error(
+        "The completed lookup result contains no queried source."
+      );
     }
 
     const localDataUnavailable =
@@ -118,11 +129,7 @@ const createCommitLookupResultsNode =
     let { activeLookup } = state.conversationContext;
 
     if (lookupReference !== null) {
-      const resultJson = z.string().safeParse(latestSearchResult.content);
-
-      if (resultJson.success) {
-        activeLookup = { player: lookupReference, resultJson: resultJson.data };
-      }
+      activeLookup = { player: lookupReference, resultJson };
     }
 
     const focusPlayers = state.request.players.flatMap((_, index) => {
@@ -141,6 +148,18 @@ const createCommitLookupResultsNode =
         ...state.faultTolerance,
         lookupToolStartedAt: null,
       },
+      outcome: state.faultTolerance.lookupLimitReached
+        ? {
+            kind: "player_lookup",
+            resultJson: null,
+            status: "lookup_search_limit",
+          }
+        : {
+            kind: "player_lookup",
+            resultJson,
+            source: "executed",
+            status: "data_ready",
+          },
     };
   };
 

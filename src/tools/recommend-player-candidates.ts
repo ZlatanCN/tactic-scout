@@ -7,6 +7,7 @@ import {
 } from "../player-data/football-manager.js";
 import {
   recommendPlayers,
+  recommendationResultSchema,
   resolveRecommendationPosition,
 } from "../player-data/recommend-players.js";
 import { expandFmIdsForLinkedIdentity } from "../player-data/reep-registry.js";
@@ -80,6 +81,31 @@ const recommendationToolInputSchema = z.object({
   referenceGroups: z.array(recommendationIdentityGroupSchema).min(1),
   resultLimit: z.number().int().min(1).max(20).nullable().default(null),
 });
+
+const recommendationToolResultSchema = z.union([
+  recommendationResultSchema,
+  z.object({
+    commonNaturalPositions: z.array(z.string()),
+    positionOptions: z.array(z.string()),
+    references: z.array(
+      z.object({
+        fmId: z.string(),
+        name: z.string(),
+        naturalPositions: z.string().nullable(),
+      })
+    ),
+    status: z.literal("position_required"),
+  }),
+  z.object({
+    groups: z.array(z.object({ fmIds: z.array(z.string()), name: z.string() })),
+    status: z.enum([
+      "reference_profile_ambiguous",
+      "reference_profile_missing",
+      "excluded_profile_missing",
+    ]),
+  }),
+  z.object({ position: z.string(), status: z.literal("unsupported_position") }),
+]);
 
 type PositionClarificationResult = {
   commonNaturalPositions: string[];
@@ -255,7 +281,11 @@ const createRecommendPlayerCandidatesTool = (
     schema: recommendationToolInputSchema,
   });
 
-export { createRecommendPlayerCandidatesTool, recommendPlayerCandidates };
+export {
+  createRecommendPlayerCandidatesTool,
+  recommendPlayerCandidates,
+  recommendationToolResultSchema,
+};
 
 export type {
   RecommendPlayerCandidates,

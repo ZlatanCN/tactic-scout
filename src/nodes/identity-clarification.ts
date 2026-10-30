@@ -10,6 +10,12 @@ import type {
   PendingClarification,
   RequestPlayerState,
 } from "../state.js";
+import { resumeWorkflowClarification } from "./request-understanding.js";
+
+type WorkflowOption = Extract<
+  PendingClarification,
+  { kind: "workflow" }
+>["options"][number];
 
 const resumeValueSchema = z.union([
   z.string().transform((answer) => ({ answer })),
@@ -95,6 +101,21 @@ const candidatesForClarification = (
     }));
   }
 
+  if (pending.kind === "workflow") {
+    const labels: Record<WorkflowOption, string> = {
+      player_comparison: "球员比较",
+      player_lookup: "球员查询",
+      player_recommendation: "球员推荐",
+      team_recommendation: "球队推荐",
+    };
+
+    return pending.options.map((workflow, index) => ({
+      label: labels[workflow],
+      number: index + 1,
+      workflow,
+    }));
+  }
+
   return [];
 };
 
@@ -154,6 +175,32 @@ const answerForOptions = (answer: string, options: string[]): string | null => {
   return selectedPosition !== undefined && options.includes(selectedPosition)
     ? selectedPosition
     : null;
+};
+
+const workflowOptionFromAnswer = (
+  answer: string,
+  options: WorkflowOption[]
+): WorkflowOption | null => {
+  const byNumberOrName = answerForOptions(answer, options);
+  const exactOption = options.find((option) => option === byNumberOrName);
+
+  if (exactOption !== undefined) {
+    return exactOption;
+  }
+
+  const aliases = new Map<string, WorkflowOption>([
+    ["查询", "player_lookup"],
+    ["球员查询", "player_lookup"],
+    ["比较", "player_comparison"],
+    ["对比", "player_comparison"],
+    ["球员比较", "player_comparison"],
+    ["球员推荐", "player_recommendation"],
+    ["球队推荐", "team_recommendation"],
+  ]);
+
+  const alias = aliases.get(answer.trim());
+
+  return alias !== undefined && options.includes(alias) ? alias : null;
 };
 
 const teamFromAnswer = (
@@ -286,6 +333,8 @@ const interruptForAnswer = (
     kind = "team_identity_confirmation";
   } else if (pending.kind === "team_roster_profile") {
     kind = "team_roster_profile_confirmation";
+  } else if (pending.kind === "workflow") {
+    kind = "workflow_continuation_selection";
   }
 
   const payload = {
@@ -302,7 +351,8 @@ const interruptForAnswer = (
   if (
     pending.kind === "position" ||
     pending.kind === "fm_profile" ||
-    pending.kind === "team_position"
+    pending.kind === "team_position" ||
+    pending.kind === "workflow"
   ) {
     rawResume = interrupt({ ...payload, options: pending.options });
   } else if (pending.kind === "team_roster_profile") {
@@ -705,6 +755,17 @@ const resumeClarification = (
 
   if (pending.kind === "team_roster_profile") {
     return clarifyTeamRosterProfile(state, pending, answer);
+  }
+
+  if (pending.kind === "workflow") {
+    const workflow = workflowOptionFromAnswer(answer, pending.options);
+
+    return workflow === null
+      ? invalidAnswer(
+          pending,
+          `请选择一个有效工作流：${pending.options.join("、")}。`
+        )
+      : resumeWorkflowClarification(state, pending.draft, workflow);
   }
 
   return clarifyRole(state, pending, answer);

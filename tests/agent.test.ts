@@ -19,6 +19,10 @@ import {
 } from "../src/state.js";
 import type { RecommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
+import {
+  recommendationResult,
+  recommendationResultData,
+} from "./fixtures/workflow-results.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 
@@ -33,7 +37,11 @@ type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
 
 type EmptySearchResult = {
   fm?: { records: unknown[]; status: "not_found" };
-  identityGroups: { canonicalGroups: unknown[] };
+  identityGroups: {
+    canonicalGroups: unknown[];
+    registryStatus: "not_needed";
+    unlinkedRecords: unknown[];
+  };
   query: PlayerSearchInput["sourceRecords"];
   requestedUnderstatSeasonStartYear?: number | null;
   understat?: { records: unknown[]; status: "not_found" };
@@ -122,7 +130,11 @@ const emptySearchResult = (input: PlayerSearchInput): string => {
   );
 
   const result: EmptySearchResult = {
-    identityGroups: { canonicalGroups: [] },
+    identityGroups: {
+      canonicalGroups: [],
+      registryStatus: "not_needed",
+      unlinkedRecords: [],
+    },
     query: input.sourceRecords,
   };
 
@@ -140,6 +152,30 @@ const emptySearchResult = (input: PlayerSearchInput): string => {
 
 const emptySearch: PlayerSearch = (input) => emptySearchResult(input);
 
+const fmRecord = (name: string, sourceRecordId: string) => ({
+  attributes: {
+    accelerationRaw: null,
+    decisionsRaw: null,
+    finishingRaw: null,
+    first_touchRaw: null,
+    off_the_ballRaw: null,
+    paceRaw: null,
+    passingRaw: null,
+    strengthRaw: null,
+    techniqueRaw: null,
+    visionRaw: null,
+  },
+  birthDate: null,
+  currentAbility: null,
+  heightCm: null,
+  identitySourceId: sourceRecordId,
+  naturalPositions: null,
+  player: name,
+  potentialAbility: null,
+  source: "Football Manager",
+  sourceRecordId,
+});
+
 const createSearchTool = (search: PlayerSearch) => createTools(search)[0];
 
 describe("LangGraph player workflows", () => {
@@ -150,7 +186,11 @@ describe("LangGraph player workflows", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { records: [], status: "not_found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
         understat: { records: [], status: "not_found" },
@@ -271,7 +311,11 @@ describe("LangGraph player workflows", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { records: [], status: "found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: { records: [], status: "not_found" },
       })
@@ -472,7 +516,11 @@ describe("LangGraph player workflows", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { records: [], status: "found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: { records: [], status: "not_found" },
       })
@@ -542,7 +590,7 @@ describe("LangGraph player workflows", () => {
   it("retains a completed player recommendation when its final explanation fails", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const message = "Find striker alternatives to Kane.";
-    const recommendation = JSON.stringify({ position: "stc", status: "ready" });
+    const recommendation = recommendationResult("ready");
     const recommend = vi.fn<RecommendPlayerCandidates>(() => recommendation);
 
     const model = fakeModel()
@@ -580,15 +628,76 @@ describe("LangGraph player workflows", () => {
 
     expect({
       activeRecommendation:
-        result.conversationContext.activeRecommendation?.resultJson,
+        result.conversationContext.activeRecommendation?.status,
       answer: result.messages.at(-1)?.content,
       outcome: result.outcome?.status,
       recommendationCalls: recommend.mock.calls.length,
     }).toStrictEqual({
-      activeRecommendation: recommendation,
+      activeRecommendation: "ready",
       answer:
         "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。",
       outcome: "ready",
+      recommendationCalls: 1,
+    });
+  });
+
+  it("explains a saved player recommendation without rerunning identity or data tools", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Find striker alternatives to Kane.";
+    const explainMessage = "Explain the previous player recommendation.";
+    const recommendation = recommendationResult("no_candidates");
+    const recommend = vi.fn<RecommendPlayerCandidates>(() => recommendation);
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(resolvedLookup(kane));
+
+    const model = fakeModel()
+      .respond(new AIMessage("No candidates were returned."))
+      .respond(new AIMessage("The saved result contains no candidates."));
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [explainMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "player_recommendation",
+          players: [],
+          teams: [],
+        },
+        [firstMessage]: requestForPlayers("player_recommendation", ["Kane"], {
+          recommendation: { position: "stc" },
+        }),
+      }),
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const config = {
+      configurable: { thread_id: "saved-recommendation-explanation" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const explained = await graph.invoke(
+      { messages: [new HumanMessage(explainMessage)] },
+      config
+    );
+
+    const { outcome } = explained;
+
+    expect({
+      answer: explained.messages.at(-1)?.content,
+      identityLookups: identityLookup.mock.calls.length,
+      outcomeSource:
+        outcome !== null && outcome !== undefined && "source" in outcome
+          ? outcome.source
+          : null,
+      outcomeStatus: outcome?.status,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      answer: "The saved result contains no candidates.",
+      identityLookups: 1,
+      outcomeSource: "saved",
+      outcomeStatus: "no_candidates",
       recommendationCalls: 1,
     });
   });
@@ -599,10 +708,21 @@ describe("LangGraph player workflows", () => {
     const message =
       "Find high-potential striker alternatives to Kane aged 21 or younger.";
 
+    const defaults = recommendationResultData("ready", "stc", {
+      filters: {
+        maxAge: 21,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        resultLimit: 5,
+      },
+    });
+
     const recommendation = JSON.stringify({
+      ...defaults,
       currentCandidates: [
         {
           age: 21,
+          attributes: [],
           currentAbility: 146,
           currentDistance: 0.47,
           fmId: "fm-close-01",
@@ -610,9 +730,11 @@ describe("LangGraph player workflows", () => {
           positionRating: 20,
           potentialAbility: 181,
           rank: 1,
+          sourceRecordId: "fm-close-record-01",
         },
         {
           age: 18,
+          attributes: [],
           currentAbility: 124,
           currentDistance: 2.71,
           fmId: "fm-future-01",
@@ -620,14 +742,17 @@ describe("LangGraph player workflows", () => {
           positionRating: 19,
           potentialAbility: 195,
           rank: 2,
+          sourceRecordId: "fm-future-record-01",
         },
       ],
-      filterCounts: { excludedMissingPotentialForPotentialList: 1 },
-      filters: { maxAge: 21, minimumCurrentAbility: null },
-      position: "stc",
+      filterCounts: {
+        ...defaults.filterCounts,
+        excludedMissingPotentialForPotentialList: 1,
+      },
       potentialCandidates: [
         {
           age: 19,
+          attributes: [],
           currentAbility: 121,
           currentDistance: 3.42,
           fmId: "fm-high-pa-01",
@@ -635,6 +760,7 @@ describe("LangGraph player workflows", () => {
           positionRating: 18,
           potentialAbility: 199,
           rank: 1,
+          sourceRecordId: "fm-high-pa-record-01",
         },
       ],
       references: [
@@ -644,9 +770,9 @@ describe("LangGraph player workflows", () => {
           name: "Synthetic Reference",
           positionRating: 20,
           potentialAbility: 178,
+          sourceRecordId: "fm-ref-record-01",
         },
       ],
-      status: "ready",
     });
 
     const model = fakeModel().respond(
@@ -724,8 +850,12 @@ describe("LangGraph player workflows", () => {
     const message = "Look up Harry Kane.";
 
     const lookupResult = JSON.stringify({
-      fm: { records: [{ season: "2025/26" }], status: "found" },
-      identityGroups: { canonicalGroups: [] },
+      fm: { records: [fmRecord("Harry Kane", "kane-fm")], status: "found" },
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
       query: [],
       understat: { records: [], status: "not_found" },
     });
@@ -793,7 +923,11 @@ describe("LangGraph player workflows", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { records: [], status: "found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: { records: [], status: "not_found" },
       })
@@ -927,7 +1061,11 @@ describe("LangGraph player workflows", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { records: [], status: "found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
         understat: { records: [], status: "found" },
       })
@@ -1015,14 +1153,16 @@ describe("LangGraph player workflows", () => {
       { configurable: { thread_id: "lookup-without-data" } }
     );
 
+    expect(result.conversationContext.activeLookup?.resultJson).toContain(
+      '"registryStatus":"not_needed"'
+    );
+
     expect({
-      activeLookup: result.conversationContext.activeLookup?.resultJson,
       focusPlayers: result.conversationContext.focusPlayers.map(
         ({ referenceId }) => referenceId
       ),
       sourceRecords: search.mock.calls[0]?.[0].sourceRecords,
     }).toStrictEqual({
-      activeLookup: lookupResult,
       focusPlayers: ["canonical-kane"],
       sourceRecords,
     });
@@ -1035,14 +1175,22 @@ describe("LangGraph player workflows", () => {
 
     const firstLookupResult = JSON.stringify({
       fm: { records: [], status: "found" },
-      identityGroups: { canonicalGroups: [] },
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
       query: [],
       understat: { records: [], status: "not_found" },
     });
 
     const unavailableResult = JSON.stringify({
       fm: { reason: "FM snapshot unavailable", status: "unavailable" },
-      identityGroups: { canonicalGroups: [] },
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
       query: [],
       understat: { records: [], status: "not_found" },
     });
@@ -1114,7 +1262,11 @@ describe("LangGraph player workflows", () => {
 
     const lookupResult = JSON.stringify({
       fm: { records: [], status: "found" },
-      identityGroups: { canonicalGroups: [] },
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
       query: [],
       understat: { records: [], status: "found" },
     });
@@ -1200,7 +1352,11 @@ describe("LangGraph player workflows", () => {
     const search = vi.fn<PlayerSearch>((input) =>
       JSON.stringify({
         fm: { records: [], status: "found" },
-        identityGroups: { canonicalGroups: [] },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
         query: input.sourceRecords,
       })
     );
@@ -1363,7 +1519,7 @@ describe("LangGraph player workflows", () => {
 
     const recommend = vi
       .fn<RecommendPlayerCandidates>(() =>
-        JSON.stringify({ position: "stc", status: "no_candidates" })
+        recommendationResult("no_candidates")
       )
       .mockReturnValueOnce(
         JSON.stringify({
@@ -1373,9 +1529,7 @@ describe("LangGraph player workflows", () => {
           status: "position_required",
         })
       )
-      .mockReturnValue(
-        JSON.stringify({ position: "stc", status: "no_candidates" })
-      );
+      .mockReturnValue(recommendationResult("no_candidates"));
 
     const initialMessage = "Find young high-potential alternatives to Kane.";
     const refineMessage = "只看当前能力，不考虑 PA";
@@ -1489,7 +1643,7 @@ describe("LangGraph player workflows", () => {
     };
 
     const recommend = vi.fn<RecommendPlayerCandidates>(() =>
-      JSON.stringify({ position: "stc", status: "no_candidates" })
+      recommendationResult("no_candidates")
     );
 
     const message = "Find STC alternatives to Kane.";
@@ -1534,7 +1688,7 @@ describe("LangGraph player workflows", () => {
     const kane = playerCandidate("Harry Kane", "kane");
 
     const recommend = vi.fn<RecommendPlayerCandidates>(() =>
-      JSON.stringify({ position: "stc", status: "ready" })
+      recommendationResult("ready")
     );
 
     const message = "Find alternatives to Kane under a £50m budget.";
@@ -1572,7 +1726,7 @@ describe("LangGraph player workflows", () => {
     const message = "Find young alternatives to Kane.";
 
     const recommend = vi.fn<RecommendPlayerCandidates>(() =>
-      JSON.stringify({ position: "stc", status: "ready" })
+      recommendationResult("ready")
     );
 
     const graph = createAgent({
@@ -1625,7 +1779,7 @@ describe("LangGraph player workflows", () => {
     });
 
     const recommend = vi.fn<RecommendPlayerCandidates>(() =>
-      JSON.stringify({ position: "stc", status: "ready" })
+      recommendationResult("ready")
     );
 
     const conversationContext = {
@@ -1751,7 +1905,7 @@ describe("LangGraph player workflows", () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const firstMessage = "Find striker alternatives to Kane under 23.";
     const refineMessage = "Lower the age limit to 21.";
-    const readyResult = JSON.stringify({ position: "stc", status: "ready" });
+    const readyResult = recommendationResult("ready");
 
     const recommend = vi
       .fn<RecommendPlayerCandidates>(() => readyResult)
