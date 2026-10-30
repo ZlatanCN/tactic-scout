@@ -93,8 +93,20 @@ const teamRecommendationResult = (
   status: "ready" | "no_candidates",
   input: RecommendTeamPlayerCandidatesInput,
   recommendationOverrides: RecommendationOverrides = {}
-) =>
-  JSON.stringify({
+) => {
+  const nestedRecommendationOverrides: RecommendationOverrides = {
+    ...recommendationOverrides,
+    filters: recommendationOverrides.filters ?? {
+      maxAge: input.maxAge,
+      minimumCurrentAbility: input.minimumCurrentAbility,
+      minimumPotentialAbility: input.minimumPotentialAbility,
+      resultLimit: input.resultLimit ?? 5,
+    },
+    referenceFmIds:
+      recommendationOverrides.referenceFmIds ?? input.referenceFmIds,
+  };
+
+  return JSON.stringify({
     filters: {
       includePotential: input.includePotential,
       maxAge: input.maxAge,
@@ -111,7 +123,7 @@ const teamRecommendationResult = (
     recommendation: recommendationResultData(
       status,
       input.position,
-      recommendationOverrides
+      nestedRecommendationOverrides
     ),
     referenceFmIds: input.referenceFmIds,
     roster: {
@@ -122,6 +134,7 @@ const teamRecommendationResult = (
     status,
     team: input.team,
   });
+};
 
 const teamPositionUnavailableResult = (
   input: RecommendTeamPlayerCandidatesInput

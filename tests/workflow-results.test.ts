@@ -221,8 +221,30 @@ describe("workflow result contracts", () => {
       roster: { ...result.roster, totalMembers: 1 },
     };
 
+    const invalidMappingMethodCount = {
+      ...result,
+      roster: { ...result.roster, mappedMembers: 1 },
+    };
+
+    const inconsistentFilters = {
+      ...result,
+      filters: { ...result.filters, maxAge: 21 },
+    };
+
+    const inconsistentPosition = { ...result, position: "dc" };
+
     expect(
       teamRecommendationResultSchema.safeParse(inconsistent).success
+    ).toBeFalsy();
+    expect(
+      teamRecommendationResultSchema.safeParse(invalidMappingMethodCount)
+        .success
+    ).toBeFalsy();
+    expect(
+      teamRecommendationResultSchema.safeParse(inconsistentFilters).success
+    ).toBeFalsy();
+    expect(
+      teamRecommendationResultSchema.safeParse(inconsistentPosition).success
     ).toBeFalsy();
   });
 });

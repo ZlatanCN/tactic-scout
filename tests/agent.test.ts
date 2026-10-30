@@ -752,6 +752,10 @@ describe("LangGraph player workflows", () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const firstMessage = "Find striker alternatives to Kane.";
     const explainMessage = "Explain the previous player recommendation.";
+
+    const wrongTargetMessage =
+      "Explain the previous player recommendation for Kylian Mbappé.";
+
     const recommendation = recommendationResult("no_candidates");
     const recommend = vi.fn<RecommendPlayerCandidates>(() => recommendation);
     const identityLookup = vi.fn<ReferenceIdentityLookup>(resolvedLookup(kane));
@@ -774,6 +778,11 @@ describe("LangGraph player workflows", () => {
         [firstMessage]: requestForPlayers("player_recommendation", ["Kane"], {
           recommendation: { position: "stc" },
         }),
+        [wrongTargetMessage]: requestForPlayers(
+          "player_recommendation",
+          ["Kylian Mbappé"],
+          { continuationAction: "explain" }
+        ),
       }),
       tools: createTools(emptySearch, recommend),
     });
@@ -789,6 +798,11 @@ describe("LangGraph player workflows", () => {
       config
     );
 
+    const unrelatedExplanation = await graph.invoke(
+      { messages: [new HumanMessage(wrongTargetMessage)] },
+      config
+    );
+
     const { outcome } = explained;
 
     expect({
@@ -800,12 +814,19 @@ describe("LangGraph player workflows", () => {
           : null,
       outcomeStatus: outcome?.status,
       recommendationCalls: recommend.mock.calls.length,
+      repeatedIdentityLookups: identityLookup.mock.calls.length,
+      unrelatedAnswer: unrelatedExplanation.messages.at(-1)?.content,
+      unrelatedOutcome: unrelatedExplanation.outcome?.status,
     }).toStrictEqual({
       answer: "The saved result contains no candidates.",
       identityLookups: 1,
       outcomeSource: "saved",
       outcomeStatus: "no_candidates",
       recommendationCalls: 1,
+      repeatedIdentityLookups: 1,
+      unrelatedAnswer:
+        "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      unrelatedOutcome: "saved_result_unavailable",
     });
   });
 

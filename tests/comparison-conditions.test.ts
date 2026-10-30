@@ -646,6 +646,7 @@ describe("comparison workflow state", () => {
     const mbappe = candidate("Kylian Mbappé", "mbappe");
     const firstMessage = "Compare Harry Kane and Kylian Mbappé.";
     const explainMessage = "Explain the previous comparison.";
+    const wrongTargetMessage = "Explain the previous comparison with Haaland.";
     const search = vi.fn<PlayerSearch>(searchResult);
 
     const model = fakeModel()
@@ -665,6 +666,19 @@ describe("comparison workflow state", () => {
           teams: [],
         },
         [firstMessage]: compareRequest(["Harry Kane", "Kylian Mbappé"]),
+        [wrongTargetMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "player_comparison",
+          players: [
+            {
+              lookupName: null,
+              mention: "Haaland",
+              referenceScope: "explicit",
+            },
+          ],
+          teams: [],
+        },
       }),
       tools: createTools(search),
     });
@@ -680,6 +694,11 @@ describe("comparison workflow state", () => {
       config
     );
 
+    const unrelatedExplanation = await graph.invoke(
+      { messages: [new HumanMessage(wrongTargetMessage)] },
+      config
+    );
+
     const { outcome } = explained;
 
     expect({
@@ -687,12 +706,19 @@ describe("comparison workflow state", () => {
       outcomeSource:
         outcome !== null && "source" in outcome ? outcome.source : null,
       outcomeStatus: outcome?.status,
+      repeatedSearchCalls: search.mock.calls.length,
       searchCalls: search.mock.calls.length,
+      unrelatedAnswer: unrelatedExplanation.messages.at(-1)?.content,
+      unrelatedOutcome: unrelatedExplanation.outcome?.status,
     }).toStrictEqual({
       answer: "The saved comparison has no shared data.",
       outcomeSource: "saved",
       outcomeStatus: "no_comparable_data",
+      repeatedSearchCalls: 2,
       searchCalls: 2,
+      unrelatedAnswer:
+        "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      unrelatedOutcome: "saved_result_unavailable",
     });
   });
 

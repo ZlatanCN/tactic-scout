@@ -8,8 +8,11 @@ import type {
   RequestUnderstandingExtractor,
 } from "./request-extraction.js";
 import type {
+  ActiveRecommendation,
+  ActiveTeamRecommendation,
   AgentStateType,
   ConversationContext,
+  ConversationPlayerReference,
   RequestKind,
   RequestPlayerState,
   TurnOutcome,
@@ -628,6 +631,179 @@ const savedLookupTargetMatches = (
   });
 };
 
+const savedReferenceNames = (
+  reference: ConversationPlayerReference,
+  context: ConversationContext
+): Set<string> => {
+  const aliases = context.playerAliases.flatMap(
+    ({ mention, reference: alias }) =>
+      alias.referenceId === reference.referenceId ? [mention] : []
+  );
+
+  return new Set(
+    [
+      reference.candidate.name,
+      ...reference.candidate.records.map(({ name }) => name),
+      ...aliases,
+    ].map(normalizeMentionText)
+  );
+};
+
+const mentionsMatchSavedReferences = (
+  players: ExtractedRequest["players"],
+  references: ConversationPlayerReference[],
+  context: ConversationContext,
+  role?: "reference" | "exclude"
+): boolean => {
+  if (
+    players.some(
+      (player) =>
+        player.recommendationRole === "ambiguous" ||
+        player.referenceScope === "ambiguous"
+    )
+  ) {
+    return false;
+  }
+
+  const selectedPlayers =
+    role === undefined
+      ? players
+      : players.filter(
+          (player) => (player.recommendationRole ?? "reference") === role
+        );
+
+  return selectedPlayers.every((player) => {
+    if (player.referenceScope === "prior_context") {
+      return references.some((reference) =>
+        context.focusPlayers.some(
+          ({ referenceId }) => referenceId === reference.referenceId
+        )
+      );
+    }
+
+    const mention =
+      player.referenceScope === "same_turn"
+        ? (player.referenceTargetMention ?? player.mention)
+        : player.mention;
+
+    const normalizedMention = normalizeMentionText(mention);
+
+    return references.some((reference) =>
+      savedReferenceNames(reference, context).has(normalizedMention)
+    );
+  });
+};
+
+const savedRecommendationPatchMatches = (
+  patch: ExtractedRequest["recommendation"],
+  snapshot: Pick<
+    ActiveRecommendation | ActiveTeamRecommendation,
+    | "includePotential"
+    | "maxAge"
+    | "minimumCurrentAbility"
+    | "minimumPotentialAbility"
+    | "position"
+    | "resultLimit"
+  >
+): boolean => {
+  if (patch === undefined) {
+    return true;
+  }
+
+  if (
+    patch.includePotential !== undefined &&
+    patch.includePotential !== snapshot.includePotential
+  ) {
+    return false;
+  }
+
+  if (Object.hasOwn(patch, "maxAge") && patch.maxAge !== snapshot.maxAge) {
+    return false;
+  }
+
+  if (
+    Object.hasOwn(patch, "minimumCurrentAbility") &&
+    patch.minimumCurrentAbility !== snapshot.minimumCurrentAbility
+  ) {
+    return false;
+  }
+
+  if (
+    Object.hasOwn(patch, "minimumPotentialAbility") &&
+    patch.minimumPotentialAbility !== snapshot.minimumPotentialAbility
+  ) {
+    return false;
+  }
+
+  if (
+    Object.hasOwn(patch, "position") &&
+    patch.position !== snapshot.position
+  ) {
+    return false;
+  }
+
+  return (
+    !Object.hasOwn(patch, "resultLimit") ||
+    patch.resultLimit === snapshot.resultLimit
+  );
+};
+
+const normalizedComparisonConstraintName = (name: string): string =>
+  /season|赛季/iu.test(name)
+    ? "season"
+    : name.trim().normalize("NFKC").toLocaleLowerCase();
+
+const savedComparisonConditionsMatch = (
+  constraints: ExtractedRequest["constraints"],
+  context: ConversationContext
+): boolean =>
+  constraints.every((constraint) =>
+    context.activeComparison.constraints.some(
+      (saved) =>
+        normalizedComparisonConstraintName(saved.name) ===
+          normalizedComparisonConstraintName(constraint.name) &&
+        saved.value.trim().normalize("NFKC").toLocaleLowerCase() ===
+          constraint.value.trim().normalize("NFKC").toLocaleLowerCase()
+    )
+  );
+
+const savedTeamMatchesExplicitRequest = (
+  extracted: ExtractedRequest,
+  context: ConversationContext
+): boolean => {
+  const snapshot = context.activeTeamRecommendation;
+
+  if (snapshot === null) {
+    return false;
+  }
+
+  if (
+    extracted.teams.some(
+      (team) =>
+        normalizeMentionText(team) !== normalizeMentionText(snapshot.team.name)
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    extracted.recommendation?.position !== undefined &&
+    extracted.recommendation.position !== snapshot.position
+  ) {
+    return false;
+  }
+
+  const references =
+    snapshot.referenceMode === "named" ? snapshot.referencePlayers : [];
+
+  return mentionsMatchSavedReferences(
+    extracted.players,
+    references,
+    context,
+    "reference"
+  );
+};
+
 const savedOutcomeForRequest = (
   workflow: WorkflowKind,
   context: ConversationContext,
@@ -636,6 +812,48 @@ const savedOutcomeForRequest = (
   if (
     workflow === "player_lookup" &&
     !savedLookupTargetMatches(extracted, context)
+  ) {
+    return savedResultUnavailable(workflow);
+  }
+
+  if (
+    workflow === "player_comparison" &&
+    (!mentionsMatchSavedReferences(
+      extracted.players,
+      context.activeComparison.players,
+      context
+    ) ||
+      !savedComparisonConditionsMatch(extracted.constraints, context))
+  ) {
+    return savedResultUnavailable(workflow);
+  }
+
+  if (workflow === "player_recommendation") {
+    const snapshot = context.activeRecommendation;
+
+    if (
+      snapshot === null ||
+      !mentionsMatchSavedReferences(
+        extracted.players,
+        snapshot.referencePlayers,
+        context,
+        "reference"
+      ) ||
+      !mentionsMatchSavedReferences(
+        extracted.players,
+        snapshot.excludePlayers,
+        context,
+        "exclude"
+      ) ||
+      !savedRecommendationPatchMatches(extracted.recommendation, snapshot)
+    ) {
+      return savedResultUnavailable(workflow);
+    }
+  }
+
+  if (
+    workflow === "team_recommendation" &&
+    !savedTeamMatchesExplicitRequest(extracted, context)
   ) {
     return savedResultUnavailable(workflow);
   }

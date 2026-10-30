@@ -43,6 +43,17 @@ const teamRecommendationRosterSchema = teamRosterCoverageSchema
         path: ["totalMembers"],
       });
     }
+
+    const mappedByMethod =
+      coverage.reepBridgeMappings + coverage.userConfirmedMappings;
+
+    if (mappedByMethod !== coverage.mappedMembers) {
+      context.addIssue({
+        code: "custom",
+        message: "Resolved roster members must have a recorded mapping method.",
+        path: ["mappedMembers"],
+      });
+    }
   });
 
 const teamRecommendationResultSchema = z.union([
@@ -75,6 +86,61 @@ const teamRecommendationResultSchema = z.union([
           code: "custom",
           message: "Outer and nested recommendation statuses must match.",
           path: ["status"],
+        });
+      }
+
+      const { recommendation } = result;
+
+      if (
+        "position" in recommendation &&
+        recommendation.position !== result.position
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Outer and nested recommendation positions must match.",
+          path: ["position"],
+        });
+      }
+
+      if ("filters" in recommendation) {
+        const filtersMatch =
+          result.filters.maxAge === recommendation.filters.maxAge &&
+          result.filters.minimumCurrentAbility ===
+            recommendation.filters.minimumCurrentAbility &&
+          result.filters.minimumPotentialAbility ===
+            recommendation.filters.minimumPotentialAbility &&
+          result.filters.resultLimit === recommendation.filters.resultLimit;
+
+        if (!filtersMatch) {
+          context.addIssue({
+            code: "custom",
+            message: "Outer and nested recommendation filters must match.",
+            path: ["filters"],
+          });
+        }
+      }
+
+      if (
+        "referenceFmIds" in recommendation &&
+        result.referenceFmIds.join("\u0000") !==
+          recommendation.referenceFmIds.join("\u0000")
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "Outer and nested recommendation reference profiles must match.",
+          path: ["referenceFmIds"],
+        });
+      }
+
+      if (
+        "snapshotDate" in recommendation &&
+        result.fmSnapshotDate !== recommendation.snapshotDate
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "FM snapshot dates must match.",
+          path: ["fmSnapshotDate"],
         });
       }
     }),

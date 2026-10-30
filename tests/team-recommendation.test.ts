@@ -1444,6 +1444,9 @@ describe("team recommendation graph", () => {
     const explainMessage = "解释上次结果";
     const refineAgainMessage = "年龄上限改到 20 岁";
 
+    const wrongTeamExplainMessage =
+      "Explain the previous team recommendation for Chelsea.";
+
     const roster = {
       members: [
         {
@@ -1546,6 +1549,14 @@ describe("team recommendation graph", () => {
           recommendation: { maxAge: 20 },
           teams: [],
         },
+        [wrongTeamExplainMessage]: {
+          constraints: [],
+          continuationAction: "explain",
+          kind: "team_recommendation",
+          players: [],
+          teamSearchName: "Chelsea",
+          teams: ["Chelsea"],
+        },
       }),
       model,
       recommend,
@@ -1575,6 +1586,11 @@ describe("team recommendation graph", () => {
       config
     );
 
+    const wrongTeamExplanation = await graph.invoke(
+      { messages: [new HumanMessage(wrongTeamExplainMessage)] },
+      config
+    );
+
     expect({
       activePlayerRecommendation:
         resumed.conversationContext.activeRecommendation?.maxAge,
@@ -1597,6 +1613,8 @@ describe("team recommendation graph", () => {
       selectedTeam: resumed.conversationContext.activeTeamRecommendation?.team,
       teamInputAge: recommend.mock.calls[0]?.[0].maxAge,
       wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+      wrongTeamAnswer: wrongTeamExplanation.messages.at(-1)?.content,
+      wrongTeamOutcome: wrongTeamExplanation.outcome?.status,
     }).toStrictEqual({
       activePlayerRecommendation: 25,
       activeTeamRecommendation: 21,
@@ -1610,6 +1628,9 @@ describe("team recommendation graph", () => {
       selectedTeam: arsenal,
       teamInputAge: 21,
       wasInterrupted: true,
+      wrongTeamAnswer:
+        "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      wrongTeamOutcome: "saved_result_unavailable",
     });
   });
 
