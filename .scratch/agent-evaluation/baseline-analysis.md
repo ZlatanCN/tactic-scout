@@ -174,4 +174,6 @@ The new report records token usage and request latency for Agent, Calibration, a
 
 **V13 targeted smoke:** `a449eed8-4bfe-4a1a-b459-fc0596ebaaa4` covered five cases and used 51/120 requests: Agent 14, Calibration 32, and Judge 5. Calibration passed 32/32, including 16/16 validation anchors. Four cases passed; the Mbappé case failed semantic review because the judge did not treat the recorded identity clarification and post-resume resolved participant state as confirmation. There were no denied requests or network failures. Issue 41 records this completed smoke.
 
-Judge v14 now receives clarification answers and selected post-resume identity state. The lookup prompt only reports the empty result and query scope, without inferring metric availability. Offline regressions cover both changes. V14 calibration and targeted smoke have not run; issue 42 requires a new request allowance. Keep the held-out split untouched.
+**V14 targeted smoke:** `da1ad1a3-8b39-46d5-8a40-ddd2c65f4928` covered five cases and used 52/120 requests: Agent 15, Calibration 32, and Judge 5. V14 calibration passed 32/32, including 16/16 reserved validation anchors. All five trials passed deterministic and semantic checks; there were zero denied requests and zero network failures. The held-out split was untouched.
+
+The next measurement is a full 32-case v14 development baseline after v14 calibration and targeted smoke. Issue 43 tracks that run and requires a new explicit whole-run request allowance. Keep the held-out split untouched.
