@@ -139,6 +139,7 @@ const recommendationReadyResultSchema = z
     currentCandidates: z.array(recommendationCandidateSchema),
     filterCounts: recommendationFilterCountsSchema,
     filters: z.object({
+      includePotential: z.boolean(),
       maxAge: z.number().int().nullable(),
       minimumCurrentAbility: z.number().int().nullable(),
       minimumPotentialAbility: z.number().int().nullable(),
@@ -176,6 +177,17 @@ const recommendationReadyResultSchema = z
         code: "custom",
         message: "A no-candidates result cannot contain candidates.",
         path: ["status"],
+      });
+    }
+
+    if (
+      result.filters.includePotential !==
+      (result.potentialCandidates !== null)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "The potential candidate list must match its filter flag.",
+        path: ["potentialCandidates"],
       });
     }
   });
@@ -878,6 +890,7 @@ const recommendPlayers = (
     currentCandidates: ranked.currentCandidates,
     filterCounts,
     filters: {
+      includePotential: normalizedRequest.includePotential,
       maxAge: normalizedRequest.maxAge,
       minimumCurrentAbility: normalizedRequest.minimumCurrentAbility,
       minimumPotentialAbility: normalizedRequest.minimumPotentialAbility,

@@ -103,13 +103,27 @@ const teamRecommendationResultSchema = z.union([
       }
 
       if ("filters" in recommendation) {
+        const outerFilterValues = [
+          result.filters.includePotential,
+          result.filters.maxAge,
+          result.filters.minimumCurrentAbility,
+          result.filters.minimumPotentialAbility,
+          result.filters.resultLimit,
+        ];
+
+        const nestedFilterValues = [
+          recommendation.filters.includePotential,
+          recommendation.filters.maxAge,
+          recommendation.filters.minimumCurrentAbility,
+          recommendation.filters.minimumPotentialAbility,
+          recommendation.filters.resultLimit,
+        ];
+
         const filtersMatch =
-          result.filters.maxAge === recommendation.filters.maxAge &&
-          result.filters.minimumCurrentAbility ===
-            recommendation.filters.minimumCurrentAbility &&
-          result.filters.minimumPotentialAbility ===
-            recommendation.filters.minimumPotentialAbility &&
-          result.filters.resultLimit === recommendation.filters.resultLimit;
+          outerFilterValues.length === nestedFilterValues.length &&
+          outerFilterValues.every(
+            (value, index) => value === nestedFilterValues[index]
+          );
 
         if (!filtersMatch) {
           context.addIssue({

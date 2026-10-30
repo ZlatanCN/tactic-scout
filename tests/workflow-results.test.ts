@@ -143,11 +143,24 @@ describe("workflow result contracts", () => {
       currentCandidates: [candidate],
     };
 
+    const readyResult = recommendationResultData("ready");
+
+    const mismatchedPotentialFlag = {
+      ...readyResult,
+      filters: {
+        ...readyResult.filters,
+        includePotential: true,
+      },
+    };
+
     expect(
       recommendationResultSchema.safeParse(emptyReady).success
     ).toBeFalsy();
     expect(
       recommendationResultSchema.safeParse(candidatesButNone).success
+    ).toBeFalsy();
+    expect(
+      recommendationResultSchema.safeParse(mismatchedPotentialFlag).success
     ).toBeFalsy();
   });
 
@@ -231,6 +244,11 @@ describe("workflow result contracts", () => {
       filters: { ...result.filters, maxAge: 21 },
     };
 
+    const inconsistentPotentialFlag = {
+      ...result,
+      filters: { ...result.filters, includePotential: true },
+    };
+
     const inconsistentPosition = { ...result, position: "dc" };
 
     expect(
@@ -242,6 +260,10 @@ describe("workflow result contracts", () => {
     ).toBeFalsy();
     expect(
       teamRecommendationResultSchema.safeParse(inconsistentFilters).success
+    ).toBeFalsy();
+    expect(
+      teamRecommendationResultSchema.safeParse(inconsistentPotentialFlag)
+        .success
     ).toBeFalsy();
     expect(
       teamRecommendationResultSchema.safeParse(inconsistentPosition).success

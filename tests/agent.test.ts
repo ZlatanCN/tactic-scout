@@ -838,6 +838,7 @@ describe("LangGraph player workflows", () => {
 
     const defaults = recommendationResultData("ready", "stc", {
       filters: {
+        includePotential: true,
         maxAge: 21,
         minimumCurrentAbility: null,
         minimumPotentialAbility: null,

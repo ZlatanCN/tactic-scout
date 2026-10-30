@@ -20,6 +20,7 @@ const recommendationResultData = (
   overrides: RecommendationOverrides = {}
 ): RecommendationSuccess => {
   const filters = {
+    includePotential: false,
     maxAge: null,
     minimumCurrentAbility: null,
     minimumPotentialAbility: null,
@@ -61,7 +62,7 @@ const recommendationResultData = (
     manifestSha256: "test-manifest",
     positionFeatureMapSha256: "test-position-map",
     positionFeatureSetVersion: "test-position-features",
-    potentialCandidates: null,
+    potentialCandidates: filters.includePotential ? [] : null,
     referenceFmIds: ["test-reference"],
     referenceMeanAttributes: {},
     references: [
@@ -97,6 +98,7 @@ const teamRecommendationResult = (
   const nestedRecommendationOverrides: RecommendationOverrides = {
     ...recommendationOverrides,
     filters: recommendationOverrides.filters ?? {
+      includePotential: input.includePotential,
       maxAge: input.maxAge,
       minimumCurrentAbility: input.minimumCurrentAbility,
       minimumPotentialAbility: input.minimumPotentialAbility,
