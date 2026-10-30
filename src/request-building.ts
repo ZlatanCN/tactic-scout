@@ -4,12 +4,16 @@ import {
   requestPlayerFromReference,
 } from "./comparison-context.js";
 import { findConfirmedPlayerAliasesInMessage } from "./player-mentions.js";
-import { recommendationPatchFromConstraints } from "./recommendation-constraints.js";
 import type {
   PreviousTurnSummary,
   RequestUnderstandingExtractor,
 } from "./request-extraction.js";
-import { normalizeExtractedPlayers, uniqueText } from "./request-extraction.js";
+import {
+  explicitUnderstatSeasonStartYearFromText,
+  normalizeExtractedPlayers,
+  recommendationPatchFromRequest,
+  uniqueText,
+} from "./request-extraction.js";
 import type {
   AgentStateType,
   ConversationContext,
@@ -51,32 +55,13 @@ type RecommendationFilterValues = Pick<
   "maxAge" | "minimumCurrentAbility" | "minimumPotentialAbility" | "resultLimit"
 >;
 
-const recommendationPatchFromRequest = (
-  extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>
-) => ({
-  ...extracted.recommendation,
-  ...recommendationPatchFromConstraints(extracted.constraints),
-});
-
 const youthRecommendationPattern =
   /年轻|青年|青少年|小将|\bu(?:1[5-9]|2\d)\b|\byoung\b|\byouth\b/iu;
 
 const lookupFollowUpPattern =
   /\b(?:which|what)\s+(?:season|league|source)\b|哪个赛季|什么赛季|哪个联赛|什么联赛|刚才(?:查到|的).{0,8}(?:赛季|数据|资料)/iu;
 
-const explicitUnderstatSeasonPattern =
-  /\b(?<startYear>20\d{2})\s*[/\-\u2010-\u2015]\s*(?:\d{2}|20\d{2})\b/u;
-
 const seasonConstraintNamePattern = /season|赛季/iu;
-
-const explicitUnderstatSeasonStartYearFromText = (
-  text: string
-): number | null => {
-  const startYear =
-    explicitUnderstatSeasonPattern.exec(text)?.groups?.startYear;
-
-  return startYear === undefined ? null : Number(startYear);
-};
 
 const isLookupFollowUpRequest = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
@@ -767,7 +752,7 @@ const resumeWorkflowClarification = (
 
   const outcome =
     draft.operation === "explain"
-      ? savedOutcomeForRequest(workflow, context, extracted)
+      ? savedOutcomeForRequest(workflow, context, extracted, draft.text)
       : built.outcome;
 
   return {

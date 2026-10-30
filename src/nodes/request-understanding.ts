@@ -163,7 +163,8 @@ const createRequestUnderstandingNode =
           contextWithComparison,
           previous,
           workflow,
-          extracted
+          extracted,
+          text
         );
       }
 
@@ -197,7 +198,8 @@ const createRequestUnderstandingNode =
         contextWithComparison,
         previous,
         extracted.kind,
-        extracted
+        extracted,
+        text
       );
     }
 

@@ -13,6 +13,7 @@ import {
   isPlayerReferenceMention,
   normalizeMentionText,
 } from "./player-mentions.js";
+import { recommendationPatchFromConstraints } from "./recommendation-constraints.js";
 import type {
   ComparisonAction,
   ConversationContext,
@@ -206,6 +207,9 @@ const addToComparisonPattern =
 const addToRecommendationPattern =
   /(?:加入|加上|添加|纳入).{0,12}(?:参考|参考球员|推荐参考)|\b(?:add|include)\b.{0,80}\b(?:reference|recommendation reference)\b/iu;
 
+const explicitUnderstatSeasonPattern =
+  /\b(?<startYear>20\d{2})\s*[/\-\u2010-\u2015]\s*(?:\d{2}|20\d{2})\b/u;
+
 const savedResultExplanationPattern =
   /(?:上次|之前|刚才).{0,12}(?:解释|说明|结果|推荐|比较)|\b(?:explain|describe)\b.{0,20}\b(?:previous|last|saved)\b/iu;
 
@@ -243,6 +247,15 @@ const uniqueText = (values: string[]): string[] => {
 
     return [text];
   });
+};
+
+const explicitUnderstatSeasonStartYearFromText = (
+  text: string
+): number | null => {
+  const startYear =
+    explicitUnderstatSeasonPattern.exec(text)?.groups?.startYear;
+
+  return startYear === undefined ? null : Number(startYear);
 };
 
 const recommendationActionFromResult = (
@@ -352,6 +365,11 @@ const normalizeRequestExtraction = (
       : recommendationActionFromResult(result, context, message),
   teamSearchName: result.teamSearchName?.trim() ?? null,
   teams: uniqueText(result.teams),
+});
+
+const recommendationPatchFromRequest = (extracted: ExtractedRequest) => ({
+  ...extracted.recommendation,
+  ...recommendationPatchFromConstraints(extracted.constraints),
 });
 
 const requestValidationFeedback = (error: Error): string => {
@@ -693,7 +711,9 @@ const normalizeExtractedPlayers = (
 
 export {
   createRequestUnderstandingExtractor,
+  explicitUnderstatSeasonStartYearFromText,
   normalizeExtractedPlayers,
+  recommendationPatchFromRequest,
   uniqueText,
 };
 

@@ -2,7 +2,10 @@ import { completedComparisonResultSchema } from "./player-data/compare-records.j
 import { selectedReferenceCandidate } from "./player-data/contracts.js";
 import { searchPlayerRecordsResultSchema } from "./player-data/search-records.js";
 import { normalizeMentionText } from "./player-mentions.js";
-import { recommendationPatchFromConstraints } from "./recommendation-constraints.js";
+import {
+  recommendationPatchFromRequest,
+  explicitUnderstatSeasonStartYearFromText,
+} from "./request-extraction.js";
 import type {
   PreviousTurnSummary,
   RequestUnderstandingExtractor,
@@ -381,10 +384,8 @@ const canReuseSavedWorkflowAfterTurn = (
 
 const recommendationPatchForRequest = (
   extracted: ExtractedRequest
-): NonNullable<ExtractedRequest["recommendation"]> => ({
-  ...extracted.recommendation,
-  ...recommendationPatchFromConstraints(extracted.constraints),
-});
+): NonNullable<ExtractedRequest["recommendation"]> =>
+  recommendationPatchFromRequest(extracted);
 
 const compatibleContinuationWorkflows = (
   extracted: ExtractedRequest,
@@ -595,7 +596,8 @@ const savedOutcomeForWorkflow = (
 
 const savedLookupTargetMatches = (
   extracted: ExtractedRequest,
-  context: ConversationContext
+  context: ConversationContext,
+  text: string
 ): boolean => {
   const { activeLookup } = context;
 
@@ -621,7 +623,7 @@ const savedLookupTargetMatches = (
     ].map(normalizeMentionText)
   );
 
-  return extracted.players.every((player) => {
+  const mentionsMatch = extracted.players.every((player) => {
     if (player.referenceScope === "explicit") {
       return knownNames.has(normalizeMentionText(player.mention));
     }
@@ -633,6 +635,27 @@ const savedLookupTargetMatches = (
       )
     );
   });
+
+  if (!mentionsMatch) {
+    return false;
+  }
+
+  const requestedSeasonStartYear =
+    explicitUnderstatSeasonStartYearFromText(text);
+
+  if (requestedSeasonStartYear === null) {
+    return true;
+  }
+
+  const savedResult = decodeResultJson(
+    activeLookup.resultJson,
+    searchPlayerRecordsResultSchema
+  ).data;
+
+  return (
+    !("result" in savedResult) &&
+    savedResult.requestedUnderstatSeasonStartYear === requestedSeasonStartYear
+  );
 };
 
 const savedReferenceNames = (
@@ -811,11 +834,12 @@ const savedTeamMatchesExplicitRequest = (
 const savedOutcomeForRequest = (
   workflow: WorkflowKind,
   context: ConversationContext,
-  extracted: ExtractedRequest
+  extracted: ExtractedRequest,
+  text: string
 ): TurnOutcome => {
   if (
     workflow === "player_lookup" &&
-    !savedLookupTargetMatches(extracted, context)
+    !savedLookupTargetMatches(extracted, context, text)
   ) {
     return savedResultUnavailable(workflow);
   }
@@ -870,10 +894,11 @@ const savedOutcomeForTurn = (
   context: ConversationContext,
   previous: PreviousTurnSummary,
   workflow: WorkflowKind,
-  extracted: ExtractedRequest
+  extracted: ExtractedRequest,
+  text: string
 ): TurnOutcome =>
   canReuseSavedWorkflowAfterTurn(state, context, previous, workflow)
-    ? savedOutcomeForRequest(workflow, context, extracted)
+    ? savedOutcomeForRequest(workflow, context, extracted, text)
     : savedResultUnavailable(workflow);
 
 export {
