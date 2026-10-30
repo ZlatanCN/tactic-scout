@@ -1660,6 +1660,189 @@ describe("local scouting evaluation entry", () => {
     ]);
   });
 
+  it("passes clarification confirmation and executed search parameters to the judge", () => {
+    const [loadedCase] = loadEvaluationCases("smoke", [
+      "lookup-mbappe-confirmation-real-v1",
+    ]);
+
+    if (loadedCase === undefined) {
+      throw new Error("The Mbappé evaluation case was not loaded.");
+    }
+
+    const [caseTurn] = loadedCase.caseDefinition.turns;
+
+    if (caseTurn === undefined) {
+      throw new Error("The Mbappé evaluation case has no user turn.");
+    }
+
+    const candidateId = "source:understat:3423";
+
+    const player = {
+      candidates: [
+        {
+          candidateId,
+          canonicalIdentityId: null,
+          records: [
+            {
+              competition: "La_liga",
+              provider: "understat",
+              season: "2026/27",
+              sourceId: "3423",
+            },
+          ],
+        },
+      ],
+      lookupName: "Kylian Mbappé",
+      mention: "Kylian Mbappé",
+      resolutionStatus: "resolved",
+      selectedCandidateId: candidateId,
+      selectedName: "Kylian Mbappe-Lottin",
+    };
+
+    const worker = workerTrialResultSchema.parse({
+      actionEvents: [
+        {
+          actionId: "search-1",
+          caseId: loadedCase.caseDefinition.caseId,
+          durationMs: 1,
+          eventId: "search-1:return",
+          input: {
+            seasonStartYear: 2024,
+            sourceRecords: [{ provider: "understat", sourceId: "3423" }],
+          },
+          kind: "returned",
+          name: "search_player_records",
+          outcome: "not_found",
+          result: "{}",
+          runId: "run-test",
+          sourceRecords: [
+            {
+              competition: null,
+              provider: "understat",
+              season: null,
+              sourceId: "3423",
+            },
+          ],
+          toolCallId: "search-call-1",
+          trialId: "trial-test",
+          turnId: caseTurn.turnId,
+        },
+      ],
+      activeLookupResult: null,
+      activeResults: {
+        comparison: null,
+        lookup: null,
+        playerRecommendation: null,
+        teamRecommendation: null,
+      },
+      conversationContext: [],
+      deliveredEvidence: [],
+      driverIssue: null,
+      failureCategory: null,
+      identityLookupEvents: [
+        {
+          actionId: "identity-1",
+          candidates: [
+            {
+              candidateId,
+              canonicalIdentityId: null,
+              records: [
+                {
+                  competition: "La_liga",
+                  provider: "understat",
+                  season: "2026/27",
+                  sourceId: "3423",
+                },
+              ],
+            },
+          ],
+          caseId: loadedCase.caseDefinition.caseId,
+          durationMs: 1,
+          error: null,
+          eventId: "identity-1:return",
+          kind: "returned",
+          lookupName: "Kylian Mbappé",
+          outcome: "needs_confirmation",
+          runId: "run-test",
+          selectedCandidateId: null,
+          trialId: "trial-test",
+          turnId: caseTurn.turnId,
+        },
+      ],
+      outcomeKind: "player_lookup",
+      outcomeStatus: "answer_ready",
+      players: [player],
+      requestKind: "player_lookup",
+      teamRosterCoverage: null,
+      toolMessages: [],
+      turns: [
+        {
+          assistantMessages: ["No Understat rows were returned."],
+          availableResultKinds: ["player_lookup"],
+          clarificationAnswers: [{ kind: "identity", value: "1" }],
+          clarificationKinds: ["identity"],
+          deliveredEvidenceIds: [],
+          effectiveConditions: null,
+          effectiveConstraints: [
+            { name: "understatSeasonStartYear", value: "2024" },
+          ],
+          outcomeKind: "player_lookup",
+          outcomeStatus: "answer_ready",
+          players: [player],
+          requestKind: "player_lookup",
+          reuse: null,
+          turnId: caseTurn.turnId,
+          userMessage: caseTurn.userMessage,
+        },
+      ],
+    });
+
+    const judgeInput = judgeInputForTrial(loadedCase.caseDefinition, worker);
+
+    expect({
+      actions: judgeInput.actions.map(({ input, name, outcome }) => ({
+        input,
+        name,
+        outcome,
+      })),
+      clarificationAnswers: judgeInput.turns[0]?.clarificationAnswers,
+      participants: judgeInput.turns[0]?.participants,
+    }).toMatchObject({
+      actions: [
+        {
+          input: { lookupName: "Kylian Mbappé" },
+          name: "resolve_player_identity",
+          outcome: "needs_confirmation",
+        },
+        {
+          input: {
+            seasonStartYear: 2024,
+            sourceRecords: [{ provider: "understat", sourceId: "3423" }],
+          },
+          name: "search_player_records",
+          outcome: "not_found",
+        },
+      ],
+      clarificationAnswers: [{ kind: "identity", value: "1" }],
+      participants: [
+        {
+          mention: "Kylian Mbappé",
+          resolutionStatus: "resolved",
+          resolvedName: "Kylian Mbappe-Lottin",
+          selectedCandidateId: candidateId,
+          sourceRecords: [
+            {
+              competition: "La_liga",
+              provider: "understat",
+              season: "2026/27",
+              sourceId: "3423",
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it.each([
     "player_lookup",
     "player_comparison",
@@ -3668,7 +3851,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v13",
+      judgePromptVersion: "scouting-semantic-judge-v14",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

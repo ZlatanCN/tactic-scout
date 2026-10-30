@@ -272,7 +272,7 @@ describe("LangGraph player workflows", () => {
       promptContent.includes(
         "球员查询只按 sourceRecords 与可选 seasonStartYear 搜索，不按用户指定赛事过滤"
       ),
-      promptContent.includes("不得据此声称用户指定的赛事没有记录"),
+      promptContent.includes("不得把空结果解释为某项指标不可用"),
     ]).toStrictEqual([true, true, true, true]);
   });
 

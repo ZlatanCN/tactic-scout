@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v13";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v14";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -133,10 +133,15 @@ const judgeInputSchema = z.object({
     z.object({
       assistantMessages: z.array(z.string()),
       availableResultKinds: z.array(availableResultKindSchema),
+      clarificationAnswers: z.array(
+        z.object({ kind: z.string(), value: z.string() })
+      ),
       participants: z.array(
         z.object({
           mention: z.string(),
+          resolutionStatus: z.string(),
           resolvedName: z.string().nullable(),
+          selectedCandidateId: z.string().nullable(),
           sourceRecords: z.array(
             z.object({
               competition: z.string().nullable().optional(),
@@ -158,6 +163,8 @@ const judgeSystemPrompt = `You are an automated reviewer for a football scouting
 Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events and their exact inputs, per-turn availableResultKinds state observations, and the supplied task contract. Action inputs on attempted, returned, failed, and cache_hit events show parameters used. Requested events record proposed tool arguments and do not prove the tool ran; blocked and schema_rejected events do not show applied filters. For an attempted, returned, failed, or cache_hit search_player_records action, no competition field means no competition filter was supplied. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn. They describe stored results, not the outcome of the latest operation: the current action may return no_comparable_data or data_unavailable while availableResultKinds still contains player_comparison because a prior comparison remains active. If the assistant says that prior result remains and this state lists player_comparison, the claim is supported; do not call it a contradiction or unsupported merely because the current operation found no data or failed. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
 
 Each turn includes the exact participants known for that turn and their selected provider source records. Use these links to connect a participant to the source records in that turn's actions. The competition/season on a participant's identity record describes that identity evidence; it does not automatically describe the requested lookup result. Judge claims such as “all participants” against only that turn's participant list and evidence. Later turns may add participants or change scope; never use those later changes to invalidate a correct earlier answer. Do not infer a turn's participants from the final conversation state.
+
+clarificationAnswers lists the actual resume values received in that turn; participants show the post-resume state. When a same-turn identity action initially returns needs_confirmation, but a clarification answer is recorded and the participant is marked resolved with a selectedCandidateId, treat that identity as confirmed.
 
 Report only critical findings in these categories:
 - factual_contradiction: a factual claim conflicts with delivered evidence.
@@ -318,6 +325,7 @@ const judgeInputForAnchor = (
     {
       assistantMessages: [anchor.answer],
       availableResultKinds: anchor.availableResultKinds,
+      clarificationAnswers: [],
       participants: [],
       turnId: anchor.anchorId,
       userMessage: anchor.userMessage,
@@ -608,6 +616,7 @@ const judgeInputForTrial = (
     turns: worker.turns.map((turn) => ({
       assistantMessages: turn.assistantMessages,
       availableResultKinds: turn.availableResultKinds,
+      clarificationAnswers: turn.clarificationAnswers,
       participants: turn.players.map((player) => {
         const selectedCandidate = player.candidates.find(
           ({ candidateId }) => candidateId === player.selectedCandidateId
@@ -615,7 +624,9 @@ const judgeInputForTrial = (
 
         return {
           mention: player.mention,
+          resolutionStatus: player.resolutionStatus,
           resolvedName: player.selectedName,
+          selectedCandidateId: player.selectedCandidateId,
           sourceRecords:
             selectedCandidate?.records.map(judgeSourceRecord) ?? [],
         };
