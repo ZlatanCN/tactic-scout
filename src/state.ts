@@ -165,11 +165,13 @@ const RequestStateSchema = z.discriminatedUnion("kind", [
     ...requestFields,
     kind: z.literal("player_recommendation"),
     recommendation: RecommendationRequestSchema,
+    recommendationAction: z.enum(["replace", "add", "refine"]),
   }),
   z.object({
     ...requestFields,
     kind: z.literal("team_recommendation"),
     teamRecommendation: TeamRecommendationRequestSchema,
+    teamRecommendationAction: z.enum(["replace", "refine"]),
   }),
   z.object({ ...requestFields, kind: z.literal("other") }),
 ]);

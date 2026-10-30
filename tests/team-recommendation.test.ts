@@ -1715,6 +1715,123 @@ describe("team recommendation graph", () => {
     });
   });
 
+  it("only continues a failed recommendation from its prior snapshot when the action was a refinement", async () => {
+    const message = "年龄上限改到 21 岁";
+
+    const roster = {
+      members: [],
+      retrievedAt: "2026-10-26T10:00:00.000Z",
+      team: arsenal,
+    };
+
+    const baselineInput = {
+      includePotential: false,
+      maxAge: 25,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: [],
+      referenceMode: "squad" as const,
+      resultLimit: 5,
+      roster,
+      team: arsenal,
+    };
+
+    const initialContext = createInitialConversationContext();
+
+    const conversationContext = {
+      ...initialContext,
+      activeTeamRecommendation: {
+        includePotential: false,
+        maxAge: 25,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceMode: "squad" as const,
+        referencePlayers: [],
+        resultJson: teamRecommendationResult("no_candidates", baselineInput),
+        resultLimit: 5,
+        roster,
+        status: "no_candidates" as const,
+        team: arsenal,
+      },
+    };
+
+    const previousRequest = (action: "replace" | "refine") => ({
+      constraints: [],
+      kind: "team_recommendation" as const,
+      players: [],
+      processedMessageId: "previous-user-message",
+      teamRecommendation: {
+        ...baselineInput,
+        maxAge: 23,
+        teamName: "Arsenal",
+        teamSearchName: "Arsenal",
+      },
+      teamRecommendationAction: action,
+      teams: ["Arsenal"],
+    });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const graph = createTeamAgent({
+      directory: createDirectory([arsenal], []),
+      extractor: createExtractor({
+        [message]: {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [],
+          recommendation: { maxAge: 21 },
+          teams: [],
+        },
+      }),
+      recommend,
+    });
+
+    const previousOutcome = {
+      kind: "team_recommendation" as const,
+      resultJson: null,
+      status: "data_unavailable" as const,
+    };
+
+    const replacement = await graph.invoke(
+      {
+        conversationContext,
+        messages: [new HumanMessage(message)],
+        outcome: previousOutcome,
+        request: previousRequest("replace"),
+      },
+      { configurable: { thread_id: "failed-replacement-no-fallback" } }
+    );
+
+    const refined = await graph.invoke(
+      {
+        conversationContext,
+        messages: [new HumanMessage(message)],
+        outcome: previousOutcome,
+        request: previousRequest("refine"),
+      },
+      { configurable: { thread_id: "failed-refinement-keeps-baseline" } }
+    );
+
+    expect({
+      refinedAge: refined.conversationContext.activeTeamRecommendation?.maxAge,
+      refinementKind: refined.request.kind,
+      refinementToolAge: recommend.mock.calls[0]?.[0].maxAge,
+      replacementKind: replacement.request.kind,
+      replacementToolCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      refinedAge: 21,
+      refinementKind: "team_recommendation",
+      refinementToolAge: 21,
+      replacementKind: "other",
+      replacementToolCalls: 1,
+    });
+  });
+
   it("confirms the saved target after the previous request was not understood", async () => {
     const message = "年龄上限改到 21 岁";
 

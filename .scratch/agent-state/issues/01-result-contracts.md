@@ -1,7 +1,6 @@
 # 01 · Validate and commit completed workflow results
 
 Status: resolved
-Label: ready-for-agent
 
 ## Goal
 

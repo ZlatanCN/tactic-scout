@@ -1,7 +1,6 @@
 # 02 · Select continuation targets and reuse saved results
 
 Status: resolved
-Label: ready-for-agent
 Blocked by: 01
 
 ## Goal
@@ -12,7 +11,7 @@ Derive the previous-turn workflow summary before replacing state, select an expl
 
 - Explicit workflow targets take precedence.
 - An unambiguous compatible prior workflow is continued; multiple plausible snapshots trigger a workflow clarification.
-- Failed or unrelated work never silently falls back to another workflow's snapshot.
+- Failed or unrelated work never silently falls back to another workflow's snapshot. Only a failed `refine` with a matching workflow target may use the prior successful snapshot as its base; failed replacements, additions, and changed lookup source/season scopes may not.
 - Workflow clarification preserves the current patch through `Command` resume without re-running request extraction.
 - Omitted fields inherit, `null` clears, and explicit values override.
 - Saved-result explanations use a validated snapshot and skip entity/data nodes; outcome identifies `source: "saved"`.
@@ -20,22 +19,17 @@ Derive the previous-turn workflow summary before replacing state, select an expl
 
 ## Answer
 
-Request understanding now derives a temporary previous-turn summary, applies explicit workflow selection first, and otherwise uses the last compatible successful workflow or asks when multiple snapshots fit. A failed different-target task blocks fallback. Workflow selection stores the normalized request patch in the existing interrupt state and resumes without another extraction call. Explain requests decode the active snapshot and route directly to the answer node with `source: "saved"`; follow-up refinements inherit omitted values and explicit `null` clears supported recommendation filters.
+Request understanding now derives a temporary previous-turn summary, applies explicit workflow selection first, and otherwise uses the last compatible successful workflow or asks when multiple snapshots fit. The current request stores recommendation/team action so a failed matching `refine` can use the last successful snapshot as its base; failed replacements, additions, and changed lookup source/season targets block fallback. Workflow selection stores the normalized request patch in the existing interrupt state and resumes without another extraction call. Explain requests decode the active snapshot and route directly to the answer node with `source: "saved"`; follow-up refinements inherit omitted values and explicit `null` clears supported recommendation filters.
 
 Comparison condition-only refinements retain the saved participants while merging the current season/competition patch. There is no persisted continuation pointer or new graph node.
 
 Focused graph, continuation, and result-contract tests pass.
 
-Review follow-ups ensure an understanding failure requires confirmation before using an older snapshot, a named-reference team result remains eligible for player-mention continuation, and request construction/clarification helpers live outside `src/nodes/`.
-
-Search-limit and failed-understanding regressions verify that old successful snapshots are preserved and never selected silently.
-
-Saved lookup follow-ups are subject to the same failure-boundary check as other workflow reuses.
-
-Lookup reuse also checks the selected source records and requested Understat season. A failed request for the same player in a different season cannot silently explain the older snapshot.
-
-An explicit player named in a saved lookup explanation must match that saved identity or a thread-confirmed alias.
-
 ## Comments
 
 - 2026-10-30: Claimed after result contracts were implemented.
+- 2026-10-30: Review follow-ups ensure an understanding failure requires confirmation before using an older snapshot, a named-reference team result remains eligible for player-mention continuation, and request construction/clarification helpers live outside `src/nodes/`.
+- 2026-10-30: Search-limit and failed-understanding regressions verify that old successful snapshots are preserved and never selected silently.
+- 2026-10-30: Saved lookup follow-ups are subject to the same failure-boundary check as other workflow reuses.
+- 2026-10-30: Lookup reuse checks the selected source records and requested Understat season; an explicit player in a saved lookup explanation must match that saved identity or a thread-confirmed alias.
+- 2026-10-30: The current request records `replace`/`add`/`refine` so failed refinement can be distinguished from a failed new task; explicit filter differences on replacements do not reuse an older result.

@@ -139,6 +139,15 @@ const sameStringSet = (first: string[], second: string[]): boolean => {
   );
 };
 
+const sameConstraints = (
+  first: { name: string; value: string }[],
+  second: { name: string; value: string }[]
+): boolean =>
+  sameStringSet(
+    first.map(({ name, value }) => `${name.trim()}\u0000${value.trim()}`),
+    second.map(({ name, value }) => `${name.trim()}\u0000${value.trim()}`)
+  );
+
 const requestIdentity = (player: RequestPlayerState): string | null => {
   const candidate = selectedReferenceCandidate(player.resolution);
 
@@ -224,13 +233,16 @@ const comparisonRequestMatchesSavedWorkflow = (
     ({ referenceId }) => referenceId
   );
 
-  if (request.comparisonAction === "replace") {
-    return sameStringSet(current, saved);
+  const sameParticipants = sameStringSet(current, saved);
+
+  if (request.comparisonAction === "refine") {
+    return sameParticipants;
   }
 
-  const currentSet = new Set(current);
-
-  return saved.every((referenceId) => currentSet.has(referenceId));
+  return (
+    sameParticipants &&
+    sameConstraints(request.constraints, context.activeComparison.constraints)
+  );
 };
 
 const playerRecommendationMatchesSavedWorkflow = (
@@ -263,6 +275,30 @@ const playerRecommendationMatchesSavedWorkflow = (
 
     return referenceId === null ? [] : [referenceId];
   });
+
+  const requestedFilters = [
+    request.recommendation.includePotential,
+    request.recommendation.maxAge,
+    request.recommendation.minimumCurrentAbility,
+    request.recommendation.minimumPotentialAbility,
+    request.recommendation.resultLimit,
+  ];
+
+  const savedFilters = [
+    saved.includePotential,
+    saved.maxAge,
+    saved.minimumCurrentAbility,
+    saved.minimumPotentialAbility,
+    saved.resultLimit,
+  ];
+
+  const filtersMatch =
+    requestedFilters.length === savedFilters.length &&
+    requestedFilters.every((value, index) => value === savedFilters[index]);
+
+  if (request.recommendationAction === "replace" && !filtersMatch) {
+    return false;
+  }
 
   return (
     request.recommendation.position === saved.position &&
@@ -303,6 +339,34 @@ const teamRecommendationMatchesSavedWorkflow = (
     teamMatches &&
     request.teamRecommendation.position === saved.position &&
     request.teamRecommendation.referenceMode === saved.referenceMode;
+
+  const requestedFilters = [
+    request.teamRecommendation.includePotential,
+    request.teamRecommendation.maxAge,
+    request.teamRecommendation.minimumCurrentAbility,
+    request.teamRecommendation.minimumPotentialAbility,
+    request.teamRecommendation.resultLimit,
+  ];
+
+  const savedFilters = [
+    saved.includePotential,
+    saved.maxAge,
+    saved.minimumCurrentAbility,
+    saved.minimumPotentialAbility,
+    saved.resultLimit,
+  ];
+
+  const filtersMatch =
+    requestedFilters.length === savedFilters.length &&
+    requestedFilters.every((value, index) => value === savedFilters[index]);
+
+  if (
+    targetMatches &&
+    request.teamRecommendationAction === "replace" &&
+    !filtersMatch
+  ) {
+    return false;
+  }
 
   if (targetMatches && saved.referenceMode === "squad") {
     return true;

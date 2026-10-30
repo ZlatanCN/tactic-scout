@@ -13,6 +13,7 @@ Make completed workflow results trustworthy and reusable without replacing the c
 - Treat valid empty outcomes (`no_candidates` and source-clean `no_comparable_data`) as completed results. Reject malformed or inconsistent result payloads.
 - Do not add a persisted continuation pointer or a database/store.
 - Derive a temporary previous-turn summary before replacing `request`/`outcome`; select explicit target first, otherwise compatible previous workflow, otherwise clarify among multiple valid snapshots.
+- Record each recommendation request's `replace`, `add`, or `refine` operation and each team recommendation's `replace` or `refine` operation in the current request. After a failed turn, reuse the last successful snapshot as a refinement baseline only when the failed operation was a compatible refinement; failed replacements, added participants, changed lookup sources/seasons, or changed task targets do not fall back silently.
 - Save an unresolved workflow choice and current-turn patch in the existing `pendingClarification`; merge only after the user selects a workflow. Omitted fields inherit, explicit `null` clears, and explicit values override.
 - Reuse a saved result directly for explanation requests, with `outcome.source = "saved"`, skipping entity resolution and data tools.
 

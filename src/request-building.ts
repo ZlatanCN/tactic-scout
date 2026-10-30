@@ -319,7 +319,9 @@ const requestFromExtraction = (
     teams: string[];
   },
   recommendation: ReturnType<typeof recommendationFromText>,
-  teamRecommendation: TeamRecommendationRequestState
+  recommendationAction: RecommendationAction,
+  teamRecommendation: TeamRecommendationRequestState,
+  teamRecommendationAction: "replace" | "refine"
 ) => {
   const requestFields = {
     constraints: fields.constraints,
@@ -337,7 +339,12 @@ const requestFromExtraction = (
   }
 
   if (extracted.kind === "player_recommendation") {
-    return { ...requestFields, kind: extracted.kind, recommendation };
+    return {
+      ...requestFields,
+      kind: extracted.kind,
+      recommendation,
+      recommendationAction,
+    };
   }
 
   if (extracted.kind === "team_recommendation") {
@@ -345,6 +352,7 @@ const requestFromExtraction = (
       ...requestFields,
       kind: extracted.kind,
       teamRecommendation,
+      teamRecommendationAction,
     };
   }
 
@@ -369,6 +377,16 @@ const recommendationActionForRequest = (
 
   return extracted.recommendationAction ?? "replace";
 };
+
+const teamRecommendationActionForRequest = (
+  extracted: ExtractedRequest,
+  context: ConversationContext
+): "replace" | "refine" =>
+  extracted.kind === "team_recommendation" &&
+  extracted.teams.length === 0 &&
+  context.activeTeamRecommendation !== null
+    ? "refine"
+    : "replace";
 
 const recommendationPlayersFromContext = (
   context: ConversationContext,
@@ -552,6 +570,11 @@ const requestFromCurrentTurn = (
     context
   );
 
+  const teamRecommendationAction = teamRecommendationActionForRequest(
+    routedExtraction,
+    context
+  );
+
   const isComparisonContinuation =
     workflow === "player_comparison" &&
     routedExtraction.comparisonAction !== "replace";
@@ -601,7 +624,9 @@ const requestFromCurrentTurn = (
       teams: uniqueText(routedExtraction.teams),
     },
     recommendation,
-    teamRecommendation
+    recommendationAction,
+    teamRecommendation,
+    teamRecommendationAction
   );
 
   const lookupResultJson = context.activeLookup?.resultJson;
