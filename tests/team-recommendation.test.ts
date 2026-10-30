@@ -9,7 +9,10 @@ import type { ReferenceIdentityLookup } from "../src/player-data/resolve-referen
 import { createLocalDataError } from "../src/player-data/shared.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
-import { createInitialConversationContext } from "../src/state.js";
+import {
+  createInitialConversationContext,
+  createInitialFaultToleranceState,
+} from "../src/state.js";
 import type {
   ApiFootballClient,
   ApiFootballRosterPlayer,
@@ -1709,6 +1712,233 @@ describe("team recommendation graph", () => {
       recommendationCalls: 0,
       requestKind: "other",
       searchCalls: 1,
+    });
+  });
+
+  it("confirms the saved target after the previous request was not understood", async () => {
+    const message = "年龄上限改到 21 岁";
+
+    const roster = {
+      members: [],
+      retrievedAt: "2026-10-26T10:00:00.000Z",
+      team: arsenal,
+    };
+
+    const teamInput = {
+      includePotential: false,
+      maxAge: 25,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: [],
+      referenceMode: "squad" as const,
+      resultLimit: 5,
+      roster,
+      team: arsenal,
+    };
+
+    const initialContext = createInitialConversationContext();
+
+    const conversationContext = {
+      ...initialContext,
+      activeTeamRecommendation: {
+        includePotential: false,
+        maxAge: 25,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceMode: "squad" as const,
+        referencePlayers: [],
+        resultJson: teamRecommendationResult("no_candidates", teamInput),
+        resultLimit: 5,
+        roster,
+        status: "no_candidates" as const,
+        team: arsenal,
+      },
+    };
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const graph = createTeamAgent({
+      directory: createDirectory([arsenal], []),
+      extractor: createExtractor({
+        [message]: {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [],
+          recommendation: { maxAge: 21 },
+          teams: [],
+        },
+      }),
+      recommend,
+    });
+
+    const config = {
+      configurable: { thread_id: "understanding-failure-confirms-target" },
+    };
+
+    const faultTolerance = {
+      ...createInitialFaultToleranceState(),
+      failure: {
+        category: "invalid_response" as const,
+        node: "understand_request" as const,
+      },
+    };
+
+    const interrupted = await graph.invoke(
+      {
+        conversationContext,
+        faultTolerance,
+        messages: [new HumanMessage(message)],
+      },
+      config
+    );
+
+    expect(recommend).toHaveBeenCalledTimes(0);
+
+    const resumed = await graph.invoke(new Command({ resume: "1" }), config);
+
+    expect({
+      activeAge: resumed.conversationContext.activeTeamRecommendation?.maxAge,
+      requestedAge: recommend.mock.calls[0]?.[0].maxAge,
+      wasInterrupted: Object.hasOwn(interrupted, "__interrupt__"),
+    }).toStrictEqual({
+      activeAge: 21,
+      requestedAge: 21,
+      wasInterrupted: true,
+    });
+  });
+
+  it("can continue a named-reference team recommendation from a player mention", async () => {
+    const message = "Add Kylian Mbappé as a team reference.";
+
+    const mbappe: ReferenceCandidate = {
+      candidateId: "source:fm:mbappe-fm",
+      canonicalIdentityId: null,
+      exactNameMatch: true,
+      identityVerified: false,
+      name: "Kylian Mbappé",
+      records: [
+        {
+          canonicalIdentityId: null,
+          competition: null,
+          identityVerified: false,
+          name: "Kylian Mbappé",
+          provider: "fm",
+          season: null,
+          sourceId: "mbappe-fm",
+          team: null,
+        },
+      ],
+    };
+
+    const roster = {
+      members: [
+        {
+          apiFootballPlayerId: 1001,
+          fmCandidates: [],
+          fmId: "fm-1001",
+          mappingMethod: "reep_bridge" as const,
+          mappingStatus: "resolved" as const,
+          name: "Squad Player",
+          position: "Attacker",
+        },
+      ],
+      retrievedAt: "2026-10-26T10:00:00.000Z",
+      team: arsenal,
+    };
+
+    const teamInput = {
+      includePotential: false,
+      maxAge: null,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: ["kane-fm"],
+      referenceMode: "named" as const,
+      resultLimit: 5,
+      roster,
+      team: arsenal,
+    };
+
+    const initialContext = createInitialConversationContext();
+
+    const conversationContext = {
+      ...initialContext,
+      activeTeamRecommendation: {
+        includePotential: false,
+        maxAge: null,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceMode: "named" as const,
+        referencePlayers: [
+          { candidate: kaneCandidate, referenceId: kaneCandidate.candidateId },
+        ],
+        resultJson: teamRecommendationResult("ready", teamInput),
+        resultLimit: 5,
+        roster,
+        status: "ready" as const,
+        team: arsenal,
+      },
+    };
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const playerIdentityLookup: ReferenceIdentityLookup = (mention) => ({
+      candidateCount: 1,
+      candidates: [mbappe],
+      candidatesTruncated: false,
+      canonicalIdentityId: null,
+      clarificationMessage: null,
+      mention,
+      selectedCandidateId: mbappe.candidateId,
+      selectedName: mbappe.name,
+      status: "resolved",
+    });
+
+    const graph = createTeamAgent({
+      directory: createDirectory([arsenal], []),
+      extractor: createExtractor({
+        [message]: {
+          constraints: [],
+          continuationAction: "refine",
+          kind: null,
+          players: [
+            {
+              lookupName: null,
+              mention: "Kylian Mbappé",
+              recommendationRole: "reference",
+              referenceScope: "explicit",
+              referenceTargetMention: null,
+            },
+          ],
+          teams: [],
+        },
+      }),
+      model: fakeModel().respond(
+        new AIMessage("The team reference set was updated.")
+      ),
+      playerIdentityLookup,
+      recommend,
+    });
+
+    const result = await graph.invoke(
+      { conversationContext, messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "team-named-reference-player-followup" } }
+    );
+
+    expect({
+      references: recommend.mock.calls[0]?.[0].referenceFmIds,
+      team: result.conversationContext.activeTeamRecommendation?.team,
+    }).toStrictEqual({
+      references: ["kane-fm", "mbappe-fm"],
+      team: arsenal,
     });
   });
 

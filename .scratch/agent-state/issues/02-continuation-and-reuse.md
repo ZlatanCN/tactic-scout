@@ -26,6 +26,8 @@ Comparison condition-only refinements retain the saved participants while mergin
 
 Focused graph, continuation, and result-contract tests pass.
 
+Review follow-ups ensure an understanding failure requires confirmation before using an older snapshot and a named-reference team result remains eligible for player-mention continuation.
+
 ## Comments
 
 - 2026-10-30: Claimed after result contracts were implemented.

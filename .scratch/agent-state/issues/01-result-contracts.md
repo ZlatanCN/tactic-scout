@@ -22,3 +22,4 @@ Added complete source-owned schemas for lookup, comparison, player recommendatio
 ## Comments
 
 - 2026-10-30: Resolved. Focused graph tests and result-contract tests pass.
+- 2026-10-30: Review follow-up: a search-limit outcome no longer replaces the previous lookup snapshot or focus.

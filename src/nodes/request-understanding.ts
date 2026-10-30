@@ -585,7 +585,8 @@ const requestFromCurrentTurn = (
   );
 
   const currentTurnPlayers =
-    workflow === "team_recommendation"
+    workflow === "team_recommendation" &&
+    teamRecommendation.referenceMode !== "named"
       ? []
       : normalizeExtractedPlayers(text, extractedPlayers).map((player) => ({
           ...player,
@@ -780,7 +781,7 @@ const createRequestUnderstandingNode =
         previous
       );
 
-      if (choice.options.length > 1) {
+      if (choice.requiresConfirmation || choice.options.length > 1) {
         const labels: Record<WorkflowKind, string> = {
           player_comparison: "球员比较",
           player_lookup: "球员查询",
@@ -791,6 +792,11 @@ const createRequestUnderstandingNode =
         const optionsText = choice.options
           .map((workflow, index) => `${index + 1}. ${labels[workflow]}`)
           .join("；");
+
+        const question =
+          choice.options.length === 1
+            ? `上一轮请求未能理解。请确认是否将这次修改应用到${optionsText}，回复 1 确认。`
+            : `你这次的修改可能指向多个已完成结果：${optionsText}。请选择一个编号。`;
 
         return {
           conversationContext: contextWithComparison,
@@ -806,7 +812,7 @@ const createRequestUnderstandingNode =
             ),
             kind: "workflow",
             options: choice.options,
-            question: `你这次的修改可能指向多个已完成结果：${optionsText}。请选择一个编号。`,
+            question,
           },
           request: {
             ...createInitialRequestState(),

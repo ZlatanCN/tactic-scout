@@ -963,14 +963,14 @@ describe("LangGraph player workflows", () => {
 
     expect({
       activeLookup:
-        limited.conversationContext.activeLookup?.player.referenceId,
+        limited.conversationContext.activeLookup?.player.referenceId ?? null,
       answer: limited.messages.at(-1)?.content,
       searchCallsAfterLimit: search.mock.calls.length,
       status: limited.outcome?.status,
     }).toStrictEqual({
-      activeLookup: "canonical-kane",
+      activeLookup: null,
       answer:
-        "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
+        "本轮球员查询触及 3 次搜索上限，本次查询未完成。请缩小查询范围后重试。",
       searchCallsAfterLimit: 3,
       status: "lookup_search_limit",
     });
@@ -999,8 +999,78 @@ describe("LangGraph player workflows", () => {
       status: otherThread.outcome?.status,
     }).toStrictEqual({
       answer:
-        "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
+        "本轮球员查询触及 3 次搜索上限，本次查询未完成。请缩小查询范围后重试。",
       searchCalls: 7,
+      status: "lookup_search_limit",
+    });
+  });
+
+  it("preserves the previous player snapshot when a different lookup reaches its search limit", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
+    const firstMessage = "Look up Harry Kane.";
+    const secondMessage = "Look up Kylian Mbappé.";
+    const search = vi.fn<PlayerSearch>(emptySearchResult);
+
+    const identityLookup: ReferenceIdentityLookup = (mention) => {
+      const candidate = mention === "Harry Kane" ? kane : mbappe;
+
+      return {
+        candidateCount: 1,
+        candidates: [candidate],
+        candidatesTruncated: false,
+        canonicalIdentityId: candidate.canonicalIdentityId,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: candidate.candidateId,
+        selectedName: candidate.name,
+        status: "resolved",
+      };
+    };
+
+    const searchCall = {
+      args: { sourceRecords: [] },
+      name: "search_player_records",
+    };
+
+    const model = fakeModel()
+      .respondWithTools([searchCall])
+      .respond(new AIMessage("Harry Kane records loaded."))
+      .respondWithTools(Array.from({ length: 4 }, () => searchCall));
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [secondMessage]: requestForPlayers("player_lookup", ["Kylian Mbappé"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-limit-preserves-previous-player" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const limited = await graph.invoke(
+      { messages: [new HumanMessage(secondMessage)] },
+      config
+    );
+
+    expect({
+      activeLookup:
+        limited.conversationContext.activeLookup?.player.referenceId,
+      focus: limited.conversationContext.focusPlayers.map(
+        ({ referenceId }) => referenceId
+      ),
+      searchCalls: search.mock.calls.length,
+      status: limited.outcome?.status,
+    }).toStrictEqual({
+      activeLookup: "canonical-kane",
+      focus: ["canonical-kane"],
+      searchCalls: 4,
       status: "lookup_search_limit",
     });
   });

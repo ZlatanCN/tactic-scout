@@ -30,6 +30,7 @@ const workflowKinds = [
 type WorkflowKind = (typeof workflowKinds)[number];
 
 type ContinuationChoice = {
+  requiresConfirmation: boolean;
   options: WorkflowKind[];
   workflow: WorkflowKind | null;
 };
@@ -268,6 +269,10 @@ const compatibleContinuationWorkflows = (
     candidates = ["player_recommendation", "team_recommendation"];
   } else if (extracted.players.length > 0) {
     candidates = ["player_comparison", "player_recommendation"];
+
+    if (context.activeTeamRecommendation?.referenceMode === "named") {
+      candidates.push("team_recommendation");
+    }
   } else {
     candidates = [
       "player_comparison",
@@ -297,6 +302,7 @@ const continuationChoice = (
   ) {
     return {
       options: [],
+      requiresConfirmation: false,
       workflow: candidates.includes(previousWorkflow) ? previousWorkflow : null,
     };
   }
@@ -305,7 +311,7 @@ const continuationChoice = (
     previous.failureStage === "data" ||
     (previous.failureStage === "answer" && !previous.dataCompleted)
   ) {
-    return { options: [], workflow: null };
+    return { options: [], requiresConfirmation: false, workflow: null };
   }
 
   if (
@@ -313,16 +319,32 @@ const continuationChoice = (
     previousWorkflow !== null &&
     candidates.includes(previousWorkflow)
   ) {
-    return { options: [], workflow: previousWorkflow };
+    return {
+      options: [],
+      requiresConfirmation: false,
+      workflow: previousWorkflow,
+    };
+  }
+
+  if (previous.failureStage === "understanding" && candidates.length > 0) {
+    return {
+      options: candidates,
+      requiresConfirmation: true,
+      workflow: null,
+    };
   }
 
   if (candidates.length === 1) {
-    return { options: [], workflow: candidates[0] ?? null };
+    return {
+      options: [],
+      requiresConfirmation: false,
+      workflow: candidates[0] ?? null,
+    };
   }
 
   return candidates.length > 1
-    ? { options: candidates, workflow: null }
-    : { options: [], workflow: null };
+    ? { options: candidates, requiresConfirmation: true, workflow: null }
+    : { options: [], requiresConfirmation: false, workflow: null };
 };
 
 const savedResultUnavailable = (workflow: WorkflowKind): TurnOutcome => ({

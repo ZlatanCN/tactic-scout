@@ -247,7 +247,7 @@ const fixedOutcomeMessages = new Map<string, string>([
   ],
   [
     "lookup_search_limit",
-    "本轮球员查询最多执行 3 次搜索。已完成的搜索结果已保留，请基于现有结果继续追问，或发起新一轮查询。",
+    "本轮球员查询触及 3 次搜索上限，本次查询未完成。请缩小查询范围后重试。",
   ],
   ["tool_error", "本次数据计算失败。请检查本地数据后重试。"],
   [

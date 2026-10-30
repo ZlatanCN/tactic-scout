@@ -128,15 +128,17 @@ const createCommitLookupResultsNode =
 
     let { activeLookup } = state.conversationContext;
 
-    if (lookupReference !== null) {
+    if (lookupReference !== null && !state.faultTolerance.lookupLimitReached) {
       activeLookup = { player: lookupReference, resultJson };
     }
 
-    const focusPlayers = state.request.players.flatMap((_, index) => {
-      const reference = resolvedReference(state, index);
+    const focusPlayers = state.faultTolerance.lookupLimitReached
+      ? state.conversationContext.focusPlayers
+      : state.request.players.flatMap((_, index) => {
+          const reference = resolvedReference(state, index);
 
-      return reference === null ? [] : [reference];
-    });
+          return reference === null ? [] : [reference];
+        });
 
     return {
       conversationContext: {
