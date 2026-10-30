@@ -12,6 +12,7 @@ import { decodeResultJson } from "../src/workflow-results.js";
 import {
   comparisonResult,
   recommendationResult,
+  recommendationResultData,
   teamRecommendationResult,
 } from "./fixtures/workflow-results.js";
 
@@ -57,6 +58,31 @@ describe("workflow result contracts", () => {
 
     expect(decoded.resultJson).toBe(JSON.stringify(decoded.data));
     expect(decoded.data.status).toBe("no_candidates");
+  });
+
+  it("rejects recommendation statuses that contradict candidate lists", () => {
+    const emptyReady = recommendationResultData("ready", "stc", {
+      currentCandidates: [],
+      potentialCandidates: null,
+    });
+
+    const [candidate] = recommendationResultData("ready").currentCandidates;
+
+    if (candidate === undefined) {
+      throw new Error("Expected a candidate fixture.");
+    }
+
+    const candidatesButNone = {
+      ...recommendationResultData("no_candidates"),
+      currentCandidates: [candidate],
+    };
+
+    expect(
+      recommendationResultSchema.safeParse(emptyReady).success
+    ).toBeFalsy();
+    expect(
+      recommendationResultSchema.safeParse(candidatesButNone).success
+    ).toBeFalsy();
   });
 
   it("accepts completed empty comparison and team recommendation results", () => {

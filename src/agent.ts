@@ -37,10 +37,7 @@ import { createGuardLookupSearchNode } from "./nodes/guard-lookup-search.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
-import {
-  createRequestUnderstandingNode,
-  routeAfterRequestUnderstanding,
-} from "./nodes/request-understanding.js";
+import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
 import { createResolveTeamRosterNode } from "./nodes/resolve-team-roster.js";
 import { createResolveTeamNode } from "./nodes/resolve-team.js";
 import { createUnavailableTaskNode } from "./nodes/unavailable-task.js";
@@ -393,6 +390,29 @@ const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
   state.faultTolerance.apiOperation === "team_search"
     ? "resolve_team"
     : "fetch_team_roster";
+
+const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
+  if (state.pendingClarification?.kind === "workflow") {
+    return "clarify";
+  }
+
+  if (state.outcome?.status === "saved_result_unavailable") {
+    return "answer";
+  }
+
+  if (
+    state.outcome?.kind === "player_lookup" &&
+    state.outcome.status === "lookup_follow_up"
+  ) {
+    return "answer";
+  }
+
+  if (state.outcome !== null && "source" in state.outcome) {
+    return state.outcome.source === "saved" ? "answer" : "resolve_entities";
+  }
+
+  return "resolve_entities";
+};
 
 const apiRateLimitWaitIsPending = (state: AgentStateType): boolean =>
   state.faultTolerance.apiRetryAfterMs !== null;

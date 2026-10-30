@@ -28,7 +28,23 @@ const recommendationResultData = (
   };
 
   return {
-    currentCandidates: [],
+    currentCandidates:
+      status === "ready"
+        ? [
+            {
+              age: 24,
+              attributes: [],
+              currentAbility: 140,
+              currentDistance: 0.5,
+              fmId: "test-candidate",
+              name: "Test Candidate",
+              positionRating: 20,
+              potentialAbility: 160,
+              rank: 1,
+              sourceRecordId: "test-candidate-record",
+            },
+          ]
+        : [],
     filterCounts: {
       afterAge: 0,
       afterCurrentAbility: 0,

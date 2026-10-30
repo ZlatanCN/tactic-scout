@@ -4,13 +4,13 @@ import { z } from "zod/v4";
 
 import { mergeComparisonConstraints } from "../comparison-context.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
+import { resumeWorkflowClarification } from "../request-building.js";
 import type {
   AgentState,
   AgentStateType,
   PendingClarification,
   RequestPlayerState,
 } from "../state.js";
-import { resumeWorkflowClarification } from "./request-understanding.js";
 
 type WorkflowOption = Extract<
   PendingClarification,

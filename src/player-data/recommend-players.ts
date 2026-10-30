@@ -134,29 +134,51 @@ const recommendationFilterCountsSchema = z.object({
   excludedMissingPotentialForPotentialList: z.number().int().nonnegative(),
 });
 
-const recommendationReadyResultSchema = z.object({
-  currentCandidates: z.array(recommendationCandidateSchema),
-  filterCounts: recommendationFilterCountsSchema,
-  filters: z.object({
-    maxAge: z.number().int().nullable(),
-    minimumCurrentAbility: z.number().int().nullable(),
-    minimumPotentialAbility: z.number().int().nullable(),
-    resultLimit: z.number().int().positive(),
-  }),
-  formula: z.literal("rmse"),
-  gameBuild: z.string(),
-  manifestSha256: z.string(),
-  position: z.string(),
-  positionFeatureMapSha256: z.string(),
-  positionFeatureSetVersion: z.string(),
-  potentialCandidates: z.array(recommendationCandidateSchema).nullable(),
-  referenceFmIds: z.array(z.string()),
-  referenceMeanAttributes: z.record(z.string(), z.number()),
-  references: z.array(recommendationReferenceSchema),
-  snapshotDate: z.string(),
-  status: z.enum(["ready", "no_candidates"]),
-  strategyVersion: z.string(),
-});
+const recommendationReadyResultSchema = z
+  .object({
+    currentCandidates: z.array(recommendationCandidateSchema),
+    filterCounts: recommendationFilterCountsSchema,
+    filters: z.object({
+      maxAge: z.number().int().nullable(),
+      minimumCurrentAbility: z.number().int().nullable(),
+      minimumPotentialAbility: z.number().int().nullable(),
+      resultLimit: z.number().int().positive(),
+    }),
+    formula: z.literal("rmse"),
+    gameBuild: z.string(),
+    manifestSha256: z.string(),
+    position: z.string(),
+    positionFeatureMapSha256: z.string(),
+    positionFeatureSetVersion: z.string(),
+    potentialCandidates: z.array(recommendationCandidateSchema).nullable(),
+    referenceFmIds: z.array(z.string()),
+    referenceMeanAttributes: z.record(z.string(), z.number()),
+    references: z.array(recommendationReferenceSchema),
+    snapshotDate: z.string(),
+    status: z.enum(["ready", "no_candidates"]),
+    strategyVersion: z.string(),
+  })
+  .superRefine((result, context) => {
+    const hasCandidates =
+      result.currentCandidates.length > 0 ||
+      (result.potentialCandidates?.length ?? 0) > 0;
+
+    if (result.status === "ready" && !hasCandidates) {
+      context.addIssue({
+        code: "custom",
+        message: "A ready recommendation must contain candidates.",
+        path: ["status"],
+      });
+    }
+
+    if (result.status === "no_candidates" && hasCandidates) {
+      context.addIssue({
+        code: "custom",
+        message: "A no-candidates result cannot contain candidates.",
+        path: ["status"],
+      });
+    }
+  });
 
 const recommendationResultSchema = z.union([
   recommendationReadyResultSchema,

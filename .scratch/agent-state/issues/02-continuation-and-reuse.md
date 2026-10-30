@@ -26,7 +26,7 @@ Comparison condition-only refinements retain the saved participants while mergin
 
 Focused graph, continuation, and result-contract tests pass.
 
-Review follow-ups ensure an understanding failure requires confirmation before using an older snapshot and a named-reference team result remains eligible for player-mention continuation.
+Review follow-ups ensure an understanding failure requires confirmation before using an older snapshot, a named-reference team result remains eligible for player-mention continuation, and request construction/clarification helpers live outside `src/nodes/`.
 
 Search-limit and failed-understanding regressions verify that old successful snapshots are preserved and never selected silently.
 
