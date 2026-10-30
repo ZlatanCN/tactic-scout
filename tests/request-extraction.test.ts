@@ -12,7 +12,10 @@ import { z } from "zod/v4";
 
 import { modelRequestTimeoutMs } from "../src/fault-tolerance.js";
 import type { ModelRequestBudget } from "../src/model-requests.js";
-import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
+import {
+  createRequestUnderstandingExtractor,
+  normalizeExtractedPlayers,
+} from "../src/request-extraction.js";
 import { createInitialConversationContext } from "../src/state.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
@@ -461,6 +464,54 @@ describe("request understanding extraction", () => {
       });
     }
   );
+
+  it("treats an explicit non-pronoun ambiguous mention as a name to resolve", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        comparisonAction: "replace",
+        constraints: [],
+        kind: "player_comparison",
+        players: [
+          {
+            lookupName: null,
+            mention: "Elias Demo",
+            referenceScope: "explicit",
+            referenceTargetMention: null,
+          },
+          {
+            lookupName: null,
+            mention: "Demo",
+            referenceScope: "ambiguous",
+            referenceTargetMention: null,
+          },
+        ],
+        teams: [],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const message = "Compare Elias Demo with the alias Demo.";
+    const result = await extractor(message, createInitialConversationContext());
+
+    const normalizedPlayers = normalizeExtractedPlayers(
+      message,
+      result.players
+    );
+
+    expect(
+      normalizedPlayers.map(({ mention, referenceScope }) => ({
+        mention,
+        referenceScope,
+      }))
+    ).toStrictEqual([
+      { mention: "Elias Demo", referenceScope: "explicit" },
+      { mention: "Demo", referenceScope: "explicit" },
+    ]);
+  });
 
   it("retries a transient request, then repairs one invalid structured response", async () => {
     const model = fakeModel();

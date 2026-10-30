@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v14";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v15";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -136,8 +136,11 @@ const judgeInputSchema = z.object({
       clarificationAnswers: z.array(
         z.object({ kind: z.string(), value: z.string() })
       ),
+      outcomeKind: z.string().nullable(),
+      outcomeStatus: z.string().nullable(),
       participants: z.array(
         z.object({
+          canonicalIdentityId: z.string().nullable(),
           mention: z.string(),
           resolutionStatus: z.string(),
           resolvedName: z.string().nullable(),
@@ -158,7 +161,7 @@ const judgeInputSchema = z.object({
   ),
 });
 
-const judgeSystemPrompt = `You are an automated reviewer for a football scouting assistant. Review every assistant response in the supplied conversation.
+const judgeRubricPrompt = `You are an automated reviewer for a football scouting assistant. Review every assistant response in the supplied conversation.
 
 Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events and their exact inputs, per-turn availableResultKinds state observations, and the supplied task contract. Action inputs on attempted, returned, failed, and cache_hit events show parameters used. Requested events record proposed tool arguments and do not prove the tool ran; blocked and schema_rejected events do not show applied filters. For an attempted, returned, failed, or cache_hit search_player_records action, no competition field means no competition filter was supplied. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn. They describe stored results, not the outcome of the latest operation: the current action may return no_comparable_data or data_unavailable while availableResultKinds still contains player_comparison because a prior comparison remains active. If the assistant says that prior result remains and this state lists player_comparison, the claim is supported; do not call it a contradiction or unsupported merely because the current operation found no data or failed. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
 
@@ -184,6 +187,16 @@ When teamRosterCoverage is present, treat it as the deterministic roster-mapping
 Quote the exact assistant text, use the matching turnId, cite the correctly typed IDs when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
 
 For each required fact, mark whether it is covered in the visible assistant responses. If the answer cannot be assessed from the supplied evidence, use uncertain. Return the required structured output only.`;
+
+const judgeSystemPrompt = `${judgeRubricPrompt}
+
+Application-specific evidence rules:
+- The Understat reader chooses the maximum season_start_year in local snapshots when the actual search input omits seasonStartYear. A returned row's season is the effective snapshot season for that query; an explicit start year 2024 is the 2024/25 season.
+- If an actual Understat search input has seasonStartYear 2024 and its returned result is not_found with no records, it supports “no row was returned for this selected source for 2024/25” and “the result contains no xG value.” It does not establish that the player's xG is unavailable in other data or seasons.
+- A clarification answer and a same-turn participant marked resolved with a selectedCandidateId establish the selected identity after resume, even when the earlier identity lookup action returned needs_confirmation.
+- FM attribute keys techniqueRaw and dribblingRaw refer to distinct attributes: Technique is 技术; Dribbling is 盘带. Do not treat one as the other.
+- A non-null canonicalIdentityId repeated across resolved turn participants means those mentions refer to one canonical player. If that turn's outcomeStatus is insufficient_distinct_players, asking for another distinct player is supported.
+- Recommendation filters.resultLimit is the requested player-list cap; do not infer it from returned list length or afterIdentityExclusion counts.`;
 
 const createSemanticJudge = (options: {
   apiKey: string;
@@ -326,6 +339,8 @@ const judgeInputForAnchor = (
       assistantMessages: [anchor.answer],
       availableResultKinds: anchor.availableResultKinds,
       clarificationAnswers: [],
+      outcomeKind: null,
+      outcomeStatus: null,
       participants: [],
       turnId: anchor.anchorId,
       userMessage: anchor.userMessage,
@@ -617,12 +632,15 @@ const judgeInputForTrial = (
       assistantMessages: turn.assistantMessages,
       availableResultKinds: turn.availableResultKinds,
       clarificationAnswers: turn.clarificationAnswers,
+      outcomeKind: turn.outcomeKind,
+      outcomeStatus: turn.outcomeStatus,
       participants: turn.players.map((player) => {
         const selectedCandidate = player.candidates.find(
           ({ candidateId }) => candidateId === player.selectedCandidateId
         );
 
         return {
+          canonicalIdentityId: selectedCandidate?.canonicalIdentityId ?? null,
           mention: player.mention,
           resolutionStatus: player.resolutionStatus,
           resolvedName: player.selectedName,

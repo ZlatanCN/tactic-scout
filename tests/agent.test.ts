@@ -272,8 +272,11 @@ describe("LangGraph player workflows", () => {
       promptContent.includes(
         "球员查询只按 sourceRecords 与可选 seasonStartYear 搜索，不按用户指定赛事过滤"
       ),
-      promptContent.includes("不得把空结果解释为某项指标不可用"),
-    ]).toStrictEqual([true, true, true, true]);
+      promptContent.includes("xG 在现实中不可用"),
+      promptContent.includes(
+        "最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季"
+      ),
+    ]).toStrictEqual([true, true, true, true, true]);
   });
 
   it("runs the resolved lookup when the model answers without requesting the search tool", async () => {
@@ -990,6 +993,8 @@ describe("LangGraph player workflows", () => {
       "currentAttributeComplete 是身份排除后属性完整、能计算 currentDistance 的数量",
       "除非工具列出具体对象，否则不要推断具体排除了谁或属于哪类身份",
       "名单长度不等于任何阶段数量",
+      "球员推荐只能从 filters.resultLimit 读取名单上限",
+      "不得从名单长度或 afterIdentityExclusion 推断上限",
     ].every((promptRule) => modelInput.includes(promptRule));
 
     expect({

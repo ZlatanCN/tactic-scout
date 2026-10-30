@@ -176,4 +176,22 @@ The new report records token usage and request latency for Agent, Calibration, a
 
 **V14 targeted smoke:** `da1ad1a3-8b39-46d5-8a40-ddd2c65f4928` covered five cases and used 52/120 requests: Agent 15, Calibration 32, and Judge 5. V14 calibration passed 32/32, including 16/16 reserved validation anchors. All five trials passed deterministic and semantic checks; there were zero denied requests and zero network failures. The held-out split was untouched.
 
-The next measurement is a full 32-case v14 development baseline after v14 calibration and targeted smoke. Issue 43 tracks that run and requires a new explicit whole-run request allowance. Keep the held-out split untouched.
+## V14 development baseline
+
+**Run:** `0b187e75-be68-490f-bd0b-a6f2835c70c4`
+
+**Report:** `.data/evals/runs/0b187e75-be68-490f-bd0b-a6f2835c70c4/report.md`
+**Scope:** 32 development cases, three isolated trials each. Held-out cases were not run.
+
+All 96 trials completed using 402/1,500 requests: Agent 274, Calibration 32, and Judge 96. V14 calibration passed 32/32, including 16/16 reserved validation anchors. There were two network failures and no budget denials. Trial status was 90 passed and six failed; deterministic checks passed 95/96. Semantic status was 90 passed, five failed, and one invalid.
+
+### Remaining V14 findings
+
+- **Same-identity alias was dropped.** `compare-same-identity-synthetic-v1` structured extraction included “Demo” as an ambiguous non-pronoun mention, but request normalization discarded it because it was not an anaphor. Only Elias Demo reached identity resolution, so the graph asked for another player. Issue 44 promotes literal non-pronoun ambiguous mentions to identity lookup and adds extraction and graph regressions.
+- **Latest-season language was judged unsupported.** Two `lookup-followup-smoke-v1` trials returned 2024/25 after an Understat query without a season. The application implementation selects the maximum snapshot year, but neither the result nor judge rules stated that behavior. Issue 45 adds the verified Understat default-season rule to judge evidence and constrains user-facing claims to the returned season.
+- **FM attribute name was over-specified.** `compare-add-third-synthetic-v1` translated the `techniqueRaw` value as “盘带技术,” although `dribblingRaw` is the separate dribbling field. Issue 46 clarifies the mapping in comparison and judge prompts.
+- **Recommendation cap was inferred from the surviving count.** `recommend-ambiguous-profile-synthetic-v1` returned `filters.resultLimit=5` but the answer stated the list was limited to two, matching the two remaining candidates. Issue 47 requires reading the cap from the actual field.
+- **Empty Understat response was described too broadly.** The Mbappé lookup returned no rows for source ID 3423 and season start year 2024, but the answer claimed no record in that season and no xG value. Issue 48 tightens that answer to the exact no-row result and the value absent from the returned data.
+- **One judge contradiction was invalid.** The judge reported that “Demo” and “Elias Demo” were not treated as the same player, but cited no evidence ID. The alias-routing fix and per-turn canonical identity input are covered by issues 32 and 44; v15 prompt anchors must continue checking evidence references.
+
+Issues 44–48 now have offline regression coverage. V15 is the current judge prompt; a targeted v15 smoke and calibration are required before considering the V14 findings closed. Issue 49 tracks that run, which needs a new request allowance. Keep the held-out split untouched.

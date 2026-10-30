@@ -4,17 +4,8 @@
 
 **Blocked by:** None.
 
-**Status:** open
-**Label:** ready-for-human
+**Status:** resolved
 
-## Evidence
+## Result
 
-V14 smoke `da1ad1a3-8b39-46d5-8a40-ddd2c65f4928` passed all five selected cases and all 16 reserved validation anchors. The v10 full development baseline predates issues 37–39 and the v14 judge input; its results remain useful historical comparisons but do not measure the current version.
-
-## Acceptance
-
-- Preview the current 32-case, three-trial run and record its exact physical request estimate.
-- Use a new explicit whole-run request allowance.
-- Preserve the v10 report and all v11/v13/v14 smoke reports.
-- Keep all 16 held-out cases untouched.
-- Record per-workflow status, semantic findings, token usage, and latency.
+V14 development run `0b187e75-be68-490f-bd0b-a6f2835c70c4` completed all 96 trials using 402/1,500 requests: Agent 274, Calibration 32, and Judge 96. Calibration passed 32/32, including 16/16 reserved validation anchors. There were zero budget denials and zero network failures. Trial status was 90 passed and six failed; semantic status was 90 passed, five failed, and one invalid. The v14 run report is `.data/evals/runs/0b187e75-be68-490f-bd0b-a6f2835c70c4/report.md`; the 16 held-out cases remain untouched. Issues 44–48 record the follow-up fixes.

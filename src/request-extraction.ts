@@ -814,6 +814,20 @@ const normalizeExtractedPlayer = (
     };
   }
 
+  if (
+    referenceScope === "ambiguous" &&
+    appearsInMessage &&
+    !isPlayerReferenceMention(mention)
+  ) {
+    return {
+      lookupName: player.lookupName?.trim() ?? null,
+      mention,
+      recommendationRole,
+      referenceScope: "explicit",
+      referenceTargetMention: null,
+    };
+  }
+
   const referenceMention = isPlayerReferenceMention(mention)
     ? mention
     : detectedReference;

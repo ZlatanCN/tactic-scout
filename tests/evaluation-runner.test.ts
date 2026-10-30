@@ -130,14 +130,23 @@ const judgeSystemPromptFromRequest = (
   return parsedContent.success ? parsedContent.data : "";
 };
 
+const judgeBusinessRules = [
+  "2001-09-05",
+  "5 September 2001",
+  "explicit start year 2024 is the 2024/25 season",
+  "techniqueRaw and dribblingRaw",
+  "maximum season_start_year in local snapshots",
+  "filters.resultLimit is the requested player-list cap",
+  "A non-null canonicalIdentityId repeated across resolved turn participants",
+];
+
 const promptRuleFailureForAnchor = (
   caseId: string,
   systemPrompt: string
 ): string | null => {
   if (
     caseId === "correct-paraphrase-date-normalization-v7" &&
-    (!systemPrompt.includes("2001-09-05") ||
-      !systemPrompt.includes("5 September 2001"))
+    !judgeBusinessRules.every((rule) => systemPrompt.includes(rule))
   ) {
     return "factual_contradiction";
   }
@@ -3838,7 +3847,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v14",
+      judgePromptVersion: "scouting-semantic-judge-v15",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
