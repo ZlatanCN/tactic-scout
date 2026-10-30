@@ -198,4 +198,8 @@ Issues 44–48 now have offline regression coverage.
 
 **V15 targeted smoke:** `ae7fe94a-2597-4474-9822-0c2c57511aa7` covered five V14 failure cases and used 53/130 requests: Agent 16, Calibration 32, and Judge 5. V15 calibration passed 32/32, including 16/16 validation anchors. All five deterministic checks passed and four semantic reviews passed. The remaining failure was required-fact coverage: the judge missed `currentAbility=139` in an answer that said “当前能力 139.” No network failures or budget denials occurred.
 
-Judge v16 now includes user-facing field-name equivalences. Its five-case smoke is pending a fresh request allowance under issue 51. Keep the held-out split untouched.
+Judge v16 includes user-facing field-name equivalences for currentAbility/CA/当前能力, potentialAbility/PA/潜力能力, and expectedGoals/xG/预期进球. Offline regression coverage verifies those rules.
+
+**V16 targeted smoke:** `b95369ba-89a3-4399-8720-b8045bb8492e` covered the same five failure cases and used 53/130 requests: Agent 16, Calibration 32, and Judge 5. V16 calibration passed 32/32, including 16/16 validation anchors. All five trials passed deterministic and semantic review; there were zero network failures and zero budget denials.
+
+The next measurement is the full v16 development baseline. Issue 52 tracks the 32-case, three-trial run and requires a new explicit whole-run allowance. Keep the held-out split untouched.

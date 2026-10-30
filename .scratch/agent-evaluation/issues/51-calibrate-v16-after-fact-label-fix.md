@@ -4,16 +4,8 @@
 
 **Blocked by:** None.
 
-**Status:** open
-**Label:** ready-for-human
+**Status:** resolved
 
-## Evidence
+## Result
 
-V15 smoke passed all 16 reserved validation anchors and four of five semantic trials. Its remaining failure was a judge false omission for `currentAbility=139`, which the answer rendered as “当前能力 139.” V16 changes only the judge's fact-label equivalence rules; it has not been sent to the gateway.
-
-## Acceptance
-
-- Preview the same five-case smoke and record the exact request estimate.
-- Use a fresh explicit whole-run request allowance.
-- Require all 16 reserved v16 validation anchors to pass.
-- Confirm that all five smoke cases pass deterministic and semantic review; preserve all older reports and leave held-out cases untouched.
+V16 smoke `b95369ba-89a3-4399-8720-b8045bb8492e` completed all five cases using 53/130 requests: Agent 16, Calibration 32, and Judge 5. All 32 calibration anchors passed, including validation 16/16. All five cases passed deterministic and semantic review; there were zero budget denials and network failures. Held-out cases were untouched.
