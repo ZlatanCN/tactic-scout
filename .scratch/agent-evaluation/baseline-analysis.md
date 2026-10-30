@@ -113,4 +113,40 @@ The baseline plus smoke remained within the user-approved total request ceiling.
 
 Judge prompt v9 was calibrated against anchor pack v8 and rubric v3. All 32 anchors passed, including all 16 reserved validation anchors. The run also evaluated one `lookup-smoke-v1` trial; deterministic and semantic checks passed with no findings. It used 36/60 requests: 3 agent, 32 calibration, and 1 judge request. There were no denied requests or network failures.
 
-This calibration qualifies v9, but it does not refresh the 32-case development baseline: the existing complete baseline used judge v8 and predates issue 27. Re-run the development split with the current code and v9 before setting quality thresholds or using the held-out split. Keep the held-out cases untouched until that baseline and its acceptance thresholds are reviewed and frozen.
+This calibration qualified v9. The follow-up development run is recorded below; the held-out split remains untouched.
+
+## V9 development baseline
+
+**Run:** `38e8d637-8ebc-47ad-878f-f9500cf7bef1`
+
+**Report:** `.data/evals/runs/38e8d637-8ebc-47ad-878f-f9500cf7bef1/report.md`
+
+The run attempted all 96 development trials with the current code, judge prompt v9, anchor pack v8, and rubric v3. It used 398/1,500 requests: agent 271, calibration 32, and judge 95. All 32 calibration anchors passed, including 16/16 reserved validation anchors. There were no denied requests or network failures. The report is `partial`: 86 trials passed and 10 failed. Semantic statuses were 87 passed, 4 failed, 2 invalid, 2 inconclusive, and 1 not assessed. The judge's case-level rates over 91 adjudicated trials were 2/91 factual contradictions, 2/91 unsupported factual additions, and 2/91 false execution claims; it reported four required-fact omissions. Twenty-four of 32 cases passed all three trials.
+
+| Workflow | Code-contract pass | Semantic pass |
+| --- | ---: | ---: |
+| Player comparison | 23/24 | 21/24 |
+| Player lookup | 22/24 | 22/24 |
+| Player recommendation | 23/24 | 24/24 |
+| Team recommendation | 20/24 | 20/24 |
+
+### Runtime metrics and reporting gap
+
+The run lasted 28m 00.471s from the recorded run start and finish timestamps. Raw gateway exchanges contain per-request durations: Agent mean 4.364s (p50 3.991s, p95 6.876s) across 271 requests; judge mean 3.249s (p50 2.882s, p95 5.665s) across 95 requests. Summed Agent request time per trial averaged 12.320s (p50 9.691s, p95 24.650s); this is model-request time, not end-to-end graph latency. The 32 calibration requests are counted, but their individual exchanges and durations are not retained.
+
+The raw Agent and judge Responses bodies report usage. Aggregating those recorded fields gives Agent 1,435,633 input and 43,857 output tokens; judge 1,309,587 input and 9,235 output tokens. Calibration token usage is unavailable because its response bodies are not retained. The report's normalized `tokenUsageByRole` incorrectly marks Agent and judge usage as absent: the proxy expects chat-completion `prompt_tokens`/`completion_tokens`, while these Responses bodies use `input_tokens`/`output_tokens`. The rendered Markdown also omits the available request-latency summary. Track this reporting gap in issue 28; do not interpret the zero normalized-usage count as zero token consumption.
+
+### Failure clusters
+
+- **Scripted clarification resumes do not match the graph.** Five scripted-clarification checks failed across the comparison season-resume case and three team cases. Several trials stopped before the expected follow-up action. This is first a runner/case-contract mismatch to diagnose; those trials do not establish that the underlying recommendation result was wrong.
+- **Comparison continuation is inconsistent.** In one `compare-season-resume-add-synthetic-v1` trial, the expected `Synthetic Winger` resolution instead selected `Synthetic Midfielder`; another trial completed but made unsupported and false-execution claims. A third passed.
+- **Lookup execution varies across repetitions.** One Mbappé trial did not execute the expected 2024 Understat search; one synthetic lookup trial lacked the expected result and produced an invalid semantic judgment. The other repetitions passed.
+- **Recommendation refinement lost a condition in one trial.** `recommend-add-refine-synthetic-v1` kept a ready result but dropped the expected `maxAge=21` from the active result; its semantic answer passed, while deterministic result checks failed.
+- **Semantic failures remain across workflows.** The adjudicated set includes factual contradictions, unsupported additions, and false execution claims at the rates above. Keep these separate from scripted-resume and invalid-judge failures.
+
+### Recommended sequence
+
+1. Fix the scripted clarification mismatch first and add offline graph-runner regressions for the affected comparison/team cases.
+2. Fix and test the inconsistent comparison identity continuation and lost recommendation refinement condition; inspect the lookup repetitions with missing actions/results.
+3. Use targeted real-model smokes to check the prompt-level contradiction, unsupported-claim, and execution-claim failures after deterministic issues are corrected.
+4. Re-run the development baseline only after those fixes. Do not run the held-out split or set acceptance thresholds from this partial baseline. The report records a dirty working tree, so commit or otherwise freeze the CI/dependency changes before a held-out fingerprint is created.
