@@ -103,4 +103,14 @@ The report exposed an unsupported inference in a player recommendation: it descr
 
 **Post-fix smoke:** `727fd8c1-7858-44f9-9310-9282838b4295` targeted `recommend-add-haaland-kane-real-v1` and `team-rec-synthetic-v1`. Both passed code and semantic checks; v8 validation passed 16/16. The smoke used 40/58 requests, with zero network failures and zero denied requests. The smoke is separate from and does not replace the full development baseline.
 
-The baseline plus smoke remained within the user-approved total request ceiling. Issue 27 now fixes the deterministic lookup scope, scopes identity failure explanations to the affected mention, and supplies per-turn identity lookup events to the evaluator. These changes have offline graph/evaluation-runner coverage; they have not been re-scored with a real model. The judge prompt is now v9, while the last live calibration used v8; obtain a new allowance and calibrate v9 before using semantic scores, setting quality thresholds, or running the held-out split.
+The baseline plus smoke remained within the user-approved total request ceiling. Issue 27 now fixes the deterministic lookup scope, scopes identity failure explanations to the affected mention, and supplies per-turn identity lookup events to the evaluator. These changes have offline graph/evaluation-runner coverage.
+
+## V9 judge calibration
+
+**Run:** `34bc2bdd-1616-4c71-ba3e-162908303ce6`
+
+**Report:** `.data/evals/runs/34bc2bdd-1616-4c71-ba3e-162908303ce6/report.md`
+
+Judge prompt v9 was calibrated against anchor pack v8 and rubric v3. All 32 anchors passed, including all 16 reserved validation anchors. The run also evaluated one `lookup-smoke-v1` trial; deterministic and semantic checks passed with no findings. It used 36/60 requests: 3 agent, 32 calibration, and 1 judge request. There were no denied requests or network failures.
+
+This calibration qualifies v9, but it does not refresh the 32-case development baseline: the existing complete baseline used judge v8 and predates issue 27. Re-run the development split with the current code and v9 before setting quality thresholds or using the held-out split. Keep the held-out cases untouched until that baseline and its acceptance thresholds are reviewed and frozen.

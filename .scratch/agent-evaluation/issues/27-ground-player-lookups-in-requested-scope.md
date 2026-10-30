@@ -5,7 +5,6 @@
 **Blocked by:** None.
 
 **Status:** resolved
-**Labels:** ready-for-agent
 
 - [x] Preserve a user-requested four-digit-start-year season range for `player_lookup` and pass its start year to `search_player_records`, even when the model omits or changes the tool argument.
 - [x] When the user omits a supported season range or uses an ambiguous shorthand/year-only mention, discard any model- or extractor-inferred `seasonStartYear` and ask for an explicit range rather than presenting latest-snapshot data as the requested season.
@@ -25,3 +24,7 @@ The same baseline's identity-failure case received a genuine per-mention `data_u
 The primary implementation/test seam remained the existing public graph/evaluation-runner boundary with fixed local evidence and a fake gateway. The graph regression forces the model to request the wrong source ID and 2025 while the user explicitly asks for 2024/25; the executed search receives the resolved IDs and 2024. A second regression makes both the extractor and tool-call model invent a year when the user gave none; the search receives no year and uses the latest snapshot. The result records `requestedUnderstatSeasonStartYear=2024` for explicit queries. The lookup prompt forbids inventing IDs in prose. Identity-failure responses now identify only the unresolved mention, and evaluation judge input includes the per-turn `resolve_player_identity` result.
 
 Validation: all 141 Vitest tests pass; typecheck, Ultracite, and 48-case/evidence validation pass. Graph regressions cover explicit four-digit seasons, model/extractor-inferred years when omitted, and identity failure copy. A local fake-gateway integration test verifies identity-resolution evidence reaches the judge. No real model request was made: only 18 requests remain in the previously approved allowance, below the 32-call v9 judge calibration cost. The v9 prompt therefore requires live calibration under a new allowance before semantic scores are used.
+
+## Comments
+
+- 2026-10-30: After the user approved an increased request allowance, smoke run `34bc2bdd-1616-4c71-ba3e-162908303ce6` calibrated judge prompt v9 against the v8 anchor pack and rubric v3. All 32 anchors passed, including all 16 validation anchors. The `lookup-smoke-v1` trial passed deterministic and semantic checks with no findings. The run used 36/60 requests (agent 3, calibration 32, judge 1), with no denied requests or network failures. The 32-case development baseline and held-out split were not run.
