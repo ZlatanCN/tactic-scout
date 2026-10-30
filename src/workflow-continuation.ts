@@ -139,15 +139,6 @@ const sameStringSet = (first: string[], second: string[]): boolean => {
   );
 };
 
-const sameConstraints = (
-  first: { name: string; value: string }[],
-  second: { name: string; value: string }[]
-): boolean =>
-  sameStringSet(
-    first.map(({ name, value }) => `${name.trim()}\u0000${value.trim()}`),
-    second.map(({ name, value }) => `${name.trim()}\u0000${value.trim()}`)
-  );
-
 const requestIdentity = (player: RequestPlayerState): string | null => {
   const candidate = selectedReferenceCandidate(player.resolution);
 
@@ -235,14 +226,11 @@ const comparisonRequestMatchesSavedWorkflow = (
 
   const sameParticipants = sameStringSet(current, saved);
 
-  if (request.comparisonAction === "refine") {
-    return sameParticipants;
+  if (request.comparisonAction !== "refine") {
+    return false;
   }
 
-  return (
-    sameParticipants &&
-    sameConstraints(request.constraints, context.activeComparison.constraints)
-  );
+  return sameParticipants;
 };
 
 const playerRecommendationMatchesSavedWorkflow = (
@@ -276,27 +264,7 @@ const playerRecommendationMatchesSavedWorkflow = (
     return referenceId === null ? [] : [referenceId];
   });
 
-  const requestedFilters = [
-    request.recommendation.includePotential,
-    request.recommendation.maxAge,
-    request.recommendation.minimumCurrentAbility,
-    request.recommendation.minimumPotentialAbility,
-    request.recommendation.resultLimit,
-  ];
-
-  const savedFilters = [
-    saved.includePotential,
-    saved.maxAge,
-    saved.minimumCurrentAbility,
-    saved.minimumPotentialAbility,
-    saved.resultLimit,
-  ];
-
-  const filtersMatch =
-    requestedFilters.length === savedFilters.length &&
-    requestedFilters.every((value, index) => value === savedFilters[index]);
-
-  if (request.recommendationAction === "replace" && !filtersMatch) {
+  if (request.recommendationAction !== "refine") {
     return false;
   }
 
@@ -324,6 +292,10 @@ const teamRecommendationMatchesSavedWorkflow = (
     return false;
   }
 
+  if (request.teamRecommendationAction !== "refine") {
+    return false;
+  }
+
   const requestedTeam = request.teamRecommendation.team;
 
   const teamMatches =
@@ -339,34 +311,6 @@ const teamRecommendationMatchesSavedWorkflow = (
     teamMatches &&
     request.teamRecommendation.position === saved.position &&
     request.teamRecommendation.referenceMode === saved.referenceMode;
-
-  const requestedFilters = [
-    request.teamRecommendation.includePotential,
-    request.teamRecommendation.maxAge,
-    request.teamRecommendation.minimumCurrentAbility,
-    request.teamRecommendation.minimumPotentialAbility,
-    request.teamRecommendation.resultLimit,
-  ];
-
-  const savedFilters = [
-    saved.includePotential,
-    saved.maxAge,
-    saved.minimumCurrentAbility,
-    saved.minimumPotentialAbility,
-    saved.resultLimit,
-  ];
-
-  const filtersMatch =
-    requestedFilters.length === savedFilters.length &&
-    requestedFilters.every((value, index) => value === savedFilters[index]);
-
-  if (
-    targetMatches &&
-    request.teamRecommendationAction === "replace" &&
-    !filtersMatch
-  ) {
-    return false;
-  }
 
   if (targetMatches && saved.referenceMode === "squad") {
     return true;
