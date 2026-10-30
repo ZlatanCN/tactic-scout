@@ -264,12 +264,16 @@ describe("LangGraph player workflows", () => {
         )
       : undefined;
 
-    expect(z.string().safeParse(systemMessage?.content).data).toContain(
-      "最终回答不要从记忆猜测或复述 source ID"
-    );
-    expect(z.string().safeParse(systemMessage?.content).data).toContain(
-      "请用户补充完整赛季范围"
-    );
+    const promptContent = z.string().parse(systemMessage?.content);
+
+    expect([
+      promptContent.includes("最终回答不要从记忆猜测或复述 source ID"),
+      promptContent.includes("请用户补充完整赛季范围"),
+      promptContent.includes(
+        "球员查询只按 sourceRecords 与可选 seasonStartYear 搜索，不按用户指定赛事过滤"
+      ),
+      promptContent.includes("不得据此声称用户指定的赛事没有记录"),
+    ]).toStrictEqual([true, true, true, true]);
   });
 
   it("runs the resolved lookup when the model answers without requesting the search tool", async () => {

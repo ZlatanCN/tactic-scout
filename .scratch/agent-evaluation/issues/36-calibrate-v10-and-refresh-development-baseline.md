@@ -4,16 +4,10 @@
 
 **Blocked by:** None.
 
-**Status:** open
-**Label:** ready-for-human
+**Status:** resolved
 
-## Evidence
+## Result
 
-Judge prompt v10 adds per-turn participant scope. The proxy and runner have deterministic local coverage for the new input shape and telemetry, but the prompt has not been sent to the configured gateway. The v9 development baseline remains historical; the held-out split must stay untouched.
+Run `d5ae61a1-4dc7-466b-bdab-11b045b96f9e` completed all 96 development trials using 397/1,500 requests: 269 Agent, 32 Calibration, and 96 Judge. V10 calibration passed all 32 anchors, including 16/16 reserved validation anchors. There were no budget denials or network failures. The held-out split was not run.
 
-## Acceptance
-
-- Preview the exact request estimate for v10 calibration and the 32-case, three-trial development split.
-- Use a new explicit whole-run gateway request allowance.
-- Require all 16 reserved validation anchors to pass before interpreting semantic case scores.
-- Record the new report ID and summarize changed failures without overwriting the v9 report.
+The report is `.data/evals/runs/d5ae61a1-4dc7-466b-bdab-11b045b96f9e/report.md`. It recorded 90 passed and six failed trials; semantic review found 92 passes, two failures, and two inconclusive judgments. Four deterministic failures came from player-based recommendations being classified as team recommendations, and two semantic failures came from over-scoping an empty lookup result to La Liga. Issues 37–39 fix these findings; another live evaluation is tracked in issue 40.

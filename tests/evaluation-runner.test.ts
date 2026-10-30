@@ -1373,7 +1373,7 @@ describe("local scouting evaluation entry", () => {
     }
   });
 
-  it("keeps each judge turn's participant set separate from later additions", () => {
+  it("keeps each judge turn's participants and source mappings separate", () => {
     const [loadedCase] = loadEvaluationCases("smoke", [
       "compare-add-third-synthetic-v1",
     ]);
@@ -1390,7 +1390,21 @@ describe("local scouting evaluation entry", () => {
 
     const firstTurnPlayers = [
       {
-        candidates: [],
+        candidates: [
+          {
+            candidateId: "candidate:Elias Demo",
+            canonicalIdentityId: "identity:elias",
+            records: [
+              { provider: "fm", sourceId: "fm-demo-01" },
+              {
+                competition: "EPL",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-demo-01",
+              },
+            ],
+          },
+        ],
         lookupName: null,
         mention: "Elias Demo",
         resolutionStatus: "resolved",
@@ -1398,7 +1412,21 @@ describe("local scouting evaluation entry", () => {
         selectedName: "Elias Demo",
       },
       {
-        candidates: [],
+        candidates: [
+          {
+            candidateId: "candidate:Synthetic Midfielder",
+            canonicalIdentityId: "identity:midfielder",
+            records: [
+              { provider: "fm", sourceId: "fm-mid-01" },
+              {
+                competition: "EPL",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-mid-01",
+              },
+            ],
+          },
+        ],
         lookupName: null,
         mention: "Synthetic Midfielder",
         resolutionStatus: "resolved",
@@ -1410,7 +1438,21 @@ describe("local scouting evaluation entry", () => {
     const secondTurnPlayers = [
       ...firstTurnPlayers,
       {
-        candidates: [],
+        candidates: [
+          {
+            candidateId: "candidate:Synthetic Winger",
+            canonicalIdentityId: "identity:winger",
+            records: [
+              { provider: "fm", sourceId: "fm-wing-01" },
+              {
+                competition: "La_liga",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-wing-01",
+              },
+            ],
+          },
+        ],
         lookupName: null,
         mention: "Synthetic Winger",
         resolutionStatus: "resolved",
@@ -1420,7 +1462,27 @@ describe("local scouting evaluation entry", () => {
     ];
 
     const worker = workerTrialResultSchema.parse({
-      actionEvents: [],
+      actionEvents: [
+        {
+          actionId: "comparison-attempt-1",
+          caseId: loadedCase.caseDefinition.caseId,
+          durationMs: 1,
+          eventId: "comparison-attempt-1:returned",
+          input: {
+            players: ["Elias Demo", "Synthetic Midfielder"],
+            seasonStartYear: 2024,
+          },
+          kind: "returned",
+          name: "compare_player_records",
+          outcome: "ready",
+          result: "{}",
+          runId: "run-test",
+          sourceRecords: [],
+          toolCallId: null,
+          trialId: "trial-test",
+          turnId: firstCaseTurn.turnId,
+        },
+      ],
       activeLookupResult: null,
       activeResults: {
         comparison: null,
@@ -1480,22 +1542,110 @@ describe("local scouting evaluation entry", () => {
     expect(judgeInput.turns).toMatchObject([
       {
         participants: [
-          { mention: "Elias Demo", resolvedName: "Elias Demo" },
+          {
+            mention: "Elias Demo",
+            resolvedName: "Elias Demo",
+            sourceRecords: [
+              {
+                competition: null,
+                provider: "fm",
+                season: null,
+                sourceId: "fm-demo-01",
+              },
+              {
+                competition: "EPL",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-demo-01",
+              },
+            ],
+          },
           {
             mention: "Synthetic Midfielder",
             resolvedName: "Synthetic Midfielder",
+            sourceRecords: [
+              {
+                competition: null,
+                provider: "fm",
+                season: null,
+                sourceId: "fm-mid-01",
+              },
+              {
+                competition: "EPL",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-mid-01",
+              },
+            ],
           },
         ],
       },
       {
         participants: [
-          { mention: "Elias Demo", resolvedName: "Elias Demo" },
+          {
+            mention: "Elias Demo",
+            resolvedName: "Elias Demo",
+            sourceRecords: [
+              {
+                competition: null,
+                provider: "fm",
+                season: null,
+                sourceId: "fm-demo-01",
+              },
+              {
+                competition: "EPL",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-demo-01",
+              },
+            ],
+          },
           {
             mention: "Synthetic Midfielder",
             resolvedName: "Synthetic Midfielder",
+            sourceRecords: [
+              {
+                competition: null,
+                provider: "fm",
+                season: null,
+                sourceId: "fm-mid-01",
+              },
+              {
+                competition: "EPL",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-mid-01",
+              },
+            ],
           },
-          { mention: "Synthetic Winger", resolvedName: "Synthetic Winger" },
+          {
+            mention: "Synthetic Winger",
+            resolvedName: "Synthetic Winger",
+            sourceRecords: [
+              {
+                competition: null,
+                provider: "fm",
+                season: null,
+                sourceId: "fm-wing-01",
+              },
+              {
+                competition: "La_liga",
+                provider: "understat",
+                season: "2024/25",
+                sourceId: "us-wing-01",
+              },
+            ],
+          },
         ],
+      },
+    ]);
+    expect(judgeInput.actions).toMatchObject([
+      {
+        input: {
+          players: ["Elias Demo", "Synthetic Midfielder"],
+          seasonStartYear: 2024,
+        },
+        turnId: firstCaseTurn.turnId,
       },
     ]);
   });
@@ -3508,7 +3658,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v10",
+      judgePromptVersion: "scouting-semantic-judge-v12",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

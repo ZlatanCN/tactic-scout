@@ -270,7 +270,7 @@ const relativeComparisonSeasonFromText = (text: string): string | null => {
   return relativeComparisonSeasonPattern.exec(text)?.[0] ?? null;
 };
 
-const explicitTeamPositionFromText = (text: string): string | null => {
+const explicitPositionCodeFromText = (text: string): string | null => {
   const normalizedText = text.normalize("NFKC");
 
   const pattern = new RegExp(
@@ -302,7 +302,7 @@ const explicitTeamPositionFromText = (text: string): string | null => {
 const teamRecommendationFromText = (
   text: string
 ): { position: string; team: string } | null => {
-  const position = explicitTeamPositionFromText(text);
+  const position = explicitPositionCodeFromText(text);
 
   if (position === null) {
     return null;
@@ -331,6 +331,34 @@ const teamRecommendationFromText = (
   }
 
   return { position, team };
+};
+
+const playerBasedRecommendationFromText = (
+  result: ExtractedRequest,
+  message: string
+): boolean => {
+  if (
+    result.kind !== "team_recommendation" ||
+    result.teams.length > 0 ||
+    explicitPositionCodeFromText(message) === null
+  ) {
+    return false;
+  }
+
+  const messageKey = normalizeMentionText(message);
+
+  const hasExplicitPlayer = result.players.some(({ mention }) => {
+    const mentionKey = normalizeMentionText(mention);
+
+    return mentionKey.length > 0 && messageKey.includes(mentionKey);
+  });
+
+  const isPlayerBased =
+    /(?:根据|基于|按照|参考).{0,60}(?:推荐|寻找|找)|\b(?:based on|using|similar to)\b/iu.test(
+      message
+    );
+
+  return hasExplicitPlayer && isPlayerBased;
 };
 
 const recommendationActionFromResult = (
@@ -410,8 +438,20 @@ const normalizeRequestExtraction = (
 ): ExtractedRequest => {
   const teamRecommendation = teamRecommendationFromText(message);
 
-  const kind =
-    teamRecommendation === null ? result.kind : "team_recommendation";
+  const playerBasedRecommendation = playerBasedRecommendationFromText(
+    result,
+    message
+  );
+
+  let { kind } = result;
+
+  if (playerBasedRecommendation) {
+    kind = "player_recommendation";
+  }
+
+  if (teamRecommendation !== null) {
+    kind = "team_recommendation";
+  }
 
   const normalizedConstraints = result.constraints.flatMap((constraint) => {
     const name = constraint.name.trim();
@@ -436,8 +476,8 @@ const normalizeRequestExtraction = (
         ];
 
   const explicitTeamPosition =
-    kind === "team_recommendation"
-      ? explicitTeamPositionFromText(message)
+    kind === "team_recommendation" || kind === "player_recommendation"
+      ? explicitPositionCodeFromText(message)
       : null;
 
   const recommendation =
@@ -468,9 +508,9 @@ const normalizeRequestExtraction = (
     }),
     recommendation,
     recommendationAction:
-      result.kind === null
+      kind === null
         ? result.recommendationAction
-        : recommendationActionFromResult(result, context, message),
+        : recommendationActionFromResult({ ...result, kind }, context, message),
     teamSearchName: result.teamSearchName?.trim() ?? null,
     teams:
       teamRecommendation === null

@@ -8,4 +8,4 @@
 
 ## Answer
 
-Judge input now includes each turn's user-mentioned and resolved participants. Prompt v10 explicitly scopes claims such as “all participants” to that turn and forbids retroactive use of later turns. An offline regression reproduces the two-participant comparison followed by a third-player addition and verifies the distinct per-turn participant sets. Real-model v10 calibration is tracked separately in issue 36.
+Judge input now includes each turn's user-mentioned and resolved participants, their selected provider source IDs, identity-record competition/season metadata, and exact action inputs. Prompt v12 scopes claims such as “all participants” to that turn, uses action parameters to review filter claims, and forbids retroactive scope changes or treating identity-record scope as the requested query result. Offline regressions cover participant/source mappings and action parameters. V10 baseline and V11 smoke are recorded in issues 36 and 40; v12 calibration is tracked in issue 41.
