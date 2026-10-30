@@ -46,6 +46,11 @@ type RequestTurnBuild = { outcome: TurnOutcome | null; request: RequestState };
 
 type RecommendationAction = "replace" | "add" | "refine";
 
+type RecommendationFilterValues = Pick<
+  RecommendationRequestState,
+  "maxAge" | "minimumCurrentAbility" | "minimumPotentialAbility" | "resultLimit"
+>;
+
 const recommendationPatchFromRequest = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>
 ) => ({
@@ -191,6 +196,24 @@ const recommendationBaseline = (
   };
 };
 
+const mergeRecommendationFilterValues = (
+  baseline: RecommendationFilterValues,
+  patch: ExtractedRequest["recommendation"]
+): RecommendationFilterValues => ({
+  maxAge: patchHasField(patch, "maxAge")
+    ? (patch?.maxAge ?? null)
+    : baseline.maxAge,
+  minimumCurrentAbility: patchHasField(patch, "minimumCurrentAbility")
+    ? (patch?.minimumCurrentAbility ?? null)
+    : baseline.minimumCurrentAbility,
+  minimumPotentialAbility: patchHasField(patch, "minimumPotentialAbility")
+    ? (patch?.minimumPotentialAbility ?? null)
+    : baseline.minimumPotentialAbility,
+  resultLimit: patchHasField(patch, "resultLimit")
+    ? (patch?.resultLimit ?? null)
+    : baseline.resultLimit,
+});
+
 const recommendationFiltersFromPatch = (
   baseline: RecommendationRequestState,
   patch: Awaited<ReturnType<RequestUnderstandingExtractor>>["recommendation"],
@@ -203,17 +226,8 @@ const recommendationFiltersFromPatch = (
   | "position"
   | "resultLimit"
 > => {
-  const maxAge = patchHasField(patch, "maxAge")
-    ? (patch?.maxAge ?? null)
-    : baseline.maxAge;
-
-  const minimumCurrentAbility = patchHasField(patch, "minimumCurrentAbility")
-    ? (patch?.minimumCurrentAbility ?? null)
-    : baseline.minimumCurrentAbility;
-
-  let minimumPotentialAbility = patchHasField(patch, "minimumPotentialAbility")
-    ? (patch?.minimumPotentialAbility ?? null)
-    : baseline.minimumPotentialAbility;
+  const filters = mergeRecommendationFilterValues(baseline, patch);
+  let { minimumPotentialAbility } = filters;
 
   if (excludesPotential) {
     minimumPotentialAbility = null;
@@ -223,16 +237,10 @@ const recommendationFiltersFromPatch = (
     ? (patch?.position ?? null)
     : baseline.position;
 
-  const resultLimit = patchHasField(patch, "resultLimit")
-    ? (patch?.resultLimit ?? null)
-    : baseline.resultLimit;
-
   return {
-    maxAge,
-    minimumCurrentAbility,
+    ...filters,
     minimumPotentialAbility,
     position,
-    resultLimit,
   };
 };
 
@@ -392,40 +400,20 @@ const teamFiltersFromPatch = (
   >,
   patch: Awaited<ReturnType<RequestUnderstandingExtractor>>["recommendation"]
 ) => {
-  let { maxAge, minimumCurrentAbility, minimumPotentialAbility, resultLimit } =
-    baseline;
-
+  const filters = mergeRecommendationFilterValues(baseline, patch);
   let includePotential = patch?.includePotential ?? baseline.includePotential;
 
-  if (patchHasField(patch, "maxAge")) {
-    maxAge = patch?.maxAge ?? null;
-  }
-
-  if (patchHasField(patch, "minimumCurrentAbility")) {
-    minimumCurrentAbility = patch?.minimumCurrentAbility ?? null;
-  }
-
-  if (patchHasField(patch, "minimumPotentialAbility")) {
-    minimumPotentialAbility = patch?.minimumPotentialAbility ?? null;
-
-    if (
-      patch?.includePotential === undefined &&
-      minimumPotentialAbility !== null
-    ) {
-      includePotential = true;
-    }
-  }
-
-  if (patchHasField(patch, "resultLimit")) {
-    resultLimit = patch?.resultLimit ?? null;
+  if (
+    patchHasField(patch, "minimumPotentialAbility") &&
+    patch?.includePotential === undefined &&
+    filters.minimumPotentialAbility !== null
+  ) {
+    includePotential = true;
   }
 
   return {
+    ...filters,
     includePotential,
-    maxAge,
-    minimumCurrentAbility,
-    minimumPotentialAbility,
-    resultLimit,
   };
 };
 

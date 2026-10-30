@@ -30,22 +30,19 @@ const resolvedReference = (
       };
 };
 
-const lookupLimitToolMessage = "本轮搜索次数已达上限，该搜索未执行。";
-
 const createCommitLookupResultsNode =
   (): GraphNode<typeof AgentState> => (state, runtime) => {
     if (state.faultTolerance.lookupToolStartedAt === null) {
       return {};
     }
 
+    const blockedCallIds = new Set(state.faultTolerance.lookupToolCallIds);
+
     const latestSearchResult = messagesInCurrentTurn(state.messages).findLast(
       (message): message is ToolMessage =>
         message instanceof ToolMessage &&
         message.name === "search_player_records" &&
-        !(
-          state.faultTolerance.lookupLimitReached &&
-          message.content === lookupLimitToolMessage
-        )
+        !blockedCallIds.has(message.tool_call_id)
     );
 
     if (latestSearchResult === undefined) {

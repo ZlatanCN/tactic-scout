@@ -1506,11 +1506,10 @@ describe("LangGraph player workflows", () => {
     });
   });
 
-  it("does not reuse a previous lookup after an unrelated lookup fails", async () => {
+  it("does not reuse a previous lookup after a different season request fails", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
-    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
     const kaneMessage = "Look up Harry Kane.";
-    const mbappeMessage = "Look up Kylian Mbappé again.";
+    const failedMessage = "Look up Harry Kane's 2024/25 Understat data again.";
     const followUp = "Which season was in the previous lookup?";
 
     const search = vi
@@ -1525,6 +1524,7 @@ describe("LangGraph player workflows", () => {
             unlinkedRecords: [],
           },
           query: input.sourceRecords,
+          requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
           understat: { records: [], status: "not_found" },
         })
       );
@@ -1541,8 +1541,9 @@ describe("LangGraph player workflows", () => {
 
     const graph = createAgent({
       model,
-      playerIdentityLookup: resolvedLookupFromCandidates([kane, mbappe]),
+      playerIdentityLookup: resolvedLookup(kane),
       requestUnderstandingExtractor: createExtractor({
+        [failedMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
         [followUp]: {
           constraints: [],
           kind: "player_lookup",
@@ -1558,7 +1559,6 @@ describe("LangGraph player workflows", () => {
           teams: [],
         },
         [kaneMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
-        [mbappeMessage]: requestForPlayers("player_lookup", ["Kylian Mbappé"]),
       }),
       tools: [createSearchTool(search)],
     });
@@ -1568,7 +1568,7 @@ describe("LangGraph player workflows", () => {
     };
 
     await graph.invoke({ messages: [new HumanMessage(kaneMessage)] }, config);
-    await graph.invoke({ messages: [new HumanMessage(mbappeMessage)] }, config);
+    await graph.invoke({ messages: [new HumanMessage(failedMessage)] }, config);
 
     const result = await graph.invoke(
       { messages: [new HumanMessage(followUp)] },

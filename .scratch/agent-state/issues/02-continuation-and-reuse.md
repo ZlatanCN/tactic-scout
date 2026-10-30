@@ -32,6 +32,8 @@ Search-limit and failed-understanding regressions verify that old successful sna
 
 Saved lookup follow-ups are subject to the same failure-boundary check as other workflow reuses.
 
+Lookup reuse also checks the selected source records and requested Understat season. A failed request for the same player in a different season cannot silently explain the older snapshot.
+
 ## Comments
 
 - 2026-10-30: Claimed after result contracts were implemented.

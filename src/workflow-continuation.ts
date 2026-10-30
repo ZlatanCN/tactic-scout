@@ -146,103 +146,205 @@ const requestIdentity = (player: RequestPlayerState): string | null => {
     : (candidate.canonicalIdentityId ?? candidate.candidateId);
 };
 
+const lookupRequestMatchesSavedWorkflow = (
+  state: AgentStateType,
+  context: ConversationContext
+): boolean => {
+  const { request } = state;
+  const { activeLookup } = context;
+
+  if (request.kind !== "player_lookup" || activeLookup === null) {
+    return false;
+  }
+
+  const [player] = request.players;
+  const referenceId = player === undefined ? null : requestIdentity(player);
+
+  if (referenceId !== activeLookup.player.referenceId || player === undefined) {
+    return false;
+  }
+
+  const candidate = selectedReferenceCandidate(player.resolution);
+
+  if (candidate === null) {
+    return false;
+  }
+
+  const currentSourceRecords = candidate.records.map(
+    ({ provider, sourceId }) => `${provider}:${sourceId}`
+  );
+
+  const savedResult = decodeResultJson(
+    activeLookup.resultJson,
+    searchPlayerRecordsResultSchema
+  ).data;
+
+  if ("result" in savedResult) {
+    return false;
+  }
+
+  const savedSourceRecords = savedResult.query.map(
+    ({ provider, sourceId }) => `${provider}:${sourceId}`
+  );
+
+  const requestedSeason = request.constraints.find(
+    ({ name }) => name === "understatSeasonStartYear"
+  );
+
+  const requestedSeasonStartYear =
+    requestedSeason === undefined ? null : Number(requestedSeason.value);
+
+  const savedSeasonStartYear =
+    savedResult.requestedUnderstatSeasonStartYear ?? null;
+
+  return (
+    sameStringSet(currentSourceRecords, savedSourceRecords) &&
+    requestedSeasonStartYear === savedSeasonStartYear
+  );
+};
+
+const comparisonRequestMatchesSavedWorkflow = (
+  state: AgentStateType,
+  context: ConversationContext
+): boolean => {
+  const { request } = state;
+
+  if (request.kind !== "player_comparison") {
+    return false;
+  }
+
+  const current = request.players.flatMap((player) => {
+    const referenceId = requestIdentity(player);
+
+    return referenceId === null ? [] : [referenceId];
+  });
+
+  const saved = context.activeComparison.players.map(
+    ({ referenceId }) => referenceId
+  );
+
+  if (request.comparisonAction === "replace") {
+    return sameStringSet(current, saved);
+  }
+
+  const currentSet = new Set(current);
+
+  return saved.every((referenceId) => currentSet.has(referenceId));
+};
+
+const playerRecommendationMatchesSavedWorkflow = (
+  state: AgentStateType,
+  context: ConversationContext
+): boolean => {
+  const { request } = state;
+  const saved = context.activeRecommendation;
+
+  if (request.kind !== "player_recommendation" || saved === null) {
+    return false;
+  }
+
+  const currentReferences = request.players.flatMap((player) => {
+    if (player.recommendationRole !== "reference") {
+      return [];
+    }
+
+    const referenceId = requestIdentity(player);
+
+    return referenceId === null ? [] : [referenceId];
+  });
+
+  const currentExclusions = request.players.flatMap((player) => {
+    if (player.recommendationRole !== "exclude") {
+      return [];
+    }
+
+    const referenceId = requestIdentity(player);
+
+    return referenceId === null ? [] : [referenceId];
+  });
+
+  return (
+    request.recommendation.position === saved.position &&
+    sameStringSet(
+      currentReferences,
+      saved.referencePlayers.map(({ referenceId }) => referenceId)
+    ) &&
+    sameStringSet(
+      currentExclusions,
+      saved.excludePlayers.map(({ referenceId }) => referenceId)
+    )
+  );
+};
+
+const teamRecommendationMatchesSavedWorkflow = (
+  state: AgentStateType,
+  context: ConversationContext
+): boolean => {
+  const { request } = state;
+  const saved = context.activeTeamRecommendation;
+
+  if (request.kind !== "team_recommendation" || saved === null) {
+    return false;
+  }
+
+  const requestedTeam = request.teamRecommendation.team;
+
+  const teamMatches =
+    requestedTeam === null
+      ? request.teamRecommendation.teamName
+          ?.trim()
+          .normalize("NFKC")
+          .toLowerCase() ===
+        saved.team.name.trim().normalize("NFKC").toLowerCase()
+      : requestedTeam.id === saved.team.id;
+
+  const targetMatches =
+    teamMatches &&
+    request.teamRecommendation.position === saved.position &&
+    request.teamRecommendation.referenceMode === saved.referenceMode;
+
+  if (targetMatches && saved.referenceMode === "squad") {
+    return true;
+  }
+
+  if (targetMatches && saved.referenceMode === "named") {
+    const currentReferences = request.players.flatMap((player) => {
+      const referenceId = requestIdentity(player);
+
+      return referenceId === null ? [] : [referenceId];
+    });
+
+    return sameStringSet(
+      currentReferences,
+      saved.referencePlayers.map(({ referenceId }) => referenceId)
+    );
+  }
+
+  return false;
+};
+
 const failedRequestMatchesSavedWorkflow = (
   state: AgentStateType,
   context: ConversationContext,
   workflow: WorkflowKind
 ): boolean => {
-  const { request } = state;
-
-  if (request.kind !== workflow || !hasSavedWorkflowResult(context, workflow)) {
+  if (!hasSavedWorkflowResult(context, workflow)) {
     return false;
   }
 
   if (workflow === "player_lookup") {
-    const [player] = request.players;
-    const referenceId = player === undefined ? null : requestIdentity(player);
-
-    return referenceId === context.activeLookup?.player.referenceId;
+    return lookupRequestMatchesSavedWorkflow(state, context);
   }
 
   if (workflow === "player_comparison") {
-    if (request.kind !== "player_comparison") {
-      return false;
-    }
-
-    const current = request.players.flatMap((player) => {
-      const referenceId = requestIdentity(player);
-
-      return referenceId === null ? [] : [referenceId];
-    });
-
-    const saved = context.activeComparison.players.map(
-      ({ referenceId }) => referenceId
-    );
-
-    const currentSet = new Set(current);
-
-    return request.comparisonAction === "replace"
-      ? sameStringSet(current, saved)
-      : saved.every((referenceId) => currentSet.has(referenceId));
+    return comparisonRequestMatchesSavedWorkflow(state, context);
   }
 
   if (workflow === "player_recommendation") {
-    const currentReferences = request.players.flatMap((player) => {
-      if (player.recommendationRole !== "reference") {
-        return [];
-      }
-
-      const referenceId = requestIdentity(player);
-
-      return referenceId === null ? [] : [referenceId];
-    });
-
-    const currentExclusions = request.players.flatMap((player) => {
-      if (player.recommendationRole !== "exclude") {
-        return [];
-      }
-
-      const referenceId = requestIdentity(player);
-
-      return referenceId === null ? [] : [referenceId];
-    });
-
-    const saved = context.activeRecommendation;
-
-    return (
-      saved !== null &&
-      sameStringSet(
-        currentReferences,
-        saved.referencePlayers.map(({ referenceId }) => referenceId)
-      ) &&
-      sameStringSet(
-        currentExclusions,
-        saved.excludePlayers.map(({ referenceId }) => referenceId)
-      )
-    );
+    return playerRecommendationMatchesSavedWorkflow(state, context);
   }
 
-  if (request.kind !== "team_recommendation") {
-    return false;
-  }
-
-  const saved = context.activeTeamRecommendation;
-  const requestedTeam = request.teamRecommendation.team;
-
-  if (saved === null) {
-    return false;
-  }
-
-  if (requestedTeam !== null) {
-    return requestedTeam.id === saved.team.id;
-  }
-
-  return (
-    request.teamRecommendation.teamName
-      ?.trim()
-      .normalize("NFKC")
-      .toLowerCase() === saved.team.name.trim().normalize("NFKC").toLowerCase()
-  );
+  return teamRecommendationMatchesSavedWorkflow(state, context);
 };
 
 const canReuseSavedWorkflowAfterTurn = (
