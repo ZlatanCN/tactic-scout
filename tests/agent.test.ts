@@ -92,6 +92,24 @@ const resolvedLookup =
     status: "resolved",
   });
 
+const resolvedLookupFromCandidates = (
+  candidates: ReferenceCandidate[]
+): ReferenceIdentityLookup => {
+  const byName = new Map(
+    candidates.map((candidate) => [candidate.name, candidate])
+  );
+
+  return async (mention) => {
+    const candidate = await Promise.resolve(byName.get(mention));
+
+    if (candidate === undefined) {
+      throw new Error(`Unexpected identity lookup: ${mention}`);
+    }
+
+    return await resolvedLookup(candidate)(mention);
+  };
+};
+
 const createExtractor =
   (requests: Record<string, ExtractedRequest>): RequestUnderstandingExtractor =>
   async (message) => {
@@ -587,6 +605,92 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("does not answer a lookup follow-up from an older player after a different lookup fails", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
+    const firstMessage = "Look up Harry Kane.";
+    const failedMessage = "Look up Kylian Mbappé again.";
+    const followUp = "Which season was in the previous lookup?";
+
+    const search = vi
+      .fn<PlayerSearch>(emptySearchResult)
+      .mockImplementationOnce(emptySearchResult);
+
+    search.mockImplementationOnce((input) =>
+      JSON.stringify({
+        fm: { reason: "FM snapshot unavailable", status: "unavailable" },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
+        query: input.sourceRecords,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const searchCall = {
+      args: { sourceRecords: [] },
+      name: "search_player_records",
+    };
+
+    const identityLookup = resolvedLookupFromCandidates([kane, mbappe]);
+
+    const model = fakeModel()
+      .respondWithTools([searchCall])
+      .respond(new AIMessage("Harry Kane's data loaded."))
+      .respondWithTools([searchCall]);
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [failedMessage]: requestForPlayers("player_lookup", ["Kylian Mbappé"]),
+        [firstMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [followUp]: {
+          constraints: [],
+          kind: "player_lookup",
+          players: [
+            {
+              lookupName: null,
+              mention: "the previous lookup",
+              recommendationRole: "reference",
+              referenceScope: "prior_context",
+              referenceTargetMention: null,
+            },
+          ],
+          teams: [],
+        },
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-followup-after-unrelated-failure" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+    await graph.invoke({ messages: [new HumanMessage(failedMessage)] }, config);
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(followUp)] },
+      config
+    );
+
+    expect({
+      activePlayer:
+        result.conversationContext.activeLookup?.player.candidate.name,
+      answer: result.messages.at(-1)?.content,
+      outcome: result.outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activePlayer: "Harry Kane",
+      answer: "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      outcome: "saved_result_unavailable",
+      searchCalls: 2,
+    });
+  });
+
   it("retains a completed player recommendation when its final explanation fails", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const message = "Find striker alternatives to Kane.";
@@ -1012,21 +1116,7 @@ describe("LangGraph player workflows", () => {
     const secondMessage = "Look up Kylian Mbappé.";
     const search = vi.fn<PlayerSearch>(emptySearchResult);
 
-    const identityLookup: ReferenceIdentityLookup = (mention) => {
-      const candidate = mention === "Harry Kane" ? kane : mbappe;
-
-      return {
-        candidateCount: 1,
-        candidates: [candidate],
-        candidatesTruncated: false,
-        canonicalIdentityId: candidate.canonicalIdentityId,
-        clarificationMessage: null,
-        mention,
-        selectedCandidateId: candidate.candidateId,
-        selectedName: candidate.name,
-        status: "resolved",
-      };
-    };
+    const identityLookup = resolvedLookupFromCandidates([kane, mbappe]);
 
     const searchCall = {
       args: { sourceRecords: [] },
@@ -1401,6 +1491,89 @@ describe("LangGraph player workflows", () => {
       outcomeStatus: "lookup_follow_up",
       pendingClarification: null,
       searchCalls: 1,
+    });
+  });
+
+  it("does not reuse a previous lookup after an unrelated lookup fails", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
+    const kaneMessage = "Look up Harry Kane.";
+    const mbappeMessage = "Look up Kylian Mbappé again.";
+    const followUp = "Which season was in the previous lookup?";
+
+    const search = vi
+      .fn<PlayerSearch>(emptySearchResult)
+      .mockImplementationOnce((input) => emptySearchResult(input))
+      .mockImplementationOnce((input) =>
+        JSON.stringify({
+          fm: { reason: "FM snapshot unavailable", status: "unavailable" },
+          identityGroups: {
+            canonicalGroups: [],
+            registryStatus: "not_needed",
+            unlinkedRecords: [],
+          },
+          query: input.sourceRecords,
+          understat: { records: [], status: "not_found" },
+        })
+      );
+
+    const searchCall = {
+      args: { sourceRecords: [] },
+      name: "search_player_records",
+    };
+
+    const model = fakeModel()
+      .respondWithTools([searchCall])
+      .respond(new AIMessage("Harry Kane's records loaded."))
+      .respondWithTools([searchCall]);
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookupFromCandidates([kane, mbappe]),
+      requestUnderstandingExtractor: createExtractor({
+        [followUp]: {
+          constraints: [],
+          kind: "player_lookup",
+          players: [
+            {
+              lookupName: null,
+              mention: "the previous lookup",
+              recommendationRole: "reference",
+              referenceScope: "prior_context",
+              referenceTargetMention: null,
+            },
+          ],
+          teams: [],
+        },
+        [kaneMessage]: requestForPlayers("player_lookup", ["Harry Kane"]),
+        [mbappeMessage]: requestForPlayers("player_lookup", ["Kylian Mbappé"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-followup-after-unrelated-failure" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(kaneMessage)] }, config);
+    await graph.invoke({ messages: [new HumanMessage(mbappeMessage)] }, config);
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(followUp)] },
+      config
+    );
+
+    expect({
+      activePlayer:
+        result.conversationContext.activeLookup?.player.candidate.name,
+      answer: result.messages.at(-1)?.content,
+      outcome: result.outcome?.status,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      activePlayer: "Harry Kane",
+      answer: "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
+      outcome: "saved_result_unavailable",
+      searchCalls: 2,
     });
   });
 

@@ -4,9 +4,12 @@ import { activeComparisonContext } from "../comparison-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
 import {
+  isBlockedLookupFollowUp,
+  isLookupFollowUpRequest,
   requestFromCurrentTurn,
   workflowDraftFromExtraction,
 } from "../request-building.js";
+import type { RequestTurnInput } from "../request-building.js";
 import type { RequestUnderstandingExtractor } from "../request-extraction.js";
 import type { AgentState } from "../state.js";
 import {
@@ -17,9 +20,10 @@ import {
 import {
   continuationChoice,
   previousTurnSummary,
-  savedOutcomeForWorkflow,
+  savedResultUnavailable,
+  savedOutcomeForTurn,
+  workflowLabels,
 } from "../workflow-continuation.js";
-import type { WorkflowKind } from "../workflow-continuation.js";
 
 const createRequestUnderstandingNode =
   (
@@ -52,12 +56,51 @@ const createRequestUnderstandingNode =
     const budget = createModelRequestBudget(runtime, "understand_request");
     const previous = previousTurnSummary(state);
 
-    const extracted = await extractRequest(
+    const rawExtracted = await extractRequest(
       text,
       contextWithComparison,
       budget,
       previous
     );
+
+    if (
+      isBlockedLookupFollowUp(
+        state,
+        contextWithComparison,
+        rawExtracted,
+        previous,
+        text
+      )
+    ) {
+      const built = requestFromCurrentTurn(
+        {
+          context: contextWithComparison,
+          extracted: rawExtracted,
+          messageId,
+          text,
+        } satisfies RequestTurnInput,
+        "player_lookup"
+      );
+
+      return {
+        conversationContext: contextWithComparison,
+        faultTolerance: createInitialFaultToleranceState(),
+        outcome: savedResultUnavailable("player_lookup"),
+        pendingClarification: null,
+        request: built.request,
+      };
+    }
+
+    const extracted =
+      (rawExtracted.kind === "player_lookup" ||
+        rawExtracted.kind === "other") &&
+      isLookupFollowUpRequest(rawExtracted, text, contextWithComparison)
+        ? {
+            ...rawExtracted,
+            continuationAction: "explain" as const,
+            kind: null,
+          }
+        : rawExtracted;
 
     if (extracted.kind === null) {
       const choice = continuationChoice(
@@ -68,15 +111,8 @@ const createRequestUnderstandingNode =
       );
 
       if (choice.requiresConfirmation || choice.options.length > 1) {
-        const labels: Record<WorkflowKind, string> = {
-          player_comparison: "球员比较",
-          player_lookup: "球员查询",
-          player_recommendation: "球员推荐",
-          team_recommendation: "球队推荐",
-        };
-
         const optionsText = choice.options
-          .map((workflow, index) => `${index + 1}. ${labels[workflow]}`)
+          .map((workflow, index) => `${index + 1}. ${workflowLabels[workflow]}`)
           .join("；");
 
         const question =
@@ -90,12 +126,12 @@ const createRequestUnderstandingNode =
           outcome: null,
           pendingClarification: {
             answer: null,
-            draft: workflowDraftFromExtraction(
+            draft: workflowDraftFromExtraction({
+              context: contextWithComparison,
               extracted,
-              text,
               messageId,
-              contextWithComparison
-            ),
+              text,
+            }),
             kind: "workflow",
             options: choice.options,
             question,
@@ -110,17 +146,25 @@ const createRequestUnderstandingNode =
       const workflow = choice.workflow ?? "other";
 
       const built = requestFromCurrentTurn(
-        extracted,
-        workflow,
-        contextWithComparison,
-        text,
-        messageId
+        {
+          context: contextWithComparison,
+          extracted,
+          messageId,
+          text,
+        },
+        workflow
       );
 
-      const outcome =
-        workflow !== "other" && extracted.continuationAction === "explain"
-          ? savedOutcomeForWorkflow(workflow, contextWithComparison)
-          : built.outcome;
+      let { outcome } = built;
+
+      if (workflow !== "other" && extracted.continuationAction === "explain") {
+        outcome = savedOutcomeForTurn(
+          state,
+          contextWithComparison,
+          previous,
+          workflow
+        );
+      }
 
       return {
         conversationContext: contextWithComparison,
@@ -132,17 +176,28 @@ const createRequestUnderstandingNode =
     }
 
     const built = requestFromCurrentTurn(
-      extracted,
-      extracted.kind,
-      contextWithComparison,
-      text,
-      messageId
+      {
+        context: contextWithComparison,
+        extracted,
+        messageId,
+        text,
+      },
+      extracted.kind
     );
 
-    const outcome =
-      extracted.kind !== "other" && extracted.continuationAction === "explain"
-        ? savedOutcomeForWorkflow(extracted.kind, contextWithComparison)
-        : built.outcome;
+    let { outcome } = built;
+
+    if (
+      extracted.kind !== "other" &&
+      extracted.continuationAction === "explain"
+    ) {
+      outcome = savedOutcomeForTurn(
+        state,
+        contextWithComparison,
+        previous,
+        extracted.kind
+      );
+    }
 
     return {
       conversationContext: contextWithComparison,

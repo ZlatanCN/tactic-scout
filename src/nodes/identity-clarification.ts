@@ -11,6 +11,7 @@ import type {
   PendingClarification,
   RequestPlayerState,
 } from "../state.js";
+import { workflowLabels } from "../workflow-continuation.js";
 
 type WorkflowOption = Extract<
   PendingClarification,
@@ -102,15 +103,8 @@ const candidatesForClarification = (
   }
 
   if (pending.kind === "workflow") {
-    const labels: Record<WorkflowOption, string> = {
-      player_comparison: "球员比较",
-      player_lookup: "球员查询",
-      player_recommendation: "球员推荐",
-      team_recommendation: "球队推荐",
-    };
-
     return pending.options.map((workflow, index) => ({
-      label: labels[workflow],
+      label: workflowLabels[workflow],
       number: index + 1,
       workflow,
     }));

@@ -29,6 +29,13 @@ const workflowKinds = [
 
 type WorkflowKind = (typeof workflowKinds)[number];
 
+const workflowLabels: Record<WorkflowKind, string> = {
+  player_comparison: "球员比较",
+  player_lookup: "球员查询",
+  player_recommendation: "球员推荐",
+  team_recommendation: "球队推荐",
+};
+
 type ContinuationChoice = {
   requiresConfirmation: boolean;
   options: WorkflowKind[];
@@ -236,6 +243,26 @@ const failedRequestMatchesSavedWorkflow = (
       .normalize("NFKC")
       .toLowerCase() === saved.team.name.trim().normalize("NFKC").toLowerCase()
   );
+};
+
+const canReuseSavedWorkflowAfterTurn = (
+  state: AgentStateType,
+  context: ConversationContext,
+  previous: PreviousTurnSummary,
+  workflow: WorkflowKind
+): boolean => {
+  if (previous.failureStage === "understanding") {
+    return false;
+  }
+
+  if (previous.failureStage === "data") {
+    return (
+      workflowFromRequestKind(previous.workflow) === workflow &&
+      failedRequestMatchesSavedWorkflow(state, context, workflow)
+    );
+  }
+
+  return previous.failureStage !== "answer" || previous.dataCompleted;
 };
 
 const compatibleContinuationWorkflows = (
@@ -448,10 +475,24 @@ const savedOutcomeForWorkflow = (
   };
 };
 
+const savedOutcomeForTurn = (
+  state: AgentStateType,
+  context: ConversationContext,
+  previous: PreviousTurnSummary,
+  workflow: WorkflowKind
+): TurnOutcome =>
+  canReuseSavedWorkflowAfterTurn(state, context, previous, workflow)
+    ? savedOutcomeForWorkflow(workflow, context)
+    : savedResultUnavailable(workflow);
+
 export {
   continuationChoice,
+  canReuseSavedWorkflowAfterTurn,
   previousTurnSummary,
+  savedOutcomeForTurn,
+  savedResultUnavailable,
   savedOutcomeForWorkflow,
+  workflowLabels,
   workflowKinds,
 };
 

@@ -5,7 +5,10 @@ import {
 } from "./comparison-context.js";
 import { findConfirmedPlayerAliasesInMessage } from "./player-mentions.js";
 import { recommendationPatchFromConstraints } from "./recommendation-constraints.js";
-import type { RequestUnderstandingExtractor } from "./request-extraction.js";
+import type {
+  PreviousTurnSummary,
+  RequestUnderstandingExtractor,
+} from "./request-extraction.js";
 import { normalizeExtractedPlayers, uniqueText } from "./request-extraction.js";
 import type {
   AgentStateType,
@@ -24,10 +27,20 @@ import {
   createInitialRecommendationRequest,
   createInitialTeamRecommendationRequest,
 } from "./state.js";
-import { savedOutcomeForWorkflow } from "./workflow-continuation.js";
+import {
+  canReuseSavedWorkflowAfterTurn,
+  savedOutcomeForWorkflow,
+} from "./workflow-continuation.js";
 import type { WorkflowKind } from "./workflow-continuation.js";
 
 type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
+
+type RequestTurnInput = {
+  context: ConversationContext;
+  extracted: ExtractedRequest;
+  messageId: string | null;
+  text: string;
+};
 
 type RequestTurnBuild = { outcome: TurnOutcome | null; request: RequestState };
 
@@ -79,6 +92,17 @@ const isLookupFollowUpRequest = (
     priorContextOnly
   );
 };
+
+const isBlockedLookupFollowUp = (
+  state: AgentStateType,
+  context: ConversationContext,
+  extracted: ExtractedRequest,
+  previous: PreviousTurnSummary,
+  text: string
+): boolean =>
+  (extracted.kind === "other" || extracted.kind === "player_lookup") &&
+  isLookupFollowUpRequest(extracted, text, context) &&
+  !canReuseSavedWorkflowAfterTurn(state, context, previous, "player_lookup");
 
 const youthNegationPatterns = [
   /不要年轻|不要青年|不需要年轻|不需要青年|不考虑年轻|不考虑青年|排除年轻|排除青年/iu,
@@ -506,12 +530,10 @@ const constraintsForRequest = (
 };
 
 const requestFromCurrentTurn = (
-  extracted: ExtractedRequest,
-  workflow: RequestKind,
-  context: ConversationContext,
-  text: string,
-  messageId: string | null
+  input: RequestTurnInput,
+  workflow: RequestKind
 ): RequestTurnBuild => {
+  const { context, extracted, messageId, text } = input;
   const routedExtraction = { ...extracted, kind: workflow };
   const confirmedAliases = findConfirmedPlayerAliasesInMessage(text, context);
 
@@ -611,11 +633,10 @@ const requestFromCurrentTurn = (
 };
 
 const workflowDraftFromExtraction = (
-  extracted: ExtractedRequest,
-  text: string,
-  messageId: string | null,
-  context: ConversationContext
+  input: RequestTurnInput
 ): WorkflowDraft => {
+  const { context, extracted, messageId, text } = input;
+
   const players = normalizeExtractedPlayers(text, [
     ...extracted.players,
     ...findConfirmedPlayerAliasesInMessage(text, context).map((mention) => ({
@@ -697,11 +718,13 @@ const resumeWorkflowClarification = (
   };
 
   const built = requestFromCurrentTurn(
-    extracted,
-    workflow,
-    context,
-    draft.text,
-    draft.processedMessageId
+    {
+      context,
+      extracted,
+      messageId: draft.processedMessageId,
+      text: draft.text,
+    },
+    workflow
   );
 
   const outcome =
@@ -719,7 +742,11 @@ const resumeWorkflowClarification = (
 };
 
 export {
+  isBlockedLookupFollowUp,
+  isLookupFollowUpRequest,
   requestFromCurrentTurn,
   resumeWorkflowClarification,
   workflowDraftFromExtraction,
 };
+
+export type { RequestTurnInput };
