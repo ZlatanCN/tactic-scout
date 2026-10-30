@@ -295,7 +295,7 @@ const requestBoundaryAnswer = (state: AgentStateType): string => {
 const fixedOutcomeMessages = new Map<string, string>([
   [
     "data_unavailable",
-    "本地数据快照缺少完成这次请求所需的记录，因此目前无法给出结果。",
+    "目前无法从本地数据中取得完成这次请求所需的信息，因此无法给出结果。",
   ],
   [
     "excluded_profile_missing",

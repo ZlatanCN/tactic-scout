@@ -1340,7 +1340,7 @@ describe("team recommendation graph", () => {
       first.conversationContext.activeTeamRecommendation?.resultJson
     ).toContain('"name":"First result marker"');
     expect(failed.messages.at(-1)?.content).toContain(
-      "本地数据快照缺少完成这次请求所需的记录"
+      "目前无法从本地数据中取得完成这次请求所需的信息"
     );
   });
 

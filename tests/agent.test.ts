@@ -1495,7 +1495,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: previousLookup,
       answer:
-        "本地数据快照缺少完成这次请求所需的记录，因此目前无法给出结果。此前已完成的结果仍保留。",
+        "目前无法从本地数据中取得完成这次请求所需的信息，因此无法给出结果。此前已完成的结果仍保留。",
       modelCalls: 3,
       outcomeStatus: "data_unavailable",
       searchCalls: 2,

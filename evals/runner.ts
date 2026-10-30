@@ -666,24 +666,9 @@ const runEvaluation = async (
     judgeCalibration: null,
     judgeEnabled,
     latencyByRole: {
-      agent: {
-        averageMs: null,
-        p50Ms: null,
-        p95Ms: null,
-        requestsWithLatency: 0,
-      },
-      calibration: {
-        averageMs: null,
-        p50Ms: null,
-        p95Ms: null,
-        requestsWithLatency: 0,
-      },
-      judge: {
-        averageMs: null,
-        p50Ms: null,
-        p95Ms: null,
-        requestsWithLatency: 0,
-      },
+      agent: emptyRequestLatency(),
+      calibration: emptyRequestLatency(),
+      judge: emptyRequestLatency(),
     },
     maxModelRequests,
     mode: options.mode,

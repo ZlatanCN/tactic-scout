@@ -946,7 +946,8 @@ describe("comparison workflow state", () => {
       outcome: result.outcome?.status,
       searchCalls: search.mock.calls.length,
     }).toStrictEqual({
-      answer: "本地数据快照缺少完成这次请求所需的记录，因此目前无法给出结果。",
+      answer:
+        "目前无法从本地数据中取得完成这次请求所需的信息，因此无法给出结果。",
       outcome: "data_unavailable",
       searchCalls: 2,
     });
