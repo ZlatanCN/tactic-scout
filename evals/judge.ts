@@ -22,7 +22,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v16";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v19";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -136,6 +136,10 @@ const judgeInputSchema = z.object({
       clarificationAnswers: z.array(
         z.object({ kind: z.string(), value: z.string() })
       ),
+      nodeFailure: z
+        .object({ category: z.string(), node: z.string() })
+        .nullable()
+        .optional(),
       outcomeKind: z.string().nullable(),
       outcomeStatus: z.string().nullable(),
       participants: z.array(
@@ -167,6 +171,8 @@ Use only evidence delivered to the assistant for that turn, evidence explicitly 
 
 Each turn includes the exact participants known for that turn and their selected provider source records. Use these links to connect a participant to the source records in that turn's actions. The competition/season on a participant's identity record describes that identity evidence; it does not automatically describe the requested lookup result. Judge claims such as “all participants” against only that turn's participant list and evidence. Later turns may add participants or change scope; never use those later changes to invalidate a correct earlier answer. Do not infer a turn's participants from the final conversation state.
 
+When a turn has nodeFailure, it records a caught graph failure with its node and normalized category. This supports a narrowly scoped statement that the named node failed for that category in the current turn. It does not establish a broader outage or a more specific provider cause than the category provides. When nodeFailure is null, do not treat an assistant's unsupported explanation of a system failure as verified.
+
 clarificationAnswers lists the actual resume values received in that turn; participants show the post-resume state. When a same-turn identity action initially returns needs_confirmation, but a clarification answer is recorded and the participant is marked resolved with a selectedCandidateId, treat that identity as confirmed.
 
 Report only critical findings in these categories:
@@ -191,6 +197,12 @@ For each required fact, mark whether it is covered in the visible assistant resp
 const judgeSystemPrompt = `${judgeRubricPrompt}
 
 Application-specific evidence rules:
+- Each required fact names its linked player when a selected provider record identifies one. Check every turn and count values in Markdown tables as covered when the row identifies that player and the column label or field alias matches. A numeric value rounded to the displayed decimal places is equivalent to the source value (for example, 6.4260706603 shown as 6.43 or 0.4714045208 shown as 0.4714). Do not require the full internal precision when the visible answer rounds correctly.
+- For factual_contradiction, the explanation must identify the answer's value and the conflicting evidence value. If the explanation says the answer is supported, matches the source, or does not conflict with it, do not report a contradiction.
+- The search_player_records tool accepts sourceRecords and seasonStartYear; it has no competition-filter argument. A complete action input with no competition field supports saying that no explicit competition filter was applied. Do not imply that the user's requested competition was filtered.
+- Understat team names describe the returned season snapshot. It is supported to say these returned records do not establish a player's current registered team; do not claim the player has no current team.
+- For recommend_team_player_candidates with referenceMode=squad, mapped roster FM profiles are the reference profiles. They are intentionally omitted from currentCandidates while still appearing in references and referenceFmIds. Saying the squad members were excluded from candidates is consistent with listing them as references.
+- Compare numeric FM attribute values as provided. If all relevant attributes are listed, calling the numerically largest listed values higher is a supported comparison; do not require the source to label them as "high".
 - The Understat reader chooses the maximum season_start_year in local snapshots when the actual search input omits seasonStartYear. A returned row's season is the effective snapshot season for that query; an explicit start year 2024 is the 2024/25 season.
 - If an actual Understat search input has seasonStartYear 2024 and its returned result is not_found with no records, it supports “no row was returned for this selected source for 2024/25” and “the result contains no xG value.” It does not establish that the player's xG is unavailable in other data or seasons.
 - A clarification answer and a same-turn participant marked resolved with a selectedCandidateId establish the selected identity after resume, even when the earlier identity lookup action returned needs_confirmation.
@@ -405,6 +417,23 @@ const validFindingReferences = (
   return errors;
 };
 
+const contradictionExplanationPatterns = [
+  /不(?:存在|构成)?(?:事实)?(?:冲突|矛盾|不一致)/u,
+  /(?:does not|doesn't) (?:conflict|contradict)/iu,
+  /no (?:actual )?(?:conflict|contradiction)/iu,
+  /(?:evidence|source) supports? the answer/iu,
+  /the answer (?:is|was) supported by (?:the )?(?:evidence|source)/iu,
+  /the answer matches? (?:the )?(?:evidence|source)/iu,
+  /证据(?:直接)?支持(?:了)?(?:这个)?(?:答案|回答)/u,
+  /答案[与和](?:证据|来源|数据)(?:一致|相符|吻合)/u,
+  /\bonly if\b/iu,
+  /\b(?:might|could|possibly|perhaps)\b/iu,
+  /只有在.{0,40}(?:才|情况下)/u,
+];
+
+const contradictionExplanationIsInconclusive = (explanation: string): boolean =>
+  contradictionExplanationPatterns.some((pattern) => pattern.test(explanation));
+
 const validateAnchorJudgment = (
   anchor: z.output<typeof judgeAnchorSchema>,
   output: z.output<typeof semanticJudgeOutputSchema>
@@ -566,13 +595,67 @@ const runJudgeCalibration = async (options: {
   };
 };
 
+const playerHasRequiredSource = (
+  player: WorkerTrialResult["players"][number],
+  provider: string,
+  sourceId: string
+): boolean =>
+  player.candidates.some(({ records }) =>
+    records.some(
+      (record) => record.provider === provider && record.sourceId === sourceId
+    )
+  );
+
+const playerNamesForRequiredSource = (
+  worker: WorkerTrialResult,
+  provider: string,
+  sourceId: string
+): string[] =>
+  [
+    ...new Set(
+      worker.turns.flatMap(({ players }) =>
+        players.flatMap((player) =>
+          playerHasRequiredSource(player, provider, sourceId)
+            ? [player.selectedName ?? player.mention]
+            : []
+        )
+      )
+    ),
+  ].toSorted();
+
+const requiredFactDescription = (
+  fact: EvaluationCase["contract"]["requiredEvidence"][number],
+  worker: WorkerTrialResult
+): string => {
+  const playerNames = playerNamesForRequiredSource(
+    worker,
+    fact.provider,
+    fact.sourceId
+  );
+
+  const playerLabel =
+    playerNames.length === 0 ? "" : ` (${playerNames.join(", ")})`;
+
+  let displayField = fact.field;
+
+  if (fact.field === "currentAbility") {
+    displayField = "当前能力 / CA";
+  } else if (fact.field === "expectedGoals") {
+    displayField = "预期进球 / xG";
+  } else if (fact.field === "potentialAbility") {
+    displayField = "潜力能力 / PA";
+  }
+
+  return `${fact.provider}:${fact.sourceId}${playerLabel} ${displayField} [${fact.field}] = ${JSON.stringify(fact.value)}`;
+};
+
 const judgeInputForTrial = (
   caseDefinition: EvaluationCase,
   worker: WorkerTrialResult
 ): z.output<typeof judgeInputSchema> => {
   const requiredFacts = caseDefinition.contract.requiredEvidence.map(
     (fact, index) => ({
-      description: `${fact.provider}:${fact.sourceId} ${fact.field} = ${JSON.stringify(fact.value)}`,
+      description: requiredFactDescription(fact, worker),
       factId: `required-fact-${index + 1}`,
     })
   );
@@ -633,6 +716,7 @@ const judgeInputForTrial = (
       assistantMessages: turn.assistantMessages,
       availableResultKinds: turn.availableResultKinds,
       clarificationAnswers: turn.clarificationAnswers,
+      nodeFailure: turn.nodeFailure ?? null,
       outcomeKind: turn.outcomeKind,
       outcomeStatus: turn.outcomeStatus,
       participants: turn.players.map((player) => {
@@ -666,6 +750,16 @@ const validateTrialJudgment = (
   const validationErrors = output.findings.flatMap((finding) =>
     validFindingReferences(finding, input)
   );
+
+  const hasUnsubstantiatedContradictionExplanation = output.findings.some(
+    ({ category, explanation }) =>
+      category === "factual_contradiction" &&
+      contradictionExplanationIsInconclusive(explanation)
+  );
+
+  if (hasUnsubstantiatedContradictionExplanation) {
+    validationErrors.push("contradiction_explanation_is_inconclusive");
+  }
 
   const expectedFactIds = new Set(
     input.contract.requiredFacts.map(({ factId }) => factId)

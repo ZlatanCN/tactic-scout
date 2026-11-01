@@ -51,11 +51,14 @@
       {
         "mention": "Elias Demo",
         "status": "resolved",
+        "selectedCandidateId": "reep:identity-demo-01",
         "turnId": "lookup-identity-clarification-v1-turn-1"
       },
       {
+        "acceptableStatuses": ["saved_result_reuse"],
         "mention": "Elias Demo",
-        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:identity-demo-01",
+        "status": "resolved",
         "turnId": "lookup-identity-clarification-v1-turn-2"
       },
       {

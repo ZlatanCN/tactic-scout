@@ -465,6 +465,52 @@ describe("request understanding extraction", () => {
     }
   );
 
+  it("does not treat a player reference echoed in teams as a club recommendation", async () => {
+    const message =
+      "根据 Synthetic Reference 推荐 stc 球员，不要 Synthetic Far Candidate。";
+
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "team_recommendation",
+        players: [
+          {
+            lookupName: null,
+            mention: "Synthetic Reference",
+            recommendationRole: "reference",
+            referenceScope: "explicit",
+            referenceTargetMention: null,
+          },
+          {
+            lookupName: null,
+            mention: "Synthetic Far Candidate",
+            recommendationRole: "exclude",
+            referenceScope: "explicit",
+            referenceTargetMention: null,
+          },
+        ],
+        recommendation: { position: "stc" },
+        teamSearchName: "Synthetic Reference",
+        teams: ["Synthetic Reference"],
+      }))
+    );
+
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(message, createInitialConversationContext());
+
+    expect(result).toMatchObject({
+      kind: "player_recommendation",
+      recommendation: { position: "stc" },
+      recommendationAction: "replace",
+      teamSearchName: null,
+      teams: [],
+    });
+  });
+
   it("treats an explicit non-pronoun ambiguous mention as a name to resolve", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");

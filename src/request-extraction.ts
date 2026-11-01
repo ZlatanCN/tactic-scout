@@ -222,6 +222,7 @@ player_lookup：查询球员记录或画像；player_comparison：比较球员�
 continuationAction 为 explain 时只解释已保存结果，不得重跑工具；refine 表示把本轮明确条件补丁应用于选定成功快照。显式提到任务类型时必须填写对应 kind，不能因为其他 workflow 存在而改写用户目标。
 player_lookup 的 Understat 赛季范围由程序从本轮原话解析；不要从上下文或模型知识补一个赛季。球员查询暂不按联赛过滤，competition 只用于球员比较范围。
 team_recommendation 需要一个明确的球队和一个明确的 FM 位置。球队推荐的 recommendation 字段表示位置、年龄、CA、PA、结果数和高潜名单条件。team_recommendation 中，用户直接写出的受支持位置代码（如 stc、dc、dm）必须填入 recommendation.position，不能因为用户也提供了球队而省略。teams 必须保留本轮原话中出现的球队名；即使该球队与上次相同、用户同时细化筛选条件，也必须照抄到 teams。只有本轮没有写出球队名、且可从最近一次成功团队推荐继承时，teams 才留空。若用户使用中文球队名或简称，teamSearchName 可给出 API-Football 常用搜索名称，但这只用于查候选，不能据此自动认定球队。明确写出另一支球队时照抄新球队名称，程序会重置旧球队上下文。
+如果用户说“根据 X 推荐 stc 球员”或“以 X 的能力画像推荐”，X 是球员参考，不是球队：分类为 player_recommendation，放入 players，不要放入 teams 或 teamSearchName。只有用户明确把 X 当作球队或俱乐部时，才分类为 team_recommendation。
 如果用户在追问最近成功球员查询中的赛季、赛事或来源，仍分类为 player_lookup；引用之前结果时不要要求用户重报球员。
 comparisonAction 仅在 player_comparison 时有意义。用户明确说“把 X 也加入/加进当前对比”“再加上 X”时设为 add；只修改最近成功比较的赛季或赛事范围时设为 refine；用户明确列出一组新的完整比较对象时设为 replace。没有明确增补或条件细化语义时一律 replace。add 时 players 只列本轮新增的称呼；refine 时 players 为空；程序负责继承已有参与者和条件。
 recommendationAction 仅在 player_recommendation 时有意义。明确给出新参考名单时用 replace；明确要求把新球员加入最近成功推荐的参考名单时用 add；只修改最近成功推荐的条件、位置或结果数且没有新球员时用 refine。refine 时 players 为空，程序会继承最近成功推荐的已确认参考和排除身份。
@@ -339,24 +340,29 @@ const playerBasedRecommendationFromText = (
 ): boolean => {
   if (
     result.kind !== "team_recommendation" ||
-    result.teams.length > 0 ||
-    explicitPositionCodeFromText(message) === null
+    explicitPositionCodeFromText(message) === null ||
+    /球队|俱乐部|阵容|\b(?:team|club|squad)\b/iu.test(message)
   ) {
     return false;
   }
 
   const messageKey = normalizeMentionText(message);
 
-  const hasExplicitPlayer = result.players.some(
-    ({ mention, recommendationRole }) => {
-      if (recommendationRole === "exclude") {
-        return false;
-      }
+  const referencePlayers = result.players.filter(
+    ({ recommendationRole }) => recommendationRole !== "exclude"
+  );
 
-      const mentionKey = normalizeMentionText(mention);
+  const hasExplicitPlayer = referencePlayers.some(({ mention }) => {
+    const mentionKey = normalizeMentionText(mention);
 
-      return mentionKey.length > 0 && messageKey.includes(mentionKey);
-    }
+    return mentionKey.length > 0 && messageKey.includes(mentionKey);
+  });
+
+  const extractedTeamsArePlayerMentions = result.teams.every((team) =>
+    referencePlayers.some(
+      ({ mention }) =>
+        normalizeMentionText(mention) === normalizeMentionText(team)
+    )
   );
 
   const isPlayerBased =
@@ -364,7 +370,7 @@ const playerBasedRecommendationFromText = (
       message
     );
 
-  return hasExplicitPlayer && isPlayerBased;
+  return hasExplicitPlayer && extractedTeamsArePlayerMentions && isPlayerBased;
 };
 
 const recommendationActionFromResult = (
@@ -449,9 +455,12 @@ const normalizeRequestExtraction = (
     message
   );
 
+  const isPlayerBasedRecommendation =
+    playerBasedRecommendation && teamRecommendation === null;
+
   let { kind } = result;
 
-  if (playerBasedRecommendation) {
+  if (isPlayerBasedRecommendation) {
     kind = "player_recommendation";
   }
 
@@ -491,6 +500,16 @@ const normalizeRequestExtraction = (
       ? result.recommendation
       : { ...result.recommendation, position: explicitTeamPosition };
 
+  let teams = uniqueText(result.teams);
+
+  if (isPlayerBasedRecommendation) {
+    teams = [];
+  }
+
+  if (teamRecommendation !== null) {
+    teams = [teamRecommendation.team];
+  }
+
   return {
     comparisonAction: comparisonActionFromResult(result, context, message),
     constraints,
@@ -517,11 +536,10 @@ const normalizeRequestExtraction = (
       kind === null
         ? result.recommendationAction
         : recommendationActionFromResult({ ...result, kind }, context, message),
-    teamSearchName: result.teamSearchName?.trim() ?? null,
-    teams:
-      teamRecommendation === null
-        ? uniqueText(result.teams)
-        : [teamRecommendation.team],
+    teamSearchName: isPlayerBasedRecommendation
+      ? null
+      : (result.teamSearchName?.trim() ?? null),
+    teams,
   };
 };
 

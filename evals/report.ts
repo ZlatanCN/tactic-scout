@@ -117,6 +117,14 @@ const trialDetails = (report: EvaluationReport): string[] =>
       ({ factId, status }) => `- ${factId}: ${status}`
     );
 
+    const nodeFailures = trial.observation.turns.flatMap((turn) =>
+      turn.nodeFailure === null || turn.nodeFailure === undefined
+        ? []
+        : [
+            `- ${turn.turnId}: ${turn.nodeFailure.node} · ${turn.nodeFailure.category}`,
+          ]
+    );
+
     const sourceMetadata = trial.evidenceSourceMetadata;
 
     return [
@@ -155,6 +163,10 @@ const trialDetails = (report: EvaluationReport): string[] =>
       "#### Execution events",
       "",
       ...(actionEvents.length > 0 ? actionEvents : [noneRecorded]),
+      "",
+      "#### Caught node failures",
+      "",
+      ...(nodeFailures.length > 0 ? nodeFailures : [noneRecorded]),
       "",
       "#### Evidence delivered to the model",
       "",

@@ -7,6 +7,19 @@ import { checkCaseContract, emptyWorkerResult } from "../evals/checks.js";
 import { evaluationCaseSchema } from "../evals/contracts.js";
 import type { WorkerTrialResult } from "../evals/contracts.js";
 
+const observationPlayer = (
+  mention: string,
+  resolutionStatus: string,
+  selectedCandidateId: string | null
+) => ({
+  candidates: [],
+  lookupName: null,
+  mention,
+  resolutionStatus,
+  selectedCandidateId,
+  selectedName: mention,
+});
+
 describe("evaluation identity lookup checks", () => {
   it("keeps distinct Chinese player names distinct while normalizing accents", () => {
     const caseDefinition = evaluationCaseSchema.parse(
@@ -63,6 +76,133 @@ describe("evaluation identity lookup checks", () => {
     );
 
     expect(check?.status).toBe("failed");
+  });
+
+  it("accepts an explain-only lookup when identity remains resolved without another search", () => {
+    const caseDefinition = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(
+            process.cwd(),
+            "evals/cases/lookup-identity-clarification-v1.json"
+          ),
+          "utf-8"
+        )
+      )
+    );
+
+    const [initialTurn, followupTurn, unavailableTurn] = caseDefinition.turns;
+
+    if (
+      initialTurn === undefined ||
+      followupTurn === undefined ||
+      unavailableTurn === undefined
+    ) {
+      throw new Error("The lookup fixture must declare three user turns.");
+    }
+
+    const turns = caseDefinition.turns.map((turn, index) => ({
+      assistantMessages: [],
+      availableResultKinds: index < 2 ? ["player_lookup" as const] : [],
+      clarificationAnswers: [],
+      clarificationKinds: [],
+      deliveredEvidenceIds: [],
+      effectiveConditions: null,
+      effectiveConstraints: [],
+      outcomeKind: "player_lookup",
+      outcomeStatus: index === 2 ? "identity_data_unavailable" : "answer_ready",
+      players:
+        index === 2
+          ? [
+              observationPlayer(
+                "Synthetic Failure Demo",
+                "data_unavailable",
+                null
+              ),
+            ]
+          : [
+              observationPlayer(
+                "Elias Demo",
+                "resolved",
+                "reep:identity-demo-01"
+              ),
+            ],
+      requestKind: "player_lookup",
+      reuse:
+        index === 1
+          ? { evidenceIds: [], kind: "saved_lookup_result" as const }
+          : null,
+      turnId: turn.turnId,
+      userMessage: turn.userMessage,
+    }));
+
+    const worker = {
+      ...emptyWorkerResult("test-trial"),
+      actionEvents: [
+        {
+          actionId: "initial-search",
+          caseId: caseDefinition.caseId,
+          durationMs: 0,
+          eventId: "initial-search-returned",
+          input: null,
+          kind: "returned" as const,
+          name: "search_player_records",
+          outcome: "found",
+          result: null,
+          runId: "test-run",
+          sourceRecords: [
+            { provider: "fm", sourceId: "fm-demo-01" },
+            {
+              competition: "EPL",
+              provider: "understat",
+              season: "2024/25",
+              sourceId: "us-demo-01",
+            },
+          ],
+          toolCallId: null,
+          trialId: "test-trial",
+          turnId: initialTurn.turnId,
+        },
+      ],
+      turns,
+    } satisfies WorkerTrialResult;
+
+    const checks = checkCaseContract(caseDefinition, worker);
+
+    const wrongIdentityWorker = {
+      ...worker,
+      turns: worker.turns.map((turn, index) =>
+        index === 1
+          ? {
+              ...turn,
+              players: [
+                observationPlayer(
+                  "Elias Demo",
+                  "resolved",
+                  "reep:wrong-player"
+                ),
+              ],
+            }
+          : turn
+      ),
+    } satisfies WorkerTrialResult;
+
+    const wrongIdentityCheck = checkCaseContract(
+      caseDefinition,
+      wrongIdentityWorker
+    ).find(({ id }) => id === "turn-identity-continuity");
+
+    expect({
+      identityContinuity: checks.find(
+        ({ id }) => id === "turn-identity-continuity"
+      )?.status,
+      searchCalls: checks.find(({ id }) => id === "turn-tool-actions")?.status,
+      wrongIdentityContinuity: wrongIdentityCheck?.status,
+    }).toStrictEqual({
+      identityContinuity: "passed",
+      searchCalls: "passed",
+      wrongIdentityContinuity: "failed",
+    });
   });
 
   it("accepts no repeat team clarification only when the case declares that path", () => {

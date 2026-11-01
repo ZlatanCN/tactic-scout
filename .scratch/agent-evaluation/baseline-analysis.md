@@ -202,4 +202,70 @@ Judge v16 includes user-facing field-name equivalences for currentAbility/CA/当
 
 **V16 targeted smoke:** `b95369ba-89a3-4399-8720-b8045bb8492e` covered the same five failure cases and used 53/130 requests: Agent 16, Calibration 32, and Judge 5. V16 calibration passed 32/32, including 16/16 validation anchors. All five trials passed deterministic and semantic review; there were zero network failures and zero budget denials.
 
-The next measurement is the full v16 development baseline. Issue 52 tracks the 32-case, three-trial run and requires a new explicit whole-run allowance. Keep the held-out split untouched.
+## V16 development baseline
+
+**Run:** `4d1e807b-d119-40bf-953f-68608b6347d3`
+
+**Report:** `.data/evals/runs/4d1e807b-d119-40bf-953f-68608b6347d3/report.md`
+**Scope:** 32 development cases, three isolated trials each. The 16 held-out Agent cases were not run.
+
+All 96 trials completed using 416/1,099 requests: Agent 288, calibration 32, and judge 96. V16 calibration passed 32/32, including the reserved validation anchors 16/16. There were no budget denials and two upstream network failures. Ninety trials passed, five failed, and one had an invalid judge response. Semantic review passed 90 trials, failed four, and was invalid on two; 94/96 trials were adjudicated. Twenty-six of the 32 cases passed all three repetitions. The judge reported one factual contradiction, two unsupported-fact cases, zero false-execution claims, and ten required-fact omissions. These are trial-level evaluator measures, not a universal scouting-quality score.
+
+| Workflow | Code contract passed | Semantic passed |
+|---|---:|---:|
+| Player comparison | 24/24 | 23/24 |
+| Player lookup | 23/24 | 22/24 |
+| Player recommendation | 23/24 | 23/24 |
+| Team recommendation | 24/24 | 22/24 |
+
+Reported tokens (input/output): Agent 1,536,499 / 47,139; calibration 175,319 / 2,629; judge 1,508,404 / 9,820. Request latency p95 was 14.9 seconds for Agent, 7.4 seconds for calibration, and 18.4 seconds for judge.
+
+### V16 findings
+
+- **A Chinese age refinement was omitted.** In `recommend-add-refine-synthetic-v1` trial 2, the user said “把年龄上限设为 21 岁”; structured extraction omitted the `maxAge` patch. The graph called the recommendation tool with `maxAge=null`, retained candidates older than 21, and exposed the unfiltered active result. The deterministic checks caught the lost condition. Issue 53 fixes this request-normalization gap.
+- **One lookup contract is too strict about identity-event shape.** `lookup-identity-clarification-v1` trial 3 resolved the already-known player again, while the case required a `saved_result_reuse` identity status. The result remained available and no new player search ran, so this is not evidence of a user-visible identity regression. Relax the exact event expectation while retaining the behavior checks.
+- **The semantic judge needs stronger grounding.** It called a supported player comparison a contradiction while its own explanation said the returned counts did not conflict. It also reported missing comparison facts that were present in tables, and failed to recognize a tool-supported limitation in a lookup answer. Extend its input with per-turn fault state, ensure evidence-limited statements and structured/table facts are judged against the correct turn, and reject findings whose explanation does not identify an actual conflict. Two invalid judgments also show that judge transport/quote-validation failures need to remain visible and recoverable rather than silently treated as semantic verdicts.
+- **Failure evidence is incomplete.** A lookup answer said the request-understanding model was temporarily unavailable. The evaluator's semantic input contained no per-turn failure event or category, so it could not distinguish a recorded transient model failure from an invented explanation. Add failure-state evidence to the judge boundary and keep prompt/error bodies out of user-visible state.
+- **Transient gateway failures occurred.** Two Agent requests had no HTTP response (one in the Mbappé lookup and one in the synthetic lookup smoke); both trials still completed. A separate judge request returned 502 EOF and produced an invalid judgment. These are operational failures and must stay separate from agent factual quality.
+
+Issues 52–58 are resolved. Issue 53 fixes explicit age-ceiling loss; issue 56 removes a brittle identity-event label check while retaining saved-result and no-repeat-search checks; issue 55 adds per-turn caught-node failure evidence; issue 58 corrects a player-reference/team-search misroute. Judge grounding changes are documented in issue 54. The v17/v18 targeted smokes used 104 requests and together passed all five selected cases, though the team fix was only repeated under v18.
+
+## V18 development baseline
+
+**Run:** `7e6fafe0-6da7-4e80-b7a5-ff5f517a2975`
+
+**Report:** `.data/evals/runs/7e6fafe0-6da7-4e80-b7a5-ff5f517a2975/report.md`
+**Scope:** 32 development cases, three isolated trials each. The 16 held-out Agent cases were not run.
+
+All 96 trials completed using 413/1,500 requests: Agent 285, calibration 32, and judge 96. V18 calibration passed 32/32, including validation 16/16. There were no budget denials or network failures. Ninety trials passed, six failed, and 27/32 cases passed all three repetitions. Code contracts passed 95/96. Semantic review passed 90, failed five, and was inconclusive on one. The judge reported zero factual contradictions, zero unsupported-fact cases, zero false-execution claims, and 22 required-fact omissions. The omissions were rounded numerical displays in four-place or two-place output; issue 59 validates the v19 rounding fix.
+
+| Workflow | Code contract passed | Semantic passed |
+|---|---:|---:|
+| Player comparison | 24/24 | 22/24 |
+| Player lookup | 24/24 | 24/24 |
+| Player recommendation | 23/24 | 22/24 |
+| Team recommendation | 24/24 | 22/24 |
+
+The one deterministic failure was `recommend-smoke-synthetic-v1` trial 3: extraction copied `Synthetic Reference` into `teams` and `teamSearchName`, so the graph attempted API-Football search instead of player recommendation. Issue 58 now normalizes that exact player-based shape. The remaining semantic failures are all required-fact coverage misses for numbers displayed with correct rounding; the response text contains the values, but the judge compared them to full-precision data.
+
+Reported tokens (input/output): Agent 1,531,507 / 46,938; calibration 187,031 / 2,665; judge 1,576,073 / 9,877. Request latency p95 was 24.0 seconds for Agent, 8.5 seconds for calibration, and 8.3 seconds for judge.
+
+Issues 52–60 are resolved. Issue 58 fixes a player-reference/team-search misroute, and issue 59 validates v19's rounded-number coverage rules. V19 smoke `66c7f76e-e76e-45bc-b828-9cfd9cc845a4` passed all five code and semantic checks using 49 requests; calibration passed 32/32 and the held-out Agent split was untouched. The full Vitest suite passed with 190 tests; typecheck, build, and changed-file Ultracite passed.
+
+## V19 development baseline
+
+**Run:** `24eb3bcf-ad26-43ad-a740-56e756994430`
+
+**Report:** `.data/evals/runs/24eb3bcf-ad26-43ad-a740-56e756994430/report.md`
+**Scope:** 32 development cases, three isolated trials each. The 16 held-out Agent cases were not run.
+
+All 96 trials completed using 410/1,500 requests: Agent 282, calibration 32, and judge 96. V19 calibration passed 32/32, including validation 16/16. There were zero budget denials and zero network failures. All 96 trials passed deterministic code checks and semantic review; all 32 cases passed three of three repetitions. The judge reported zero factual contradictions, unsupported additions, false-execution claims, and required-fact omissions. This result applies to the frozen development set, not general scouting performance.
+
+| Workflow | Code contract passed | Semantic passed |
+|---|---:|---:|
+| Player comparison | 24/24 | 24/24 |
+| Player lookup | 24/24 | 24/24 |
+| Player recommendation | 24/24 | 24/24 |
+| Team recommendation | 24/24 | 24/24 |
+
+Reported tokens (input/output): Agent 1,527,702 / 46,665; calibration 188,503 / 2,804; judge 1,550,288 / 9,426. Request latency p95 was 17.8 seconds for Agent, 8.5 seconds for calibration, and 7.7 seconds for judge.

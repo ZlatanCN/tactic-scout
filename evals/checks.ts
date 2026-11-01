@@ -97,22 +97,112 @@ const observedIdentityStatusKeys = (worker: WorkerTrialResult): string[] =>
     .map(({ mention, resolutionStatus }) => `${mention}|${resolutionStatus}`)
     .toSorted();
 
-const expectedTurnIdentityStatusKeys = (
-  caseDefinition: EvaluationCase
-): string[] =>
-  caseDefinition.contract.expectedTurnIdentityStatuses
-    .map(({ mention, status, turnId }) => `${turnId}|${mention}|${status}`)
-    .toSorted();
+type ExpectedTurnIdentityStatus =
+  EvaluationCase["contract"]["expectedTurnIdentityStatuses"][number];
 
-const observedTurnIdentityStatusKeys = (worker: WorkerTrialResult): string[] =>
-  worker.turns
-    .flatMap(({ players, turnId }) =>
-      players.map(
-        ({ mention, resolutionStatus }) =>
-          `${turnId}|${mention}|${resolutionStatus}`
-      )
+type ObservedTurnIdentityStatus = {
+  mention: string;
+  resolutionStatus: string;
+  selectedCandidateId: string | null;
+  turnId: string;
+};
+
+const expectedTurnIdentityStatusesForCase = (
+  caseDefinition: EvaluationCase
+): ExpectedTurnIdentityStatus[] =>
+  caseDefinition.contract.expectedTurnIdentityStatuses;
+
+const observedTurnIdentityStatuses = (
+  worker: WorkerTrialResult
+): ObservedTurnIdentityStatus[] =>
+  worker.turns.flatMap(({ players, turnId }) =>
+    players.map(({ mention, resolutionStatus, selectedCandidateId }) => ({
+      mention,
+      resolutionStatus,
+      selectedCandidateId,
+      turnId,
+    }))
+  );
+
+const expectedTurnIdentityStatusLabels = (
+  expected: ExpectedTurnIdentityStatus[]
+): string[] =>
+  expected
+    .map(
+      ({ acceptableStatuses, mention, selectedCandidateId, status, turnId }) =>
+        `${turnId}|${mention}|${[status, ...(acceptableStatuses ?? [])].join("/")}|${selectedCandidateId ?? "*"}`
     )
     .toSorted();
+
+const observedTurnIdentityStatusLabels = (
+  actual: ObservedTurnIdentityStatus[]
+): string[] =>
+  actual
+    .map(
+      ({ mention, resolutionStatus, selectedCandidateId, turnId }) =>
+        `${turnId}|${mention}|${resolutionStatus}|${selectedCandidateId ?? "*"}`
+    )
+    .toSorted();
+
+const turnIdentityStatusMatches = (
+  expected: ExpectedTurnIdentityStatus,
+  actual: ObservedTurnIdentityStatus,
+  alreadyMatched: boolean
+): boolean => {
+  if (alreadyMatched) {
+    return false;
+  }
+
+  if (
+    actual.turnId !== expected.turnId ||
+    actual.mention !== expected.mention
+  ) {
+    return false;
+  }
+
+  const acceptableStatuses = new Set([
+    expected.status,
+    ...(expected.acceptableStatuses ?? []),
+  ]);
+
+  if (!acceptableStatuses.has(actual.resolutionStatus)) {
+    return false;
+  }
+
+  return (
+    expected.selectedCandidateId === undefined ||
+    expected.selectedCandidateId === actual.selectedCandidateId
+  );
+};
+
+const turnIdentityStatusesMatch = (
+  expected: ExpectedTurnIdentityStatus[],
+  actual: ObservedTurnIdentityStatus[]
+): boolean => {
+  if (expected.length !== actual.length) {
+    return false;
+  }
+
+  const matchedIndices = new Set<number>();
+
+  return expected.every((expectedStatus) => {
+    const matchingIndex = actual.findIndex((actualStatus, index) =>
+      turnIdentityStatusMatches(
+        expectedStatus,
+        actualStatus,
+        matchedIndices.has(index)
+      )
+    );
+
+    if (matchingIndex === -1) {
+      return false;
+    }
+
+    matchedIndices.add(matchingIndex);
+
+    return true;
+  });
+};
 
 const scriptedClarificationKeys = (
   clarifications: {
@@ -843,9 +933,22 @@ const checkCaseContract = (
   const actualIdentityStatuses = observedIdentityStatusKeys(worker);
 
   const expectedTurnIdentityStatuses =
-    expectedTurnIdentityStatusKeys(caseDefinition);
+    expectedTurnIdentityStatusesForCase(caseDefinition);
 
-  const actualTurnIdentityStatuses = observedTurnIdentityStatusKeys(worker);
+  const actualTurnIdentityStatuses = observedTurnIdentityStatuses(worker);
+
+  const expectedTurnIdentityLabels = expectedTurnIdentityStatusLabels(
+    expectedTurnIdentityStatuses
+  );
+
+  const actualTurnIdentityLabels = observedTurnIdentityStatusLabels(
+    actualTurnIdentityStatuses
+  );
+
+  const turnIdentityStatusesPassed = turnIdentityStatusesMatch(
+    expectedTurnIdentityStatuses,
+    actualTurnIdentityStatuses
+  );
 
   const expectedActionsKey = toolActionKeys(expectedActions);
   const actualActionsKey = toolActionKeys(actualActions);
@@ -893,13 +996,10 @@ const checkCaseContract = (
       ? []
       : [
           {
-            actual: jsonValue(actualTurnIdentityStatuses),
-            expected: jsonValue(expectedTurnIdentityStatuses),
+            actual: jsonValue(actualTurnIdentityLabels),
+            expected: jsonValue(expectedTurnIdentityLabels),
             id: "turn-identity-continuity",
-            status: isDeepStrictEqual(
-              actualTurnIdentityStatuses,
-              expectedTurnIdentityStatuses
-            )
+            status: turnIdentityStatusesPassed
               ? ("passed" as const)
               : ("failed" as const),
           },

@@ -63,6 +63,15 @@ const lookupFollowUpPattern =
 
 const seasonConstraintNamePattern = /season|赛季/iu;
 
+const explicitMaximumAgePattern =
+  /(?:年龄(?:上限|最高|最多|不超过)|最大年龄|max(?:imum)?\s*age|age\s*limit)\D{0,8}?(?<age>\d{1,2})(?:\s*岁|\b)/iu;
+
+const explicitChineseMaximumAgeCorrectionPattern =
+  /年龄上限从\d{1,2}岁?改为(?<age>\d{1,2})岁?/u;
+
+const explicitEnglishMaximumAgeCorrectionPattern =
+  /(?:max(?:imum)?\s*age|age\s*limit)\s+from\s+\d{1,2}\s*(?:years?\s*)?to\s+(?<age>\d{1,2})\b/iu;
+
 const isLookupFollowUpRequest = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
   text: string,
@@ -159,6 +168,46 @@ const patchHasField = (
     Awaited<ReturnType<RequestUnderstandingExtractor>>["recommendation"]
   >
 ): boolean => patch !== undefined && Object.hasOwn(patch, field);
+
+const explicitMaximumAgeFromText = (text: string): number | null => {
+  const normalized = text.normalize("NFKC");
+  const compact = normalized.replaceAll(/\s+/gu, "");
+
+  const correctionMatch =
+    explicitChineseMaximumAgeCorrectionPattern.exec(compact) ??
+    explicitEnglishMaximumAgeCorrectionPattern.exec(normalized);
+
+  const correctionAge = Number(correctionMatch?.groups?.age);
+
+  if (
+    Number.isInteger(correctionAge) &&
+    correctionAge >= 1 &&
+    correctionAge <= 60
+  ) {
+    return correctionAge;
+  }
+
+  const match = explicitMaximumAgePattern.exec(normalized);
+  const age = Number(match?.groups?.age);
+
+  return Number.isInteger(age) && age >= 1 && age <= 60 ? age : null;
+};
+
+const recommendationPatchFromText = (
+  extracted: ExtractedRequest,
+  text: string,
+  allowExplicitAgeRecovery: boolean
+): NonNullable<ExtractedRequest["recommendation"]> => {
+  const patch = recommendationPatchFromRequest(extracted);
+
+  if (!allowExplicitAgeRecovery) {
+    return patch;
+  }
+
+  const maxAge = explicitMaximumAgeFromText(text);
+
+  return maxAge === null ? patch : { ...patch, maxAge };
+};
 
 const recommendationBaseline = (
   context: ConversationContext,
@@ -291,7 +340,7 @@ const recommendationFromText = (
 ): RecommendationRequestState =>
   mergeRecommendationIntent(
     recommendationBaseline(context, action),
-    recommendationPatchFromRequest(extracted),
+    recommendationPatchFromText(extracted, text, action === "refine"),
     text
   );
 
@@ -457,13 +506,19 @@ const teamFiltersFromPatch = (
 const teamRecommendationFromText = (
   extracted: Awaited<ReturnType<RequestUnderstandingExtractor>>,
   context: ConversationContext,
-  action: "replace" | "refine"
+  action: "replace" | "refine",
+  text: string
 ): TeamRecommendationRequestState => {
   const existing = context.activeTeamRecommendation;
   const teamNames = uniqueText(extracted.teams);
   const reuseExistingTeam = existing !== null && action === "refine";
   const hasNewTeam = teamNames.length > 0 && !reuseExistingTeam;
-  const patch = recommendationPatchFromRequest(extracted);
+
+  const patch = recommendationPatchFromText(
+    extracted,
+    text,
+    action === "refine"
+  );
 
   const baseline = reuseExistingTeam
     ? existing
@@ -602,7 +657,8 @@ const requestFromCurrentTurn = (
   const teamRecommendation = teamRecommendationFromText(
     routedExtraction,
     context,
-    teamRecommendationAction
+    teamRecommendationAction,
+    text
   );
 
   const isComparisonContinuation =

@@ -2163,6 +2163,83 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("recovers an explicit Chinese age ceiling omitted by request extraction", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const firstMessage = "Find striker alternatives to Kane under 23.";
+    const refineMessage = "把年龄上限设为 21 岁。";
+    const correctionMessage = "把年龄上限从 21 岁改为 18 岁。";
+
+    const recommend = vi.fn<RecommendPlayerCandidates>((input) =>
+      JSON.stringify(
+        recommendationResultData("no_candidates", "stc", {
+          filters: {
+            includePotential: input.includePotential,
+            maxAge: input.maxAge,
+            minimumCurrentAbility: input.minimumCurrentAbility,
+            minimumPotentialAbility: input.minimumPotentialAbility,
+            resultLimit: input.resultLimit ?? 5,
+          },
+        })
+      )
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel()
+        .respond(new AIMessage("Initial recommendation saved."))
+        .respond(new AIMessage("Age-refined recommendation saved."))
+        .respond(new AIMessage("Corrected recommendation saved.")),
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [correctionMessage]: requestForPlayers(null, [], {
+          continuationAction: "refine",
+          recommendation: { maxAge: 21 },
+          recommendationAction: "refine",
+        }),
+        [firstMessage]: requestForPlayers("player_recommendation", ["Kane"], {
+          recommendation: { maxAge: 23, position: "stc" },
+          recommendationAction: "replace",
+        }),
+        [refineMessage]: requestForPlayers(null, [], {
+          continuationAction: "refine",
+          recommendationAction: "refine",
+        }),
+      }),
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const config = {
+      configurable: { thread_id: "chinese-age-refinement-fallback" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+
+    const refined = await graph.invoke(
+      { messages: [new HumanMessage(refineMessage)] },
+      config
+    );
+
+    const corrected = await graph.invoke(
+      { messages: [new HumanMessage(correctionMessage)] },
+      config
+    );
+
+    expect({
+      activeMaxAge: refined.conversationContext.activeRecommendation?.maxAge,
+      calls: recommend.mock.calls.length,
+      correctedMaxAge:
+        corrected.conversationContext.activeRecommendation?.maxAge,
+      correctedToolMaxAge: recommend.mock.calls[2]?.[0].maxAge,
+      refinedMaxAge: recommend.mock.calls[1]?.[0].maxAge,
+    }).toStrictEqual({
+      activeMaxAge: 21,
+      calls: 3,
+      correctedMaxAge: 18,
+      correctedToolMaxAge: 18,
+      refinedMaxAge: 21,
+    });
+  });
+
   it("keeps a condition-only refinement through structured-output repair after identity confirmation", async () => {
     const reference = playerCandidate("Synthetic Reference", "reference");
 

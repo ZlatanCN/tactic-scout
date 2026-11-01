@@ -106,6 +106,12 @@ After Issue 10, real-model smoke `84a220c3-6229-425c-b9db-7feface802fd` used 6/3
 
 ## Quality gates
 
-Routine Vitest validates the runner, fixtures, scoring contracts, and tool behavior offline. It does not call a real gateway or API-Football. The current 32-case development preview with the judge estimates up to 1,235 gateway requests. The actual baseline remains a manual run and requires an explicit whole-run allowance and a qualified judge; the preview estimate is not permission to dispatch that workload. Results describe the finite evidence and candidate pools, not general scouting accuracy.
+Routine Vitest validates the runner, fixtures, scoring contracts, and tool behavior offline. It does not call a real gateway or API-Football. Full baselines are manually triggered and require an explicit whole-run request allowance; a preview estimate is not permission to dispatch. Results describe the finite evidence and candidate pools, not general scouting accuracy.
 
-The latest post-fix development attempt `fa75f1c4-fad2-4945-b409-092b782cb058` attempted all 96 trials but ended partial after a gateway DNS failure; no semantic trial was adjudicated because v8 anchor calibration could not complete. Preserve this report as an infrastructure-limited attempt, not the quality baseline. Retry is tracked in issue 21 when the configured gateway resolves again.
+Historical attempt `fa75f1c4-fad2-4945-b409-092b782cb058` attempted all 96 trials but ended partial after a gateway DNS failure; no semantic trial was adjudicated because v8 anchor calibration could not complete. Preserve it as an infrastructure-limited attempt, not as a quality baseline.
+
+## Current development baseline
+
+The v19 development baseline `24eb3bcf-ad26-43ad-a740-56e756994430` completed all 96 development trials using 410/1,500 requests. Calibration passed 32/32, including 16/16 validation anchors. All 96 trials and all 32 cases passed; there were zero network failures and budget denials. The 16 held-out Agent cases were untouched. Full findings are in `.scratch/agent-evaluation/baseline-analysis.md` and the ignored local report.
+
+The evaluator now has v19 judge-input and prompt changes for per-turn failures, player-linked required facts, displayed rounding, search filters, squad references, and contradiction consistency. V19 smoke `66c7f76e-e76e-45bc-b828-9cfd9cc845a4` used 49/90 requests; calibration passed 32/32 and all five focused cases passed code and semantic checks. There were no network failures or budget denials; held-out cases were untouched. The full v19 development baseline has completed all 96 trials; freeze a revision before running held-out cases.

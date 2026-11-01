@@ -111,7 +111,9 @@ const evaluationCaseSchema = z.object({
     expectedTurnIdentityStatuses: z
       .array(
         z.object({
+          acceptableStatuses: z.array(z.string()).optional(),
           mention: z.string(),
+          selectedCandidateId: z.string().optional(),
           status: z.string(),
           turnId: z.string(),
         })
@@ -430,6 +432,10 @@ const turnObservationSchema = z.object({
   effectiveConstraints: z.array(
     z.object({ name: z.string(), value: z.string() })
   ),
+  nodeFailure: z
+    .object({ category: z.string(), node: z.string() })
+    .nullable()
+    .optional(),
   outcomeKind: z.string().nullable(),
   outcomeStatus: z.string().nullable(),
   players: z.array(observedPlayerSchema),

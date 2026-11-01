@@ -68,6 +68,8 @@ type FakeGatewayMode =
   | "judge_action_id_in_evidence"
   | "judge_invalid_quote"
   | "judge_missing_contradiction_evidence"
+  | "judge_self_denying_contradiction"
+  | "judge_supported_contradiction"
   | "judge_unsupported_finding"
   | "judge_wrong_anchor"
   | "malformed_extraction"
@@ -139,6 +141,7 @@ const judgeBusinessRules = [
   "filters.resultLimit is the requested player-list cap",
   "A non-null canonicalIdentityId repeated across resolved turn participants",
   "FM currentAbility means CA or 当前能力",
+  "numeric value rounded to the displayed decimal places",
 ];
 
 const promptRuleFailureForAnchor = (
@@ -208,6 +211,39 @@ const judgeAnchors = judgeAnchorPackSchema.parse(
   )
 ).anchors;
 
+const contradictionEvidenceIds = (
+  input: z.output<typeof judgeRequestSchema>,
+  mode: FakeGatewayMode,
+  firstAction:
+    | z.output<typeof judgeRequestSchema>["actions"][number]
+    | undefined
+): string[] => {
+  if (
+    mode === "judge_self_denying_contradiction" ||
+    mode === "judge_supported_contradiction"
+  ) {
+    const evidenceId = input.evidence[0]?.evidenceId;
+
+    return evidenceId === undefined ? [] : [evidenceId];
+  }
+
+  return mode === "judge_action_id_in_evidence" && firstAction !== undefined
+    ? [firstAction.actionId]
+    : [];
+};
+
+const contradictionExplanation = (mode: FakeGatewayMode): string => {
+  if (mode === "judge_self_denying_contradiction") {
+    return "The evidence supports the answer and does not conflict with it.";
+  }
+
+  if (mode === "judge_supported_contradiction") {
+    return "The answer matches the source and is supported by the evidence.";
+  }
+
+  return "The controlled judge provides a test finding.";
+};
+
 const judgeOverrideForRequest = (
   input: z.output<typeof judgeRequestSchema>,
   mode: FakeGatewayMode,
@@ -243,16 +279,15 @@ const judgeOverrideForRequest = (
     };
   } else if (
     mode === "judge_action_id_in_evidence" ||
-    mode === "judge_missing_contradiction_evidence"
+    mode === "judge_missing_contradiction_evidence" ||
+    mode === "judge_self_denying_contradiction" ||
+    mode === "judge_supported_contradiction"
   ) {
     finding = {
       actionIds: [],
       category: "factual_contradiction" as const,
-      evidenceIds:
-        mode === "judge_action_id_in_evidence" && firstAction !== undefined
-          ? [firstAction.actionId]
-          : [],
-      explanation: "The controlled judge provides a test finding.",
+      evidenceIds: contradictionEvidenceIds(input, mode, firstAction),
+      explanation: contradictionExplanation(mode),
       quote: firstTurn.assistantMessages[0] ?? "",
       turnId: firstTurn.turnId,
     };
@@ -1393,7 +1428,7 @@ describe("local scouting evaluation entry", () => {
     }
   });
 
-  it("keeps each judge turn's participants and source mappings separate", () => {
+  it("keeps each judge turn's participants, source mappings and failures separate", () => {
     const [loadedCase] = loadEvaluationCases("smoke", [
       "compare-add-third-synthetic-v1",
     ]);
@@ -1530,6 +1565,7 @@ describe("local scouting evaluation entry", () => {
           deliveredEvidenceIds: [],
           effectiveConditions: null,
           effectiveConstraints: [],
+          nodeFailure: { category: "server", node: "understand_request" },
           outcomeKind: "player_comparison",
           outcomeStatus: "ready",
           players: firstTurnPlayers,
@@ -1559,8 +1595,19 @@ describe("local scouting evaluation entry", () => {
 
     const judgeInput = judgeInputForTrial(loadedCase.caseDefinition, worker);
 
+    expect(
+      judgeInput.contract.requiredFacts.map(({ description }) => description)
+    ).toStrictEqual([
+      "fm:fm-demo-01 (Elias Demo) 当前能力 / CA [currentAbility] = 132",
+      "fm:fm-mid-01 (Synthetic Midfielder) 当前能力 / CA [currentAbility] = 145",
+      "fm:fm-wing-01 (Synthetic Winger) 当前能力 / CA [currentAbility] = 139",
+      "understat:us-demo-01 (Elias Demo) 预期进球 / xG [expectedGoals] = 5.2",
+      "understat:us-mid-01 (Synthetic Midfielder) 预期进球 / xG [expectedGoals] = 2.8",
+    ]);
+
     expect(judgeInput.turns).toMatchObject([
       {
+        nodeFailure: { category: "server", node: "understand_request" },
         participants: [
           {
             mention: "Elias Demo",
@@ -1601,6 +1648,7 @@ describe("local scouting evaluation entry", () => {
         ],
       },
       {
+        nodeFailure: null,
         participants: [
           {
             mention: "Elias Demo",
@@ -3848,7 +3896,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v16",
+      judgePromptVersion: "scouting-semantic-judge-v19",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
@@ -4088,6 +4136,64 @@ describe("local scouting evaluation entry", () => {
       validationErrors: ["contradiction_missing_evidence_reference"],
     });
   }, 30_000);
+
+  it.each([
+    "judge_self_denying_contradiction",
+    "judge_supported_contradiction",
+  ] as const)(
+    "invalidates a contradiction finding whose explanation does not establish conflict: %s",
+    async (judgeMode) => {
+      let requestCount = 0;
+
+      const gateway = createServer((request, response) => {
+        requestCount += 1;
+        void handleGatewayRequest(request, response, requestCount, judgeMode);
+      });
+
+      servers.push(gateway);
+      gateway.listen(0, "127.0.0.1");
+      await once(gateway, "listening");
+
+      const address = z
+        .object({ port: z.number().int().positive() })
+        .parse(gateway.address());
+
+      const workspace = mkdtempSync(
+        path.join(tmpdir(), `tactiscout-${judgeMode}-`)
+      );
+
+      temporaryDirectories.push(workspace);
+      vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+      vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+      vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+      const report = await runEvaluation({
+        caseIds: ["lookup-smoke-v1"],
+        includeSemanticJudge: true,
+        maxModelRequests: 100,
+        mode: "smoke",
+        outputDirectory: path.join(workspace, "reports"),
+        workspaceDirectory: path.join(workspace, "run-data"),
+      });
+
+      const [trial] = report.trials;
+
+      expect({
+        calibration: report.judgeCalibration?.status,
+        judgeRequests: report.requestCountsByRole.judge,
+        semanticStatus: trial?.semanticStatus,
+        status: trial?.status,
+        validationErrors: trial?.semanticValidationErrors,
+      }).toStrictEqual({
+        calibration: "passed",
+        judgeRequests: 1,
+        semanticStatus: "invalid",
+        status: "judge_invalid",
+        validationErrors: ["contradiction_explanation_is_inconclusive"],
+      });
+    },
+    30_000
+  );
 
   it("rejects an action identifier placed in evidenceIds without retrying", async () => {
     let requestCount = 0;

@@ -824,6 +824,7 @@ const createEvaluationObserver = (
       deliveredEvidenceIds,
       effectiveConditions: effectiveConditionsForState(state),
       effectiveConstraints: state.request.constraints,
+      nodeFailure: state.faultTolerance.failure,
       outcomeKind: state.outcome?.kind ?? null,
       outcomeStatus: state.outcome?.status ?? null,
       players,
