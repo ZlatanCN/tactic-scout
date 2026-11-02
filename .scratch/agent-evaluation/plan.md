@@ -143,4 +143,12 @@ This is a gate for the frozen benchmark and evidence pack, not a claim about gen
 - The 251-request run lasted 22m 43.7s. Mean/p95 request latency was 9.8s/8.8s for Agent, 3.9s/7.3s for calibration, and 5.2s/8.2s for Judge. Reported total tokens were 974,231 Agent, 191,031 calibration, and 1,337,271 Judge.
 - Held-out findings are now exposed. Do not tune against this split; reserve a replacement held-out set before measuring any changed implementation or scoring rules.
 - Issue 63 classified the v19 findings against the development baseline. No Agent or judge source changes were justified; the split remains exposed and a replacement split plus new request allowance are required before future live measurement of changed behavior.
-- Issue 64 prepared an independent v20 replacement held-out pack from new local/synthetic evidence. It has not been evaluated against a live model; the next real run requires a frozen preview, rotated credentials, and a separate request allowance.
+- Issue 64 prepared an independent v20 replacement held-out pack from new local/synthetic evidence. Issue 65 records its formal evaluation and quality-gate result.
+
+### V20 held-out execution record
+
+- Run `ce2e6728-6a2d-438b-9e20-32fb44a4880b` evaluated revision `840d530ceab9e3a064d92f0a6b7244d39f65ce64` with freeze fingerprint `scouting-eval-v1-acca2d58751a0e3e6e1b89d5550fd64d6fcc459a3027cc29bfb6285c37de1eb7`. The private report is `.data/evals/runs/ce2e6728-6a2d-438b-9e20-32fb44a4880b/report.md`.
+- All 48 trials ran, using 232/900 requests: 155 Agent, 32 judge calibration, and 45 judge. Calibration passed 32/32, including validation 16/16. No requests were denied and there were no network failures.
+- The quality gate **did not pass**: 37/48 trials passed both deterministic and semantic checks, and 11/16 cases passed all three repetitions. The report is `partial` because three deterministic-failure trials were not semantically scored.
+- Among 44 adjudicated trials, the judge reported 2 factual contradictions, 1 unsupported factual addition, 0 false execution claims, and 20 missing required facts across 5 trials. See issue 65 for the per-case summary.
+- V20 is now exposed. Do not tune against its outputs or reuse its cases as a blind held-out split. Use development data for follow-up changes and prepare a new independent held-out split before another formal evaluation.
