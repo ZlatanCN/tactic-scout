@@ -270,4 +270,36 @@ All 96 trials completed using 410/1,500 requests: Agent 282, calibration 32, and
 
 Reported tokens (input/output): Agent 1,527,702 / 46,665; calibration 188,503 / 2,804; judge 1,550,288 / 9,426. Request latency p95 was 17.8 seconds for Agent, 8.5 seconds for calibration, and 7.7 seconds for judge.
 
-Issues 52–61 are resolved. V19 baseline `24eb3bcf-ad26-43ad-a740-56e756994430` passed all 96 trials. The source-matched rerun `b3ec8be9-3b3c-4707-847b-5487c0f6e867` is preserved as an infrastructure-limited partial after upstream 403 HTML responses and a judge-calibration 502 EOF, not as a quality result. Issues 58 and 59 fix the player-reference/team-search misroute and rounded-number coverage. Issue 61's focused smoke `ecbff675-860b-416b-838a-2e4b599b331b` passed. Issue 62 records the held-out quality gate; held-out evaluation has not started.
+Issues 52–61 are resolved. V19 baseline `24eb3bcf-ad26-43ad-a740-56e756994430` passed all 96 trials. The source-matched rerun `b3ec8be9-3b3c-4707-847b-5487c0f6e867` is preserved as an infrastructure-limited partial after upstream 403 HTML responses and a judge-calibration 502 EOF, not as a quality result. Issues 58 and 59 fix the player-reference/team-search misroute and rounded-number coverage. Issue 61's focused smoke `ecbff675-860b-416b-838a-2e4b599b331b` passed. Issue 62 froze and ran the held-out gate; results are below.
+
+## V19 held-out evaluation
+
+**Run:** `ccc52335-f8ec-4ae1-8c44-96eec0afe682`
+
+**Report:** `.data/evals/runs/ccc52335-f8ec-4ae1-8c44-96eec0afe682/report.md`
+**Scope:** 16 held-out cases, 48 isolated trials, four workflows, three repetitions per case. Evaluated commit `7ec7b40fe74fbbb9fb8a0a9de88ddbf362e3562d`; freeze fingerprint `scouting-eval-v1-d0bc33ef653e991ef16306cbd8438ca766c1d969691e0137cb618ea3e59ee10c`.
+
+The initial attempt `263adf91-fea6-454a-9cba-2fd7f72363ad` ran all Agent trials, then stopped after a timeout at judge anchor 29/32. It used 195 requests and produced no semantic scores. A later startup attempt `f3ad5e99-5b7b-4c00-ae45-4e22d5ed256b` dispatched zero requests and is not a quality run. The completed frozen rerun used 251/705 requests (Agent 171, Calibration 32, Judge 48); cumulative dispatched requests across both runs were 446/900. It recorded three network failures and no budget denials. All 48 trials and all judge calls completed; the run took 22m 43.7s.
+
+Calibration passed all 32 anchors, including validation 16/16. The held-out quality gate **did not pass**:
+
+- 38/48 trials passed both deterministic checks and semantic review; 10/48 failed deterministic checks.
+- Semantic statuses were 40 passed, 2 failed, 5 inconclusive, and 1 invalid. Twelve of 16 cases passed all three repetitions.
+- Across 42 valid semantic judgments, the judge reported one factual contradiction (1/42, 2.38%), zero unsupported-fact findings, and zero false-execution claims. It reported four required-fact omissions. One invalid judgment alleged unsupported claims but failed quote validation; those allegations are not valid findings.
+- Mean/p95 request latency: Agent 9.8s/8.8s, Calibration 3.9s/7.3s, Judge 5.2s/8.2s. Reported total tokens: Agent 974,231; Calibration 191,031; Judge 1,337,271.
+
+| Workflow | Trials passing both layers | Code failures | Semantic failures or unresolved |
+|---|---:|---:|---:|
+| Player comparison | 8/12 | 3 | 4 |
+| Player lookup | 9/12 | 3 | 3 |
+| Player recommendation | 9/12 | 3 | 1 |
+| Team recommendation | 12/12 | 0 | 0 |
+
+### Held-out failure clusters
+
+- `compare-add-raphinha-heldout-v1`: all three trials failed because the comparison result did not include the expected Understat Raphinha record. Verify whether the case's expected scope conflicts with the inherited Bundesliga condition before treating this as an agent defect.
+- `lookup-kane-followup-heldout-v1`: all three trials failed the scripted-clarification contract; one answer also mislabeled 447 minutes as appearances, a confirmed factual contradiction.
+- `recommend-refine-young-isak-heldout-v1`: all three trials dropped the expected PA ceiling and result limit from the effective final-turn constraints. One judge response was invalid (`quote_not_found`) and included unsupported-fact allegations; two other trials passed semantic review despite deterministic contract failures.
+- `compare-season-add-van-dijk-heldout-v1`: one of three trials omitted a required fact in semantic review.
+
+The strict gate fails regardless of whether the Raphinha case expectation is later found to be a benchmark mismatch: deterministic failures, a factual contradiction, required-fact omissions, inconclusive/invalid judgments, and only 12/16 stable cases each violate the agreed threshold. The split is now exposed and must not be used to tune the agent or judge. Reproduce candidate defects against the development set, audit any case-contract mismatch there, and reserve a replacement held-out split before evaluating changed code or scoring rules.

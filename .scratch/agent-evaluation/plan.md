@@ -131,3 +131,15 @@ After reviewing the v19 development baseline, use the following strict gate for 
 - There are no invalid, inconclusive, errored, or unfinished trials and no budget denials. Recovered network errors remain separately reported; an unrecovered error or incomplete trial makes the evaluation operationally incomplete rather than a clean quality result.
 
 This is a gate for the frozen benchmark and evidence pack, not a claim about general scouting accuracy or automatic production release. Preserve every run; do not tune on held-out outputs. If held-out findings influence changes, record that exposure and reserve a new held-out set for the next evaluation cycle.
+
+### V19 held-out execution record
+
+- The committed evaluation revision was `7ec7b40fe74fbbb9fb8a0a9de88ddbf362e3562d`, with freeze fingerprint `scouting-eval-v1-d0bc33ef653e991ef16306cbd8438ca766c1d969691e0137cb618ea3e59ee10c`.
+- Initial run `263adf91-fea6-454a-9cba-2fd7f72363ad` completed 48 Agent trials but stopped after 29/32 judge anchors due to a timeout. It used 195 requests and produced no semantic trial scores.
+- A startup-only attempt `f3ad5e99-5b7b-4c00-ae45-4e22d5ed256b` failed before dispatch and used zero requests; it is not a quality measurement.
+- Frozen rerun `ccc52335-f8ec-4ae1-8c44-96eec0afe682` completed all 48 trials, calibration, and semantic scoring with 251/705 requests (171 Agent, 32 calibration, 48 Judge). It recorded 3 network failures, 0 budget denials, and no unfinished trials. Across the two dispatched runs, total usage was 446/900 approved requests.
+- Calibration passed 32/32 anchors, including validation 16/16. The quality gate **did not pass**: 38/48 trials passed both deterministic and semantic checks; 10 failed deterministic checks; semantic outcomes were 40 passed, 2 failed, 5 inconclusive, and 1 invalid. Only 12/16 cases passed all three repetitions.
+- Among 42 valid semantic judgments, the judge reported 1 factual contradiction (1/42), 0 unsupported-fact findings, and 0 false-execution claims; it also reported 4 required-fact omissions. One invalid judgment contained 9 unsupported-fact allegations but failed quote validation, so those allegations are not treated as confirmed findings.
+- The 251-request run lasted 22m 43.7s. Mean/p95 request latency was 9.8s/8.8s for Agent, 3.9s/7.3s for calibration, and 5.2s/8.2s for Judge. Reported total tokens were 974,231 Agent, 191,031 calibration, and 1,337,271 Judge.
+- Held-out findings are now exposed and are being used to plan triage. Do not tune against this split; reserve a replacement held-out set before measuring any changed implementation or scoring rules.
+- Issue 63 tracks development-split reproduction, case/judge-contract triage, and preparation of the replacement held-out split.
