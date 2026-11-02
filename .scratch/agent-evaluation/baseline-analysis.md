@@ -269,3 +269,5 @@ All 96 trials completed using 410/1,500 requests: Agent 282, calibration 32, and
 | Team recommendation | 24/24 | 24/24 |
 
 Reported tokens (input/output): Agent 1,527,702 / 46,665; calibration 188,503 / 2,804; judge 1,550,288 / 9,426. Request latency p95 was 17.8 seconds for Agent, 8.5 seconds for calibration, and 7.7 seconds for judge.
+
+Issues 52–61 are resolved. V19 baseline `24eb3bcf-ad26-43ad-a740-56e756994430` passed all 96 trials. The source-matched rerun `b3ec8be9-3b3c-4707-847b-5487c0f6e867` is preserved as an infrastructure-limited partial after upstream 403 HTML responses and a judge-calibration 502 EOF, not as a quality result. Issues 58 and 59 fix the player-reference/team-search misroute and rounded-number coverage. Issue 61's focused smoke `ecbff675-860b-416b-838a-2e4b599b331b` passed. Issue 62 records the held-out quality gate; held-out evaluation has not started.

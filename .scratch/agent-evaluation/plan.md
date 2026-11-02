@@ -120,3 +120,14 @@ These are illustrative contracts, not assertions about any real player's present
 
 - Q19: The user confirmed that the complete proposal captures the shared plan. The discussion is resolved and ready for `to-spec`.
 - Numeric model/source request limits are intentionally chosen after preparation estimates; aggregate quality thresholds are intentionally chosen after the development baseline. These are scheduled later-stage decisions rather than defaults to invent before evidence exists.
+
+## V19 held-out threshold decision
+
+After reviewing the v19 development baseline, use the following strict gate for this 16-case held-out cycle:
+
+- Judge calibration passes all 32 anchors, including all 16 reserved validation anchors.
+- All 48 held-out trials complete and pass deterministic code checks and semantic review; all 16 cases pass all three repetitions.
+- Factual contradictions, unsupported factual additions, false execution claims, and required-fact omissions are zero.
+- There are no invalid, inconclusive, errored, or unfinished trials and no budget denials. Recovered network errors remain separately reported; an unrecovered error or incomplete trial makes the evaluation operationally incomplete rather than a clean quality result.
+
+This is a gate for the frozen benchmark and evidence pack, not a claim about general scouting accuracy or automatic production release. Preserve every run; do not tune on held-out outputs. If held-out findings influence changes, record that exposure and reserve a new held-out set for the next evaluation cycle.

@@ -1012,6 +1012,9 @@ describe("LangGraph player workflows", () => {
       ),
       missingPa: modelInput.includes("potentialAbility 为 null"),
       paContextOnly: modelInput.includes("PA 仅作为资料展示"),
+      positionRatingScaleBounded: modelInput.includes(
+        "位置评分只报告工具返回的数值"
+      ),
       potentialCandidateDataPassed:
         modelInput.includes("Synthetic High Potential Candidate") &&
         modelInput.includes("199") &&
@@ -1026,6 +1029,7 @@ describe("LangGraph player workflows", () => {
       filteredCounts: true,
       missingPa: true,
       paContextOnly: true,
+      positionRatingScaleBounded: true,
       potentialCandidateDataPassed: true,
       zeroPositionProfilesOnlyWhenCountIsZero: true,
     });

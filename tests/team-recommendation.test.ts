@@ -342,6 +342,9 @@ describe("team recommendation graph", () => {
         "只有 recommendation.filterCounts.eligiblePositionProfiles 为 0，才能说没有位置合格画像"
       ),
       paContextOnly: modelInput.includes("PA 仅作为资料展示"),
+      positionRatingScaleBounded: modelInput.includes(
+        "位置评分只报告工具返回的数值"
+      ),
       potentialCandidateDataPassed:
         modelInput.includes("Synthetic High Potential Candidate") &&
         modelInput.includes("199") &&
@@ -362,6 +365,7 @@ describe("team recommendation graph", () => {
       missingPa: true,
       noPositionEligibleOnlyWhenZero: true,
       paContextOnly: true,
+      positionRatingScaleBounded: true,
       potentialCandidateDataPassed: true,
       referenceMethodGrounded: true,
       tacticalFitCaveat: true,
