@@ -68,6 +68,7 @@ const runCli = async (): Promise<void> => {
     process.stdout.write(
       `${JSON.stringify(
         previewEvaluation({
+          caseDirectory: values["case-directory"],
           caseIds,
           evidenceDirectory: values["evidence-directory"],
           freezeId: values["freeze-id"],
@@ -95,6 +96,7 @@ const runCli = async (): Promise<void> => {
     .parse(values["max-model-requests"]);
 
   const options: RunEvaluationOptions = {
+    caseDirectory: values["case-directory"],
     caseIds,
     evidenceDirectory: values["evidence-directory"],
     freezeId: values["freeze-id"],

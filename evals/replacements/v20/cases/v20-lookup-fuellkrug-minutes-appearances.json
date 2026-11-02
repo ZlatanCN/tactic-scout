@@ -1,0 +1,163 @@
+{
+  "caseId": "v20-lookup-fuellkrug-minutes-appearances",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Niclas Füllkrug",
+        "status": "resolved",
+        "turnId": "v20-lookup-fuellkrug-minutes-appearances-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Niclas Füllkrug",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92018043"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6098"
+          }
+        ],
+        "turnId": "v20-lookup-fuellkrug-minutes-appearances-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "The source provides minutes, not an appearance count; never label minutes as appearances."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92018043",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92018043",
+        "value": 150
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6098",
+        "value": 492
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6098",
+        "value": 3.559812856838107
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6098",
+        "value": 6
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6098",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp31d72bb33c26f2",
+        "canonicalIdentityId": "rp31d72bb33c26f2",
+        "mention": "Niclas Füllkrug",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92018043"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6098",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92018043"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6098",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92018043"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6098"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v20-real-player-data",
+  "evidenceBundleSha256": "6f50ac1ba7147459d08acb2f4db475e9ff7cfef40506150f5cf8b5f76edcba90",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the replacement v20 held-out set from fixed local evidence; not evaluated against a live model.",
+  "scenarioFamily": "v20-lookup-minutes-field-does-not-provide-appearances",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v20-lookup-fuellkrug-minutes-appearances-turn-1",
+      "userMessage": "How many appearances did Niclas Füllkrug make in the 2026/27 Bundesliga? Use the available record."
+    }
+  ],
+  "workflow": "player_lookup"
+}

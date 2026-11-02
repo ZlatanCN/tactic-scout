@@ -1,0 +1,273 @@
+{
+  "caseId": "v20-compare-fuellkrug-olise-common-scope",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Niclas Füllkrug",
+        "status": "resolved",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Michael Olise",
+        "status": "resolved",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Niclas Füllkrug",
+        "status": "resolved"
+      },
+      {
+        "mention": "Michael Olise",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Niclas Füllkrug",
+        "status": "resolved",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1"
+      },
+      {
+        "mention": "Michael Olise",
+        "status": "resolved",
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92018043"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6098"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29221846"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9948"
+          }
+        ],
+        "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92018043",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92018043",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29221846",
+        "value": 175
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29221846",
+        "value": 185
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6098",
+        "value": 492
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6098",
+        "value": 3.559812856838107
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9948",
+        "value": 481
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9948",
+        "value": 3.63068375736475
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp31d72bb33c26f2",
+        "canonicalIdentityId": "rp31d72bb33c26f2",
+        "mention": "Niclas Füllkrug",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92018043"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6098",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpbf02b8c1e33a22",
+        "canonicalIdentityId": "rpbf02b8c1e33a22",
+        "mention": "Michael Olise",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29221846"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9948",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92018043"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6098",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29221846"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9948",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92018043"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6098"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29221846"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9948"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v20-real-player-data",
+  "evidenceBundleSha256": "6f50ac1ba7147459d08acb2f4db475e9ff7cfef40506150f5cf8b5f76edcba90",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the replacement v20 held-out set from fixed local evidence; not evaluated against a live model.",
+  "scenarioFamily": "v20-comparison-two-players-share-explicit-bundesliga-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v20-compare-fuellkrug-olise-common-scope-turn-1",
+      "userMessage": "Compare Niclas Füllkrug and Michael Olise in 2026/27 Bundesliga data."
+    }
+  ],
+  "workflow": "player_comparison"
+}

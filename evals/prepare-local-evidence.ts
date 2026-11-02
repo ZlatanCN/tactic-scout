@@ -105,7 +105,10 @@ const sourcePaths = (): RealSourcePaths => ({
   ),
 });
 
-const caseFiles = (selectedIds: string[]): EvaluationCase[] => {
+const caseFiles = (
+  selectedIds: string[],
+  caseDirectory = caseRoot
+): EvaluationCase[] => {
   const ids = selectedIds.length > 0 ? selectedIds : [];
 
   if (ids.length === 0) {
@@ -117,7 +120,7 @@ const caseFiles = (selectedIds: string[]): EvaluationCase[] => {
       throw new Error("Evaluation case IDs contain unsupported characters.");
     }
 
-    const casePath = path.join(caseRoot, `${caseId}.json`);
+    const casePath = path.join(caseDirectory, `${caseId}.json`);
 
     const parsedCase = evaluationCaseSchema.parse(
       JSON.parse(readFileSync(casePath, "utf-8"))
@@ -505,9 +508,10 @@ const apiFootballSnapshotFromPath = (
 const writeRealEvidenceBundles = (
   selectedIds: string[],
   outputDirectory: string,
-  apiFootballCapture: EvaluationEvidenceBundle["apiFootball"] = emptyApiFootballCapture
+  apiFootballCapture: EvaluationEvidenceBundle["apiFootball"] = emptyApiFootballCapture,
+  caseDirectory = caseRoot
 ): { bundleId: string; sha256: string; sourceRecordCount: number }[] => {
-  const cases = caseFiles(selectedIds);
+  const cases = caseFiles(selectedIds, caseDirectory);
   const byBundle = new Map<string, EvaluationCase[]>();
 
   for (const caseDefinition of cases) {
@@ -551,6 +555,7 @@ const runCli = (): void => {
     options: {
       "api-football-snapshot": { type: "string" },
       case: { multiple: true, type: "string" },
+      "case-directory": { type: "string" },
       output: { type: "string" },
     },
     strict: true,
@@ -568,7 +573,8 @@ const runCli = (): void => {
   const bundles = writeRealEvidenceBundles(
     values.case ?? [],
     outputDirectory,
-    apiFootballCapture
+    apiFootballCapture,
+    values["case-directory"]
   );
 
   process.stdout.write(

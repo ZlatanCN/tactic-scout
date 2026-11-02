@@ -1,0 +1,144 @@
+{
+  "caseId": "v20-lookup-aaron-martin-identity-resume",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v20-lookup-aaron-martin-identity-resume-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "search_player_records",
+        "path": "sourceRecords.0.sourceId",
+        "source": "input",
+        "turnId": "v20-lookup-aaron-martin-identity-resume-turn-1",
+        "value": "5133"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Aaron Martin",
+        "status": "needs_confirmation",
+        "turnId": "v20-lookup-aaron-martin-identity-resume-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Aaron Martin",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Aaron Martin",
+        "selectedCandidateId": "source:understat:5133",
+        "status": "resolved",
+        "turnId": "v20-lookup-aaron-martin-identity-resume-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "5133"
+          }
+        ],
+        "turnId": "v20-lookup-aaron-martin-identity-resume-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5133",
+        "value": 143
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedAssists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5133",
+        "value": 0.16548433154821396
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "source:understat:5133",
+        "canonicalIdentityId": null,
+        "mention": "Aaron Martin",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "5133",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "understat",
+        "sourceId": "5133",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "5133"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v20-real-player-data",
+  "evidenceBundleSha256": "6f50ac1ba7147459d08acb2f4db475e9ff7cfef40506150f5cf8b5f76edcba90",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the replacement v20 held-out set from fixed local evidence; not evaluated against a live model.",
+  "scenarioFamily": "v20-lookup-ambiguous-full-name-has-scripted-choice",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [
+        {
+          "expectedKind": "identity",
+          "resumeValue": "1"
+        }
+      ],
+      "turnId": "v20-lookup-aaron-martin-identity-resume-turn-1",
+      "userMessage": "Look up Aaron Martin's 2026/27 La Liga minutes and expected assists."
+    }
+  ],
+  "workflow": "player_lookup"
+}

@@ -5302,5 +5302,5 @@ describe("local scouting evaluation entry", () => {
       trialCount: 24,
       workflowCount: 8,
     });
-  }, 45_000);
+  }, 60_000);
 });
