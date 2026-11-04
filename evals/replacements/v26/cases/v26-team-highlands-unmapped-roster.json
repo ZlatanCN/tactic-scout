@@ -1,0 +1,171 @@
+{
+  "caseId": "v26-team-highlands-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v26-team-highlands-unmapped-roster",
+  "priorTuningExposure": "Authored for the independent v26 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v26-team-synthetic",
+  "evidenceBundleSha256": "3eebe72454289e33ce032f12c4372e4bf65eddac0e42fca3c4bc01f051a40358",
+  "turns": [
+    {
+      "turnId": "v26-team-highlands-unmapped-roster-turn-1",
+      "userMessage": "为 Highlands Rovers 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9993"
+          }
+        ],
+        "turnId": "v26-team-highlands-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9993"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9995"
+          }
+        ],
+        "turnId": "v26-team-highlands-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9995"
+          }
+        ],
+        "turnId": "v26-team-highlands-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v26-team-highlands-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 9995
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v26-team-highlands-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v26-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v26-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v26-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v26-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v26-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v26-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "team:9993"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "player:9995"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9993"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9993"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9995"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9995"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  }
+}

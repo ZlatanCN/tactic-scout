@@ -132,9 +132,13 @@ Run `37a11cd1-a26a-4737-9be4-1252f29c8236` was stopped at 34/48 trials after 119
 
 Run `e3e727f6-d532-4cc0-97d0-0015cbf72a6f` was stopped at 27/48 trials after 97 requests because a saved xA follow-up occasionally treated “Understat” as a player. V24 is exposed and diagnostic only. V25 is the independent replacement after filtering source names and matching metric follow-ups to saved lookups.
 
-## V25 replacement held-out candidate
+## Exposed V25 held-out attempt
 
-V25 contains 16 cases (12 real-source, 4 synthetic team-roster) with new player/source IDs and a new synthetic fixture. Evidence is prepared locally and the preview reports 16/16 ready, with an 834-request estimate. The exact Understat xA follow-up is included. Run v25 after committing and freezing this code and pack; it is the next final acceptance gate.
+Run `e5dde68f-5ae0-4ab8-8ae7-ea6ba6b05d2a` was stopped at 17/48 trials after 55 requests because two cases declared Bundesliga Understat rows in the La Liga scope. V25 is exposed and diagnostic only. The preview now validates that every required Understat row exists for the declared competition and season.
+
+## V26 replacement held-out candidate
+
+V26 has 16 independent cases (12 real-source, 4 synthetic team-roster) and new source IDs. The source rules are explicit: Understat supplies season performance; FM supplies the fixed ability snapshot. The saved xA follow-up covers a provider name in user text, and the new preflight check prevents missing or mis-scoped Understat evidence from reaching the model. Preview reports 16/16 ready and estimates 834 requests. Run v26 after committing and freezing the final code and evidence.
 
 ## V19 held-out result
 

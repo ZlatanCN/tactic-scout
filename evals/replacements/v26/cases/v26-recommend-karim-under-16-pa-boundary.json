@@ -1,0 +1,166 @@
+{
+  "caseId": "v26-recommend-karim-under-16-pa-boundary",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+        "value": "16279486"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+        "value": 16
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Karim Adeyemi",
+        "status": "resolved",
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Karim Adeyemi",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000474101"
+          }
+        ],
+        "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "16279486",
+        "value": 150
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "16279486",
+        "value": 160
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp3c77f1f333f603",
+        "canonicalIdentityId": "rp3c77f1f333f603",
+        "mention": "Karim Adeyemi",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "16279486"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000474101"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000474101"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v26-real-data",
+  "evidenceBundleSha256": "64fd607130e505127d140dc58ffb68786670796192baa239c4acfc056f3a4f56",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v26 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v26-recommend-karim-under-16-pa-boundary",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v26-recommend-karim-under-16-pa-boundary-turn-1",
+      "userMessage": "Based on Karim Adeyemi, recommend AMC prospects aged 16 or younger with PA at least 140; show one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

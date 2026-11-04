@@ -1,0 +1,465 @@
+{
+  "caseId": "v26-compare-add-lemar-same-la-liga-scope",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Karim Adeyemi",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1"
+      },
+      {
+        "lookupName": "Takefusa Kubo",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1"
+      },
+      {
+        "lookupName": "Thomas Lemar",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Karim Adeyemi",
+        "status": "resolved"
+      },
+      {
+        "mention": "Takefusa Kubo",
+        "status": "resolved"
+      },
+      {
+        "mention": "Thomas Lemar",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Karim Adeyemi",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1"
+      },
+      {
+        "mention": "Takefusa Kubo",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1"
+      },
+      {
+        "mention": "Karim Adeyemi",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2"
+      },
+      {
+        "mention": "Takefusa Kubo",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2"
+      },
+      {
+        "mention": "Thomas Lemar",
+        "status": "resolved",
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10772",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "45104608"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8001",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10772",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "45104608"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8001",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85093001"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "16279486",
+        "value": 150
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "16279486",
+        "value": 160
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "45104608",
+        "value": 157
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "45104608",
+        "value": 166
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85093001",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85093001",
+        "value": 165
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10772",
+        "value": 306
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10772",
+        "value": 4.287973910570145
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8001",
+        "value": 300
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8001",
+        "value": 0.6702707652002573
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3425",
+        "value": 320
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3425",
+        "value": 0.2520387191325426
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp3c77f1f333f603",
+        "canonicalIdentityId": "rp3c77f1f333f603",
+        "mention": "Karim Adeyemi",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10772",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp0820428dd295c5",
+        "canonicalIdentityId": "rp0820428dd295c5",
+        "mention": "Takefusa Kubo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45104608"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8001",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp3c2dbb35e60afa",
+        "canonicalIdentityId": "rp3c2dbb35e60afa",
+        "mention": "Thomas Lemar",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85093001"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "16279486"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10772",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "45104608"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8001",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85093001"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3425",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10772",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "45104608"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8001",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16279486"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10772",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "45104608"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8001",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85093001"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v26-real-data",
+  "evidenceBundleSha256": "64fd607130e505127d140dc58ffb68786670796192baa239c4acfc056f3a4f56",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v26 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v26-compare-add-lemar-same-la-liga-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-1",
+      "userMessage": "Compare Karim Adeyemi and Takefusa Kubo in 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v26-compare-add-lemar-same-la-liga-scope-turn-2",
+      "userMessage": "Add Thomas Lemar to the comparison."
+    }
+  ],
+  "workflow": "player_comparison"
+}

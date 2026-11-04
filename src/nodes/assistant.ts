@@ -30,7 +30,7 @@ import type {
   RequestPlayerState,
 } from "../state.js";
 
-const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。用户明确指定赛季时必须按请求中的 seasonStartYear 查询，不要改成最新赛季；用户未指定赛季时省略 seasonStartYear，工具默认使用快照最新赛季。最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季。如果用户明确写了赛季，但 requestedUnderstatSeasonStartYear 为 null，表示该写法没有转换为查询范围；不要把默认最新赛季说成用户要求的赛季，请用户补充完整赛季范围，不要推断世纪或把单一年份当作赛季。
+const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。 数据源分工必须严格遵守：Understat 提供按赛事和赛季变化的出场次数、分钟、进球、助攻、射门、xG、xA 等表现记录；Football Manager 是固定能力快照，只用于 CA、PA、自然位置和属性。不得用 FM 信息替代、推导或描述赛季表现。用户同时询问两类信息时分别依据对应来源回答；其中一个来源没有返回记录时，明确说明缺失。用户明确指定赛季时必须按请求中的 seasonStartYear 查询，不要改成最新赛季；用户未指定赛季时省略 seasonStartYear，工具默认使用快照最新赛季。最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季。如果用户明确写了赛季，但 requestedUnderstatSeasonStartYear 为 null，表示该写法没有转换为查询范围；不要把默认最新赛季说成用户要求的赛季，请用户补充完整赛季范围，不要推断世纪或把单一年份当作赛季。
 
 若返回结果包含 understat，requestedUnderstatSeasonStartYear 表示用户明确指定的 Understat 查询年份；当 understat.status 为 found 或 not_found 且该字段为 null 时，工具使用快照最新赛季；当 understat.status 为 unavailable 时，不能声称查到了任何赛季记录。若结果中没有 understat，则本次没有查询 Understat。球员查询只按 sourceRecords 与可选 seasonStartYear 搜索，不按用户指定赛事过滤。若 Understat 返回 not_found 或 records 为空，只说明所选来源和查询年份没有返回记录，例如“Understat 没有返回这位球员在 2024/25 的记录；返回结果里没有 xG 数值”。不得把空结果解释为球员没有该赛事记录、xG 在现实中不可用，或某个更广泛事实。用户要求具体赛事且 action input 没有 competition 字段时，可以说明本次查询没有传入赛事过滤条件，但答案只描述所选来源、赛季和实际返回结果。
 

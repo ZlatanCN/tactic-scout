@@ -20,6 +20,7 @@ import { loadEvaluationCases, previewEvaluation } from "../evals/benchmark.js";
 import {
   availableResultKindSchema,
   evaluationCaseSchema,
+  evaluationEvidenceBundleSchema,
   evaluationReportSchema,
   workerTrialResultSchema,
 } from "../evals/contracts.js";
@@ -2126,6 +2127,71 @@ describe("local scouting evaluation entry", () => {
         workspaceDirectory: ".data/evals/freeze-gate-test-work",
       })
     ).rejects.toThrow("Held-out cases require --freeze-id to match");
+  });
+
+  it("rejects a required Understat record when its declared competition is absent from the bundle", () => {
+    const directory = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-understat-scope-preview-")
+    );
+
+    temporaryDirectories.push(directory);
+
+    const caseDirectory = path.join(directory, "cases");
+    const evidenceDirectory = path.join(directory, "evidence");
+    mkdirSync(caseDirectory, { recursive: true });
+    mkdirSync(evidenceDirectory, { recursive: true });
+
+    const caseDefinition = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(process.cwd(), "evals/cases/lookup-smoke-v1.json"),
+          "utf-8"
+        )
+      )
+    );
+
+    const evidenceBundle = evaluationEvidenceBundleSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(
+            process.cwd(),
+            "evals/evidence/lookup-smoke-evidence-v1.json"
+          ),
+          "utf-8"
+        )
+      )
+    );
+
+    caseDefinition.contract.sourceScope =
+      caseDefinition.contract.sourceScope.map((source) =>
+        source.provider === "understat"
+          ? { ...source, competition: "La_liga" }
+          : source
+      );
+    const evidenceText = `${JSON.stringify(evidenceBundle, null, 2)}\n`;
+    caseDefinition.evidenceBundleSha256 = createHash("sha256")
+      .update(evidenceText)
+      .digest("hex");
+
+    writeFileSync(
+      path.join(caseDirectory, "lookup-smoke-v1.json"),
+      `${JSON.stringify(caseDefinition, null, 2)}\n`
+    );
+    writeFileSync(
+      path.join(evidenceDirectory, "lookup-smoke-evidence-v1.json"),
+      evidenceText
+    );
+
+    const preview = previewEvaluation({
+      caseDirectory,
+      caseIds: ["lookup-smoke-v1"],
+      evidenceDirectory,
+      mode: "smoke",
+    });
+
+    expect(
+      preview.cases.map(({ evidenceStatus }) => evidenceStatus)
+    ).toStrictEqual(["missing_or_invalid"]);
   });
 
   it("invalidates a held-out freeze fingerprint when the model changes", () => {

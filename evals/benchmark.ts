@@ -261,6 +261,76 @@ const loadEvaluationCases = (
   return loadedCases;
 };
 
+const understatExpectationMatchesCaseScope = (
+  caseDefinition: EvaluationCase,
+  expectation: EvaluationCase["contract"]["requiredEvidence"][number]
+): boolean => {
+  if (caseDefinition.contract.sourceScope.length === 0) {
+    return true;
+  }
+
+  return caseDefinition.contract.sourceScope.some((source) => {
+    if (
+      source.provider !== "understat" ||
+      source.sourceId !== expectation.sourceId
+    ) {
+      return false;
+    }
+
+    if (
+      expectation.competition !== undefined &&
+      source.competition !== expectation.competition
+    ) {
+      return false;
+    }
+
+    return (
+      expectation.season === undefined || source.season === expectation.season
+    );
+  });
+};
+
+const requiredUnderstatEvidenceAvailableForCase = (
+  caseDefinition: EvaluationCase,
+  bundle: EvaluationEvidenceBundle
+): boolean =>
+  caseDefinition.contract.requiredEvidence
+    .filter((expectation) => expectation.provider === "understat")
+    .every((expectation) => {
+      if (!understatExpectationMatchesCaseScope(caseDefinition, expectation)) {
+        return false;
+      }
+
+      const yearMatch = /^(?<year>20\d{2})\//u.exec(expectation.season ?? "");
+      const year = yearMatch?.groups?.year;
+
+      return bundle.understat.snapshots.some((snapshot) => {
+        if (
+          (expectation.competition !== undefined &&
+            snapshot.resourceId !== expectation.competition) ||
+          (year !== undefined && snapshot.seasonStartYear !== Number(year))
+        ) {
+          return false;
+        }
+
+        return snapshot.players.some((player) => {
+          const object = z.record(z.string(), z.json()).safeParse(player);
+
+          if (!object.success) {
+            return false;
+          }
+
+          const sourceId = z
+            .union([z.string(), z.number()])
+            .safeParse(object.data.id);
+
+          return (
+            sourceId.success && String(sourceId.data) === expectation.sourceId
+          );
+        });
+      });
+    });
+
 const evidenceStatusForCase = (
   caseDefinition: EvaluationCase,
   evidenceDirectory: string
@@ -279,9 +349,19 @@ const evidenceStatusForCase = (
   try {
     const bundle = readJson(evidencePath, evaluationEvidenceBundleSchema);
 
-    return bundle.bundleId === caseDefinition.evidenceBundleId &&
-      bundle.origin === caseDefinition.origin &&
-      sha256File(evidencePath) === caseDefinition.evidenceBundleSha256
+    const requiredUnderstatEvidenceAvailable =
+      requiredUnderstatEvidenceAvailableForCase(caseDefinition, bundle);
+
+    const bundleMatchesCase =
+      bundle.bundleId === caseDefinition.evidenceBundleId &&
+      bundle.origin === caseDefinition.origin;
+
+    const bundleHashMatches =
+      sha256File(evidencePath) === caseDefinition.evidenceBundleSha256;
+
+    return bundleMatchesCase &&
+      bundleHashMatches &&
+      requiredUnderstatEvidenceAvailable
       ? "ready"
       : "invalid";
   } catch {
@@ -867,7 +947,8 @@ const previewEvaluation = (
       if (
         bundle.bundleId === caseDefinition.evidenceBundleId &&
         bundle.origin === caseDefinition.origin &&
-        sha256File(bundlePath) === caseDefinition.evidenceBundleSha256
+        sha256File(bundlePath) === caseDefinition.evidenceBundleSha256 &&
+        requiredUnderstatEvidenceAvailableForCase(caseDefinition, bundle)
       ) {
         evidenceStatus = "ready";
       }

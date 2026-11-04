@@ -1,0 +1,298 @@
+{
+  "caseId": "v26-recommend-add-lemar-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v26-recommend-add-lemar-reference",
+  "priorTuningExposure": "Authored for the independent v26 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v26-real-data",
+  "evidenceBundleSha256": "64fd607130e505127d140dc58ffb68786670796192baa239c4acfc056f3a4f56",
+  "turns": [
+    {
+      "turnId": "v26-recommend-add-lemar-reference-turn-1",
+      "userMessage": "根据 Iago Aspas 的 AMC 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v26-recommend-add-lemar-reference-turn-2",
+      "userMessage": "再加上 Thomas Lemar 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Iago Aspas",
+        "status": "resolved"
+      },
+      {
+        "mention": "Thomas Lemar",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Iago Aspas",
+        "status": "resolved",
+        "turnId": "v26-recommend-add-lemar-reference-turn-1"
+      },
+      {
+        "lookupName": "Thomas Lemar",
+        "status": "resolved",
+        "turnId": "v26-recommend-add-lemar-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67010455"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43009077"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28025033"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37054408"
+          }
+        ],
+        "turnId": "v26-recommend-add-lemar-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67010455"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85093001"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19233491"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19010481"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28066081"
+          }
+        ],
+        "turnId": "v26-recommend-add-lemar-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-1",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-1",
+        "value": "67010455"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-2",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-2",
+        "value": "67010455"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v26-recommend-add-lemar-reference-turn-2",
+        "value": "85093001"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67010455",
+        "value": 119
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67010455",
+        "value": 160
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85093001",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85093001",
+        "value": 165
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc88ae400ec913c",
+        "canonicalIdentityId": "rpc88ae400ec913c",
+        "mention": "Iago Aspas",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67010455"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp3c2dbb35e60afa",
+        "canonicalIdentityId": "rp3c2dbb35e60afa",
+        "mention": "Thomas Lemar",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85093001"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67010455"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43009077"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28025033"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37054408"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85093001"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19233491"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19010481"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28066081"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67010455"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43009077"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28025033"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37054408"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67010455"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85093001"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19233491"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19010481"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28066081"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  }
+}
