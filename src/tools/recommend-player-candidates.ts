@@ -31,7 +31,8 @@ type RecommendPlayerCandidatesInput = {
 };
 
 type RecommendPlayerCandidates = (
-  input: RecommendPlayerCandidatesInput
+  input: RecommendPlayerCandidatesInput,
+  ageAsOfDate?: string
 ) => string | Promise<string>;
 
 const recommendationIdentityGroupSchema = z.object({
@@ -160,7 +161,10 @@ const identityError = (
     status,
   });
 
-const recommendPlayerCandidates: RecommendPlayerCandidates = (input) => {
+const recommendPlayerCandidates: RecommendPlayerCandidates = (
+  input,
+  ageAsOfDate
+) => {
   assertModelProcessingAllowed("fm");
 
   const referenceGroups = deduplicateGroups(input.referenceGroups);
@@ -265,16 +269,18 @@ const recommendPlayerCandidates: RecommendPlayerCandidates = (input) => {
       referenceFmIds,
       resultLimit: input.resultLimit ?? 5,
     },
-    source
+    source,
+    ageAsOfDate
   );
 
   return JSON.stringify(result);
 };
 
 const createRecommendPlayerCandidatesTool = (
-  recommend: RecommendPlayerCandidates = recommendPlayerCandidates
+  recommend: RecommendPlayerCandidates = recommendPlayerCandidates,
+  ageAsOfDate?: string
 ) =>
-  tool(recommend, {
+  tool(async (input) => await recommend(input, ageAsOfDate), {
     description:
       "按已解析 FM 身份查找位置级能力相似球员。多名 reference 会等权平均属性；候选名单排除所有与 reference 或 exclude 同 Reep 身份的 FM 资料。当前相似名单按 RMSE 排序，高潜名单按 PA 独立排序。",
     name: "recommend_player_candidates",

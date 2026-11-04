@@ -69,6 +69,7 @@ const runIsolatedTrial = async (
   const requestPath = path.join(options.trialDirectory, "worker-request.json");
 
   const request = evaluationWorkerRequestSchema.parse({
+    ageAsOfDate: options.caseDefinition.ageAsOfDate,
     apiFootball: options.apiFootball,
     caseId: options.caseDefinition.caseId,
     caseOrigin: options.caseDefinition.origin,

@@ -1344,6 +1344,7 @@ describe("LangGraph player workflows", () => {
 
     expect({
       ageAppliedClaim: answer.includes("应用年龄条件后"),
+      ageAsOfDate: answer.includes("年龄按 2026-11-04 计算"),
       caAppliedClaim: answer.includes("应用 CA 条件后"),
       noAgeFilter: answer.includes("年龄限制未设置"),
       noCaFilter: answer.includes("CA 下限未设置"),
@@ -1351,6 +1352,7 @@ describe("LangGraph player workflows", () => {
       paAppliedClaim: answer.includes("应用 PA 条件后"),
     }).toStrictEqual({
       ageAppliedClaim: false,
+      ageAsOfDate: true,
       caAppliedClaim: false,
       noAgeFilter: true,
       noCaFilter: true,
@@ -1377,12 +1379,7 @@ describe("LangGraph player workflows", () => {
         "answer",
         createAnswerNode(
           fakeModel().respond(
-            new AIMessage([
-              {
-                text: "位置合格画像为 4 个，应用年龄、CA 和 PA 条件后各为 4 个。",
-                type: "text",
-              },
-            ])
+            new AIMessage([{ text: "年龄范围已用于筛选候选。", type: "text" }])
           )
         )
       )
@@ -1394,9 +1391,11 @@ describe("LangGraph player workflows", () => {
     const answer = z.string().parse(result.messages.at(-1)?.content);
 
     expect({
+      ageAsOfDate: answer.includes("年龄按 2026-11-04 计算"),
       repeatsUnsetFilterClaim: answer.includes("应用年龄、CA 和 PA 条件后"),
       saysNoAgeFilter: answer.includes("年龄限制未设置"),
     }).toStrictEqual({
+      ageAsOfDate: true,
       repeatsUnsetFilterClaim: false,
       saysNoAgeFilter: true,
     });

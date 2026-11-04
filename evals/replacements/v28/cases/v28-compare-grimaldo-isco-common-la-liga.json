@@ -1,0 +1,282 @@
+{
+  "caseId": "v28-compare-grimaldo-isco-common-la-liga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Alejandro Grimaldo",
+        "status": "resolved",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Isco",
+        "status": "resolved",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Alejandro Grimaldo",
+        "status": "resolved"
+      },
+      {
+        "mention": "Isco",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Alejandro Grimaldo",
+        "status": "resolved",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1"
+      },
+      {
+        "mention": "Isco",
+        "status": "resolved",
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67153376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11866",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67103537"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2255",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67153376",
+        "value": 162
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67153376",
+        "value": 162
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67103537",
+        "value": 150
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67103537",
+        "value": 180
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11866",
+        "value": 670
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11866",
+        "value": 2.531197041273117
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2255",
+        "value": 412
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2255",
+        "value": 3.136079113930464
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp498f72d0bba2ce",
+        "canonicalIdentityId": "rp498f72d0bba2ce",
+        "mention": "Alejandro Grimaldo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67153376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11866",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpef789cd19fcc24",
+        "canonicalIdentityId": "rpef789cd19fcc24",
+        "mention": "Isco",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67103537"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2255",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67153376"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11866",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67103537"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2255",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67153376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11866",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67103537"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2255",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v28-compare-grimaldo-isco-common-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-compare-grimaldo-isco-common-la-liga-turn-1",
+      "userMessage": "Compare Alejandro Grimaldo and Isco for 2026/27 La Liga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

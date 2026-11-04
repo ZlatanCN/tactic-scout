@@ -25,7 +25,8 @@ type RecommendTeamPlayerCandidatesInput = {
 };
 
 type RecommendTeamPlayerCandidates = (
-  input: RecommendTeamPlayerCandidatesInput
+  input: RecommendTeamPlayerCandidatesInput,
+  ageAsOfDate?: string
 ) => string | Promise<string>;
 
 const teamIdentitySchema = z.object({
@@ -76,7 +77,8 @@ const teamRecommendationInputSchema = z.object({
 });
 
 const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
-  input
+  input,
+  ageAsOfDate
 ) => {
   assertModelProcessingAllowed("fm");
 
@@ -108,7 +110,8 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
       referenceFmIds: requestedReferenceFmIds,
       resultLimit: input.resultLimit ?? 5,
     },
-    source
+    source,
+    ageAsOfDate
   );
 
   const coverage = teamRosterCoverage(input.roster);
@@ -169,9 +172,10 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
 };
 
 const createRecommendTeamPlayerCandidatesTool = (
-  recommend: RecommendTeamPlayerCandidates = recommendTeamPlayerCandidates
+  recommend: RecommendTeamPlayerCandidates = recommendTeamPlayerCandidates,
+  ageAsOfDate?: string
 ) =>
-  tool(recommend, {
+  tool(async (input) => await recommend(input, ageAsOfDate), {
     description:
       "按已映射的当前球队阵容和明确位置生成 FM 球员推荐；使用队内合格画像的等权均值和现有 RMSE 规则，并排除全部队内球员。",
     name: "recommend_team_player_candidates",

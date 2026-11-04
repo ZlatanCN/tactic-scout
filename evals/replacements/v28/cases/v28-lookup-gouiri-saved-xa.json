@@ -1,0 +1,211 @@
+{
+  "caseId": "v28-lookup-gouiri-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v28-lookup-gouiri-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "48044735"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6401",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Amine Gouiri",
+        "status": "resolved",
+        "turnId": "v28-lookup-gouiri-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Amine Gouiri",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Amine Gouiri",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp95c0f49a418aec",
+        "turnId": "v28-lookup-gouiri-saved-xa-turn-1"
+      },
+      {
+        "mention": "Amine Gouiri",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp95c0f49a418aec",
+        "turnId": "v28-lookup-gouiri-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48044735"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6401",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v28-lookup-gouiri-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48044735",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48044735",
+        "value": 150
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6401",
+        "value": 602
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6401",
+        "value": 4.095735859125853
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6401",
+        "value": 5
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6401",
+        "value": 1
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6401",
+        "field": "expectedAssists",
+        "value": 1.6772830039262772,
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp95c0f49a418aec",
+        "canonicalIdentityId": "rp95c0f49a418aec",
+        "mention": "Amine Gouiri",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48044735"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6401",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "48044735"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6401",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48044735"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6401",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v28-lookup-gouiri-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-lookup-gouiri-saved-xa-turn-1",
+      "userMessage": "Look up Amine Gouiri's FM profile and 2026/27 Ligue 1 performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-lookup-gouiri-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -444,6 +444,50 @@ describe("player recommendation data invariants", () => {
     });
   });
 
+  it("filters and reports age as of the request date instead of the FM snapshot", () => {
+    const reference = {
+      ...profileWithAttributes("reference", 50),
+      birthDate: "1980-01-01",
+    };
+
+    const turnedTwentyFiveSinceSnapshot = {
+      ...profileWithAttributes("turned-25", 50),
+      birthDate: "2001-11-22",
+    };
+
+    const stillTwentyThree = {
+      ...profileWithAttributes("still-23", 50),
+      birthDate: "2002-11-24",
+    };
+
+    const source: FmRecommendationReadResult = {
+      excludedMissingFmIdCandidates: 0,
+      gameBuild: "test-build",
+      manifestSha256: "fixture-manifest-sha",
+      position: "stc",
+      profiles: [reference, turnedTwentyFiveSinceSnapshot, stillTwentyThree],
+      references: [reference],
+      snapshotDate: "2025-11-23",
+      status: "ready",
+    };
+
+    const result = recommendPlayers(
+      {
+        maxAge: 24,
+        position: "stc",
+        referenceFmIds: ["reference"],
+      },
+      source,
+      "2026-11-23"
+    );
+
+    expect(result).toMatchObject({
+      ageAsOfDate: "2026-11-23",
+      currentCandidates: [{ age: 23, fmId: "still-23" }],
+      snapshotDate: "2025-11-23",
+    });
+  });
+
   it("builds the team profile from position-capable squad members and excludes the whole squad", () => {
     const teamA = profileWithAttributes("team-a", 40);
     const teamB = profileWithAttributes("team-b", 60, 15);

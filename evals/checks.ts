@@ -918,11 +918,16 @@ const checkCaseContract = (
 
   const actualActions = actualToolActions(worker);
 
-  const expectedEvidencePassed = caseDefinition.contract.requiredEvidence.every(
-    (expectation) =>
-      valueAtSource(worker, expectation) ===
-      (JSON.stringify(expectation.value) ?? "undefined")
+  const evidenceMismatches = caseDefinition.contract.requiredEvidence.flatMap(
+    (expectation) => {
+      const actual = valueAtSource(worker, expectation);
+      const expected = JSON.stringify(expectation.value) ?? "undefined";
+
+      return actual === expected ? [] : [{ actual, ...expectation, expected }];
+    }
   );
+
+  const expectedEvidencePassed = evidenceMismatches.length === 0;
 
   const expectedPlayers = expectedPlayerKeys(
     caseDefinition.contract.resolvedPlayers
@@ -1024,7 +1029,7 @@ const checkCaseContract = (
     {
       actual: expectedEvidencePassed
         ? "all_required_evidence_found"
-        : "missing_or_wrong_evidence",
+        : (JSON.stringify(evidenceMismatches) ?? "[]"),
       expected: "all_required_evidence_found",
       id: "required-evidence",
       status: expectedEvidencePassed ? "passed" : "failed",

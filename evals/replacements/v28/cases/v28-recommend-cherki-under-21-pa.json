@@ -1,0 +1,179 @@
+{
+  "caseId": "v28-recommend-cherki-under-21-pa",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+        "value": "49056279"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+        "value": 21
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+        "value": 145
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Rayan Cherki",
+        "status": "resolved",
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Rayan Cherki",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49056279"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000115202"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000256231"
+          }
+        ],
+        "turnId": "v28-recommend-cherki-under-21-pa-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49056279",
+        "value": 161
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49056279",
+        "value": 174
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp244e20e67e181c",
+        "canonicalIdentityId": "rp244e20e67e181c",
+        "mention": "Rayan Cherki",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49056279"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49056279"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000115202"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000256231"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49056279"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000115202"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000256231"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v28-recommend-cherki-under-21-pa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-recommend-cherki-under-21-pa-turn-1",
+      "userMessage": "Based on Rayan Cherki, recommend AMR prospects aged 21 or younger with PA at least 145; show one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

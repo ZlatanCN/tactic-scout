@@ -1,0 +1,264 @@
+{
+  "caseId": "v28-recommend-joao-refine-age-ca",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-1",
+        "value": "19371552"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-1",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-2",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-2",
+        "value": "19371552"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-2",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-2",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "João Pedro",
+        "status": "resolved",
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "João Pedro",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000030160"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000123485"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49061476"
+          }
+        ],
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000030160"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49061476"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14236223"
+          }
+        ],
+        "turnId": "v28-recommend-joao-refine-age-ca-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "19371552",
+        "value": 153
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "19371552",
+        "value": 165
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp02a45c6a73f84d",
+        "canonicalIdentityId": "rp02a45c6a73f84d",
+        "mention": "João Pedro",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "19371552"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000030160"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000123485"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49061476"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14236223"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000030160"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000123485"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49061476"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000030160"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49061476"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14236223"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v28-recommend-joao-refine-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-recommend-joao-refine-age-ca-turn-1",
+      "userMessage": "Based on João Pedro's STC profile, recommend alternatives aged 23 or younger and show at most three."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-recommend-joao-refine-age-ca-turn-2",
+      "userMessage": "Refine to keep STC players aged 23 or younger with CA at least 140, showing at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

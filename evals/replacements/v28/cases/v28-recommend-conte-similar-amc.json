@@ -1,0 +1,168 @@
+{
+  "caseId": "v28-recommend-conte-similar-amc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v28-recommend-conte-similar-amc-turn-1",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-conte-similar-amc-turn-1",
+        "value": "2000065826"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v28-recommend-conte-similar-amc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bambasé Conté",
+        "status": "resolved",
+        "turnId": "v28-recommend-conte-similar-amc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bambasé Conté",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "22074169"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49037479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67258949"
+          }
+        ],
+        "turnId": "v28-recommend-conte-similar-amc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000065826",
+        "value": 125
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000065826",
+        "value": 142
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp3444ee713cce8a",
+        "canonicalIdentityId": "rp3444ee713cce8a",
+        "mention": "Bambasé Conté",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000065826"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "22074169"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49037479"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67258949"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "22074169"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49037479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67258949"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v28-recommend-conte-similar-amc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-recommend-conte-similar-amc-turn-1",
+      "userMessage": "Based on Bambasé Conté's AMC profile, recommend similar players and show at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

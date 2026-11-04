@@ -74,6 +74,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - Tool functions own local data access and return source-tagged records.
 - The model may explain returned records; it must not invent missing values or merge source identities by name.
 - Football Manager is a fixed, dated ability snapshot. Use it only for snapshot CA, PA, natural positions, and attributes; never use it to claim current/seasonal performance, current club registration, injuries, availability, or transfer status. Use a source that actually covers the requested time period, and abstain when no such source is available.
+- A birth date is a stable date-of-birth fact. Calculate age from that date using the query's explicit as-of date; never treat an age calculated at the FM snapshot date as current age.
 - Understat records are scoped to a competition and season. They support only the returned season's performance fields and do not establish current registration or live status. Do not present snapshot-scoped data as real-time data.
 - Every extracted player mention passes through identity resolution before data tools run. Ambiguity pauses the graph for user clarification.
 - Source records with the same canonical Reep ID form one identity automatically. Similar unlinked cross-provider names may be offered as a tentative group for explicit confirmation; names alone never merge identities. Candidates with different canonical Reep IDs remain separate.

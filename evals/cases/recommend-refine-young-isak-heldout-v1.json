@@ -87,10 +87,6 @@
           },
           {
             "provider": "fm",
-            "sourceId": "2000163799"
-          },
-          {
-            "provider": "fm",
             "sourceId": "2000179713"
           }
         ]
@@ -173,7 +169,7 @@
         "turnId": "recommend-refine-young-isak-heldout-v1-turn-2",
         "source": "result",
         "path": "potentialCandidates.1.fmId",
-        "value": "2000163799"
+        "value": "2000179713"
       },
       {
         "name": "recommend_player_candidates",
@@ -416,10 +412,6 @@
           },
           {
             "provider": "fm",
-            "sourceId": "2000163799"
-          },
-          {
-            "provider": "fm",
             "sourceId": "2000179713"
           }
         ]
@@ -482,5 +474,6 @@
         ]
       }
     ]
-  }
+  },
+  "ageAsOfDate": "2026-11-04"
 }

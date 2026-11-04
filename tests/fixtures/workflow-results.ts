@@ -12,6 +12,7 @@ type RecommendationOverrides = Partial<
 >;
 
 const fixtureSnapshotDate = "2025-11-23";
+const fixtureAgeAsOfDate = "2026-11-04";
 const apiFootballSource = "API-Football" as const;
 
 const recommendationResultData = (
@@ -29,6 +30,7 @@ const recommendationResultData = (
   };
 
   return {
+    ageAsOfDate: fixtureAgeAsOfDate,
     currentCandidates:
       status === "ready"
         ? [

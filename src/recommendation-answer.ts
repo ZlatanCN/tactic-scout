@@ -230,6 +230,7 @@ const renderChineseCorrection = (
     `参考画像（${result.position.toUpperCase()}）：`,
     ...result.references.map((reference) => referenceLine(reference, "zh")),
     "",
+    `年龄按 ${result.ageAsOfDate} 计算；CA、PA 和属性来自 ${result.snapshotDate} 的 FM 快照。`,
     `当前能力相似候选（${result.currentCandidates.length}）：`,
     ...result.currentCandidates.map((candidate) =>
       candidateLine(candidate, "zh")
@@ -263,6 +264,7 @@ const renderEnglishCorrection = (
     `Reference profiles (${result.position.toUpperCase()}):`,
     ...result.references.map((reference) => referenceLine(reference, "en")),
     "",
+    `Age is calculated as of ${result.ageAsOfDate}; CA, PA, and attributes come from the FM snapshot dated ${result.snapshotDate}.`,
     `Current-ability similarity candidates (${result.currentCandidates.length}):`,
     ...result.currentCandidates.map((candidate) =>
       candidateLine(candidate, "en")
@@ -306,10 +308,16 @@ const correctionForAnswer = (
     result.filters
   );
 
+  const answerMentionsAge = answerContainsAnyPhrase(answer, ["年龄", "age"]);
+
+  const ageDateMissing =
+    answerMentionsAge && !answer.includes(result.ageAsOfDate);
+
   if (
     !currentListContradiction &&
     !potentialListContradiction &&
-    !unsetFilterContradiction
+    !unsetFilterContradiction &&
+    !ageDateMissing
   ) {
     return null;
   }
@@ -357,6 +365,7 @@ const renderChineseTeamCorrection = (
   const sections = [
     `球队：${team.name}${country}；目标位置：${position.toUpperCase()}`,
     `阵容来源：${roster.source}，获取时间：${roster.retrievedAt}；FM 快照日期：${fmSnapshotDate}`,
+    `候选年龄按 ${recommendation.ageAsOfDate} 计算；能力和属性仍按 FM 快照日期计算。`,
     `阵容映射：${roster.mappedMembers}/${roster.totalMembers} 人（Reep 桥接 ${roster.reepBridgeMappings}，用户确认 ${roster.userConfirmedMappings}）；无本地画像 ${roster.noLocalProfileMembers} 人，待确认 ${roster.pendingMembers} 人。映射到 FM 画像不代表位置评分达标。`,
     teamRankingBasisSummary(data.rankingBasis, "zh"),
     "",
@@ -407,6 +416,7 @@ const renderEnglishTeamCorrection = (
   const sections = [
     `Team: ${team.name}${country}; target position: ${position.toUpperCase()}`,
     `Roster source: ${roster.source}, retrieved ${roster.retrievedAt}; FM snapshot: ${fmSnapshotDate}`,
+    `Candidate ages are calculated as of ${recommendation.ageAsOfDate}; ability and attributes use the FM snapshot date.`,
     `Roster mapping: ${roster.mappedMembers}/${roster.totalMembers} mapped (Reep ${roster.reepBridgeMappings}, user-confirmed ${roster.userConfirmedMappings}); no local profile ${roster.noLocalProfileMembers}; pending ${roster.pendingMembers}. Mapping does not imply position eligibility.`,
     teamRankingBasisSummary(data.rankingBasis, "en"),
     "",

@@ -1,0 +1,299 @@
+{
+  "caseId": "v28-recommend-add-morgan-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v28-recommend-add-morgan-reference",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "turns": [
+    {
+      "turnId": "v28-recommend-add-morgan-reference-turn-1",
+      "userMessage": "根据 Bambasé Conté 的 AMC 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v28-recommend-add-morgan-reference-turn-2",
+      "userMessage": "再加上 Morgan Rogers 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bambasé Conté",
+        "status": "resolved"
+      },
+      {
+        "mention": "Morgan Rogers",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bambasé Conté",
+        "status": "resolved",
+        "turnId": "v28-recommend-add-morgan-reference-turn-1"
+      },
+      {
+        "lookupName": "Morgan Rogers",
+        "status": "resolved",
+        "turnId": "v28-recommend-add-morgan-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "22074169"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49037479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67258949"
+          }
+        ],
+        "turnId": "v28-recommend-add-morgan-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28115996"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53136627"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19245597"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000183231"
+          }
+        ],
+        "turnId": "v28-recommend-add-morgan-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-1",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-1",
+        "value": "2000065826"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-2",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-2",
+        "value": "2000065826"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v28-recommend-add-morgan-reference-turn-2",
+        "value": "28115996"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000065826",
+        "value": 125
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000065826",
+        "value": 142
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28115996",
+        "value": 161
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28115996",
+        "value": 170
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp3444ee713cce8a",
+        "canonicalIdentityId": "rp3444ee713cce8a",
+        "mention": "Bambasé Conté",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp9deb7e53425a51",
+        "canonicalIdentityId": "rp9deb7e53425a51",
+        "mention": "Morgan Rogers",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28115996"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000065826"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "22074169"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49037479"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67258949"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28115996"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "53136627"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19245597"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000183231"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "22074169"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49037479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67258949"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000065826"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28115996"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53136627"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19245597"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000183231"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

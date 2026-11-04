@@ -136,6 +136,7 @@ const recommendationFilterCountsSchema = z.object({
 
 const recommendationReadyResultSchema = z
   .object({
+    ageAsOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
     currentCandidates: z.array(recommendationCandidateSchema),
     filterCounts: recommendationFilterCountsSchema,
     filters: z.object({
@@ -310,28 +311,30 @@ const ageParts = (value: string | null): Date | null => {
   return parsed;
 };
 
-const ageOnSnapshot = (
+const ageOnDate = (
   birthDate: string | null,
-  snapshotDate: string
+  asOfDate: string
 ): number | null => {
   const birth = ageParts(birthDate);
-  const snapshot = ageParts(snapshotDate);
+  const date = ageParts(asOfDate);
 
-  if (birth === null || snapshot === null) {
+  if (birth === null || date === null) {
     return null;
   }
 
   const birthdayHasNotPassed =
-    snapshot.getUTCMonth() < birth.getUTCMonth() ||
-    (snapshot.getUTCMonth() === birth.getUTCMonth() &&
-      snapshot.getUTCDate() < birth.getUTCDate());
+    date.getUTCMonth() < birth.getUTCMonth() ||
+    (date.getUTCMonth() === birth.getUTCMonth() &&
+      date.getUTCDate() < birth.getUTCDate());
 
   return (
-    snapshot.getUTCFullYear() -
+    date.getUTCFullYear() -
     birth.getUTCFullYear() -
     Number(birthdayHasNotPassed)
   );
 };
+
+const currentUtcDate = (): string => new Date().toISOString().slice(0, 10);
 
 const referenceSummary = (
   reference: FmRecommendationProfile
@@ -447,7 +450,7 @@ const resolveReferences = (
 const filterCandidates = (
   profiles: FmRecommendationProfile[],
   request: NormalizedRequest,
-  snapshotDate: string
+  ageAsOfDate: string
 ): FilteredCandidates => {
   const positionEligible = profiles.filter(
     (profile) => profile.positionRating !== null && profile.positionRating >= 15
@@ -458,7 +461,7 @@ const filterCandidates = (
       return true;
     }
 
-    const age = ageOnSnapshot(profile.birthDate, snapshotDate);
+    const age = ageOnDate(profile.birthDate, ageAsOfDate);
 
     return age !== null && age <= request.maxAge;
   });
@@ -505,7 +508,7 @@ const filterCandidates = (
 
 const candidateFromProfile = (
   profile: FmRecommendationProfile,
-  snapshotDate: string,
+  ageAsOfDate: string,
   features: readonly string[],
   referenceMean: Record<string, number>
 ): RankedProfile | null => {
@@ -540,7 +543,7 @@ const candidateFromProfile = (
     attributes.length;
 
   return {
-    age: ageOnSnapshot(profile.birthDate, snapshotDate),
+    age: ageOnDate(profile.birthDate, ageAsOfDate),
     attributes,
     currentAbility: profile.currentAbility,
     currentDistance: Math.sqrt(meanSquareError),
@@ -675,7 +678,7 @@ const resolveRecommendationPosition = (
 
 const rankCandidates = (
   profiles: FmRecommendationProfile[],
-  snapshotDate: string,
+  ageAsOfDate: string,
   features: readonly string[],
   referenceMean: Record<string, number>,
   request: NormalizedRequest
@@ -683,7 +686,7 @@ const rankCandidates = (
   const completeProfiles = profiles.flatMap((profile) => {
     const candidate = candidateFromProfile(
       profile,
-      snapshotDate,
+      ageAsOfDate,
       features,
       referenceMean
     );
@@ -817,7 +820,8 @@ const recommendationFailureFromSource = (
 
 const recommendPlayers = (
   request: RecommendationRequest,
-  source: FmRecommendationReadResult
+  source: FmRecommendationReadResult,
+  ageAsOfDate = currentUtcDate()
 ): RecommendationResult => {
   const normalized = normalizeRequest(request);
 
@@ -863,12 +867,12 @@ const recommendPlayers = (
   const filtered = filterCandidates(
     source.profiles,
     normalizedRequest,
-    source.snapshotDate
+    ageAsOfDate
   );
 
   const ranked = rankCandidates(
     filtered.afterIdentityExclusion,
-    source.snapshotDate,
+    ageAsOfDate,
     featureDefinition.features,
     referenceResolution.meanAttributes,
     normalizedRequest
@@ -887,6 +891,7 @@ const recommendPlayers = (
       ranked.potentialCandidates.length > 0);
 
   return {
+    ageAsOfDate,
     currentCandidates: ranked.currentCandidates,
     filterCounts,
     filters: {
@@ -914,11 +919,12 @@ const recommendPlayers = (
 
 const recommendTeamPlayers = (
   request: RecommendationRequest,
-  source: FmRecommendationReadResult
+  source: FmRecommendationReadResult,
+  ageAsOfDate = currentUtcDate()
 ): TeamRecommendationCalculation => {
   if (source.status !== "ready" || !isSupportedPosition(request.position)) {
     return {
-      recommendation: recommendPlayers(request, source),
+      recommendation: recommendPlayers(request, source, ageAsOfDate),
       referenceFmIds: request.referenceFmIds,
       status: "calculated",
     };
@@ -951,7 +957,8 @@ const recommendTeamPlayers = (
 
   const recommendation = recommendPlayers(
     { ...request, referenceFmIds },
-    { ...source, references }
+    { ...source, references },
+    ageAsOfDate
   );
 
   return { recommendation, referenceFmIds, status: "calculated" };

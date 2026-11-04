@@ -1,0 +1,273 @@
+{
+  "caseId": "v28-compare-vagnoman-joao-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Josha Vagnoman",
+        "status": "resolved",
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "João Pedro",
+        "status": "resolved",
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Josha Vagnoman",
+        "status": "resolved"
+      },
+      {
+        "mention": "João Pedro",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Josha Vagnoman",
+        "status": "resolved",
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1"
+      },
+      {
+        "mention": "João Pedro",
+        "status": "resolved",
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91184445"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6626",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8272",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91184445",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91184445",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "19371552",
+        "value": 153
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "19371552",
+        "value": 165
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6626",
+        "value": 536
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6626",
+        "value": 0.8764529898762703
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8272",
+        "value": 524
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8272",
+        "value": 3.6131640765815973
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp69d9965b0d7c00",
+        "canonicalIdentityId": "rp69d9965b0d7c00",
+        "mention": "Josha Vagnoman",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91184445"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6626",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp02a45c6a73f84d",
+        "canonicalIdentityId": "rp02a45c6a73f84d",
+        "mention": "João Pedro",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8272",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91184445"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6626",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19371552"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8272",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91184445"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6626",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19371552"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8272",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v28-real-data",
+  "evidenceBundleSha256": "9351379f01e9fc049db45f3783170119a67924907ae9c79a26be560b2f22c933",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v28-compare-vagnoman-joao-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v28-compare-vagnoman-joao-no-common-scope-turn-1",
+      "userMessage": "Compare Josha Vagnoman and João Pedro using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

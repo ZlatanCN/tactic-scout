@@ -41,7 +41,8 @@ type PlayerSearchInput = z.output<typeof searchInputSchema>;
 const createTools = (
   search: PlayerSearch = searchPlayerRecords,
   recommend: RecommendPlayerCandidates = recommendPlayerCandidates,
-  recommendTeam: RecommendTeamPlayerCandidates = recommendTeamPlayerCandidates
+  recommendTeam: RecommendTeamPlayerCandidates = recommendTeamPlayerCandidates,
+  ageAsOfDate?: string
 ) => [
   tool(search, {
     description:
@@ -50,8 +51,8 @@ const createTools = (
     schema: searchInputSchema,
   }),
   createComparePlayerRecordsTool(search),
-  createRecommendPlayerCandidatesTool(recommend),
-  createRecommendTeamPlayerCandidatesTool(recommendTeam),
+  createRecommendPlayerCandidatesTool(recommend, ageAsOfDate),
+  createRecommendTeamPlayerCandidatesTool(recommendTeam, ageAsOfDate),
 ];
 
 export { createTools };

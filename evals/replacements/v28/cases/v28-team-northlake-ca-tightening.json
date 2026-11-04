@@ -1,0 +1,430 @@
+{
+  "caseId": "v28-team-northlake-ca-tightening",
+  "category": "multi_turn",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v28-team-northlake-ca-tightening",
+  "priorTuningExposure": "Authored for the independent v28 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v28-team-synthetic",
+  "evidenceBundleSha256": "fb21624064d739a77f480589b264d17a3f7a9b5f29eae33ef21e945991ca9fe3",
+  "turns": [
+    {
+      "turnId": "v28-team-northlake-ca-tightening-turn-1",
+      "userMessage": "为 Northlake Albion 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "turnId": "v28-team-northlake-ca-tightening-turn-2",
+      "userMessage": "把球队推荐的 CA 下限设为 140。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          }
+        ],
+        "turnId": "v28-team-northlake-ca-tightening-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9821"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9822"
+          }
+        ],
+        "turnId": "v28-team-northlake-ca-tightening-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9821"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-ref-01"
+          }
+        ],
+        "turnId": "v28-team-northlake-ca-tightening-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9822"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-close-01"
+          }
+        ],
+        "turnId": "v28-team-northlake-ca-tightening-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-ref-01"
+          }
+        ],
+        "turnId": "v28-team-northlake-ca-tightening-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-ref-01"
+          }
+        ],
+        "turnId": "v28-team-northlake-ca-tightening-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v28-team-northlake-ca-tightening-turn-2",
+        "source": "input",
+        "path": "minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v28-team-northlake-ca-tightening-turn-2",
+        "source": "result",
+        "path": "team.id",
+        "value": 10021
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v28-team-northlake-ca-tightening-turn-2",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "filters.minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01",
+        "field": "name",
+        "value": "Luca Mire"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01",
+        "field": "name",
+        "value": "Sami North"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01",
+        "field": "potentialAbility",
+        "value": 166
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01",
+        "field": "age",
+        "value": 26
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v28-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10021"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9821"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9822"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9821"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9822"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9821"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9822"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10021"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v28-ref-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [
+      {
+        "turnId": "v28-team-northlake-ca-tightening-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "turnId": "v28-team-northlake-ca-tightening-turn-2",
+        "path": "teamId",
+        "value": 10021
+      },
+      {
+        "turnId": "v28-team-northlake-ca-tightening-turn-2",
+        "path": "position",
+        "value": "stc"
+      }
+    ]
+  },
+  "ageAsOfDate": "2026-11-04"
+}

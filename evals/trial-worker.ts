@@ -19,6 +19,9 @@ import type { ApiFootballClient } from "../src/team-data/api-football.js";
 import { teamRosterCoverage } from "../src/team-data/roster-coverage.js";
 import { resolveTeamRosterIdentity } from "../src/team-data/roster-identity.js";
 import type { TeamRosterIdentityResolution } from "../src/team-data/roster-identity.js";
+import { recommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
+import { recommendTeamPlayerCandidates } from "../src/tools/recommend-team-player-candidates.js";
+import { createTools } from "../src/tools/search-player-records.js";
 import {
   evaluationWorkerRequestSchema,
   workerTrialResultSchema,
@@ -818,6 +821,12 @@ const runTrialWorker = async (): Promise<void> => {
     playerIdentityLookup,
     teamDirectory: observedTeamDirectory(teamRuntime.client, observer),
     teamRosterIdentityLookup: observedTeamRosterLookup(observer),
+    tools: createTools(
+      undefined,
+      recommendPlayerCandidates,
+      recommendTeamPlayerCandidates,
+      request.ageAsOfDate
+    ),
   });
 
   const config: RunnableConfig = {

@@ -78,6 +78,10 @@ const declaredTurnDataFaultSchema = z.object({
 });
 
 const evaluationCaseSchema = z.object({
+  ageAsOfDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u)
+    .default("2026-11-04"),
   caseId: z.string().regex(/^[a-z0-9][a-z0-9-]*$/u),
   category: z.enum(["boundary", "multi_turn", "ordinary"]),
   contract: z.object({
@@ -289,6 +293,7 @@ const evaluationEvidenceBundleSchema = z.object({
 });
 
 const evaluationWorkerRequestSchema = z.object({
+  ageAsOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
   apiFootball: evaluationEvidenceBundleSchema.shape.apiFootball,
   caseId: z.string(),
   caseOrigin: z.enum(["real", "synthetic", "mixed"]),
