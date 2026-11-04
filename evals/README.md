@@ -124,6 +124,14 @@ Run `615ed820-7097-465a-b35d-6ef74c71d5f5` completed the repaired 32-case develo
 
 Run `060b307e-a485-40dc-a438-fe31fb785024` is exposed and not an acceptance gate. It completed 48 trials with 23 passing and 25 failing code contracts; semantic review reported one unsupported fact. Calibration passed 32/32. The failures exposed stale identity/tool expectations and the natural-position wording issue. V22 must not be reused for tuning or final acceptance; see `evals/replacements/v22/README.md` for its exposure status. V23 is the independent replacement pack.
 
+## Exposed V23 held-out attempt
+
+Run `37a11cd1-a26a-4737-9be4-1252f29c8236` was stopped at 34/48 trials after 119 requests because the pack had already exposed case-contract mistakes in La Liga inputs and saved-result identity reuse. It also surfaced the recommendation reference ordering defect, now fixed with a graph-level regression. V23 is diagnostic only; v24 is the new independent replacement pack.
+
+## V24 replacement held-out candidate
+
+V24 contains 16 new cases (12 real-source, 4 synthetic team-roster) with new player/source IDs and a new synthetic fixture. All evidence hashes are prepared locally; the held-out preview reports 16/16 ready and estimates 834 requests for three trials per case plus judge calibration/scoring. The latest 32-case real-model development baseline passed before the small recommendation-reference-order correction; after that correction, the graph-level regression and all 253 offline tests pass. Run v24 as the sole final acceptance gate after committing and freezing the current code and cases.
+
 ## V19 held-out result
 
 Run `ccc52335-f8ec-4ae1-8c44-96eec0afe682` completed all 48 trials and passed judge calibration 32/32. It used 251 requests (Agent 171, calibration 32, judge 48), with 3 network failures and no budget denials. The quality gate did not pass: 38/48 trials passed both checks, 10 failed code contracts, semantic review had 40 pass, 2 fail, 5 inconclusive, and 1 invalid, and 12/16 cases passed all three repetitions. The judge reported one factual contradiction and four required-fact omissions across 42 valid judgments; it reported no confirmed unsupported-fact or false-execution claims. See [the failure analysis](../.scratch/agent-evaluation/baseline-analysis.md) and the ignored local report at `.data/evals/runs/ccc52335-f8ec-4ae1-8c44-96eec0afe682/report.md`.

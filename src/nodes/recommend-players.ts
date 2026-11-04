@@ -47,13 +47,11 @@ const recommendationGroups = (
     }
   }
 
-  return [...groups.entries()]
-    .toSorted(([left], [right]) => left.localeCompare(right))
-    .map(([identityKey, group]) => ({
-      fmIds: [...group.fmIds].toSorted(),
-      identityKey,
-      name: [...group.names].toSorted()[0] ?? identityKey,
-    }));
+  return [...groups.entries()].map(([identityKey, group]) => ({
+    fmIds: [...group.fmIds].toSorted(),
+    identityKey,
+    name: [...group.names].toSorted()[0] ?? identityKey,
+  }));
 };
 
 const referenceProfileClarification = (

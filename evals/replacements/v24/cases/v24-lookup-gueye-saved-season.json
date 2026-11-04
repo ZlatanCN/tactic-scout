@@ -1,0 +1,202 @@
+{
+  "caseId": "v24-lookup-gueye-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v24-lookup-gueye-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "48043484"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8696",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Pape Alassane Gueye",
+        "status": "resolved",
+        "turnId": "v24-lookup-gueye-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Pape Alassane Gueye",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Pape Alassane Gueye",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpa0acb017ed4f5f",
+        "turnId": "v24-lookup-gueye-saved-season-turn-1"
+      },
+      {
+        "mention": "Pape Alassane Gueye",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpa0acb017ed4f5f",
+        "turnId": "v24-lookup-gueye-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48043484"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8696",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v24-lookup-gueye-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48043484",
+        "value": 147
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48043484",
+        "value": 150
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8696",
+        "value": 712
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8696",
+        "value": 1.4288496933877468
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8696",
+        "value": 3
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8696",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpa0acb017ed4f5f",
+        "canonicalIdentityId": "rpa0acb017ed4f5f",
+        "mention": "Pape Alassane Gueye",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48043484"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8696",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "48043484"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8696",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48043484"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8696",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v24-real-data",
+  "evidenceBundleSha256": "1eaa89fa38482fad6e5dc675b3d4c82134fb43cf27f1ca26548b1e409d487e21",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v24-lookup-gueye-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-lookup-gueye-saved-season-turn-1",
+      "userMessage": "Look up Pape Alassane Gueye's Football Manager profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-lookup-gueye-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

@@ -1,0 +1,173 @@
+{
+  "caseId": "v24-lookup-baena-profile",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v24-lookup-baena-profile-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Álex Baena",
+        "status": "resolved",
+        "turnId": "v24-lookup-baena-profile-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Álex Baena",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8417",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v24-lookup-baena-profile-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67287665",
+        "value": 161
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67287665",
+        "value": 170
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8417",
+        "value": 523
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8417",
+        "value": 1.5518646240234375
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8417",
+        "value": 5
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8417",
+        "value": 2
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpfda4552168dd8f",
+        "canonicalIdentityId": "rpfda4552168dd8f",
+        "mention": "Álex Baena",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8417",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67287665"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8417",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8417",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v24-real-data",
+  "evidenceBundleSha256": "1eaa89fa38482fad6e5dc675b3d4c82134fb43cf27f1ca26548b1e409d487e21",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v24-lookup-baena-profile",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-lookup-baena-profile-turn-1",
+      "userMessage": "Look up Álex Baena's Football Manager profile and 2026/27 La Liga performance."
+    }
+  ],
+  "workflow": "player_lookup"
+}

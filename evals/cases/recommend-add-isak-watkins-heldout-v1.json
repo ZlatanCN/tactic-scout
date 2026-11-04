@@ -118,14 +118,14 @@
         "turnId": "recommend-add-isak-watkins-heldout-v1-turn-2",
         "source": "input",
         "path": "referenceGroups.0.fmIds.0",
-        "value": "29110623"
+        "value": "93070286"
       },
       {
         "name": "recommend_player_candidates",
         "turnId": "recommend-add-isak-watkins-heldout-v1-turn-2",
         "source": "input",
         "path": "referenceGroups.1.fmIds.0",
-        "value": "93070286"
+        "value": "29110623"
       },
       {
         "name": "recommend_player_candidates",

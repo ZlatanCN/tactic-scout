@@ -1,0 +1,298 @@
+{
+  "caseId": "v24-recommend-add-oyarzabal-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v24-recommend-add-oyarzabal-reference",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v24-real-data",
+  "evidenceBundleSha256": "1eaa89fa38482fad6e5dc675b3d4c82134fb43cf27f1ca26548b1e409d487e21",
+  "turns": [
+    {
+      "turnId": "v24-recommend-add-oyarzabal-reference-turn-1",
+      "userMessage": "根据 Álex Baena 的 AMC 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v24-recommend-add-oyarzabal-reference-turn-2",
+      "userMessage": "再加上 Mikel Oyarzabal 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Álex Baena",
+        "status": "resolved"
+      },
+      {
+        "mention": "Mikel Oyarzabal",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Álex Baena",
+        "status": "resolved",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-1"
+      },
+      {
+        "lookupName": "Mikel Oyarzabal",
+        "status": "resolved",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19270245"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000040347"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19139020"
+          }
+        ],
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67220143"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19224729"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18110528"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67228932"
+          }
+        ],
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-1",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-1",
+        "value": "67287665"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-2",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-2",
+        "value": "67287665"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v24-recommend-add-oyarzabal-reference-turn-2",
+        "value": "67220143"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67287665",
+        "value": 161
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67287665",
+        "value": 170
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67220143",
+        "value": 156
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67220143",
+        "value": 167
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpfda4552168dd8f",
+        "canonicalIdentityId": "rpfda4552168dd8f",
+        "mention": "Álex Baena",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp348993f63328ca",
+        "canonicalIdentityId": "rp348993f63328ca",
+        "mention": "Mikel Oyarzabal",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67220143"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67287665"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19270245"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000040347"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19139020"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67220143"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19224729"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18110528"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67228932"
+      }
+    ],
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19270245"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000040347"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19139020"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67287665"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67220143"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19224729"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18110528"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67228932"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  }
+}

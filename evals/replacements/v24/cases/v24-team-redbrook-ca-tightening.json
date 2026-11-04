@@ -1,0 +1,429 @@
+{
+  "caseId": "v24-team-redbrook-ca-tightening",
+  "category": "multi_turn",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v24-team-redbrook-ca-tightening",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v24-team-synthetic",
+  "evidenceBundleSha256": "0e6c64d8b9c8f97b330174ee84f5c923aac1278a0e67fca068277e5872c2d5ae",
+  "turns": [
+    {
+      "turnId": "v24-team-redbrook-ca-tightening-turn-1",
+      "userMessage": "为 Redbrook Athletic FC 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+      "userMessage": "把球队推荐的 CA 下限设为 140。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          }
+        ],
+        "turnId": "v24-team-redbrook-ca-tightening-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9661"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9662"
+          }
+        ],
+        "turnId": "v24-team-redbrook-ca-tightening-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9661"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-ref-01"
+          }
+        ],
+        "turnId": "v24-team-redbrook-ca-tightening-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9662"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-close-01"
+          }
+        ],
+        "turnId": "v24-team-redbrook-ca-tightening-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-ref-01"
+          }
+        ],
+        "turnId": "v24-team-redbrook-ca-tightening-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-ref-01"
+          }
+        ],
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+        "source": "input",
+        "path": "minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+        "source": "result",
+        "path": "team.id",
+        "value": 9971
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "filters.minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01",
+        "field": "name",
+        "value": "Rafi Soren"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01",
+        "field": "name",
+        "value": "Omar Ellery"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01",
+        "field": "potentialAbility",
+        "value": 166
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01",
+        "field": "age",
+        "value": 26
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v24-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "team:9971"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "player:9661"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "player:9662"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9661"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9662"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9661"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9662"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9971"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v24-ref-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [
+      {
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+        "path": "teamId",
+        "value": 9971
+      },
+      {
+        "turnId": "v24-team-redbrook-ca-tightening-turn-2",
+        "path": "position",
+        "value": "stc"
+      }
+    ]
+  }
+}

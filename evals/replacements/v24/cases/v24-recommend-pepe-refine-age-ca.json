@@ -1,0 +1,251 @@
+{
+  "caseId": "v24-recommend-pepe-refine-age-ca",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-1",
+        "value": "85136376"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-1",
+        "value": 24
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-2",
+        "value": "85136376"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-2",
+        "value": 24
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-2",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-2",
+        "value": 2
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Nicolas Pepe",
+        "status": "resolved",
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Nicolas Pepe",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000031901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000283271"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "36152916"
+          }
+        ],
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000031901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000283271"
+          }
+        ],
+        "turnId": "v24-recommend-pepe-refine-age-ca-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85136376",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85136376",
+        "value": 159
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp7f710967f1c894",
+        "canonicalIdentityId": "rp7f710967f1c894",
+        "mention": "Nicolas Pepe",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85136376"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000031901"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000283271"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "36152916"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000031901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000283271"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "36152916"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000031901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000283271"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v24-real-data",
+  "evidenceBundleSha256": "1eaa89fa38482fad6e5dc675b3d4c82134fb43cf27f1ca26548b1e409d487e21",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v24-recommend-pepe-refine-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-recommend-pepe-refine-age-ca-turn-1",
+      "userMessage": "Based on Nicolas Pepe's AMR profile, recommend alternatives aged 24 or younger and show at most three."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-recommend-pepe-refine-age-ca-turn-2",
+      "userMessage": "Refine to keep AMR players aged 24 or younger with CA at least 140, showing at most two."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

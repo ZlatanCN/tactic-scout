@@ -1,0 +1,167 @@
+{
+  "caseId": "v24-lookup-pepe-pa-pronoun-boundary",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Nicolas Pepe",
+        "status": "resolved",
+        "turnId": "v24-lookup-pepe-pa-pronoun-boundary-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Nicolas Pepe",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5656",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v24-lookup-pepe-pa-pronoun-boundary-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85136376",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85136376",
+        "value": 159
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5656",
+        "value": 526
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5656",
+        "value": 1.1930150501430035
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5656",
+        "value": 3
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5656",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp7f710967f1c894",
+        "canonicalIdentityId": "rp7f710967f1c894",
+        "mention": "Nicolas Pepe",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5656",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85136376"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5656",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85136376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5656",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v24-real-data",
+  "evidenceBundleSha256": "1eaa89fa38482fad6e5dc675b3d4c82134fb43cf27f1ca26548b1e409d487e21",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v24-lookup-pepe-pa-pronoun-boundary",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-lookup-pepe-pa-pronoun-boundary-turn-1",
+      "userMessage": "How many appearances did Nicolas Pepe make in the 2026/27 La Liga? Use the available record. Does his PA guarantee future CA of 160?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

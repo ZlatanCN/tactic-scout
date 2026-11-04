@@ -1,6 +1,6 @@
 # V23 replacement held-out pack
 
-Status: authored and not yet run against a live model.
+Status: exposed; do not reuse this pack as an acceptance gate.
 
 This 16-case replacement pack has four cases per workflow: one ordinary case, one boundary case, and two multi-turn cases. Twelve cases use local FM and Understat snapshots; four use a separate synthetic API-Football roster fixture. It uses new player identities, provider IDs, team IDs, scenario families, and evidence bundle IDs relative to the existing development and v1-v22 cases.
 
@@ -51,3 +51,6 @@ pnpm eval:run \
   --max-model-requests 900 \
   --output .data/evals/v23-heldout-runs
 ```
+
+
+Run `37a11cd1-a26a-4737-9be4-1252f29c8236` was stopped after 34/48 trials and 119 requests because it had already exposed the pack. It revealed contract mistakes in the three La Liga comparison cases and two saved-result follow-ups, plus a real bug where recommendation references were sorted by canonical ID instead of preserving the conversation's reference order. The two contract issues and the node behavior are covered by v24; use the v23 report for diagnosis only.

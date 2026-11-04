@@ -1,0 +1,210 @@
+{
+  "caseId": "v24-lookup-oyarzabal-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v24-lookup-oyarzabal-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "67220143"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2234",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Mikel Oyarzabal",
+        "status": "resolved",
+        "turnId": "v24-lookup-oyarzabal-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Mikel Oyarzabal",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Mikel Oyarzabal",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp348993f63328ca",
+        "turnId": "v24-lookup-oyarzabal-saved-xa-turn-1"
+      },
+      {
+        "mention": "Mikel Oyarzabal",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp348993f63328ca",
+        "turnId": "v24-lookup-oyarzabal-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67220143"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2234",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v24-lookup-oyarzabal-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67220143",
+        "value": 156
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67220143",
+        "value": 167
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2234",
+        "value": 606
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2234",
+        "value": 2.2992119416594505
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2234",
+        "value": 2
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2234",
+        "value": 2
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2234",
+        "field": "expectedAssists",
+        "value": 1.4065424017608166,
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp348993f63328ca",
+        "canonicalIdentityId": "rp348993f63328ca",
+        "mention": "Mikel Oyarzabal",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67220143"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2234",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67220143"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2234",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67220143"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2234",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v24-real-data",
+  "evidenceBundleSha256": "1eaa89fa38482fad6e5dc675b3d4c82134fb43cf27f1ca26548b1e409d487e21",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v24 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v24-lookup-oyarzabal-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-lookup-oyarzabal-saved-xa-turn-1",
+      "userMessage": "Look up Mikel Oyarzabal's Football Manager profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v24-lookup-oyarzabal-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

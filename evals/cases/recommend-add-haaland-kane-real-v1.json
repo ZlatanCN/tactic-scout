@@ -106,14 +106,14 @@
         "turnId": "recommend-add-haaland-kane-real-v1-turn-2",
         "source": "input",
         "path": "referenceGroups.0.fmIds.0",
-        "value": "28049320"
+        "value": "29179241"
       },
       {
         "name": "recommend_player_candidates",
         "turnId": "recommend-add-haaland-kane-real-v1-turn-2",
         "source": "input",
         "path": "referenceGroups.1.fmIds.0",
-        "value": "29179241"
+        "value": "28049320"
       },
       {
         "name": "recommend_player_candidates",

@@ -2929,6 +2929,76 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("keeps existing recommendation references before newly added references", async () => {
+    const existingReference = playerCandidate(
+      "Existing Reference",
+      "z-reference"
+    );
+
+    const addedReference = playerCandidate("Added Reference", "a-reference");
+    const firstMessage = "Find STC alternatives based on Existing Reference.";
+    const addMessage = "Add Added Reference as a reference.";
+
+    const recommend = vi.fn<RecommendPlayerCandidates>((input) =>
+      JSON.stringify(
+        recommendationResultData("ready", "stc", {
+          filters: {
+            includePotential: input.includePotential,
+            maxAge: input.maxAge,
+            minimumCurrentAbility: input.minimumCurrentAbility,
+            minimumPotentialAbility: input.minimumPotentialAbility,
+            resultLimit: input.resultLimit ?? 5,
+          },
+          referenceFmIds: input.referenceGroups.flatMap(({ fmIds }) => fmIds),
+        })
+      )
+    );
+
+    const model = fakeModel()
+      .respond(new AIMessage("Initial recommendation saved."))
+      .respond(new AIMessage("Added reference recommendation saved."));
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: resolvedLookupFromCandidates([
+        existingReference,
+        addedReference,
+      ]),
+      requestUnderstandingExtractor: createExtractor({
+        [addMessage]: requestForPlayers(
+          "player_recommendation",
+          ["Added Reference"],
+          { recommendationAction: "add" }
+        ),
+        [firstMessage]: requestForPlayers(
+          "player_recommendation",
+          ["Existing Reference"],
+          {
+            recommendation: {
+              includePotential: false,
+              position: "stc",
+              resultLimit: 5,
+            },
+            recommendationAction: "replace",
+          }
+        ),
+      }),
+      tools: createTools(emptySearch, recommend),
+    });
+
+    const config = {
+      configurable: { thread_id: "recommendation-reference-order" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(firstMessage)] }, config);
+    await graph.invoke({ messages: [new HumanMessage(addMessage)] }, config);
+
+    expect(
+      recommend.mock.calls[1]?.[0].referenceGroups.map(({ fmIds }) => fmIds)
+    ).toStrictEqual([["z-reference-fm"], ["a-reference-fm"]]);
+  });
+
   it("does not run a recommendation when an extracted hard condition is unsupported", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
 
