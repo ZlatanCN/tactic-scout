@@ -1,0 +1,259 @@
+{
+  "caseId": "v27-recommend-berenguer-refine-age-ca",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1",
+        "value": "67157520"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1",
+        "value": 24
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2",
+        "value": "67157520"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2",
+        "value": 24
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2",
+        "value": 155
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2",
+        "value": 2
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Alex Berenguer",
+        "status": "resolved",
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Alex Berenguer",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67157520"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "78088646"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19233146"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "57142187"
+          }
+        ],
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67157520"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37076092"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67260506"
+          }
+        ],
+        "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67157520",
+        "value": 146
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67157520",
+        "value": 153
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp2f9fd036b727c1",
+        "canonicalIdentityId": "rp2f9fd036b727c1",
+        "mention": "Alex Berenguer",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67157520"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67157520"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "78088646"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19233146"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "57142187"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37076092"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67260506"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67157520"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "78088646"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19233146"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "57142187"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67157520"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37076092"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67260506"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v27-real-data",
+  "evidenceBundleSha256": "c6a2a607692868d5a6f42388a2e89de821e0417ca224cd3a75dd933514ff3c04",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v27 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v27-recommend-berenguer-refine-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v27-recommend-berenguer-refine-age-ca-turn-1",
+      "userMessage": "Based on Alex Berenguer's AMR profile, recommend alternatives aged 24 or younger and show at most three."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v27-recommend-berenguer-refine-age-ca-turn-2",
+      "userMessage": "Refine to keep AMR players aged 24 or younger with CA at least 155, showing at most two."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

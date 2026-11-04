@@ -289,7 +289,11 @@ describe("LangGraph player workflows", () => {
       promptContent.includes(
         "FM 的 techniqueRaw 表示“技术”，dribblingRaw 表示“盘带”；若缺少 dribblingRaw，必须说明未提供"
       ),
-    ]).toStrictEqual([true, true, true, true, true, true]);
+      promptContent.includes("不得用 FM 信息替代、推导或描述当前或赛季表现"),
+      promptContent.includes(
+        "任何强时效性事实都必须由实际返回且覆盖所问时间范围的来源支持"
+      ),
+    ]).toStrictEqual([true, true, true, true, true, true, true, true]);
   });
 
   it("executes duplicate identical lookup calls in one model response once", async () => {

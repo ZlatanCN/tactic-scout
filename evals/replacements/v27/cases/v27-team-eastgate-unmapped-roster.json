@@ -1,0 +1,171 @@
+{
+  "caseId": "v27-team-eastgate-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v27-team-eastgate-unmapped-roster",
+  "priorTuningExposure": "Authored for the independent v27 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v27-team-synthetic",
+  "evidenceBundleSha256": "662da44777343026593ddd94798f0600658771d1f0682eae3acc9fd8cb77b6de",
+  "turns": [
+    {
+      "turnId": "v27-team-eastgate-unmapped-roster-turn-1",
+      "userMessage": "为 Eastgate Rovers 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10003"
+          }
+        ],
+        "turnId": "v27-team-eastgate-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10003"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10009"
+          }
+        ],
+        "turnId": "v27-team-eastgate-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10009"
+          }
+        ],
+        "turnId": "v27-team-eastgate-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v27-team-eastgate-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 10009
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v27-team-eastgate-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v27-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v27-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v27-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v27-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v27-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v27-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10003"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10009"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10003"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10003"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10009"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10009"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  }
+}

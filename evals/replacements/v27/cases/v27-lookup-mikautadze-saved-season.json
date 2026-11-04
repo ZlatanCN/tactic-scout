@@ -1,0 +1,202 @@
+{
+  "caseId": "v27-lookup-mikautadze-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v27-lookup-mikautadze-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "49043189"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8187",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Georges Mikautadze",
+        "status": "resolved",
+        "turnId": "v27-lookup-mikautadze-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Georges Mikautadze",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Georges Mikautadze",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp8272fa51e0bd38",
+        "turnId": "v27-lookup-mikautadze-saved-season-turn-1"
+      },
+      {
+        "mention": "Georges Mikautadze",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp8272fa51e0bd38",
+        "turnId": "v27-lookup-mikautadze-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49043189"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8187",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v27-lookup-mikautadze-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49043189",
+        "value": 147
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49043189",
+        "value": 151
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8187",
+        "value": 488
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8187",
+        "value": 4.053036414086819
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8187",
+        "value": 2
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8187",
+        "value": 1
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp8272fa51e0bd38",
+        "canonicalIdentityId": "rp8272fa51e0bd38",
+        "mention": "Georges Mikautadze",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49043189"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8187",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49043189"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8187",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49043189"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8187",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v27-real-data",
+  "evidenceBundleSha256": "c6a2a607692868d5a6f42388a2e89de821e0417ca224cd3a75dd933514ff3c04",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v27 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v27-lookup-mikautadze-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v27-lookup-mikautadze-saved-season-turn-1",
+      "userMessage": "Look up Georges Mikautadze's Football Manager profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v27-lookup-mikautadze-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

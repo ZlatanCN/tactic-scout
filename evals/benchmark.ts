@@ -331,6 +331,13 @@ const requiredUnderstatEvidenceAvailableForCase = (
       });
     });
 
+const apiFootballScopeUsesNumericIds = (
+  caseDefinition: EvaluationCase
+): boolean =>
+  caseDefinition.contract.sourceScope
+    .filter((source) => source.provider === "api_football")
+    .every((source) => /^\d+$/u.test(source.sourceId));
+
 const evidenceStatusForCase = (
   caseDefinition: EvaluationCase,
   evidenceDirectory: string
@@ -352,6 +359,9 @@ const evidenceStatusForCase = (
     const requiredUnderstatEvidenceAvailable =
       requiredUnderstatEvidenceAvailableForCase(caseDefinition, bundle);
 
+    const apiFootballScopeValid =
+      apiFootballScopeUsesNumericIds(caseDefinition);
+
     const bundleMatchesCase =
       bundle.bundleId === caseDefinition.evidenceBundleId &&
       bundle.origin === caseDefinition.origin;
@@ -359,9 +369,10 @@ const evidenceStatusForCase = (
     const bundleHashMatches =
       sha256File(evidencePath) === caseDefinition.evidenceBundleSha256;
 
-    return bundleMatchesCase &&
-      bundleHashMatches &&
-      requiredUnderstatEvidenceAvailable
+    const caseEvidenceMatches =
+      requiredUnderstatEvidenceAvailable && apiFootballScopeValid;
+
+    return bundleMatchesCase && bundleHashMatches && caseEvidenceMatches
       ? "ready"
       : "invalid";
   } catch {
@@ -944,12 +955,18 @@ const previewEvaluation = (
 
       const bundle = readJson(bundlePath, evaluationEvidenceBundleSchema);
 
-      if (
+      const bundleMatchesCase =
         bundle.bundleId === caseDefinition.evidenceBundleId &&
-        bundle.origin === caseDefinition.origin &&
-        sha256File(bundlePath) === caseDefinition.evidenceBundleSha256 &&
-        requiredUnderstatEvidenceAvailableForCase(caseDefinition, bundle)
-      ) {
+        bundle.origin === caseDefinition.origin;
+
+      const bundleHashMatches =
+        sha256File(bundlePath) === caseDefinition.evidenceBundleSha256;
+
+      const caseEvidenceMatches =
+        requiredUnderstatEvidenceAvailableForCase(caseDefinition, bundle) &&
+        apiFootballScopeUsesNumericIds(caseDefinition);
+
+      if (bundleMatchesCase && bundleHashMatches && caseEvidenceMatches) {
         evidenceStatus = "ready";
       }
     } catch {
