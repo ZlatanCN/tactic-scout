@@ -254,6 +254,16 @@ const uniqueText = (values: string[]): string[] => {
   });
 };
 
+const normalizeLookupName = (
+  value: string | null | undefined
+): string | null => {
+  const lookupName = value?.trim() ?? "";
+
+  return lookupName.length === 0 || /^(?:null|undefined)$/iu.test(lookupName)
+    ? null
+    : lookupName;
+};
+
 const explicitUnderstatSeasonStartYearFromText = (
   text: string
 ): number | null => {
@@ -521,7 +531,7 @@ const normalizeRequestExtraction = (
       return mention
         ? [
             {
-              lookupName: player.lookupName?.trim() ?? null,
+              lookupName: normalizeLookupName(player.lookupName),
               mention,
               recommendationRole: player.recommendationRole ?? "reference",
               referenceScope: player.referenceScope ?? "explicit",
@@ -590,6 +600,65 @@ const invalidRequestOutputFailure = (
     retryable: false,
   });
 
+const teamCurrentAbilityMinimumFromText = (
+  message: string,
+  context: ConversationContext
+): ExtractedRequest | null => {
+  if (context.activeTeamRecommendation === null) {
+    return null;
+  }
+
+  const normalizedMessage = message.normalize("NFKC");
+
+  const abilityMatch = /(?:\bCA\b|current\s+ability|当前能力)/iu.exec(
+    normalizedMessage
+  );
+
+  if (abilityMatch === null) {
+    return null;
+  }
+
+  const afterAbility = normalizedMessage.slice(
+    abilityMatch.index + abilityMatch[0].length
+  );
+
+  const lowerBoundMatch =
+    /^\s*(?:下限|不低于|至少|minimum|floor|at\s+least)/iu.exec(afterAbility);
+
+  if (lowerBoundMatch === null) {
+    return null;
+  }
+
+  const afterLowerBound = afterAbility.slice(
+    lowerBoundMatch.index + lowerBoundMatch[0].length
+  );
+
+  const numericValue = afterLowerBound
+    .trimStart()
+    .replace(/^(?:设为|设置为|改为|调整为|to|of)\s*/iu, "")
+    .trimStart();
+
+  const valueMatch = /^(?<value>\d{1,3})/u.exec(numericValue);
+  const value = Number(valueMatch?.groups?.value);
+
+  if (valueMatch?.groups?.value === undefined || value < 1 || value > 200) {
+    return null;
+  }
+
+  return normalizeRequestExtraction(
+    {
+      constraints: [],
+      continuationAction: "refine",
+      kind: "team_recommendation",
+      players: [],
+      recommendation: { minimumCurrentAbility: value },
+      teams: [],
+    },
+    message,
+    context
+  );
+};
+
 const createRequestUnderstandingExtractor = (
   model: BaseChatModel
 ): RequestUnderstandingExtractor => {
@@ -598,6 +667,15 @@ const createRequestUnderstandingExtractor = (
   });
 
   return async (message, context, budget, previousTurn) => {
+    const teamFilterRefinement = teamCurrentAbilityMinimumFromText(
+      message,
+      context
+    );
+
+    if (teamFilterRefinement !== null) {
+      return teamFilterRefinement;
+    }
+
     const contextInput = {
       activeComparison: {
         constraints: context.activeComparison.constraints,
@@ -824,7 +902,7 @@ const normalizeExtractedPlayer = (
     }
 
     return {
-      lookupName: player.lookupName?.trim() ?? null,
+      lookupName: normalizeLookupName(player.lookupName),
       mention,
       recommendationRole,
       referenceScope,
@@ -838,7 +916,7 @@ const normalizeExtractedPlayer = (
     !isPlayerReferenceMention(mention)
   ) {
     return {
-      lookupName: player.lookupName?.trim() ?? null,
+      lookupName: normalizeLookupName(player.lookupName),
       mention,
       recommendationRole,
       referenceScope: "explicit",
@@ -866,15 +944,50 @@ const normalizeExtractedPlayer = (
   };
 };
 
+const isCollectiveReferenceMention = (mention: string): boolean =>
+  /^(?:they|them|their|theirs|themselves|他们|他们的|她们|她们的|它们|它们的)(?:respective|own|各自)?$/iu.test(
+    normalizeMentionText(mention)
+  );
+
 const normalizeExtractedPlayers = (
   message: string,
   players: ExtractedPlayerMention[]
 ): NormalizedExtractedPlayerMention[] => {
   const messageKey = normalizeMentionText(message);
-  const detectedReference = findPlayerReferenceMention(message);
+
+  const explicitPlayerCount = uniquePlayers(
+    players.filter(({ mention }) => {
+      const mentionKey = normalizeMentionText(mention);
+
+      return (
+        mentionKey.length > 0 &&
+        messageKey.includes(mentionKey) &&
+        !isPlayerReferenceMention(mention) &&
+        !isCollectiveReferenceMention(mention)
+      );
+    })
+  ).length;
+
+  const hasCollectiveParticipants = explicitPlayerCount >= 2;
+  const detectedReferenceCandidate = findPlayerReferenceMention(message);
+
+  const detectedReference =
+    hasCollectiveParticipants &&
+    detectedReferenceCandidate !== null &&
+    isCollectiveReferenceMention(detectedReferenceCandidate)
+      ? null
+      : detectedReferenceCandidate;
+
   const normalizedPlayers: NormalizedExtractedPlayerMention[] = [];
 
   for (const player of players) {
+    if (
+      hasCollectiveParticipants &&
+      isCollectiveReferenceMention(player.mention)
+    ) {
+      continue;
+    }
+
     const normalized = normalizeExtractedPlayer(
       player,
       messageKey,

@@ -20,12 +20,26 @@ const sourceRecordSchema = z.object({
   sourceId: z.string(),
 });
 
-const playerExpectationSchema = z.object({
-  candidateId: z.string(),
-  canonicalIdentityId: z.string().nullable(),
-  mention: z.string(),
-  sourceRecords: z.array(sourceRecordSchema),
-});
+const playerExpectationSchema = z
+  .object({
+    candidateId: z.string(),
+    canonicalIdentityId: z.string().nullable(),
+    mention: z.string(),
+    sourceRecords: z.array(sourceRecordSchema),
+  })
+  .superRefine(({ candidateId, canonicalIdentityId }, context) => {
+    if (
+      canonicalIdentityId !== null &&
+      candidateId !== `reep:${canonicalIdentityId}`
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "A resolved player candidate ID must match its canonical Reep ID.",
+        path: ["candidateId"],
+      });
+    }
+  });
 
 const toolActionExpectationSchema = z.object({
   businessOutcome: z.string(),

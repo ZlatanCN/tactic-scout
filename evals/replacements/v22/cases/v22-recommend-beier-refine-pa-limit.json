@@ -1,0 +1,260 @@
+{
+  "caseId": "v22-recommend-beier-refine-pa-limit",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-1",
+        "value": "91207281"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-1",
+        "value": 5
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+        "value": "91207281"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+        "value": 160
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+        "value": 2
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Maximilian Beier",
+        "status": "resolved",
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Maximilian Beier",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-1",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143947"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92079501"
+          }
+        ]
+      },
+      {
+        "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          }
+        ]
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91207281",
+        "value": 148
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91207281",
+        "value": 160
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp044b264895e5f4",
+        "canonicalIdentityId": "rp044b264895e5f4",
+        "mention": "Maximilian Beier",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91207281"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91205129"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92079501"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91190494"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91143947"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28126247"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143947"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92079501"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v22-real-player-data",
+  "evidenceBundleSha256": "f1596017fc37b82575cc759f8c8c4088874630a19ff84f791dfe3c4412d8ecd0",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v22-recommend-beier-pa-refinement-preserves-reference-and-limit",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v22-recommend-beier-refine-pa-limit-turn-1",
+      "userMessage": "Based on Maximilian Beier, recommend STC alternatives and show five."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v22-recommend-beier-refine-pa-limit-turn-2",
+      "userMessage": "Refine the list to PA 160 or higher and show at most two."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

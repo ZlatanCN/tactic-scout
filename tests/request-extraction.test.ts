@@ -16,6 +16,7 @@ import {
   createRequestUnderstandingExtractor,
   normalizeExtractedPlayers,
 } from "../src/request-extraction.js";
+import type { ConversationContext } from "../src/state.js";
 import { createInitialConversationContext } from "../src/state.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
@@ -71,6 +72,35 @@ describe("request understanding extraction", () => {
       kind: "player_comparison",
       players: [{ lookupName: "Erling Haaland", mention: "哈兰德" }],
     });
+  });
+
+  it("treats a literal null placeholder as no lookup-name override", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "player_lookup",
+        players: [
+          {
+            lookupName: "null",
+            mention: "Synthetic Failure Demo",
+            referenceScope: "explicit",
+          },
+        ],
+        teams: [],
+      }))
+    );
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "Look up Synthetic Failure Demo's FM profile and performance data.",
+      createInitialConversationContext()
+    );
+
+    expect(result.players).toMatchObject([
+      { lookupName: null, mention: "Synthetic Failure Demo" },
+    ]);
   });
 
   it("keeps real ChatOpenAI SDK retries inside the graph's physical request budget", async () => {
@@ -360,6 +390,56 @@ describe("request understanding extraction", () => {
     });
   });
 
+  it("deterministically extracts an explicit CA refinement from a saved team recommendation", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    const invoke = vi.fn<() => never>(() => {
+      throw new Error(
+        "The structured model should not run for this refinement."
+      );
+    });
+
+    structuredOutput.mockReturnValue(RunnableLambda.from(invoke));
+
+    const context: ConversationContext = {
+      ...createInitialConversationContext(),
+      activeTeamRecommendation: {
+        includePotential: false,
+        maxAge: null,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceMode: "squad",
+        referencePlayers: [],
+        resultJson: JSON.stringify({ status: "ready" }),
+        resultLimit: 5,
+        roster: {
+          members: [],
+          retrievedAt: "2026-11-02T00:00:00.000Z",
+          team: { country: "Spain", id: 541, name: "Real Madrid" },
+        },
+        status: "ready",
+        team: { country: "Spain", id: 541, name: "Real Madrid" },
+      },
+    };
+
+    const extractor = createRequestUnderstandingExtractor(model);
+    const result = await extractor("把球队推荐的 CA 下限设为 130。", context);
+
+    expect({
+      extractorModelCalls: invoke.mock.calls.length,
+      kind: result.kind,
+      recommendation: result.recommendation,
+      teams: result.teams,
+    }).toStrictEqual({
+      extractorModelCalls: 0,
+      kind: "team_recommendation",
+      recommendation: { minimumCurrentAbility: 130 },
+      teams: [],
+    });
+  });
+
   it("maps an explicit supported position code even when structured extraction omits it", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");
@@ -556,6 +636,45 @@ describe("request understanding extraction", () => {
     ).toStrictEqual([
       { mention: "Elias Demo", referenceScope: "explicit" },
       { mention: "Demo", referenceScope: "explicit" },
+    ]);
+  });
+
+  it("does not resolve a collective possessive as a third comparison player", () => {
+    const message =
+      "Compare Diagnostic Alpha and Diagnostic Beta using their respective league records.";
+
+    const players = normalizeExtractedPlayers(message, [
+      {
+        lookupName: null,
+        mention: "Diagnostic Alpha",
+        recommendationRole: "reference",
+        referenceScope: "explicit",
+        referenceTargetMention: null,
+      },
+      {
+        lookupName: null,
+        mention: "Diagnostic Beta",
+        recommendationRole: "reference",
+        referenceScope: "explicit",
+        referenceTargetMention: null,
+      },
+      {
+        lookupName: null,
+        mention: "their",
+        recommendationRole: "reference",
+        referenceScope: "explicit",
+        referenceTargetMention: null,
+      },
+    ]);
+
+    expect(
+      players.map(({ mention, referenceScope }) => ({
+        mention,
+        referenceScope,
+      }))
+    ).toStrictEqual([
+      { mention: "Diagnostic Alpha", referenceScope: "explicit" },
+      { mention: "Diagnostic Beta", referenceScope: "explicit" },
     ]);
   });
 

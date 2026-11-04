@@ -1,0 +1,44 @@
+{
+  "bundleId": "diag-understat-appearance-minutes-only-evidence",
+  "origin": "synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "diagnostic-absent-appearance-count",
+      "inGameDate": "2025-11-23",
+      "sha256": "diagnostic-absent-appearance-count"
+    },
+    "players": [],
+    "positions": []
+  },
+  "understat": {
+    "snapshots": [
+      {
+        "capturedAt": "2025-11-23T00:00:00.000Z",
+        "kind": "league",
+        "parserVersion": "synthetic-evaluation-v1",
+        "resourceId": "EPL",
+        "schemaVersion": 1,
+        "seasonStartYear": 2024,
+        "players": [
+          {
+            "id": "us-diagnostic-01",
+            "player_name": "Diagnostic Player Alpha",
+            "time": "492"
+          }
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "releaseStamp": "evaluation-fixture-v1",
+    "bridges": [
+      {
+        "provider": "understat",
+        "externalId": "us-diagnostic-01",
+        "canonicalReepId": "identity-diagnostic-01",
+        "redirectStatus": "resolved"
+      }
+    ]
+  }
+}

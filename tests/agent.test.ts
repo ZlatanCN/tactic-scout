@@ -7,10 +7,17 @@ import {
 import type { BaseMessage } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
-import { Command, MemorySaver } from "@langchain/langgraph";
+import {
+  Command,
+  END,
+  MemorySaver,
+  START,
+  StateGraph,
+} from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v3";
 
+import { createAnswerNode } from "../src/nodes/assistant.js";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
 import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
@@ -18,13 +25,16 @@ import type { RequestUnderstandingExtractor } from "../src/request-extraction.js
 import type { ReferenceCandidate } from "../src/state.js";
 import {
   ActiveRecommendationSchema,
+  AgentState,
   createInitialConversationContext,
 } from "../src/state.js";
 import type { RecommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
+import type { RecommendTeamPlayerCandidatesInput } from "../src/tools/recommend-team-player-candidates.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
 import {
   recommendationResult,
   recommendationResultData,
+  teamRecommendationResult,
 } from "./fixtures/workflow-results.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
@@ -276,7 +286,48 @@ describe("LangGraph player workflows", () => {
       promptContent.includes(
         "最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季"
       ),
-    ]).toStrictEqual([true, true, true, true, true]);
+      promptContent.includes(
+        "FM 的 techniqueRaw 表示“技术”，dribblingRaw 表示“盘带”；若缺少 dribblingRaw，必须说明未提供"
+      ),
+    ]).toStrictEqual([true, true, true, true, true, true]);
+  });
+
+  it("executes duplicate identical lookup calls in one model response once", async () => {
+    const kane = playerCandidate("Harry Kane", "kane");
+    const message = "Look up Harry Kane.";
+    const search = vi.fn<PlayerSearch>(emptySearchResult);
+
+    const duplicateCall = {
+      args: {
+        sourceRecords: [
+          { provider: "fm", sourceId: "kane-fm" },
+          { provider: "understat", sourceId: "kane-understat" },
+        ],
+      },
+      name: "search_player_records",
+    };
+
+    const model = fakeModel()
+      .respondWithTools([duplicateCall, duplicateCall])
+      .respond(new AIMessage("Harry Kane's data was loaded."));
+
+    const lookupTool = createSearchTool(search);
+
+    const graph = createAgent({
+      model,
+      playerIdentityLookup: resolvedLookup(kane),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      tools: [lookupTool],
+    });
+
+    await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "duplicate-lookup-tool-calls" } }
+    );
+
+    expect(search).toHaveBeenCalledOnce();
   });
 
   it("runs the resolved lookup when the model answers without requesting the search tool", async () => {
@@ -498,7 +549,7 @@ describe("LangGraph player workflows", () => {
       status: result.outcome?.status,
     }).toStrictEqual({
       activeLookup: null,
-      answer: "本地身份匹配无法确认“Harry Kane”对应的球员，本次查询已暂停。",
+      answer: "无法确认“Harry Kane”对应的球员身份，本次查询已暂停。",
       pendingClarification: null,
       searchCalls: 0,
       status: "identity_data_unavailable",
@@ -576,7 +627,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: previousLookup,
       answer:
-        "本地身份匹配无法确认“Erling Haaland”对应的球员，本次查询已暂停。此前已完成的结果仍保留。",
+        "无法确认“Erling Haaland”对应的球员身份，本次查询已暂停。此前已完成的结果仍保留。",
       identityLookups: 2,
       searchCalls: 1,
     });
@@ -1035,6 +1086,429 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("uses structured candidates when an answer claims a nonempty current list is empty", async () => {
+    const candidate = {
+      age: 23,
+      attributes: [],
+      currentAbility: 135,
+      currentDistance: 13.2916,
+      fmId: "fm-ansu-fati",
+      name: "Ansu Fati",
+      positionRating: 17,
+      potentialAbility: 175,
+      rank: 1,
+      sourceRecordId: "fm-ansu-fati-record",
+    };
+
+    const recommendation = recommendationResultData("ready", "stc", {
+      currentCandidates: [candidate],
+      filters: {
+        includePotential: true,
+        maxAge: null,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: 175,
+        resultLimit: 5,
+      },
+      potentialCandidates: [candidate],
+    });
+
+    const state = AgentState.parse({
+      messages: [
+        new HumanMessage(
+          "根据 Synthetic Reference 推荐 PA 至少 175 的 STC 高潜球员。"
+        ),
+      ],
+      outcome: {
+        kind: "player_recommendation",
+        resultJson: JSON.stringify(recommendation),
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage(
+              "当前能力相似名单为空，因此没有可列出的 currentDistance 排名候选。高潜名单包含 Ansu Fati。"
+            )
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain("Ansu Fati");
+    expect(answer).toContain("PA 下限 175");
+    expect(answer).toContain("currentDistance 13.2916");
+    expect(answer).not.toContain("当前能力相似名单为空");
+  });
+
+  it("uses structured filters when an answer claims unset filters were applied", async () => {
+    const candidate = {
+      age: 24,
+      attributes: [],
+      currentAbility: 140,
+      currentDistance: 0.5,
+      fmId: "fm-filter-candidate",
+      name: "Filter Candidate",
+      positionRating: 20,
+      potentialAbility: 160,
+      rank: 1,
+      sourceRecordId: "fm-filter-candidate-record",
+    };
+
+    const recommendation = recommendationResultData("ready", "stc", {
+      currentCandidates: [candidate],
+      filterCounts: {
+        afterAge: 5,
+        afterCurrentAbility: 5,
+        afterIdentityExclusion: 5,
+        afterPotentialAbility: 5,
+        currentAttributeComplete: 5,
+        eligiblePositionProfiles: 5,
+        excludedMissingAttribute: 0,
+        excludedMissingFmIdCandidates: 0,
+        excludedMissingPotentialForPotentialList: 0,
+      },
+      filters: {
+        includePotential: false,
+        maxAge: null,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        resultLimit: 5,
+      },
+    });
+
+    const state = AgentState.parse({
+      messages: [
+        new HumanMessage("根据 Synthetic Reference 推荐 STC 位置相似球员。"),
+      ],
+      outcome: {
+        kind: "player_recommendation",
+        resultJson: JSON.stringify(recommendation),
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage(
+              "应用年龄、CA 和 PA 条件后各阶段均为 5 人；应用身份排除规则后为 3 人。"
+            )
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect({
+      ageAppliedClaim: answer.includes("应用年龄条件后"),
+      caAppliedClaim: answer.includes("应用 CA 条件后"),
+      noAgeFilter: answer.includes("年龄限制未设置"),
+      noCaFilter: answer.includes("CA 下限未设置"),
+      noPaFilter: answer.includes("PA 下限未设置"),
+      paAppliedClaim: answer.includes("应用 PA 条件后"),
+    }).toStrictEqual({
+      ageAppliedClaim: false,
+      caAppliedClaim: false,
+      noAgeFilter: true,
+      noCaFilter: true,
+      noPaFilter: true,
+      paAppliedClaim: false,
+    });
+  });
+
+  it("applies recommendation corrections to content-block model answers", async () => {
+    const resultJson = recommendationResult("ready", "stc");
+
+    const state = AgentState.parse({
+      messages: [new HumanMessage("Recommend STC players.")],
+      outcome: {
+        kind: "player_recommendation",
+        resultJson,
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage([
+              {
+                text: "位置合格画像为 4 个，应用年龄、CA 和 PA 条件后各为 4 个。",
+                type: "text",
+              },
+            ])
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect({
+      repeatsUnsetFilterClaim: answer.includes("应用年龄、CA 和 PA 条件后"),
+      saysNoAgeFilter: answer.includes("年龄限制未设置"),
+    }).toStrictEqual({
+      repeatsUnsetFilterClaim: false,
+      saysNoAgeFilter: true,
+    });
+  });
+
+  it("corrects team answers that claim null filters were applied", async () => {
+    const team = { country: "England", id: 42, name: "Arsenal" };
+
+    const input: RecommendTeamPlayerCandidatesInput = {
+      includePotential: false,
+      maxAge: null,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: ["team-reference"],
+      referenceMode: "squad",
+      resultLimit: 5,
+      roster: {
+        members: [],
+        retrievedAt: "2026-11-03T00:00:00.000Z",
+        team,
+      },
+      team,
+    };
+
+    const resultJson = teamRecommendationResult("ready", input, {
+      currentCandidates: [
+        {
+          age: 24,
+          attributes: [],
+          currentAbility: 140,
+          currentDistance: 0.5,
+          fmId: "team-candidate",
+          name: "Team Candidate",
+          positionRating: 20,
+          potentialAbility: 160,
+          rank: 1,
+          sourceRecordId: "team-candidate-record",
+        },
+      ],
+    });
+
+    const state = AgentState.parse({
+      messages: [new HumanMessage("为 Arsenal 推荐 stc 球员。")],
+      outcome: {
+        kind: "team_recommendation",
+        resultJson,
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage(
+              "应用年龄条件后有 5 个，应用 CA 条件后有 5 个，应用 PA 条件后有 5 个。"
+            )
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect({
+      ageAppliedClaim: answer.includes("应用年龄条件后"),
+      caAppliedClaim: answer.includes("应用 CA 条件后"),
+      candidate: answer.includes("Team Candidate"),
+      noAgeFilter: answer.includes("年龄限制未设置"),
+      noCaFilter: answer.includes("CA 下限未设置"),
+      noPaFilter: answer.includes("PA 下限未设置"),
+      paAppliedClaim: answer.includes("应用 PA 条件后"),
+    }).toStrictEqual({
+      ageAppliedClaim: false,
+      caAppliedClaim: false,
+      candidate: true,
+      noAgeFilter: true,
+      noCaFilter: true,
+      noPaFilter: true,
+      paAppliedClaim: false,
+    });
+  });
+
+  it("corrects team answers that deny a provided squad ranking basis", async () => {
+    const team = { country: "Testland", id: 901, name: "Synthetic Town FC" };
+
+    const input: RecommendTeamPlayerCandidatesInput = {
+      includePotential: false,
+      maxAge: null,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: [],
+      referenceMode: "squad",
+      resultLimit: 5,
+      roster: {
+        members: [],
+        retrievedAt: "2025-11-20T12:00:00.000Z",
+        team,
+      },
+      team,
+    };
+
+    const resultJson = teamRecommendationResult("ready", input);
+
+    const state = AgentState.parse({
+      messages: [new HumanMessage("为 Synthetic Town FC 推荐 stc 球员。")],
+      outcome: {
+        kind: "team_recommendation",
+        resultJson,
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage([
+              {
+                text: "工具未提供团队参考画像的成员筛选标准或计算方法。",
+                type: "text",
+              },
+            ])
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect({
+      hasGroundedBasis: answer.includes(
+        "参考画像计算方式：选取在目标位置有评分的队内 FM 画像，并对其属性取等权平均。"
+      ),
+      repeatsMissingBasisClaim: answer.includes("未在结果中说明"),
+    }).toStrictEqual({
+      hasGroundedBasis: true,
+      repeatsMissingBasisClaim: false,
+    });
+  });
+
+  it("names reference profiles when an answer claims no exclusion identities were returned", async () => {
+    const team = { country: "England", id: 42, name: "Arsenal" };
+
+    const input: RecommendTeamPlayerCandidatesInput = {
+      includePotential: false,
+      maxAge: null,
+      minimumCurrentAbility: null,
+      minimumPotentialAbility: null,
+      position: "stc",
+      referenceFmIds: ["team-reference"],
+      referenceMode: "squad",
+      resultLimit: 5,
+      roster: {
+        members: [],
+        retrievedAt: "2026-11-03T00:00:00.000Z",
+        team,
+      },
+      team,
+    };
+
+    const candidate = {
+      age: 24,
+      attributes: [],
+      currentAbility: 140,
+      currentDistance: 0.5,
+      fmId: "team-candidate",
+      name: "Team Candidate",
+      positionRating: 20,
+      potentialAbility: 160,
+      rank: 1,
+      sourceRecordId: "team-candidate-record",
+    };
+
+    const reference = {
+      currentAbility: 150,
+      fmId: "team-reference",
+      name: "Team Reference",
+      positionRating: 20,
+      potentialAbility: 180,
+      sourceRecordId: "team-reference-record",
+    };
+
+    const resultJson = teamRecommendationResult("ready", input, {
+      currentCandidates: [candidate],
+      referenceFmIds: [reference.fmId],
+      references: [reference],
+    });
+
+    const state = AgentState.parse({
+      messages: [new HumanMessage("为 Arsenal 推荐 stc 球员。")],
+      outcome: {
+        kind: "team_recommendation",
+        resultJson,
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage("工具未提供身份排除的具体对象，无法判断排除了谁。")
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect({
+      listsReference: answer.includes("Team Reference"),
+      namesExclusion: answer.includes("从候选中排除"),
+      repeatsUnsupportedClaim: answer.includes("工具未提供身份排除的具体对象"),
+    }).toStrictEqual({
+      listsReference: true,
+      namesExclusion: true,
+      repeatsUnsupportedClaim: false,
+    });
+  });
+
   it("commits a lookup tool result before retrying the next model step", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const message = "Look up Harry Kane.";
@@ -1166,7 +1640,7 @@ describe("LangGraph player workflows", () => {
       activeLookup: null,
       answer:
         "本轮球员查询触及 3 次搜索上限，本次查询未完成。请缩小查询范围后重试。",
-      searchCallsAfterLimit: 3,
+      searchCallsAfterLimit: 1,
       status: "lookup_search_limit",
     });
 
@@ -1180,7 +1654,7 @@ describe("LangGraph player workflows", () => {
       searchCalls: search.mock.calls.length,
     }).toStrictEqual({
       answer: "The next turn received a fresh allowance.",
-      searchCalls: 4,
+      searchCalls: 2,
     });
 
     const otherThread = await graph.invoke(
@@ -1195,7 +1669,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       answer:
         "本轮球员查询触及 3 次搜索上限，本次查询未完成。请缩小查询范围后重试。",
-      searchCalls: 7,
+      searchCalls: 3,
       status: "lookup_search_limit",
     });
   });
@@ -1251,7 +1725,7 @@ describe("LangGraph player workflows", () => {
     }).toStrictEqual({
       activeLookup: "canonical-kane",
       focus: ["canonical-kane"],
-      searchCalls: 4,
+      searchCalls: 2,
       status: "lookup_search_limit",
     });
   });

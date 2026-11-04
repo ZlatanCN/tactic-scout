@@ -1,0 +1,264 @@
+{
+  "caseId": "v22-compare-beier-delap-no-common",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v22-compare-beier-delap-no-common-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v22-compare-beier-delap-no-common-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Maximilian Beier",
+        "status": "resolved",
+        "turnId": "v22-compare-beier-delap-no-common-turn-1"
+      },
+      {
+        "lookupName": "Liam Delap",
+        "status": "resolved",
+        "turnId": "v22-compare-beier-delap-no-common-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Maximilian Beier",
+        "status": "resolved"
+      },
+      {
+        "mention": "Liam Delap",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v22-compare-beier-delap-no-common-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Maximilian Beier",
+        "status": "resolved",
+        "turnId": "v22-compare-beier-delap-no-common-turn-1"
+      },
+      {
+        "mention": "Liam Delap",
+        "status": "resolved",
+        "turnId": "v22-compare-beier-delap-no-common-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8137"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8868"
+          }
+        ],
+        "turnId": "v22-compare-beier-delap-no-common-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91207281",
+        "value": 148
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91207281",
+        "value": 160
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28126247",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28126247",
+        "value": 175
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8137",
+        "value": 425
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8137",
+        "value": 3.2417536079883575
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8868",
+        "value": 444
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8868",
+        "value": 2.336661670356989
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp044b264895e5f4",
+        "canonicalIdentityId": "rp044b264895e5f4",
+        "mention": "Maximilian Beier",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8137",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpdcf7369e736445",
+        "canonicalIdentityId": "rpdcf7369e736445",
+        "mention": "Liam Delap",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8868",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91207281"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8137",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28126247"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8868",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8137"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8868"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v22-real-player-data",
+  "evidenceBundleSha256": "f1596017fc37b82575cc759f8c8c4088874630a19ff84f791dfe3c4412d8ecd0",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v22-comparison-beier-delap-no-common-league-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v22-compare-beier-delap-no-common-turn-1",
+      "userMessage": "Compare Maximilian Beier and Liam Delap using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison"
+}

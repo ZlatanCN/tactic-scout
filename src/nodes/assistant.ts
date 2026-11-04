@@ -10,6 +10,7 @@ import {
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { correctComparisonAnswer } from "../comparison-answer.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import type { ModelRuntime } from "../model-requests.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
@@ -18,6 +19,10 @@ import {
   messagesInCurrentTurn,
   messageText,
 } from "../player-mentions.js";
+import {
+  correctRecommendationAnswer,
+  correctTeamRecommendationAnswer,
+} from "../recommendation-answer.js";
 import type {
   AgentState,
   AgentStateType,
@@ -29,12 +34,12 @@ const lookupPrompt = `你是一个足球资料助手。回答球员查询时先�
 
 若返回结果包含 understat，requestedUnderstatSeasonStartYear 表示用户明确指定的 Understat 查询年份；当 understat.status 为 found 或 not_found 且该字段为 null 时，工具使用快照最新赛季；当 understat.status 为 unavailable 时，不能声称查到了任何赛季记录。若结果中没有 understat，则本次没有查询 Understat。球员查询只按 sourceRecords 与可选 seasonStartYear 搜索，不按用户指定赛事过滤。若 Understat 返回 not_found 或 records 为空，只说明所选来源和查询年份没有返回记录，例如“Understat 没有返回这位球员在 2024/25 的记录；返回结果里没有 xG 数值”。不得把空结果解释为球员没有该赛事记录、xG 在现实中不可用，或某个更广泛事实。用户要求具体赛事且 action input 没有 competition 字段时，可以说明本次查询没有传入赛事过滤条件，但答案只描述所选来源、赛季和实际返回结果。
 
-最终回答不要从记忆猜测或复述 source ID；只有用户明确询问且该 ID 出现在本次返回的具体记录中时才可提供。只依据工具结果作答，不要把同名记录当作同一人。保留 Understat 和 Football Manager 各自的数据与来源，不要把不同含义的字段混成一个指标。Understat 的 team 字段只表示对应赛事和赛季表现记录中的球队，不代表当前注册球队。用户询问当前俱乐部或注册球队时，只有来源明确提供当前注册信息才能回答；如果只有 Understat 赛季记录，只能标为“该赛事/赛季记录中的球队”，并明确当前注册无法从资料确定。不要使用“当前俱乐部”或“Current club”作为标题或字段名，除非某个来源明确提供了当前注册信息；也不要把 Understat.team 值放在该标题下。无论用户用中文还是英文询问当前俱乐部，都遵守此规则。不要补猜缺失值、合同、身价或转会可行性。说明来源、赛事和赛季；没有证据时明确说未知。`;
+最终回答不要从记忆猜测或复述 source ID；只有用户明确询问且该 ID 出现在本次返回的具体记录中时才可提供。只依据工具结果作答，不要把同名记录当作同一人。保留 Understat 和 Football Manager 各自的数据与来源，不要把不同含义的字段混成一个指标。FM 的 techniqueRaw 表示“技术”，dribblingRaw 表示“盘带”；若缺少 dribblingRaw，必须说明未提供，不得把 techniqueRaw 的值写成“盘带”或“盘带技术”。Understat 的 appearances 字段只表示返回记录中的出场场次；只有该字段为具体数值时才能报告。若 appearances 为 null，明确说记录未提供出场场次；不得用分钟、进球、90 分钟换算或其他统计推算。若用户询问的字段没有返回数值，回答无法确定时，同时简要列出与问题相关、且确实返回的数值，保留原字段含义和标签；例如可报告 goals 或 minutes，但不得把它们换算或称为 appearances。Understat 的 team 字段只表示对应赛事和赛季表现记录中的球队，不代表当前注册球队。用户询问当前俱乐部或注册球队时，只有来源明确提供当前注册信息才能回答；如果只有 Understat 赛季记录，只能标为“该赛事/赛季记录中的球队”，并明确当前注册无法从资料确定。不要使用“当前俱乐部”或“Current club”作为标题或字段名，除非某个来源明确提供了当前注册信息；也不要把 Understat.team 值放在该标题下。无论用户用中文还是英文询问当前俱乐部，都遵守此规则。不要补猜缺失值、合同、身价或转会可行性。说明来源、赛事和赛季；没有证据时明确说未知。`;
 
 const lookupFollowUpPrompt =
   "你在回答对最近一次球员资料查询的追问。只能依据提供的已保存查询结果 JSON 作答；如果结果里没有用户问的字段，要明确说资料未包含。不得补猜、改写来源或引入外部事实。";
 
-const comparisonPrompt = `你是一个足球资料助手。当前请求是多人球员比较，只能依据下面提供的结构化比较结果作答。优先用表格逐项呈现全部已确认球员。Understat 的 understatScopeGroups 表示至少两名球员有记录的赛事和赛季范围，不保证覆盖所有参与者。每组必须检查 coverage.coversAllParticipants；只有它为 true 时，才能称该范围对所有参与者共同。为 false 时，只能比较该组中 record 非 null 的球员，明确指出未覆盖的球员；如果 coverage.commonUnderstatScopeCount 为 0，必须说明没有覆盖全部参与者的共同 Understat 范围，不得把该组说成所有参与者共同范围或据此给所有球员排名。各球员原始 Understat 记录仍按自己的赛事和赛季分别呈现。Football Manager 的能力值和属性单独呈现，不要把它们说成比赛表现，也不要与 Understat 指标合并成综合分。FM 属性键 technique 表示“技术”，dribbling 表示“盘带”；不要把 technique 写成“盘带技术”。不要补猜缺失值、当前球队、合同、身价、转会可行性或谁整体更强。`;
+const comparisonPrompt = `你是一个足球资料助手。当前请求是多人球员比较，只能依据下面提供的结构化比较结果作答。优先用表格逐项呈现全部已确认球员。Understat 的 understatScopeGroups 表示至少两名球员有记录的赛事和赛季范围，不保证覆盖所有参与者。每组必须检查 coverage.coversAllParticipants；只有它为 true 时，才能称该范围对所有参与者共同。为 false 时，只能比较该组中 record 非 null 的球员，明确指出未覆盖的球员；如果 coverage.commonUnderstatScopeCount 为 0，必须说明没有覆盖全部参与者的共同 Understat 范围，不得把该组说成所有参与者共同范围或据此给所有球员排名。各球员原始 Understat 记录仍按自己的赛事和赛季分别呈现。Football Manager 的能力值和属性单独呈现，不要把它们说成比赛表现，也不要与 Understat 指标合并成综合分。FM 属性键 technique 表示“技术”，dribbling 表示“盘带”；不要把 technique 写成“盘带技术”。若 FM 记录的 birthDate、heightCm 或属性字段有具体值，应准确报告；只有对应值为 null 或无记录时，才能说该球员该字段未提供，不得笼统声称全部缺失。不要补猜缺失值、当前球队、合同、身价、转会可行性或谁整体更强。`;
 
 const recommendationCandidateFields =
   "姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance";
@@ -498,7 +503,7 @@ const fixedOutcomeAnswer = (state: AgentStateType): string | null => {
     const message =
       player === undefined
         ? "本轮无法确认球员身份，查询已暂停。"
-        : `本地身份匹配无法确认“${player.mention}”对应的球员，本次查询已暂停。`;
+        : `无法确认“${player.mention}”对应的球员身份，本次查询已暂停。`;
 
     return withPreservedResultNotice(state, message);
   }
@@ -666,6 +671,64 @@ const createLookupPlayerNode =
     return lookupAssistantUpdate(state, assistantMessage);
   };
 
+const assistantTextContentSchema = z.array(
+  z.looseObject({ text: z.string(), type: z.literal("text") })
+);
+
+const assistantTextFromContent = (
+  content: BaseMessage["content"]
+): string | null => {
+  const directText = z.string().safeParse(content);
+
+  if (directText.success) {
+    return directText.data;
+  }
+
+  const textBlocks = assistantTextContentSchema.safeParse(content);
+
+  return textBlocks.success
+    ? textBlocks.data.map(({ text }) => text).join("")
+    : null;
+};
+
+const correctionForOutcomeAnswer = (
+  answer: string,
+  outcome: AgentStateType["outcome"]
+): string | null => {
+  if (outcome === null || outcome.resultJson === null) {
+    return null;
+  }
+
+  if (outcome.kind === "player_comparison") {
+    return correctComparisonAnswer(answer, outcome.resultJson);
+  }
+
+  if (outcome.kind === "player_recommendation") {
+    return correctRecommendationAnswer(answer, outcome.resultJson);
+  }
+
+  if (outcome.kind === "team_recommendation") {
+    return correctTeamRecommendationAnswer(answer, outcome.resultJson);
+  }
+
+  return null;
+};
+
+const recommendationAnswerMessage = (
+  message: BaseMessage,
+  outcome: AgentStateType["outcome"]
+): BaseMessage => {
+  const answer = assistantTextFromContent(message.content);
+
+  if (answer === null) {
+    return message;
+  }
+
+  const correction = correctionForOutcomeAnswer(answer, outcome);
+
+  return correction === null ? message : new AIMessage(correction);
+};
+
 const createAnswerNode = (
   model: LanguageModelLike
 ): GraphNode<typeof AgentState> => {
@@ -762,7 +825,10 @@ const createAnswerNode = (
       runtime
     );
 
-    return { messages: [response] };
+    const answer =
+      response instanceof BaseMessage ? response : new AIMessage(response);
+
+    return { messages: [recommendationAnswerMessage(answer, outcome)] };
   };
 };
 

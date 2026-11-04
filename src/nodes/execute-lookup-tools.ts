@@ -4,7 +4,10 @@ import type { GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { z } from "zod/v4";
 
-import { lookupToolCallId } from "../lookup-tool-call-id.js";
+import {
+  lookupToolCallExecutionKey,
+  lookupToolCallId,
+} from "../lookup-tool-call-id.js";
 import type { AgentState } from "../state.js";
 
 const toolNodeResultSchema = z.object({
@@ -34,9 +37,15 @@ const createExecuteLookupToolsNode = (
       (call) => !blockedCallIds.has(lookupToolCallId(call))
     );
 
+    const uniqueAllowedCalls = [
+      ...new Map(
+        allowedCalls.map((call) => [lookupToolCallExecutionKey(call), call])
+      ).values(),
+    ];
+
     let toolMessages: ToolMessage[] = [];
 
-    if (allowedCalls.length > 0) {
+    if (uniqueAllowedCalls.length > 0) {
       const parsedToolResult = toolNodeResultSchema.safeParse(
         await toolNode.invoke(
           {
@@ -46,7 +55,7 @@ const createExecuteLookupToolsNode = (
               new AIMessage({
                 content: lastMessage.content,
                 id: lastMessage.id,
-                tool_calls: allowedCalls,
+                tool_calls: uniqueAllowedCalls,
               }),
             ],
           },
@@ -65,13 +74,33 @@ const createExecuteLookupToolsNode = (
       toolMessages.map((message) => [message.tool_call_id, message])
     );
 
+    const resultByExecutionKey = new Map(
+      uniqueAllowedCalls.flatMap((call) => {
+        const result = resultByCallId.get(lookupToolCallId(call));
+
+        return result === undefined
+          ? []
+          : [[lookupToolCallExecutionKey(call), result] as const];
+      })
+    );
+
     return {
       messages: toolCalls.map((call) => {
         const id = lookupToolCallId(call);
-        const result = resultByCallId.get(id);
+
+        const result =
+          resultByCallId.get(id) ??
+          resultByExecutionKey.get(lookupToolCallExecutionKey(call));
 
         if (result !== undefined) {
-          return result;
+          return result.tool_call_id === id
+            ? result
+            : new ToolMessage({
+                content: result.content,
+                name: result.name,
+                status: result.status,
+                tool_call_id: id,
+              });
         }
 
         if (blockedCallIds.has(id)) {

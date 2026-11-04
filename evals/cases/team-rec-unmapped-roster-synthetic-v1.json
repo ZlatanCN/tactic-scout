@@ -93,9 +93,7 @@
       "current_registration",
       "tactical_fit"
     ],
-    "requiredAbstentions": [
-      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
-    ],
+    "requiredAbstentions": [],
     "requiredEvidence": [],
     "resolvedPlayers": [],
     "sourceScope": [

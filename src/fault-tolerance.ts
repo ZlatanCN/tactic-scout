@@ -10,6 +10,12 @@ import type { FaultCategory } from "./fault-categories.js";
 const maxExternalRequests = 3;
 const modelTimeoutMs = 60_000;
 const modelRequestTimeoutMs = modelTimeoutMs - 1000;
+const nodeRetryMaxIntervalMs = 2000;
+
+const modelExecutionTimeoutMs =
+  maxExternalRequests * modelTimeoutMs +
+  (maxExternalRequests - 1) * nodeRetryMaxIntervalMs;
+
 const apiTimeoutMs = 15_000;
 const maxRateLimitWaitMs = 10_000;
 
@@ -126,7 +132,7 @@ const createNodeRetryPolicy = (
   jitter: true,
   logWarning: false,
   maxAttempts: maxExternalRequests,
-  maxInterval: 2000,
+  maxInterval: nodeRetryMaxIntervalMs,
   retryOn: (error: Error) => {
     const fault = externalFaultFrom(error);
     const nodeTimedOut = isNodeTimeoutError(error);
@@ -232,6 +238,7 @@ export {
   logLocalDataFailure,
   maxExternalRequests,
   maxRateLimitWaitMs,
+  modelExecutionTimeoutMs,
   modelRequestTimeoutMs,
   modelTimeoutMs,
   remainingRequests,

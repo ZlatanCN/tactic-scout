@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { z } from "zod/v4";
 
+import { createModelRequestBudget } from "../src/model-requests.js";
 import { assertModelProcessingAllowed } from "../src/player-data/shared.js";
 import {
   estimateModelRequests,
@@ -331,7 +332,8 @@ const applyJudgeToTrial = async (
   trial: EvaluationTrialReport,
   caseDefinition: EvaluationCase,
   judge: ReturnType<typeof createSemanticJudge>,
-  gateway: EvaluationRunContext["gateway"]
+  gateway: EvaluationRunContext["gateway"],
+  runId: string
 ): Promise<EvaluationTrialReport> => {
   const hasVisibleResponse = trial.observation.turns.some(
     ({ assistantMessages }) => assistantMessages.length > 0
@@ -345,16 +347,41 @@ const applyJudgeToTrial = async (
   const deniedBefore = gateway.deniedRequests();
   const exchangeIndex = gateway.exchanges().length;
 
-  try {
-    const output = await judge(
-      judgeInputForTrial(caseDefinition, trial.observation)
-    );
+  const budget = createModelRequestBudget(
+    {
+      executionInfo: {
+        runId,
+        threadId: `${trial.caseId}-trial-${trial.runIndex}`,
+      },
+    },
+    "evaluation_semantic_judge"
+  );
 
-    const validation = validateTrialJudgment(
+  try {
+    const judgeInput = judgeInputForTrial(caseDefinition, trial.observation);
+    let output = await judge(judgeInput, budget);
+
+    let validation = validateTrialJudgment(
       caseDefinition,
       trial.observation,
       output
     );
+
+    if (validation.status === "invalid" && budget.canMakeRequest()) {
+      budget.logRepair();
+      output = await judge(
+        {
+          ...judgeInput,
+          validationFeedback: validation.validationErrors,
+        },
+        budget
+      );
+      validation = validateTrialJudgment(
+        caseDefinition,
+        trial.observation,
+        output
+      );
+    }
 
     const judgeRequests = gateway.modelRequests() - requestsBefore;
     const addedExchanges = gateway.exchanges().slice(exchangeIndex);
@@ -452,7 +479,8 @@ const scoreTrialsInOrder = async (
     trial,
     loadedCase.caseDefinition,
     judge,
-    gateway
+    gateway,
+    report.runId
   );
 
   report.trials[index] = scoredTrial;
@@ -513,6 +541,7 @@ const runSemanticEvaluation = async (options: {
     anchorDirectory: options.anchorDirectory,
     judge: calibrationJudge,
     judgeModel: options.judgeModel,
+    runId: options.report.runId,
   });
   options.report.modelRequests = gateway.modelRequests();
   options.report.deniedRequests = gateway.deniedRequests();

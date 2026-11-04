@@ -1,0 +1,186 @@
+{
+  "caseId": "v22-lookup-lemperle-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v22-lookup-lemperle-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "91190494"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8407"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Tim Lemperle",
+        "status": "resolved",
+        "turnId": "v22-lookup-lemperle-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8407"
+          }
+        ],
+        "turnId": "v22-lookup-lemperle-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91190494",
+        "value": 139
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91190494",
+        "value": 146
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8407",
+        "value": 354
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8407",
+        "value": 1.7298291455954313
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8407",
+        "value": 1
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8407",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8407",
+        "field": "expectedAssists",
+        "value": 0.25914200581610203,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp379c831e897588",
+        "canonicalIdentityId": "rp379c831e897588",
+        "mention": "Tim Lemperle",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8407",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91190494"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8407",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8407"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v22-real-player-data",
+  "evidenceBundleSha256": "f1596017fc37b82575cc759f8c8c4088874630a19ff84f791dfe3c4412d8ecd0",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v22-lookup-tim-lemperle-xa-follow-up-reuses-result",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v22-lookup-lemperle-saved-xa-turn-1",
+      "userMessage": "Look up Tim Lemperle's Football Manager profile and 2026/27 Bundesliga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v22-lookup-lemperle-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

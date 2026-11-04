@@ -21,6 +21,35 @@ const observationPlayer = (
 });
 
 describe("evaluation identity lookup checks", () => {
+  it("rejects a player expectation whose candidate ID disagrees with its canonical Reep ID", () => {
+    const caseDefinition = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(process.cwd(), "evals/cases/lookup-haaland-real-v1.json"),
+          "utf-8"
+        )
+      )
+    );
+
+    const [player] = caseDefinition.contract.resolvedPlayers;
+
+    if (player === undefined) {
+      throw new Error("The lookup fixture must declare a resolved player.");
+    }
+
+    const invalidCase = {
+      ...caseDefinition,
+      contract: {
+        ...caseDefinition.contract,
+        resolvedPlayers: [
+          { ...player, candidateId: "reep:a-different-identity" },
+        ],
+      },
+    };
+
+    expect(evaluationCaseSchema.safeParse(invalidCase).success).toBeFalsy();
+  });
+
   it("keeps distinct Chinese player names distinct while normalizing accents", () => {
     const caseDefinition = evaluationCaseSchema.parse(
       JSON.parse(

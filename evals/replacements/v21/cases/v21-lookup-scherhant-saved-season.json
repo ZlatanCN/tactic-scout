@@ -1,0 +1,178 @@
+{
+  "caseId": "v21-lookup-scherhant-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v21-lookup-scherhant-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "2000071254"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10860"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Derry Scherhant",
+        "status": "resolved",
+        "turnId": "v21-lookup-scherhant-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000071254"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10860"
+          }
+        ],
+        "turnId": "v21-lookup-scherhant-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000071254",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000071254",
+        "value": 140
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10860",
+        "value": 482
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10860",
+        "value": 1.145864561200142
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10860",
+        "value": 2
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10860",
+        "value": 2
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp865957c3e2b89d",
+        "canonicalIdentityId": "rp865957c3e2b89d",
+        "mention": "Derry Scherhant",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000071254"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10860",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000071254"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10860",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000071254"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10860"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v21-real-player-data",
+  "evidenceBundleSha256": "fbeff91c5eb30593ef3a2a2d98d2750eaf7c850fe2f253afa5a0a335c1ed09f2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v21 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v21-lookup-scherhant-season-question-reuses-saved-record",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v21-lookup-scherhant-saved-season-turn-1",
+      "userMessage": "Look up Derry Scherhant's Football Manager profile and 2026/27 Bundesliga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v21-lookup-scherhant-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

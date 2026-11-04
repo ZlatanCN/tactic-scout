@@ -1,0 +1,171 @@
+{
+  "caseId": "v21-team-eastmere-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v21-team-stops-on-unmapped-roster-member",
+  "priorTuningExposure": "Authored for the independent v21 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v21-team-synthetic",
+  "evidenceBundleSha256": "2fa482343436b08e7daa33c39020660f7b0cc34612c1f409abed5fa20a4bd5dc",
+  "turns": [
+    {
+      "turnId": "v21-team-eastmere-unmapped-roster-turn-1",
+      "userMessage": "为 Eastmere Athletic 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          }
+        ],
+        "turnId": "v21-team-eastmere-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ],
+        "turnId": "v21-team-eastmere-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ],
+        "turnId": "v21-team-eastmere-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v21-team-eastmere-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 9998
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v21-team-eastmere-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v21-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v21-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v21-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v21-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v21-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v21-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9913"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9998"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  }
+}

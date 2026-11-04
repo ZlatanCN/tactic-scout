@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { deflateRawSync } from "node:zlib";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -81,6 +82,127 @@ describe("player reference data failures", () => {
     expect(resolvePlayerReference("Harry Kane")).toMatchObject({
       mention: "Harry Kane",
       status: "data_unavailable",
+    });
+  });
+
+  it("finds an accented FM name with spaces and keeps its Reep-linked Understat record", () => {
+    const directory = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-accented-fm-")
+    );
+
+    const understatPath = path.join(directory, "understat.sqlite");
+    const fmPath = path.join(directory, "fm.sqlite");
+    const identityPath = path.join(directory, "identity.sqlite");
+    const understat = new DatabaseSync(understatPath);
+    const fm = new DatabaseSync(fmPath);
+    const identity = new DatabaseSync(identityPath);
+
+    const attributes = {
+      ability_current: "172",
+      ability_potential: "180",
+      birth_date: "2000-01-31",
+      full_name: "Julián Álvarez",
+      height_cm: "170",
+      name: "Julián Álvarez",
+      natural_positions: "STC",
+      unique_id: "fm-julian-1",
+      ...Object.fromEntries(
+        [
+          "acceleration",
+          "decisions",
+          "finishing",
+          "first_touch",
+          "off_the_ball",
+          "pace",
+          "passing",
+          "strength",
+          "technique",
+          "vision",
+        ].map((attribute) => [`raw_attributes_${attribute}`, "70"])
+      ),
+    };
+
+    temporaryDirectories.push(directory);
+    understat.exec(
+      "CREATE TABLE source_snapshots (kind TEXT, resource_id TEXT, season_start_year INTEGER, payload_json TEXT);"
+    );
+    understat
+      .prepare(
+        "INSERT INTO source_snapshots (kind, resource_id, season_start_year, payload_json) VALUES ('league', 'La_liga', 2026, ?)"
+      )
+      .run(
+        JSON.stringify({
+          players: [
+            {
+              assists: "1",
+              games: "5",
+              goals: "0",
+              id: "us-julian-1",
+              key_passes: "3",
+              npxG: "1.2",
+              player_name: "Julián Álvarez",
+              position: "F",
+              shots: "8",
+              team_title: "Atlético Madrid",
+              time: "153",
+              xA: "0.4",
+              xG: "1.3",
+            },
+          ],
+        })
+      );
+    fm.exec(
+      "CREATE TABLE players (record_id TEXT, name TEXT, payload BLOB);" +
+        "CREATE TABLE aliases (record_id TEXT, name TEXT);"
+    );
+    fm.prepare(
+      "INSERT INTO players (record_id, name, payload) VALUES (?, ?, ?)"
+    ).run(
+      "fm-row-julian-1",
+      "Julián Álvarez",
+      deflateRawSync(Buffer.from(JSON.stringify(attributes), "utf-8"))
+    );
+    fm.prepare("INSERT INTO aliases (record_id, name) VALUES (?, ?)").run(
+      "fm-row-julian-1",
+      "julian alvarez"
+    );
+    identity.exec(
+      "CREATE TABLE metadata (key TEXT, value TEXT);" +
+        "INSERT INTO metadata (key, value) VALUES ('release_stamp', 'test');" +
+        "CREATE TABLE bridges (provider TEXT, namespace TEXT, external_id TEXT, canonical_reep_id TEXT, redirect_status TEXT);"
+    );
+
+    const insertBridge = identity.prepare(
+      "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES (?, 'player', ?, 'reep-julian-1', 'resolved')"
+    );
+
+    insertBridge.run("fm", "fm-julian-1");
+    insertBridge.run("understat", "us-julian-1");
+    understat.close();
+    fm.close();
+    identity.close();
+
+    vi.stubEnv("OPENAI_BASE_URL", "http://127.0.0.1:1234");
+    vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", understatPath);
+    vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", fmPath);
+    vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", identityPath);
+
+    const result = resolvePlayerReference("Julián Álvarez");
+
+    expect({
+      candidateId: result.candidates[0]?.candidateId,
+      records: result.candidates[0]?.records.map(({ provider, sourceId }) => ({
+        provider,
+        sourceId,
+      })),
+      status: result.status,
+    }).toStrictEqual({
+      candidateId: "reep:reep-julian-1",
+      records: [
+        { provider: "understat", sourceId: "us-julian-1" },
+        { provider: "fm", sourceId: "fm-julian-1" },
+      ],
+      status: "resolved",
     });
   });
 });

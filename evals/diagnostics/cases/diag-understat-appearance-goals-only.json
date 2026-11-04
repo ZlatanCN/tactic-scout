@@ -1,0 +1,88 @@
+{
+  "caseId": "diag-understat-appearance-goals-only",
+  "category": "boundary",
+  "workflow": "player_lookup",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "diag-understat-appearance-goals-only",
+  "priorTuningExposure": "Minimal synthetic diagnostic variant; not part of an official benchmark.",
+  "evidenceBundleId": "diag-understat-appearance-goals-only-evidence",
+  "evidenceBundleSha256": "ed8e419b80cb47b8a1d3af1f2999e07ab17e5981904d5eab2ec178d9dcb610b6",
+  "turns": [
+    {
+      "turnId": "diag-understat-appearance-count-turn-1",
+      "userMessage": "How many appearances did Diagnostic Player Alpha make in the 2024/25 EPL? Use the available Understat record."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_lookup",
+    "outcomeStatus": "answer_ready",
+    "sourceScope": [
+      {
+        "provider": "understat",
+        "sourceId": "us-diagnostic-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Diagnostic Player Alpha",
+        "status": "resolved",
+        "turnId": "diag-understat-appearance-count-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Diagnostic Player Alpha",
+        "candidateId": "reep:identity-diagnostic-01",
+        "canonicalIdentityId": "identity-diagnostic-01",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "us-diagnostic-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "us-diagnostic-01"
+          }
+        ],
+        "businessOutcome": "found"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "understat",
+        "sourceId": "us-diagnostic-01",
+        "field": "goals",
+        "value": 6,
+        "competition": "EPL",
+        "season": "2024/25"
+      }
+    ],
+    "prohibitedClaims": [],
+    "requiredAbstentions": [
+      "The supplied Understat evidence has no appearance count. Do not derive appearances from goals or minutes; state that the count cannot be determined from the available record."
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Diagnostic Player Alpha",
+        "status": "resolved"
+      }
+    ],
+    "expectedActionValues": [],
+    "expectedTurnToolActions": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  }
+}

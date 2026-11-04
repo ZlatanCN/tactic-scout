@@ -1,0 +1,87 @@
+{
+  "bundleId": "diagnostic-appearance-count-evidence-v1",
+  "origin": "synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "diagnostic-absent-appearance-count",
+      "inGameDate": "2025-11-23",
+      "sha256": "diagnostic-absent-appearance-count"
+    },
+    "players": [
+      {
+        "recordId": "fm-row-demo-01",
+        "uniqueId": "fm-diagnostic-01",
+        "name": "Diagnostic Player Alpha",
+        "birthDate": "2001-02-03",
+        "aliases": ["Demo"],
+        "payload": {
+          "ability_current": 132,
+          "ability_potential": 184,
+          "birth_date": "2001-02-03",
+          "common_name": "Diagnostic Player Alpha",
+          "full_name": "Diagnostic Player Alpha",
+          "height_cm": 178,
+          "name": "Diagnostic Player Alpha",
+          "natural_positions": "STC",
+          "raw_attributes_acceleration": 14,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_first_touch": 13,
+          "raw_attributes_off_the_ball": 14,
+          "raw_attributes_pace": 14,
+          "raw_attributes_passing": 11,
+          "raw_attributes_strength": 12,
+          "raw_attributes_technique": 14,
+          "raw_attributes_vision": 10,
+          "unique_id": "fm-diagnostic-01"
+        }
+      }
+    ]
+  },
+  "understat": {
+    "snapshots": [
+      {
+        "capturedAt": "2025-11-23T00:00:00.000Z",
+        "kind": "league",
+        "parserVersion": "synthetic-evaluation-v1",
+        "resourceId": "EPL",
+        "schemaVersion": 1,
+        "seasonStartYear": 2024,
+        "players": [
+          {
+            "assists": "2",
+            "goals": "6",
+            "id": "us-diagnostic-01",
+            "key_passes": "21",
+            "npxG": "4.8",
+            "player_name": "Diagnostic Player Alpha",
+            "position": "F",
+            "shots": "34",
+            "team_title": "Fixture City",
+            "time": "492",
+            "xA": "1.3",
+            "xG": "3.1"
+          }
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "releaseStamp": "evaluation-fixture-v1",
+    "bridges": [
+      {
+        "provider": "fm",
+        "externalId": "fm-diagnostic-01",
+        "canonicalReepId": "identity-diagnostic-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "understat",
+        "externalId": "us-diagnostic-01",
+        "canonicalReepId": "identity-diagnostic-01",
+        "redirectStatus": "resolved"
+      }
+    ]
+  }
+}

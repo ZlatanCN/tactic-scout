@@ -26,6 +26,7 @@ const understatSnapshotRowSchema = z.object({
 
 const understatPlayerSchema = z.object({
   assists: sourceValueSchema,
+  games: sourceValueSchema.optional(),
   goals: sourceValueSchema,
   id: sourceValueSchema,
   key_passes: sourceValueSchema,
@@ -44,6 +45,7 @@ const understatPayloadSchema = z.object({
 });
 
 const understatSearchRecordSchema = z.object({
+  appearances: z.number().nullable(),
   assists: z.number().nullable(),
   competition: z.string(),
   expectedAssists: z.number().nullable(),
@@ -96,6 +98,7 @@ const recordsFromSnapshotRow = (
     return selectedIds.has(sourcePlayerId)
       ? [
           {
+            appearances: numeric(player.games),
             assists: numeric(player.assists),
             competition: row.resource_id,
             expectedAssists: numeric(player.xA),

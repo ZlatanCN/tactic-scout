@@ -1,0 +1,445 @@
+{
+  "caseId": "v21-compare-add-yuito-inherited-scope",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jonathan Burkardt",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1"
+      },
+      {
+        "lookupName": "Christopher Nkunku",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1"
+      },
+      {
+        "lookupName": "Yuito Suzuki",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jonathan Burkardt",
+        "status": "resolved"
+      },
+      {
+        "mention": "Christopher Nkunku",
+        "status": "resolved"
+      },
+      {
+        "mention": "Yuito Suzuki",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Jonathan Burkardt",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1"
+      },
+      {
+        "mention": "Christopher Nkunku",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1"
+      },
+      {
+        "mention": "Jonathan Burkardt",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2"
+      },
+      {
+        "mention": "Christopher Nkunku",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2"
+      },
+      {
+        "mention": "Yuito Suzuki",
+        "status": "resolved",
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85140301"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3300"
+          }
+        ],
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85140301"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3300"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000064338"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11354"
+          }
+        ],
+        "turnId": "v21-compare-add-yuito-inherited-scope-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91170086",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91170086",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85140301",
+        "value": 153
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85140301",
+        "value": 172
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000064338",
+        "value": 134
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000064338",
+        "value": 140
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7108",
+        "value": 506
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7108",
+        "value": 2.7235913909971714
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3300",
+        "value": 369
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3300",
+        "value": 2.9742435663938522
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11354",
+        "value": 395
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11354",
+        "value": 2.633862853050232
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp346854e2a23e7d",
+        "canonicalIdentityId": "rp346854e2a23e7d",
+        "mention": "Jonathan Burkardt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp1e756b447a7bd3",
+        "canonicalIdentityId": "rp1e756b447a7bd3",
+        "mention": "Christopher Nkunku",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85140301"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3300",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpb6fdef099094f8",
+        "canonicalIdentityId": "rpb6fdef099094f8",
+        "mention": "Yuito Suzuki",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000064338"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11354",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91170086"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7108",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85140301"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3300",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000064338"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11354",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85140301"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3300"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85140301"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3300"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000064338"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11354"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v21-real-player-data",
+  "evidenceBundleSha256": "fbeff91c5eb30593ef3a2a2d98d2750eaf7c850fe2f253afa5a0a335c1ed09f2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v21 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v21-comparison-add-yuito-preserves-bundesliga-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v21-compare-add-yuito-inherited-scope-turn-1",
+      "userMessage": "Compare Jonathan Burkardt and Christopher Nkunku in 2026/27 Bundesliga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v21-compare-add-yuito-inherited-scope-turn-2",
+      "userMessage": "Add Yuito Suzuki to the comparison."
+    }
+  ],
+  "workflow": "player_comparison"
+}

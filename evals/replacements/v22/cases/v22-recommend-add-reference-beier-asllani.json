@@ -1,0 +1,291 @@
+{
+  "caseId": "v22-recommend-add-reference-beier-asllani",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v22-recommend-add-second-distinct-reference-and-equal-weight-mean",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v22-real-player-data",
+  "evidenceBundleSha256": "f1596017fc37b82575cc759f8c8c4088874630a19ff84f791dfe3c4412d8ecd0",
+  "turns": [
+    {
+      "turnId": "v22-recommend-add-reference-beier-asllani-turn-1",
+      "userMessage": "根据 Maximilian Beier 推荐 stc 球员。"
+    },
+    {
+      "turnId": "v22-recommend-add-reference-beier-asllani-turn-2",
+      "userMessage": "再加上 Fisnik Asllani 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Maximilian Beier",
+        "status": "resolved"
+      },
+      {
+        "mention": "Fisnik Asllani",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Maximilian Beier",
+        "status": "resolved",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-1"
+      },
+      {
+        "lookupName": "Fisnik Asllani",
+        "status": "resolved",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-1",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143947"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92079501"
+          }
+        ]
+      },
+      {
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-2",
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143947"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92079501"
+          }
+        ]
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-2",
+        "source": "input",
+        "path": "referenceGroups.0.fmIds.0",
+        "value": "91205129"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-2",
+        "source": "input",
+        "path": "referenceGroups.1.fmIds.0",
+        "value": "91207281"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-1",
+        "source": "result",
+        "path": "positionFeatureMapSha256",
+        "value": "de7880a59a29e34fb28f93957af614552697bf125e40a95edc5b64703f408c88"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-1",
+        "source": "result",
+        "path": "strategyVersion",
+        "value": "fm-position-global-rmse-v1-provisional"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "turnId": "v22-recommend-add-reference-beier-asllani-turn-1",
+        "source": "result",
+        "path": "snapshotDate",
+        "value": "2025-11-23"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "91207281",
+        "field": "currentAbility",
+        "value": 148
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91207281",
+        "field": "potentialAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91205129",
+        "field": "currentAbility",
+        "value": 142
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91205129",
+        "field": "potentialAbility",
+        "value": 155
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Maximilian Beier",
+        "candidateId": "reep:rp044b264895e5f4",
+        "canonicalIdentityId": "rp044b264895e5f4",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          }
+        ]
+      },
+      {
+        "mention": "Fisnik Asllani",
+        "candidateId": "reep:rp6f76ee8ad3e2e8",
+        "canonicalIdentityId": "rp6f76ee8ad3e2e8",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91207281"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91205129"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92079501"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91190494"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28126247"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91143947"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143947"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92079501"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28126247"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143947"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91190494"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91207281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92079501"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": []
+  }
+}

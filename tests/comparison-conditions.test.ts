@@ -321,6 +321,7 @@ describe("comparison workflow state", () => {
           records: input.sourceRecords.flatMap(({ provider, sourceId }) =>
             provider === "understat"
               ? ["EPL", "La_liga"].map((competition) => ({
+                  appearances: null,
                   assists: 1,
                   competition,
                   expectedAssists: 0.5,
@@ -454,6 +455,7 @@ describe("comparison workflow state", () => {
           ? []
           : [
               {
+                appearances: null,
                 assists: 1,
                 competition,
                 expectedAssists: 0.5,

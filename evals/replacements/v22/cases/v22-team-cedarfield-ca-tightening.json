@@ -1,0 +1,429 @@
+{
+  "caseId": "v22-team-cedarfield-ca-tightening",
+  "category": "multi_turn",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v22-team-cedarfield-current-ability-filter-tightening",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v22-team-synthetic",
+  "evidenceBundleSha256": "3cc72593d9637bb237f83d121f2211e8ca8d9247765cae0173664a5a5b1e9312",
+  "turns": [
+    {
+      "turnId": "v22-team-cedarfield-ca-tightening-turn-1",
+      "userMessage": "为 Cedarfield City FC 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+      "userMessage": "把球队推荐的 CA 下限设为 140。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          }
+        ],
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9502"
+          }
+        ],
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9501"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-ref-01"
+          }
+        ],
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-close-01"
+          }
+        ],
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-ref-01"
+          }
+        ],
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-ref-01"
+          }
+        ],
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+        "source": "input",
+        "path": "minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+        "source": "result",
+        "path": "team.id",
+        "value": 9931
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "filters.minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01",
+        "field": "name",
+        "value": "Soren Vale"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01",
+        "field": "age",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01",
+        "field": "name",
+        "value": "Blaine Mercer"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01",
+        "field": "potentialAbility",
+        "value": 166
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01",
+        "field": "age",
+        "value": 26
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9931"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9611"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9612"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9502"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9501"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9901"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v22-ref-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [
+      {
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 140
+      },
+      {
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+        "path": "teamId",
+        "value": 9931
+      },
+      {
+        "turnId": "v22-team-cedarfield-ca-tightening-turn-2",
+        "path": "position",
+        "value": "stc"
+      }
+    ]
+  }
+}

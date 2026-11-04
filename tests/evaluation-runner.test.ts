@@ -66,17 +66,25 @@ type CompletionMessage = z.input<typeof completionMessageSchema>;
 type FakeGatewayMode =
   | "comparison_resume"
   | "judge_action_id_in_evidence"
+  | "judge_invalid_quote_repaired"
   | "judge_invalid_quote"
   | "judge_missing_contradiction_evidence"
   | "judge_self_denying_contradiction"
   | "judge_supported_contradiction"
   | "judge_unsupported_finding"
   | "judge_wrong_anchor"
+  | "judge_invalid_quote_repaired_after_transient"
+  | "judge_transient_server_error"
   | "malformed_extraction"
   | "malformed_search"
   | "normal"
   | "season_team_abstention"
   | "loop_search";
+
+type FakeGatewayState = {
+  judgeFailuresRemaining: number;
+  judgeRequests: number;
+};
 
 const requestContextSchema = z.looseObject({ currentMessage: z.string() });
 
@@ -99,10 +107,11 @@ const judgeRequestSchema = z.object({
   turns: z.array(
     z.looseObject({
       assistantMessages: z.array(z.string()),
-      availableResultKinds: z.array(availableResultKindSchema),
+      availableResultKinds: z.array(availableResultKindSchema).nullable(),
       turnId: z.string(),
     })
   ),
+  validationFeedback: z.array(z.string()).optional(),
 });
 
 const judgeInputFromRequestBody = (requestBody: string) => {
@@ -252,6 +261,19 @@ const judgeOverrideForRequest = (
     | z.output<typeof judgeRequestSchema>["actions"][number]
     | undefined
 ) => {
+  if (
+    mode === "judge_invalid_quote_repaired" &&
+    (input.validationFeedback?.length ?? 0) > 0
+  ) {
+    return {
+      findings: [],
+      requiredFactCoverage: input.contract.requiredFacts.map(({ factId }) => ({
+        factId,
+        status: "covered" as const,
+      })),
+    };
+  }
+
   if (input.caseId !== "lookup-smoke-v1" || firstTurn === undefined) {
     return null;
   }
@@ -265,16 +287,20 @@ const judgeOverrideForRequest = (
 
   let finding = null;
 
-  if (mode === "judge_invalid_quote" || mode === "judge_unsupported_finding") {
+  if (
+    mode === "judge_invalid_quote" ||
+    mode === "judge_invalid_quote_repaired" ||
+    mode === "judge_unsupported_finding"
+  ) {
     finding = {
       actionIds: [],
       category: "unsupported_fact" as const,
       evidenceIds: [],
       explanation: "The controlled judge provides a test finding.",
       quote:
-        mode === "judge_invalid_quote"
-          ? "This quotation is absent from the answer."
-          : (firstTurn.assistantMessages[0] ?? ""),
+        mode === "judge_unsupported_finding"
+          ? (firstTurn.assistantMessages[0] ?? "")
+          : "This quotation is absent from the answer.",
       turnId: firstTurn.turnId,
     };
   } else if (
@@ -960,7 +986,7 @@ const expectedCategoriesForJudgeRequest = (
 
   if (
     requiresSavedLookupState &&
-    !input.turns[0]?.availableResultKinds.includes("player_lookup")
+    !(input.turns[0]?.availableResultKinds ?? []).includes("player_lookup")
   ) {
     return ["unsupported_fact"];
   }
@@ -998,7 +1024,9 @@ const judgeArgumentsFromRequest = (
 
   const overridden = judgeOverrideForRequest(
     input,
-    mode,
+    mode === "judge_invalid_quote_repaired_after_transient"
+      ? "judge_invalid_quote_repaired"
+      : mode,
     firstTurn,
     firstAction
   );
@@ -1146,11 +1174,92 @@ const sendJudgeResponse = (
   sendJudgeToolCall(response, callNumber, args);
 };
 
+const shouldFailTransientJudgeRequest = (
+  mode: FakeGatewayMode,
+  state: FakeGatewayState | undefined,
+  judgeRequestIndex: number
+): boolean => {
+  if (state === undefined || state.judgeFailuresRemaining === 0) {
+    return false;
+  }
+
+  if (mode === "judge_transient_server_error") {
+    return true;
+  }
+
+  return (
+    mode === "judge_invalid_quote_repaired_after_transient" &&
+    judgeRequestIndex === 33
+  );
+};
+
+const respondToJudgeRequest = (
+  body: z.output<typeof openAiRequestSchema>,
+  response: ServerResponse,
+  callNumber: number,
+  mode: FakeGatewayMode,
+  state: FakeGatewayState | undefined,
+  toolNames: string[]
+): boolean => {
+  if (
+    !isJudgeRequest(body) &&
+    !toolNames.includes("evaluate_scouting_answer")
+  ) {
+    return false;
+  }
+
+  const judgeRequestIndex = state?.judgeRequests ?? 0;
+
+  if (state !== undefined) {
+    state.judgeRequests += 1;
+  }
+
+  const shouldFailTransiently = shouldFailTransientJudgeRequest(
+    mode,
+    state,
+    judgeRequestIndex
+  );
+
+  if (shouldFailTransiently) {
+    if (state !== undefined) {
+      state.judgeFailuresRemaining -= 1;
+    }
+
+    response.writeHead(502, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({
+        error: {
+          code: "server_error",
+          message: "temporary judge gateway failure",
+          type: "api_error",
+        },
+      })
+    );
+
+    return true;
+  }
+
+  sendJudgeResponse(
+    response,
+    callNumber,
+    body,
+    judgeArgumentsFromRequest(
+      body,
+      mode === "judge_invalid_quote_repaired_after_transient"
+        ? "judge_invalid_quote_repaired"
+        : mode
+    )
+  );
+
+  return true;
+};
+
 const handleGatewayRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
   callNumber: number,
-  mode: FakeGatewayMode = "normal"
+  mode: FakeGatewayMode = "normal",
+  state?: FakeGatewayState
 ): Promise<void> => {
   try {
     const body = await parseRequest(request);
@@ -1165,17 +1274,16 @@ const handleGatewayRequest = async (
     const toolMessages =
       body.messages?.filter(({ role }) => role === "tool") ?? [];
 
-    if (
-      isJudgeRequest(body) ||
-      toolNames.includes("evaluate_scouting_answer")
-    ) {
-      sendJudgeResponse(
-        response,
-        callNumber,
-        body,
-        judgeArgumentsFromRequest(body, mode)
-      );
+    const judgeHandled = respondToJudgeRequest(
+      body,
+      response,
+      callNumber,
+      mode,
+      state,
+      toolNames
+    );
 
+    if (judgeHandled) {
       return;
     }
 
@@ -2151,6 +2259,7 @@ describe("local scouting evaluation entry", () => {
         "lookup-followup-smoke-v1",
         "lookup-identity-clarification-v1",
       ],
+      includeSemanticJudge: true,
       mode: "smoke",
     });
 
@@ -2173,7 +2282,7 @@ describe("local scouting evaluation entry", () => {
         "lookup-identity-clarification-v1",
       ],
       categories: ["ordinary", "boundary", "multi_turn", "multi_turn"],
-      estimatedModelRequests: 105,
+      estimatedModelRequests: 213,
       evidenceStatuses: ["ready", "ready", "ready", "ready"],
       modelConfigurationReady: true,
       requestCount: 0,
@@ -2471,8 +2580,7 @@ describe("local scouting evaluation entry", () => {
         { id: "required-evidence", status: "passed" },
       ],
       unavailableOutcome: "identity_data_unavailable",
-      unavailableReply:
-        "本地身份匹配无法确认“Elias Demo”对应的球员，本次查询已暂停。",
+      unavailableReply: "无法确认“Elias Demo”对应的球员身份，本次查询已暂停。",
       unavailableStatus: "not_assessed",
       workflow: "player_lookup",
     });
@@ -3896,7 +4004,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v19",
+      judgePromptVersion: "scouting-semantic-judge-v22",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
@@ -3931,6 +4039,130 @@ describe("local scouting evaluation entry", () => {
         calibration: 0,
         judge: 1,
       },
+    });
+  }, 30_000);
+
+  it("retries one transient judge 5xx within the calibration request budget", async () => {
+    let requestCount = 0;
+    const gatewayState = { judgeFailuresRemaining: 1, judgeRequests: 0 };
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "judge_transient_server_error",
+        gatewayState
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-judge-transient-retry-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-smoke-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect({
+      calibrationRequests: report.requestCountsByRole.calibration,
+      calibrationStatus: report.judgeCalibration?.status,
+      judgeRequests: report.requestCountsByRole.judge,
+      modelRequests: report.modelRequests,
+      requestCount,
+      semanticStatus: trial?.semanticStatus,
+      transientFailuresLeft: gatewayState.judgeFailuresRemaining,
+      trialStatus: trial?.status,
+    }).toStrictEqual({
+      calibrationRequests: 33,
+      calibrationStatus: "passed",
+      judgeRequests: 1,
+      modelRequests: requestCount,
+      requestCount,
+      semanticStatus: "passed",
+      transientFailuresLeft: 0,
+      trialStatus: "passed",
+    });
+  }, 30_000);
+
+  it("counts a judge repair and transient retry within three total attempts", async () => {
+    let requestCount = 0;
+    const gatewayState = { judgeFailuresRemaining: 1, judgeRequests: 0 };
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "judge_invalid_quote_repaired_after_transient",
+        gatewayState
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-judge-repair-retry-budget-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-smoke-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect({
+      calibrationStatus: report.judgeCalibration?.status,
+      judgeRequests: report.requestCountsByRole.judge,
+      semanticStatus: trial?.semanticStatus,
+      status: trial?.status,
+      transientFailuresLeft: gatewayState.judgeFailuresRemaining,
+      validationErrors: trial?.semanticValidationErrors,
+    }).toStrictEqual({
+      calibrationStatus: "passed",
+      judgeRequests: 3,
+      semanticStatus: "passed",
+      status: "passed",
+      transientFailuresLeft: 0,
+      validationErrors: [],
     });
   }, 30_000);
 
@@ -4130,7 +4362,7 @@ describe("local scouting evaluation entry", () => {
       validationErrors: trial?.semanticValidationErrors,
     }).toStrictEqual({
       calibration: "passed",
-      judgeRequests: 1,
+      judgeRequests: 2,
       semanticStatus: "invalid",
       status: "judge_invalid",
       validationErrors: ["contradiction_missing_evidence_reference"],
@@ -4186,7 +4418,7 @@ describe("local scouting evaluation entry", () => {
         validationErrors: trial?.semanticValidationErrors,
       }).toStrictEqual({
         calibration: "passed",
-        judgeRequests: 1,
+        judgeRequests: 2,
         semanticStatus: "invalid",
         status: "judge_invalid",
         validationErrors: ["contradiction_explanation_is_inconclusive"],
@@ -4195,7 +4427,7 @@ describe("local scouting evaluation entry", () => {
     30_000
   );
 
-  it("rejects an action identifier placed in evidenceIds without retrying", async () => {
+  it("rejects an action identifier placed in evidenceIds after one repair attempt", async () => {
     let requestCount = 0;
 
     const gateway = createServer((request, response) => {
@@ -4259,14 +4491,14 @@ describe("local scouting evaluation entry", () => {
       validationErrors: trial?.semanticValidationErrors,
     }).toStrictEqual({
       actionIdIsNamespaced: true,
-      judgeRequests: 1,
+      judgeRequests: 2,
       semanticStatus: "invalid",
       status: "judge_invalid",
       validationErrors: [`unknown_evidence:${firstAction.actionId}`],
     });
   }, 30_000);
 
-  it("invalidates semantic grading when the judge quote is not in the answer", async () => {
+  it("retries a judge quote-validation error once and stays invalid if it persists", async () => {
     let requestCount = 0;
 
     const gateway = createServer((request, response) => {
@@ -4317,10 +4549,68 @@ describe("local scouting evaluation entry", () => {
     }).toStrictEqual({
       calibration: "passed",
       codeStatus: "passed",
-      judgeRequests: 1,
+      judgeRequests: 2,
       semanticStatus: "invalid",
       status: "judge_invalid",
       validationErrors: ["quote_not_found:lookup-smoke-v1-turn-1"],
+    });
+  }, 30_000);
+
+  it("repairs a judge quote-validation error when the corrected judgment is valid", async () => {
+    let requestCount = 0;
+
+    const gateway = createServer((request, response) => {
+      requestCount += 1;
+      void handleGatewayRequest(
+        request,
+        response,
+        requestCount,
+        "judge_invalid_quote_repaired"
+      );
+    });
+
+    servers.push(gateway);
+    gateway.listen(0, "127.0.0.1");
+    await once(gateway, "listening");
+
+    const address = z
+      .object({ port: z.number().int().positive() })
+      .parse(gateway.address());
+
+    const workspace = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-judge-quote-repair-eval-")
+    );
+
+    temporaryDirectories.push(workspace);
+    vi.stubEnv("OPENAI_API_KEY", "eval-test-key");
+    vi.stubEnv("OPENAI_MODEL", "eval-fixture-model");
+    vi.stubEnv("OPENAI_BASE_URL", `http://127.0.0.1:${address.port}/v1`);
+
+    const report = await runEvaluation({
+      caseIds: ["lookup-smoke-v1"],
+      includeSemanticJudge: true,
+      maxModelRequests: 100,
+      mode: "smoke",
+      outputDirectory: path.join(workspace, "reports"),
+      workspaceDirectory: path.join(workspace, "run-data"),
+    });
+
+    const [trial] = report.trials;
+
+    expect(report.requestCountsByRole.judge).toBe(2);
+
+    expect({
+      calibration: report.judgeCalibration?.status,
+      judgeRequests: report.requestCountsByRole.judge,
+      semanticStatus: trial?.semanticStatus,
+      status: trial?.status,
+      validationErrors: trial?.semanticValidationErrors,
+    }).toStrictEqual({
+      calibration: "passed",
+      judgeRequests: 2,
+      semanticStatus: "passed",
+      status: "passed",
+      validationErrors: [],
     });
   }, 30_000);
 

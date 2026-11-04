@@ -20,7 +20,7 @@ import {
   faultCategory,
   faultMessage,
   logFaultEvent,
-  modelTimeoutMs,
+  modelExecutionTimeoutMs,
   apiTimeoutMs,
 } from "./fault-tolerance.js";
 import {
@@ -524,7 +524,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       retryPolicy: createNodeRetryPolicy("understand_request", {
         retryNodeTimeout: false,
       }),
-      timeout: modelTimeoutMs,
+      timeout: modelExecutionTimeoutMs,
     })
     .addNode("resolve_entities", resolveEntities)
     .addNode("clarify", createClarifyNode())
@@ -536,7 +536,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         retryPolicy: createNodeRetryPolicy("lookup_player", {
           retryNodeTimeout: false,
         }),
-        timeout: modelTimeoutMs,
+        timeout: modelExecutionTimeoutMs,
       }
     )
     .addNode("lookup_tools_guard", createGuardLookupSearchNode())
@@ -562,7 +562,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       retryPolicy: createNodeRetryPolicy("answer", {
         retryNodeTimeout: false,
       }),
-      timeout: modelTimeoutMs,
+      timeout: modelExecutionTimeoutMs,
     })
     .addNode("answer_failure", createFaultAnswerNode())
     .addEdge(START, "understand_request")

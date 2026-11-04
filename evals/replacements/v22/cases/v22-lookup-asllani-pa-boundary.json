@@ -1,0 +1,163 @@
+{
+  "caseId": "v22-lookup-asllani-pa-boundary",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Fisnik Asllani",
+        "status": "resolved",
+        "turnId": "v22-lookup-asllani-pa-boundary-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Fisnik Asllani",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10113"
+          }
+        ],
+        "turnId": "v22-lookup-asllani-pa-boundary-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91205129",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91205129",
+        "value": 155
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10113",
+        "value": 154
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10113",
+        "value": 1.0346218645572662
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10113",
+        "value": 0
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10113",
+        "value": 1
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6f76ee8ad3e2e8",
+        "canonicalIdentityId": "rp6f76ee8ad3e2e8",
+        "mention": "Fisnik Asllani",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10113",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91205129"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10113",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91205129"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10113"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v22-real-player-data",
+  "evidenceBundleSha256": "f1596017fc37b82575cc759f8c8c4088874630a19ff84f791dfe3c4412d8ecd0",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v22-lookup-fisnik-asllani-appearances-and-pa-boundary",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v22-lookup-asllani-pa-boundary-turn-1",
+      "userMessage": "How many appearances did Fisnik Asllani make in the 2026/27 Bundesliga? Use the available record. Does his PA guarantee future CA of 175?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

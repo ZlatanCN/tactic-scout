@@ -1,0 +1,171 @@
+{
+  "caseId": "v22-team-moorfield-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v22-team-moorfield-stops-on-unmapped-roster-member",
+  "priorTuningExposure": "Authored for the independent v22 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v22-team-synthetic",
+  "evidenceBundleSha256": "3cc72593d9637bb237f83d121f2211e8ca8d9247765cae0173664a5a5b1e9312",
+  "turns": [
+    {
+      "turnId": "v22-team-moorfield-unmapped-roster-turn-1",
+      "userMessage": "为 Moorfield United 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          }
+        ],
+        "turnId": "v22-team-moorfield-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ],
+        "turnId": "v22-team-moorfield-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ],
+        "turnId": "v22-team-moorfield-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v22-team-moorfield-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 9997
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v22-team-moorfield-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v22-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9933"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9997"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9903"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9999"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  }
+}

@@ -8,6 +8,7 @@ import type { CandidateSourceRecord } from "./contracts.js";
 import {
   deduplicateSourceRecords,
   matchReferenceName,
+  tokenizePlayerName,
 } from "./name-matching.js";
 import {
   getPositionFeatureDefinition,
@@ -17,7 +18,6 @@ import type { SupportedPosition } from "./position-features.js";
 import {
   createLocalDataError,
   isLocalDataFailure,
-  normalizePlayerName,
   numeric,
   parseJson,
   resolveDataPath,
@@ -580,7 +580,20 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
   }
 
   try {
-    const pattern = `%${normalizePlayerName(mention)}%`;
+    const nameTokens = tokenizePlayerName(mention);
+
+    if (nameTokens.length === 0) {
+      return [];
+    }
+
+    const namePredicates = nameTokens
+      .map(() => "(LOWER(a.name) LIKE ? OR LOWER(p.name) LIKE ?)")
+      .join(" AND ");
+
+    const namePatterns = nameTokens.flatMap((token) => [
+      `%${token}%`,
+      `%${token}%`,
+    ]);
 
     const rows = z.array(fmProfileRowSchema).parse(
       database
@@ -588,11 +601,11 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
           `SELECT DISTINCT p.record_id, p.payload, a.name AS alias_name
        FROM players p
        LEFT JOIN aliases a ON a.record_id = p.record_id
-       WHERE a.name LIKE ? OR LOWER(p.name) LIKE ?
+       WHERE ${namePredicates}
        ORDER BY p.name
        LIMIT 1000`
         )
-        .all(pattern, `%${mention.toLocaleLowerCase()}%`)
+        .all(...namePatterns)
     );
 
     const records: CandidateSourceRecord[] = [];

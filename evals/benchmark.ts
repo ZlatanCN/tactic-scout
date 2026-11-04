@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { z } from "zod/v4";
 
+import { maxExternalRequests } from "../src/fault-tolerance.js";
 import { assertModelProcessingAllowed } from "../src/player-data/shared.js";
 import {
   evaluationCaseSchema,
@@ -478,7 +479,10 @@ const estimateModelRequests = (
         modelRequestBoundPerTurn(caseDefinition.workflow) *
         repetitions,
     0
-  ) + (includeSemanticJudge ? 32 + cases.length * repetitions : 0);
+  ) +
+  (includeSemanticJudge
+    ? (32 + cases.length * repetitions) * maxExternalRequests
+    : 0);
 
 const sourceScopeForCase = (
   caseDefinition: EvaluationCase

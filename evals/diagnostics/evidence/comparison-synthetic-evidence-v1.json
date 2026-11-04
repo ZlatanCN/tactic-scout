@@ -1,0 +1,206 @@
+{
+  "bundleId": "comparison-synthetic-evidence-v1",
+  "origin": "synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "synthetic",
+      "inGameDate": "2025-11-23",
+      "sha256": "synthetic-comparison-fixture-v1"
+    },
+    "players": [
+      {
+        "recordId": "fm-row-demo-01",
+        "uniqueId": "fm-demo-01",
+        "name": "Elias Demo",
+        "birthDate": "2001-02-03",
+        "aliases": ["Demo"],
+        "payload": {
+          "ability_current": 132,
+          "ability_potential": 184,
+          "birth_date": "2001-02-03",
+          "common_name": "Elias Demo",
+          "full_name": "Elias Demo",
+          "height_cm": 178,
+          "name": "Elias Demo",
+          "natural_positions": "STC",
+          "raw_attributes_acceleration": 14,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_first_touch": 13,
+          "raw_attributes_off_the_ball": 14,
+          "raw_attributes_pace": 14,
+          "raw_attributes_passing": 11,
+          "raw_attributes_strength": 12,
+          "raw_attributes_technique": 14,
+          "raw_attributes_vision": 10,
+          "unique_id": "fm-demo-01"
+        }
+      },
+      {
+        "recordId": "fm-row-mid-01",
+        "uniqueId": "fm-mid-01",
+        "name": "Synthetic Midfielder",
+        "birthDate": "2000-04-05",
+        "aliases": ["Synthetic Mid"],
+        "payload": {
+          "ability_current": 145,
+          "ability_potential": 171,
+          "birth_date": "2000-04-05",
+          "common_name": "Synthetic Midfielder",
+          "full_name": "Synthetic Midfielder",
+          "height_cm": 180,
+          "name": "Synthetic Midfielder",
+          "natural_positions": "MC",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_decisions": 16,
+          "raw_attributes_finishing": 10,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_pace": 12,
+          "raw_attributes_passing": 16,
+          "raw_attributes_strength": 13,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 16,
+          "unique_id": "fm-mid-01"
+        }
+      },
+      {
+        "recordId": "fm-row-wing-01",
+        "uniqueId": "fm-wing-01",
+        "name": "Synthetic Winger",
+        "birthDate": "2002-09-10",
+        "aliases": ["Synthetic Wing"],
+        "payload": {
+          "ability_current": 139,
+          "ability_potential": 176,
+          "birth_date": "2002-09-10",
+          "common_name": "Synthetic Winger",
+          "full_name": "Synthetic Winger",
+          "height_cm": 176,
+          "name": "Synthetic Winger",
+          "natural_positions": "AML;AMR",
+          "raw_attributes_acceleration": 16,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_first_touch": 14,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_pace": 17,
+          "raw_attributes_passing": 12,
+          "raw_attributes_strength": 9,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 12,
+          "unique_id": "fm-wing-01"
+        }
+      }
+    ],
+    "positions": []
+  },
+  "understat": {
+    "snapshots": [
+      {
+        "capturedAt": "2025-11-23T00:00:00.000Z",
+        "kind": "league",
+        "parserVersion": "synthetic-evaluation-v1",
+        "resourceId": "EPL",
+        "schemaVersion": 1,
+        "seasonStartYear": 2024,
+        "players": [
+          {
+            "assists": "2",
+            "goals": "8",
+            "id": "us-demo-01",
+            "key_passes": "21",
+            "npxG": "4.8",
+            "player_name": "Elias Demo",
+            "position": "F",
+            "shots": "34",
+            "team_title": "Fixture City",
+            "time": "1120",
+            "xA": "1.3",
+            "xG": "5.2"
+          },
+          {
+            "assists": "4",
+            "goals": "6",
+            "id": "us-mid-01",
+            "key_passes": "28",
+            "npxG": "2.4",
+            "player_name": "Synthetic Midfielder",
+            "position": "M",
+            "shots": "19",
+            "team_title": "Synthetic Athletic",
+            "time": "1820",
+            "xA": "2.1",
+            "xG": "2.8"
+          }
+        ]
+      },
+      {
+        "capturedAt": "2025-11-23T00:00:00.000Z",
+        "kind": "league",
+        "parserVersion": "synthetic-evaluation-v1",
+        "resourceId": "La_liga",
+        "schemaVersion": 1,
+        "seasonStartYear": 2024,
+        "players": [
+          {
+            "assists": "3",
+            "goals": "5",
+            "id": "us-wing-01",
+            "key_passes": "24",
+            "npxG": "1.5",
+            "player_name": "Synthetic Winger",
+            "position": "F",
+            "shots": "22",
+            "team_title": "Synthetic Madrid",
+            "time": "1460",
+            "xA": "1.8",
+            "xG": "2.2"
+          }
+        ]
+      }
+    ]
+  },
+  "identity": {
+    "releaseStamp": "evaluation-comparison-fixture-v1",
+    "bridges": [
+      {
+        "provider": "fm",
+        "externalId": "fm-demo-01",
+        "canonicalReepId": "identity-demo-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "understat",
+        "externalId": "us-demo-01",
+        "canonicalReepId": "identity-demo-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-mid-01",
+        "canonicalReepId": "identity-mid-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "understat",
+        "externalId": "us-mid-01",
+        "canonicalReepId": "identity-mid-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "fm",
+        "externalId": "fm-wing-01",
+        "canonicalReepId": "identity-wing-01",
+        "redirectStatus": "resolved"
+      },
+      {
+        "provider": "understat",
+        "externalId": "us-wing-01",
+        "canonicalReepId": "identity-wing-01",
+        "redirectStatus": "resolved"
+      }
+    ]
+  }
+}

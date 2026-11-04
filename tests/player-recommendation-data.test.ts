@@ -24,6 +24,10 @@ import {
   recommendPlayers,
   recommendTeamPlayers,
 } from "../src/player-data/recommend-players.js";
+import {
+  searchPlayerRecords,
+  searchPlayerRecordsResultSchema,
+} from "../src/player-data/search-records.js";
 import { readUnderstatBySourceIds } from "../src/player-data/understat.js";
 import type { TeamRosterSnapshot } from "../src/team-data/contracts.js";
 import { recommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
@@ -130,22 +134,35 @@ const createIdentityDatabase = (
   return databasePath;
 };
 
-const understatPlayer = (id: string, name: string) => ({
-  assists: "2",
-  goals: "5",
-  id,
-  key_passes: "3",
-  npxG: "4.5",
-  player_name: name,
-  position: "F",
-  shots: "20",
-  team_title: "Fixture FC",
-  time: "1200",
-  xA: "1.2",
-  xG: "5.1",
-});
+const understatPlayer = (id: string, name: string, games?: string) => {
+  const player = {
+    assists: "2",
+    goals: "5",
+    id,
+    key_passes: "3",
+    npxG: "4.5",
+    player_name: name,
+    position: "F",
+    shots: "20",
+    team_title: "Fixture FC",
+    time: "1200",
+    xA: "1.2",
+    xG: "5.1",
+  };
 
-const createUnderstatDatabase = (): void => {
+  if (games !== undefined) {
+    Object.assign(player, { games });
+  }
+
+  return player;
+};
+
+const createUnderstatDatabase = (
+  players = [
+    understatPlayer("selected-player", "Selected Player"),
+    understatPlayer("namesake-player", "Same Name"),
+  ]
+): string => {
   const directory = mkdtempSync(path.join(tmpdir(), "tactiscout-understat-"));
   const databasePath = path.join(directory, "understat.sqlite");
   const database = new DatabaseSync(databasePath);
@@ -159,16 +176,7 @@ const createUnderstatDatabase = (): void => {
     "INSERT INTO source_snapshots (kind, resource_id, season_start_year, payload_json) VALUES ('league', ?, ?, ?)"
   );
 
-  insertSnapshot.run(
-    "EPL",
-    2024,
-    JSON.stringify({
-      players: [
-        understatPlayer("selected-player", "Selected Player"),
-        understatPlayer("namesake-player", "Same Name"),
-      ],
-    })
-  );
+  insertSnapshot.run("EPL", 2024, JSON.stringify({ players }));
   insertSnapshot.run(
     "EPL",
     2025,
@@ -178,6 +186,9 @@ const createUnderstatDatabase = (): void => {
   );
   database.close();
   vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", databasePath);
+  vi.stubEnv("TACTISCOUT_UNDERSTAT_AI_PROCESSING_ALLOWED", "true");
+
+  return databasePath;
 };
 
 const recommendationProfile = (
@@ -355,6 +366,47 @@ describe("player recommendation data invariants", () => {
         season: "2024/25",
         sourcePlayerId: "selected-player",
       },
+    ]);
+  });
+
+  it("preserves Understat game counts and explicitly marks missing counts", async () => {
+    createUnderstatDatabase([
+      understatPlayer("player-with-games", "Player With Games", "17"),
+      understatPlayer("player-without-games", "Player Without Games"),
+    ]);
+
+    const result = await searchPlayerRecords({
+      seasonStartYear: 2024,
+      sourceRecords: [
+        { provider: "understat", sourceId: "player-with-games" },
+        { provider: "understat", sourceId: "player-without-games" },
+      ],
+    });
+
+    const parsed = searchPlayerRecordsResultSchema.parse(JSON.parse(result));
+
+    if (!("understat" in parsed)) {
+      throw new Error("Expected the exact Understat records to be found.");
+    }
+
+    const { understat } = parsed;
+
+    if (understat === undefined || understat.status !== "found") {
+      throw new Error("Expected the exact Understat records to be found.");
+    }
+
+    const appearanceFields = z
+      .array(
+        z.object({
+          appearances: z.number().nullable(),
+          sourcePlayerId: z.string(),
+        })
+      )
+      .parse(understat.records);
+
+    expect(appearanceFields).toStrictEqual([
+      { appearances: 17, sourcePlayerId: "player-with-games" },
+      { appearances: null, sourcePlayerId: "player-without-games" },
     ]);
   });
 

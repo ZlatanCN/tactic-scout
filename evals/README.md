@@ -17,14 +17,14 @@ Run one local smoke trial with an explicit whole-run allowance:
 pnpm eval:run --mode smoke --case lookup-smoke-v1 --max-model-requests <N>
 ```
 
-For a first live smoke across all four workflows, preview and run these development cases with the judge enabled. The current preview estimates 99 gateway requests, including anchor calibration; choose an explicit cap before dispatch:
+For a first live smoke across all four workflows, preview and run these development cases with the judge enabled. The current conservative estimate is 171 gateway requests, covering up to three attempts per calibration anchor and per trial judge operation; choose an explicit cap before dispatch:
 
 ```sh
 pnpm eval:preview --mode smoke --judge --evidence-directory .data/evals/evidence --case lookup-saka-real-v1 --case compare-add-third-synthetic-v1 --case recommend-add-refine-synthetic-v1 --case team-real-madrid-refine-dev-v1
 pnpm eval:run --mode smoke --judge --evidence-directory .data/evals/evidence --case lookup-saka-real-v1 --case compare-add-third-synthetic-v1 --case recommend-add-refine-synthetic-v1 --case team-real-madrid-refine-dev-v1 --max-model-requests <N>
 ```
 
-Formal runs repeat each selected case three times. Add `--judge` to run the 32-anchor calibration before semantic scoring. The estimate includes 32 calibration calls and one judge call per trial. The judge defaults to the configured agent model; set `TACTISCOUT_EVAL_JUDGE_MODEL` to choose a separate model through the same gateway.
+Formal runs repeat each selected case three times. Add `--judge` to run the 32-anchor calibration before semantic scoring. The request estimate reserves up to three model attempts for each calibration anchor and each trial judgment, including one validation-guided repair when needed. The judge defaults to the configured agent model; set `TACTISCOUT_EVAL_JUDGE_MODEL` to choose a separate model through the same gateway.
 
 The active judge anchor pack is `evals/anchors/v8.json`. Rubric v3 assigns one most-specific category per claim; distinct claims may receive different categories. V8 clarifies retained-result state after a failed new operation and requires current-turn actions for comparison/filter claims. Its development anchors cover those cases. V8 passed live validation 16/16 in run `426f3ce3-1b71-41cd-b782-7259b48d52e1`; that smoke also exposed a same-identity alternate-profile candidate, which issue 20 fixed. The targeted post-fix recommendation smoke `c0d751ad-4aee-43cf-893a-2e7d86aed9f5` passed deterministic and semantic checks with v8 calibration 16/16. V1-v7 packs and reports remain historical.
 
@@ -112,9 +112,13 @@ Historical attempt `fa75f1c4-fad2-4945-b409-092b782cb058` attempted all 96 trial
 
 ## Current development baseline
 
-The v19 development baseline `24eb3bcf-ad26-43ad-a740-56e756994430` completed all 96 development trials using 410/1,500 requests. Calibration passed 32/32, including 16/16 validation anchors. All 96 trials and all 32 cases passed; there were zero network failures and budget denials. The 16 held-out Agent cases were untouched. Full findings are in `.scratch/agent-evaluation/baseline-analysis.md` and the ignored local report.
+Historical v19 development baseline `24eb3bcf-ad26-43ad-a740-56e756994430` completed all 96 development trials using 410/1,500 requests. Calibration passed 32/32, including 16/16 validation anchors. All 96 trials and all 32 cases passed; there were zero network failures and budget denials. The 16 held-out Agent cases were untouched. Full findings are in `.scratch/agent-evaluation/baseline-analysis.md` and the ignored local report.
 
-The evaluator now has v19 judge-input and prompt changes for per-turn failures, player-linked required facts, displayed rounding, search filters, squad references, and contradiction consistency. V19 smoke `66c7f76e-e76e-45bc-b828-9cfd9cc845a4` used 49/90 requests; calibration passed 32/32 and all five focused cases passed code and semantic checks. There were no network failures or budget denials. The full v19 development baseline completed all 96 trials; the subsequent frozen held-out run is recorded below.
+The v19 evaluator had judge-input and prompt changes for per-turn failures, player-linked required facts, displayed rounding, search filters, squad references, and contradiction consistency. V19 smoke `66c7f76e-e76e-45bc-b828-9cfd9cc845a4` used 49/90 requests; calibration passed 32/32 and all five focused cases passed code and semantic checks. There were no network failures or budget denials. The full v19 development baseline completed all 96 trials; the subsequent frozen held-out run is recorded below.
+
+### Latest development run
+
+Run `ab501a02-5b6c-4d55-9d8b-7352a2f6ccd0` completed the repaired 32-case development split: 96/96 Agent trials passed, calibration passed 32/32 (including validation 16/16), and semantic review passed 96/96. Required-fact omissions, factual contradictions, unsupported facts, and false execution claims were all zero. It used 411 requests (283 Agent, 32 calibration, 96 judge); three transient network failures were recovered and no requests were denied. The run's working tree was dirty, so it is a development repair baseline; freeze the committed source and evidence before the v22 held-out run.
 
 ## V19 held-out result
 

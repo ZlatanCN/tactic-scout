@@ -1,0 +1,140 @@
+{
+  "caseId": "diag-their-respective-comparison",
+  "category": "boundary",
+  "workflow": "player_comparison",
+  "split": "development",
+  "origin": "synthetic",
+  "scenarioFamily": "diagnostic-collective-possessive-not-player",
+  "priorTuningExposure": "Diagnostic development probe; not part of an official benchmark.",
+  "evidenceBundleId": "comparison-synthetic-evidence-v1",
+  "evidenceBundleSha256": "3c81c15ce962f455f24c350af3719eb9ce7a61d90168d9beff06235cdc75f840",
+  "contract": {
+    "taskKind": "player_comparison",
+    "outcomeStatus": "no_comparable_data",
+    "sourceScope": [
+      {
+        "provider": "understat",
+        "sourceId": "us-mid-01",
+        "competition": "EPL",
+        "season": "2024/25"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-wing-01",
+        "competition": "La_liga",
+        "season": "2024/25"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Synthetic Midfielder",
+        "status": "resolved"
+      },
+      {
+        "mention": "Synthetic Winger",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Synthetic Midfielder",
+        "status": "resolved",
+        "turnId": "diag-their-respective-comparison-turn-1"
+      },
+      {
+        "lookupName": "Synthetic Winger",
+        "status": "resolved",
+        "turnId": "diag-their-respective-comparison-turn-1"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Synthetic Midfielder",
+        "status": "resolved",
+        "turnId": "diag-their-respective-comparison-turn-1"
+      },
+      {
+        "mention": "Synthetic Winger",
+        "status": "resolved",
+        "turnId": "diag-their-respective-comparison-turn-1"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "mention": "Synthetic Midfielder",
+        "candidateId": "reep:identity-mid-01",
+        "canonicalIdentityId": "identity-mid-01",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "us-mid-01",
+            "competition": "EPL",
+            "season": "2024/25"
+          }
+        ]
+      },
+      {
+        "mention": "Synthetic Winger",
+        "candidateId": "reep:identity-wing-01",
+        "canonicalIdentityId": "identity-wing-01",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01",
+            "competition": "La_liga",
+            "season": "2024/25"
+          }
+        ]
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "understat",
+            "sourceId": "us-mid-01"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "us-wing-01"
+          }
+        ],
+        "businessOutcome": "no_comparable_data"
+      }
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "understat",
+        "sourceId": "us-mid-01",
+        "field": "expectedGoals",
+        "value": 2.8,
+        "competition": "EPL",
+        "season": "2024/25"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "us-wing-01",
+        "field": "expectedGoals",
+        "value": 2.2,
+        "competition": "La_liga",
+        "season": "2024/25"
+      }
+    ],
+    "requiredAbstentions": [
+      "The players have no shared Understat competition scope; do not claim a direct xG comparison or overall performance ranking."
+    ],
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee"
+    ]
+  },
+  "turns": [
+    {
+      "turnId": "diag-their-respective-comparison-turn-1",
+      "userMessage": "Compare Synthetic Midfielder and Synthetic Winger using their respective 2024/25 league records and FM ability."
+    }
+  ]
+}

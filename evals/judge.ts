@@ -6,6 +6,13 @@ import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod/v4";
 
 import {
+  externalFaultFrom,
+  logFaultEvent,
+  waitForRetryDelay,
+} from "../src/fault-tolerance.js";
+import { createModelRequestBudget } from "../src/model-requests.js";
+import type { ModelRequestBudget } from "../src/model-requests.js";
+import {
   availableResultKindSchema,
   judgeCalibrationSchema,
   semanticErrorCategorySchema,
@@ -22,7 +29,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v19";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v22";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -56,7 +63,10 @@ const judgeAnchorSchema = z.object({
   ),
   anchorId: z.string(),
   answer: z.string(),
-  availableResultKinds: z.array(availableResultKindSchema).default([]),
+  availableResultKinds: z
+    .array(availableResultKindSchema)
+    .nullable()
+    .optional(),
   category: z.enum([
     "correct_paraphrase",
     "factual_contradiction",
@@ -132,7 +142,7 @@ const judgeInputSchema = z.object({
   turns: z.array(
     z.object({
       assistantMessages: z.array(z.string()),
-      availableResultKinds: z.array(availableResultKindSchema),
+      availableResultKinds: z.array(availableResultKindSchema).nullable(),
       clarificationAnswers: z.array(
         z.object({ kind: z.string(), value: z.string() })
       ),
@@ -163,11 +173,12 @@ const judgeInputSchema = z.object({
       userMessage: z.string(),
     })
   ),
+  validationFeedback: z.array(z.string()).optional(),
 });
 
 const judgeRubricPrompt = `You are an automated reviewer for a football scouting assistant. Review every assistant response in the supplied conversation.
 
-Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events and their exact inputs, per-turn availableResultKinds state observations, and the supplied task contract. Action inputs on attempted, returned, failed, and cache_hit events show parameters used. Requested events record proposed tool arguments and do not prove the tool ran; blocked and schema_rejected events do not show applied filters. For an attempted, returned, failed, or cache_hit search_player_records action, no competition field means no competition filter was supplied. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn. They describe stored results, not the outcome of the latest operation: the current action may return no_comparable_data or data_unavailable while availableResultKinds still contains player_comparison because a prior comparison remains active. If the assistant says that prior result remains and this state lists player_comparison, the claim is supported; do not call it a contradiction or unsupported merely because the current operation found no data or failed. Do not infer current state from a prior tool action alone. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
+Use only evidence delivered to the assistant for that turn, evidence explicitly reused in that turn, the listed action events and their exact inputs, per-turn availableResultKinds state observations, and the supplied task contract. Action inputs on attempted, returned, failed, and cache_hit events show parameters used. Requested events record proposed tool arguments and do not prove the tool ran; blocked and schema_rejected events do not show applied filters. For an attempted, returned, failed, or cache_hit search_player_records action, no competition field means no competition filter was supplied. Per-turn state observations are evaluator evidence about which completed result kinds remained available after that turn. They describe stored results, not the outcome of the latest operation: the current action may return no_comparable_data or data_unavailable while availableResultKinds still contains player_comparison because a prior comparison remains active. If the assistant says that prior result remains and this state lists player_comparison, the claim is supported; do not call it a contradiction or unsupported merely because the current operation found no data or failed. A null availableResultKinds means no current-state snapshot was supplied; never treat null as an empty array or as proof that no saved result exists. An empty array is an observed state with no completed result available. If a saved-result-retention claim has no state snapshot or other supporting evidence, classify it as unsupported rather than contradicted; a prior action alone does not establish current availability. Do not use outside football knowledge. A fact that happens to be true in the real world is still unsupported when the supplied evidence does not support it.
 
 Each turn includes the exact participants known for that turn and their selected provider source records. Use these links to connect a participant to the source records in that turn's actions. The competition/season on a participant's identity record describes that identity evidence; it does not automatically describe the requested lookup result. Judge claims such as “all participants” against only that turn's participant list and evidence. Later turns may add participants or change scope; never use those later changes to invalidate a correct earlier answer. Do not infer a turn's participants from the final conversation state.
 
@@ -192,7 +203,11 @@ When teamRosterCoverage is present, treat it as the deterministic roster-mapping
 
 Quote the exact assistant text, use the matching turnId, cite the correctly typed IDs when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
 
-For each required fact, mark whether it is covered in the visible assistant responses. If the answer cannot be assessed from the supplied evidence, use uncertain. Return the required structured output only.`;
+For each required fact, mark whether it is covered in the visible assistant responses. If the answer cannot be assessed from the supplied evidence, use uncertain.
+
+If validationFeedback is present, it lists deterministic validation errors from a previous judgment. Re-evaluate the supplied conversation and correct those specific reference or coverage errors. Do not preserve or remove a finding merely to make validation pass: keep every supported critical finding, use an exact quote from the named turn, cite only IDs of the correct kind, and return coverage for every required fact exactly once.
+
+Return the required structured output only.`;
 
 const judgeSystemPrompt = `${judgeRubricPrompt}
 
@@ -202,6 +217,7 @@ Application-specific evidence rules:
 - The search_player_records tool accepts sourceRecords and seasonStartYear; it has no competition-filter argument. A complete action input with no competition field supports saying that no explicit competition filter was applied. Do not imply that the user's requested competition was filtered.
 - Understat team names describe the returned season snapshot. It is supported to say these returned records do not establish a player's current registered team; do not claim the player has no current team.
 - For recommend_team_player_candidates with referenceMode=squad, mapped roster FM profiles are the reference profiles. They are intentionally omitted from currentCandidates while still appearing in references and referenceFmIds. Saying the squad members were excluded from candidates is consistent with listing them as references.
+- In a team recommendation, compare claims that mapped squad players were excluded against the returned roster FM IDs and both currentCandidates and potentialCandidates. Candidate IDs outside the mapped roster do not contradict exclusion of all mapped roster players.
 - Compare numeric FM attribute values as provided. If all relevant attributes are listed, calling the numerically largest listed values higher is a supported comparison; do not require the source to label them as "high".
 - The Understat reader chooses the maximum season_start_year in local snapshots when the actual search input omits seasonStartYear. A returned row's season is the effective snapshot season for that query; an explicit start year 2024 is the 2024/25 season.
 - If an actual Understat search input has seasonStartYear 2024 and its returned result is not_found with no records, it supports “no row was returned for this selected source for 2024/25” and “the result contains no xG value.” It does not establish that the player's xG is unavailable in other data or seasons.
@@ -209,6 +225,7 @@ Application-specific evidence rules:
 - FM attribute keys techniqueRaw and dribblingRaw refer to distinct attributes: Technique is 技术; Dribbling is 盘带. Do not treat one as the other.
 - A non-null canonicalIdentityId repeated across resolved turn participants means those mentions refer to one canonical player. If that turn's outcomeStatus is insufficient_distinct_players, asking for another distinct player is supported.
 - Recommendation filters.resultLimit is the requested player-list cap; do not infer it from returned list length or afterIdentityExclusion counts.
+- For recommend_player_candidates and recommend_team_player_candidates results, filterCounts.excludedMissingAttribute counts profiles missing one or more attributes needed to calculate distance. This supports stating that those profiles could not be ranked because distance attributes were incomplete; do not infer which specific attribute was missing.
 - For required-fact coverage, FM currentAbility means CA or 当前能力, and potentialAbility means PA or 潜力能力; Understat expectedGoals means xG or 预期进球.`;
 
 const createSemanticJudge = (options: {
@@ -231,11 +248,42 @@ const createSemanticJudge = (options: {
     }
   );
 
-  return async (input: z.output<typeof judgeInputSchema>) =>
-    await structuredModel.invoke([
+  const invokeWithRetry = async (
+    input: z.output<typeof judgeInputSchema>,
+    budget: ModelRequestBudget
+  ): Promise<z.output<typeof semanticJudgeOutputSchema>> => {
+    const messages = [
       new SystemMessage(judgeSystemPrompt),
       new HumanMessage(JSON.stringify(input)),
-    ]);
+    ];
+
+    try {
+      return await budget.invoke(
+        async (signal) => await structuredModel.invoke(messages, { signal })
+      );
+    } catch (error) {
+      const fault = error instanceof Error ? externalFaultFrom(error) : null;
+
+      if (fault === null || !fault.retryable || !budget.canMakeRequest()) {
+        throw error;
+      }
+
+      logFaultEvent({
+        attempt: fault.requestsUsed,
+        category: fault.category,
+        durationMs: fault.durationMs,
+        event: "retry",
+        node: fault.node ?? "evaluation_judge",
+        runId: fault.runId,
+        threadId: fault.threadId,
+      });
+      await waitForRetryDelay(250 + Math.random() * 1000);
+
+      return await invokeWithRetry(input, budget);
+    }
+  };
+
+  return invokeWithRetry;
 };
 
 const loadJudgeAnchors = (
@@ -350,7 +398,7 @@ const judgeInputForAnchor = (
   turns: [
     {
       assistantMessages: [anchor.answer],
-      availableResultKinds: anchor.availableResultKinds,
+      availableResultKinds: anchor.availableResultKinds ?? null,
       clarificationAnswers: [],
       outcomeKind: null,
       outcomeStatus: null,
@@ -368,9 +416,17 @@ const validFindingReferences = (
   const errors: string[] = [];
   const turn = input.turns.find(({ turnId }) => turnId === finding.turnId);
 
+  const turnIndex = input.turns.findIndex(
+    ({ turnId }) => turnId === finding.turnId
+  );
+
   if (turn === undefined) {
     return [`unknown_turn:${finding.turnId}`];
   }
+
+  const visibleTurnIds = new Set(
+    input.turns.slice(0, turnIndex + 1).map(({ turnId }) => turnId)
+  );
 
   if (
     !turn.assistantMessages.some((message) => message.includes(finding.quote))
@@ -381,7 +437,7 @@ const validFindingReferences = (
   const evidenceIds = new Set<string>();
 
   for (const evidence of input.evidence) {
-    if (evidence.turnId === finding.turnId) {
+    if (visibleTurnIds.has(evidence.turnId)) {
       evidenceIds.add(evidence.evidenceId);
     }
   }
@@ -395,7 +451,7 @@ const validFindingReferences = (
   const actionIds = new Set<string>();
 
   for (const action of input.actions) {
-    if (action.turnId === finding.turnId) {
+    if (visibleTurnIds.has(action.turnId)) {
       actionIds.add(action.actionId);
       actionIds.add(action.eventId);
     }
@@ -463,10 +519,16 @@ const validateAnchorJudgment = (
 
 const judgeOneAnchor = async (
   anchor: z.output<typeof judgeAnchorSchema>,
-  judge: ReturnType<typeof createSemanticJudge>
+  judge: ReturnType<typeof createSemanticJudge>,
+  runId?: string
 ) => {
   try {
-    const judgment = await judge(judgeInputForAnchor(anchor));
+    const budget = createModelRequestBudget(
+      { executionInfo: { runId, threadId: anchor.anchorId } },
+      "evaluation_judge_calibration"
+    );
+
+    const judgment = await judge(judgeInputForAnchor(anchor), budget);
     const validation = validateAnchorJudgment(anchor, judgment);
 
     return {
@@ -493,6 +555,7 @@ const judgeOneAnchor = async (
 const judgeAnchorsInOrder = async (
   anchors: z.output<typeof judgeAnchorSchema>[],
   judge: ReturnType<typeof createSemanticJudge>,
+  runId?: string,
   index = 0,
   observations: Awaited<ReturnType<typeof judgeOneAnchor>>[] = []
 ): Promise<Awaited<ReturnType<typeof judgeOneAnchor>>[]> => {
@@ -502,7 +565,7 @@ const judgeAnchorsInOrder = async (
     return observations;
   }
 
-  const observation = await judgeOneAnchor(anchor, judge);
+  const observation = await judgeOneAnchor(anchor, judge, runId);
   const nextObservations = [...observations, observation];
 
   if (observation.status === "unrun") {
@@ -516,19 +579,30 @@ const judgeAnchorsInOrder = async (
     ];
   }
 
-  return await judgeAnchorsInOrder(anchors, judge, index + 1, nextObservations);
+  return await judgeAnchorsInOrder(
+    anchors,
+    judge,
+    runId,
+    index + 1,
+    nextObservations
+  );
 };
 
 const runJudgeCalibration = async (options: {
   anchorDirectory?: string;
   agentModel: string;
   judgeModel: string;
+  runId?: string;
   judge: ReturnType<typeof createSemanticJudge>;
 }): Promise<JudgeCalibrationReport> => {
   const pack = loadJudgeAnchors(options.anchorDirectory);
   const results: z.output<typeof calibrationResultSchema>["results"] = [];
 
-  const observations = await judgeAnchorsInOrder(pack.anchors, options.judge);
+  const observations = await judgeAnchorsInOrder(
+    pack.anchors,
+    options.judge,
+    options.runId
+  );
 
   for (const [index, observation] of observations.entries()) {
     const anchor = pack.anchors[index];
@@ -576,7 +650,12 @@ const runJudgeCalibration = async (options: {
 
   if (validationIncomplete || completedCount < pack.anchors.length) {
     calibrationStatus = "incomplete";
-  } else if (validationPassed === validationTotal && validationTotal === 16) {
+  } else if (
+    developmentPassed === developmentTotal &&
+    validationPassed === validationTotal &&
+    developmentTotal === 16 &&
+    validationTotal === 16
+  ) {
     calibrationStatus = "passed";
   }
 
@@ -647,6 +726,480 @@ const requiredFactDescription = (
   }
 
   return `${fact.provider}:${fact.sourceId}${playerLabel} ${displayField} [${fact.field}] = ${JSON.stringify(fact.value)}`;
+};
+
+const requiredFactFieldAliases = {
+  age: ["age", "年龄"],
+  currentAbility: ["current ability", "ca", "当前能力"],
+  currentDistance: ["current distance", "当前差距"],
+  expectedGoals: ["expected goals", "xg", "预期进球"],
+  positionRating: ["position rating", "位置评分"],
+  potentialAbility: ["potential ability", "pa", "潜力能力"],
+} satisfies Record<string, string[]>;
+
+const normalizeEvidenceLabel = (value: string): string =>
+  value
+    .normalize("NFKD")
+    .replaceAll(/[\u0300-\u036F]/gu, "")
+    .toLocaleLowerCase()
+    .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+const markdownCells = (line: string): string[] =>
+  line
+    .trim()
+    .replace(/^\|/u, "")
+    .replace(/\|$/u, "")
+    .split("|")
+    .map((cell) => cell.trim().replaceAll("\\|", "|"));
+
+const isMarkdownTableDivider = (line: string): boolean =>
+  line.includes("|") &&
+  markdownCells(line).every((cell) => /^:?-{3,}:?$/u.test(cell));
+
+const isPlayerSectionHeading = (line: string): boolean =>
+  /^\s*(?:#{1,6}\s|\*\*[^*]+\*\*\s*$)/u.test(line);
+
+const numericValuesMatchAtDisplayedPrecision = (
+  displayed: string,
+  expected: EvaluationCase["contract"]["requiredEvidence"][number]["value"]
+): boolean => {
+  const parsedExpected = z.number().safeParse(expected);
+  const normalized = displayed.replaceAll(",", "").trim();
+  const actualNumber = Number(normalized);
+
+  if (!Number.isFinite(actualNumber) || !parsedExpected.success) {
+    return false;
+  }
+
+  const decimalPlaces = normalized.includes(".")
+    ? (normalized.split(".")[1]?.length ?? 0)
+    : 0;
+
+  const multiplier = 10 ** decimalPlaces;
+
+  return (
+    Math.round(actualNumber * multiplier) ===
+    Math.round(parsedExpected.data * multiplier)
+  );
+};
+
+const tableExplicitlyCoversRequiredFact = (
+  answer: string,
+  playerNames: string[],
+  allPlayerNames: string[],
+  fact: EvaluationCase["contract"]["requiredEvidence"][number]
+): boolean => {
+  const aliases = Object.entries(requiredFactFieldAliases).find(
+    ([field]) => field === fact.field
+  )?.[1];
+
+  if (aliases === undefined || playerNames.length === 0) {
+    return false;
+  }
+
+  const normalizedNames = playerNames.map(normalizeEvidenceLabel);
+  const normalizedAllPlayerNames = allPlayerNames.map(normalizeEvidenceLabel);
+  const normalizedAliases = aliases.map(normalizeEvidenceLabel);
+
+  let headingNamesPlayer = false;
+  let tableHeaders: string[] = [];
+
+  return answer.split(/\r?\n/u).some((line) => {
+    if (isPlayerSectionHeading(line)) {
+      const normalizedHeading = normalizeEvidenceLabel(line);
+      headingNamesPlayer = normalizedNames.some(
+        (name) => name.length > 0 && normalizedHeading.includes(name)
+      );
+      tableHeaders = [];
+
+      return false;
+    }
+
+    if (!line.includes("|") || isMarkdownTableDivider(line)) {
+      if (line.trim().length === 0 || !line.includes("|")) {
+        tableHeaders = [];
+      }
+
+      return false;
+    }
+
+    const cells = markdownCells(line);
+
+    const rowNamesAnyPlayer = normalizedNames.some((name) =>
+      cells.some((cell) => normalizeEvidenceLabel(cell).includes(name))
+    );
+
+    const rowNamesAnyParticipant = normalizedAllPlayerNames.some((name) =>
+      cells.some((cell) => normalizeEvidenceLabel(cell).includes(name))
+    );
+
+    const rowNamesPlayer = rowNamesAnyPlayer;
+
+    const rowLabelsFactValue = cells.some((cell, index) => {
+      const normalizedLabel = normalizeEvidenceLabel(cell);
+
+      const labelMatches = normalizedAliases.some(
+        (alias) => normalizedLabel === alias || normalizedLabel.includes(alias)
+      );
+
+      const displayedValue = cells[index + 1];
+
+      return (
+        labelMatches &&
+        displayedValue !== undefined &&
+        numericValuesMatchAtDisplayedPrecision(displayedValue, fact.value)
+      );
+    });
+
+    if ((headingNamesPlayer || rowNamesPlayer) && rowLabelsFactValue) {
+      return true;
+    }
+
+    const rowHasFactHeader = normalizedAliases.some((alias) =>
+      cells.some((cell) => {
+        const normalizedCell = normalizeEvidenceLabel(cell);
+
+        return normalizedCell === alias || normalizedCell.includes(alias);
+      })
+    );
+
+    if (!rowNamesAnyPlayer && rowHasFactHeader) {
+      tableHeaders = cells;
+
+      return false;
+    }
+
+    const namesPlayer = headingNamesPlayer || rowNamesPlayer;
+
+    if (!namesPlayer) {
+      if (!rowNamesAnyParticipant) {
+        tableHeaders = cells;
+      }
+
+      return false;
+    }
+
+    const valueInLabeledColumn = tableHeaders.some((header, index) => {
+      const normalizedHeader = normalizeEvidenceLabel(header);
+
+      const labelMatches = normalizedAliases.some(
+        (alias) =>
+          normalizedHeader === alias || normalizedHeader.includes(alias)
+      );
+
+      const displayedValue = cells[index];
+
+      return (
+        labelMatches &&
+        displayedValue !== undefined &&
+        numericValuesMatchAtDisplayedPrecision(displayedValue, fact.value)
+      );
+    });
+
+    const valueInLabeledRow = cells.some((cell, index) => {
+      const normalizedLabel = normalizeEvidenceLabel(cell);
+
+      const labelMatches = normalizedAliases.some(
+        (alias) => normalizedLabel === alias || normalizedLabel.includes(alias)
+      );
+
+      const displayedValue = cells[index + 1];
+
+      return (
+        labelMatches &&
+        displayedValue !== undefined &&
+        numericValuesMatchAtDisplayedPrecision(displayedValue, fact.value)
+      );
+    });
+
+    return valueInLabeledColumn || valueInLabeledRow;
+  });
+};
+
+const isGenericSavedResultRetentionClaim = (quote: string): boolean => {
+  const normalized = normalizeEvidenceLabel(quote);
+
+  return (
+    normalized === normalizeEvidenceLabel("此前已完成的结果仍保留") ||
+    normalized ===
+      normalizeEvidenceLabel(
+        "The previously completed result remains available."
+      ) ||
+    normalized === normalizeEvidenceLabel("The saved result remains available.")
+  );
+};
+
+const genericRetentionClaimSupportedByState = (
+  finding: z.output<typeof semanticJudgeFindingSchema>,
+  worker: WorkerTrialResult
+): boolean => {
+  if (!isGenericSavedResultRetentionClaim(finding.quote)) {
+    return false;
+  }
+
+  const turn = worker.turns.find(({ turnId }) => turnId === finding.turnId);
+
+  return (
+    turn?.availableResultKinds !== null &&
+    turn?.availableResultKinds !== undefined &&
+    turn.availableResultKinds.length > 0
+  );
+};
+
+const searchPlayerRecordsActionInputSchema = z.strictObject({
+  seasonStartYear: z.number().int().min(2000).max(2100).optional(),
+  sourceRecords: z
+    .array(
+      z.object({
+        provider: z.enum(["fm", "understat"]),
+        sourceId: z.string().min(1),
+      })
+    )
+    .min(1),
+});
+
+const noCompetitionFilterClaimPhrases = new Set(
+  [
+    "查询未设置赛事过滤条件",
+    "查询没有设置赛事过滤条件",
+    "本次查询未设置赛事过滤条件",
+    "本次查询没有设置赛事过滤条件",
+    "本次查询没有传入赛事过滤条件",
+    "本次查询没有赛事过滤条件",
+    "No competition filter was applied",
+    "No competition filter was set",
+    "The query did not include a competition filter",
+  ].map(normalizeEvidenceLabel)
+);
+
+const isNoCompetitionFilterClaim = (quote: string): boolean =>
+  noCompetitionFilterClaimPhrases.has(normalizeEvidenceLabel(quote));
+
+const noCompetitionFilterClaimSupportedByActions = (
+  finding: z.output<typeof semanticJudgeFindingSchema>,
+  input: z.output<typeof judgeInputSchema>
+): boolean =>
+  finding.category === "unsupported_fact" &&
+  isNoCompetitionFilterClaim(finding.quote) &&
+  input.actions.some(
+    (action) =>
+      action.name === "search_player_records" &&
+      action.turnId === finding.turnId &&
+      ["attempted", "returned", "failed", "cache_hit"].includes(action.kind) &&
+      searchPlayerRecordsActionInputSchema.safeParse(action.input).success
+  );
+
+const recommendationFilterCountsSchema = z.looseObject({
+  excludedMissingAttribute: z.number().int().nonnegative(),
+});
+
+const recommendationResultFilterCountsSchema = z.looseObject({
+  filterCounts: recommendationFilterCountsSchema,
+});
+
+const teamRecommendationResultFilterCountsSchema = z.looseObject({
+  recommendation: z.looseObject({
+    filterCounts: recommendationFilterCountsSchema,
+  }),
+});
+
+const excludedMissingAttributeCountFromResult = (
+  resultJson: string
+): number | null => {
+  let result: unknown;
+
+  try {
+    result = JSON.parse(resultJson);
+  } catch {
+    return null;
+  }
+
+  const recommendation =
+    recommendationResultFilterCountsSchema.safeParse(result);
+
+  if (recommendation.success) {
+    return recommendation.data.filterCounts.excludedMissingAttribute;
+  }
+
+  const teamRecommendation =
+    teamRecommendationResultFilterCountsSchema.safeParse(result);
+
+  return teamRecommendation.success
+    ? teamRecommendation.data.recommendation.filterCounts
+        .excludedMissingAttribute
+    : null;
+};
+
+const claimsDistanceIncompleteCandidates = (quote: string): boolean => {
+  const normalized = normalizeEvidenceLabel(quote);
+
+  return (
+    normalized.includes(normalizeEvidenceLabel("因距离属性不完整而无法排名")) ||
+    normalized.includes(
+      normalizeEvidenceLabel(
+        "excluded from ranking because distance attributes are incomplete"
+      )
+    )
+  );
+};
+
+const missingDistanceClaimSupportedByActions = (
+  finding: z.output<typeof semanticJudgeFindingSchema>,
+  input: z.output<typeof judgeInputSchema>
+): boolean => {
+  if (
+    finding.category !== "unsupported_fact" ||
+    !claimsDistanceIncompleteCandidates(finding.quote)
+  ) {
+    return false;
+  }
+
+  const quotedCount = Number(/\d+/u.exec(finding.quote)?.[0]);
+
+  return (
+    Number.isFinite(quotedCount) &&
+    input.actions.some((action) => {
+      if (
+        action.turnId !== finding.turnId ||
+        action.kind !== "returned" ||
+        ![
+          "recommend_player_candidates",
+          "recommend_team_player_candidates",
+        ].includes(action.name) ||
+        action.result === null
+      ) {
+        return false;
+      }
+
+      return (
+        excludedMissingAttributeCountFromResult(action.result) === quotedCount
+      );
+    })
+  );
+};
+
+const teamRosterActionInputSchema = z.looseObject({
+  roster: z.looseObject({
+    members: z.array(
+      z.looseObject({
+        fmId: z.string().nullable(),
+        mappingStatus: z.enum(["pending", "resolved", "no_profile"]),
+      })
+    ),
+  }),
+});
+
+const teamRecommendationActionResultSchema = z.looseObject({
+  recommendation: z.looseObject({
+    currentCandidates: z.array(z.looseObject({ fmId: z.string() })),
+    potentialCandidates: z
+      .array(z.looseObject({ fmId: z.string() }))
+      .nullable(),
+  }),
+});
+
+const teamRecommendationActionResultFrom = (resultJson: string) => {
+  try {
+    return teamRecommendationActionResultSchema.safeParse(
+      JSON.parse(resultJson)
+    );
+  } catch {
+    return null;
+  }
+};
+
+const teamRosterExclusionClaimPhrases = [
+  "当前阵容中所有已映射的 FM 球员均已排除",
+  "所有已映射的队内球员均已排除",
+  "all mapped current squad FM players were excluded",
+  "all mapped roster players were excluded from candidates",
+].map(normalizeEvidenceLabel);
+
+const isTeamRosterExclusionClaim = (quote: string): boolean => {
+  const normalized = normalizeEvidenceLabel(quote);
+
+  return teamRosterExclusionClaimPhrases.some((phrase) =>
+    normalized.includes(phrase)
+  );
+};
+
+const teamRosterExclusionClaimSupportedByActions = (
+  finding: z.output<typeof semanticJudgeFindingSchema>,
+  input: z.output<typeof judgeInputSchema>
+): boolean =>
+  ["factual_contradiction", "unsupported_fact"].includes(finding.category) &&
+  isTeamRosterExclusionClaim(finding.quote) &&
+  input.actions.some((action) => {
+    if (
+      action.name !== "recommend_team_player_candidates" ||
+      action.turnId !== finding.turnId
+    ) {
+      return false;
+    }
+
+    if (action.kind !== "returned" || action.outcome !== "ready") {
+      return false;
+    }
+
+    if (action.input === null || action.result === null) {
+      return false;
+    }
+
+    const actionInput = teamRosterActionInputSchema.safeParse(action.input);
+
+    const actionResult = teamRecommendationActionResultFrom(action.result);
+
+    if (!actionInput.success || actionResult?.success !== true) {
+      return false;
+    }
+
+    const rosterFmIds = actionInput.data.roster.members.flatMap(
+      ({ fmId, mappingStatus }) =>
+        mappingStatus === "resolved" && fmId !== null ? [fmId] : []
+    );
+
+    const candidateFmIds = new Set([
+      ...actionResult.data.recommendation.currentCandidates.map(
+        ({ fmId }) => fmId
+      ),
+      ...(actionResult.data.recommendation.potentialCandidates ?? []).map(
+        ({ fmId }) => fmId
+      ),
+    ]);
+
+    return (
+      rosterFmIds.length > 0 &&
+      rosterFmIds.every((fmId) => !candidateFmIds.has(fmId))
+    );
+  });
+
+const requiredFactCoveredByVisibleTable = (
+  fact: EvaluationCase["contract"]["requiredEvidence"][number],
+  worker: WorkerTrialResult
+): boolean => {
+  const playerNames = playerNamesForRequiredSource(
+    worker,
+    fact.provider,
+    fact.sourceId
+  );
+
+  const allPlayerNames = [
+    ...new Set(
+      worker.players.map((player) => player.selectedName ?? player.mention)
+    ),
+  ];
+
+  return worker.turns.some(({ assistantMessages }) =>
+    assistantMessages.some((answer) =>
+      tableExplicitlyCoversRequiredFact(
+        answer,
+        playerNames,
+        allPlayerNames,
+        fact
+      )
+    )
+  );
 };
 
 const judgeInputForTrial = (
@@ -747,11 +1300,34 @@ const validateTrialJudgment = (
 ): TrialJudgment => {
   const input = judgeInputForTrial(caseDefinition, worker);
 
-  const validationErrors = output.findings.flatMap((finding) =>
+  const findings = output.findings.filter(
+    (finding) =>
+      !genericRetentionClaimSupportedByState(finding, worker) &&
+      !noCompetitionFilterClaimSupportedByActions(finding, input) &&
+      !missingDistanceClaimSupportedByActions(finding, input) &&
+      !teamRosterExclusionClaimSupportedByActions(finding, input)
+  );
+
+  const requiredFactCoverage = output.requiredFactCoverage.map((coverage) => {
+    const factIndex = Number(coverage.factId.replace("required-fact-", "")) - 1;
+    const fact = caseDefinition.contract.requiredEvidence[factIndex];
+
+    if (
+      fact !== undefined &&
+      coverage.status !== "covered" &&
+      requiredFactCoveredByVisibleTable(fact, worker)
+    ) {
+      return { ...coverage, status: "covered" as const };
+    }
+
+    return coverage;
+  });
+
+  const validationErrors = findings.flatMap((finding) =>
     validFindingReferences(finding, input)
   );
 
-  const hasUnsubstantiatedContradictionExplanation = output.findings.some(
+  const hasUnsubstantiatedContradictionExplanation = findings.some(
     ({ category, explanation }) =>
       category === "factual_contradiction" &&
       contradictionExplanationIsInconclusive(explanation)
@@ -765,7 +1341,7 @@ const validateTrialJudgment = (
     input.contract.requiredFacts.map(({ factId }) => factId)
   );
 
-  const coverageIds = output.requiredFactCoverage.map(({ factId }) => factId);
+  const coverageIds = requiredFactCoverage.map(({ factId }) => factId);
 
   if (
     coverageIds.length !== expectedFactIds.size ||
@@ -799,17 +1375,17 @@ const validateTrialJudgment = (
 
   if (validationErrors.length > 0) {
     return {
-      findings: output.findings,
-      requiredFactCoverage: output.requiredFactCoverage,
+      findings,
+      requiredFactCoverage,
       status: "invalid",
       validationErrors,
     };
   }
 
-  if (output.findings.length > 0) {
+  if (findings.length > 0) {
     return {
-      findings: output.findings,
-      requiredFactCoverage: output.requiredFactCoverage,
+      findings,
+      requiredFactCoverage,
       status: "failed",
       validationErrors: [],
     };
@@ -817,28 +1393,26 @@ const validateTrialJudgment = (
 
   if (hasMissingRequiredEvidence) {
     return {
-      findings: output.findings,
-      requiredFactCoverage: output.requiredFactCoverage,
+      findings,
+      requiredFactCoverage,
       status: "inconclusive",
       validationErrors: ["required_evidence_not_delivered"],
     };
   }
 
-  if (output.requiredFactCoverage.some(({ status }) => status === "missing")) {
+  if (requiredFactCoverage.some(({ status }) => status === "missing")) {
     return {
-      findings: output.findings,
-      requiredFactCoverage: output.requiredFactCoverage,
+      findings,
+      requiredFactCoverage,
       status: "failed",
       validationErrors: [],
     };
   }
 
-  if (
-    output.requiredFactCoverage.some(({ status }) => status === "uncertain")
-  ) {
+  if (requiredFactCoverage.some(({ status }) => status === "uncertain")) {
     return {
-      findings: output.findings,
-      requiredFactCoverage: output.requiredFactCoverage,
+      findings,
+      requiredFactCoverage,
       status: "inconclusive",
       validationErrors: [],
     };
@@ -846,16 +1420,16 @@ const validateTrialJudgment = (
 
   if (conversationIncomplete) {
     return {
-      findings: output.findings,
-      requiredFactCoverage: output.requiredFactCoverage,
+      findings,
+      requiredFactCoverage,
       status: "inconclusive",
       validationErrors: ["conversation_incomplete"],
     };
   }
 
   return {
-    findings: output.findings,
-    requiredFactCoverage: output.requiredFactCoverage,
+    findings,
+    requiredFactCoverage,
     status: "passed",
     validationErrors: [],
   };

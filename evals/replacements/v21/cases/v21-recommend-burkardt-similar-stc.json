@@ -1,0 +1,175 @@
+{
+  "caseId": "v21-recommend-burkardt-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v21-recommend-burkardt-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v21-recommend-burkardt-similar-stc-turn-1",
+        "value": "91170086"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v21-recommend-burkardt-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jonathan Burkardt",
+        "status": "resolved",
+        "turnId": "v21-recommend-burkardt-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jonathan Burkardt",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91193048"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000064338"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000263999"
+          }
+        ],
+        "turnId": "v21-recommend-burkardt-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91170086",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91170086",
+        "value": 150
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp346854e2a23e7d",
+        "canonicalIdentityId": "rp346854e2a23e7d",
+        "mention": "Jonathan Burkardt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91170086"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91170086"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000263999"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000064338"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000071254"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91193048"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91193048"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000064338"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000263999"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v21-real-player-data",
+  "evidenceBundleSha256": "fbeff91c5eb30593ef3a2a2d98d2750eaf7c850fe2f253afa5a0a335c1ed09f2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v21 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v21-recommend-burkardt-stc-position-similarity-with-cap",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v21-recommend-burkardt-similar-stc-turn-1",
+      "userMessage": "Based on Jonathan Burkardt's STC profile, recommend similar players and show at most three."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

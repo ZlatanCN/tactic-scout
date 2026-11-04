@@ -1,7 +1,7 @@
 import type { CandidateSourceRecord } from "./contracts.js";
 import { normalizePlayerName } from "./shared.js";
 
-const tokenize = (value: string): string[] =>
+const tokenizePlayerName = (value: string): string[] =>
   value
     .normalize("NFKD")
     .replaceAll(/\p{Diacritic}/gu, "")
@@ -15,7 +15,7 @@ const hasContiguousTokens = (source: string[], target: string[]): boolean =>
   );
 
 const matchReferenceName = (mention: string, names: string[]) => {
-  const queryTokens = tokenize(mention);
+  const queryTokens = tokenizePlayerName(mention);
 
   if (queryTokens.length === 0 || names.length === 0) {
     return { exact: false, matches: false };
@@ -32,7 +32,7 @@ const matchReferenceName = (mention: string, names: string[]) => {
   }
 
   const matches = names.some((name) => {
-    const nameTokens = tokenize(name);
+    const nameTokens = tokenizePlayerName(name);
 
     return queryTokens.length === 1
       ? nameTokens.includes(queryTokens[0])
@@ -67,4 +67,4 @@ const deduplicateSourceRecords = (
   return [...unique.values()];
 };
 
-export { deduplicateSourceRecords, matchReferenceName };
+export { deduplicateSourceRecords, matchReferenceName, tokenizePlayerName };

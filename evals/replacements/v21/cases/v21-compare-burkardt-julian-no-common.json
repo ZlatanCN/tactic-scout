@@ -1,0 +1,264 @@
+{
+  "caseId": "v21-compare-burkardt-julian-no-common",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jonathan Burkardt",
+        "status": "resolved",
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1"
+      },
+      {
+        "lookupName": "Julián Álvarez",
+        "status": "resolved",
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jonathan Burkardt",
+        "status": "resolved"
+      },
+      {
+        "mention": "Julián Álvarez",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Jonathan Burkardt",
+        "status": "resolved",
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1"
+      },
+      {
+        "mention": "Julián Álvarez",
+        "status": "resolved",
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14183207"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10846"
+          }
+        ],
+        "turnId": "v21-compare-burkardt-julian-no-common-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91170086",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91170086",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "14183207",
+        "value": 172
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "14183207",
+        "value": 180
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7108",
+        "value": 506
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7108",
+        "value": 2.7235913909971714
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10846",
+        "value": 153
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10846",
+        "value": 1.3482190854847431
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp346854e2a23e7d",
+        "canonicalIdentityId": "rp346854e2a23e7d",
+        "mention": "Jonathan Burkardt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp08b0e04fa736f5",
+        "canonicalIdentityId": "rp08b0e04fa736f5",
+        "mention": "Julián Álvarez",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14183207"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10846",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91170086"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7108",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14183207"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10846",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91170086"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7108"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14183207"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10846"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v21-real-player-data",
+  "evidenceBundleSha256": "fbeff91c5eb30593ef3a2a2d98d2750eaf7c850fe2f253afa5a0a335c1ed09f2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v21 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v21-comparison-burkardt-julian-no-common-understat-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v21-compare-burkardt-julian-no-common-turn-1",
+      "userMessage": "Compare Jonathan Burkardt and Julián Álvarez using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison"
+}
