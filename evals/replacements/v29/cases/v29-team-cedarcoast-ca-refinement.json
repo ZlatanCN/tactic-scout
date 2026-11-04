@@ -1,0 +1,430 @@
+{
+  "caseId": "v29-team-cedarcoast-ca-refinement",
+  "category": "multi_turn",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v29-team-cedarcoast-ca-refinement",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v29-team-synthetic",
+  "evidenceBundleSha256": "ff75668132497fb6ea6a99bef4c7e2cc6bdb9480a0c6f0189c78487c719b884a",
+  "turns": [
+    {
+      "turnId": "v29-team-cedarcoast-ca-refinement-turn-1",
+      "userMessage": "为 Cedar Coast FC 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    },
+    {
+      "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+      "userMessage": "把球队推荐的 CA 下限设为 130。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          }
+        ],
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9861"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9862"
+          }
+        ],
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9861"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-ref-01"
+          }
+        ],
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9862"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-close-01"
+          }
+        ],
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-ref-01"
+          }
+        ],
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-ref-01"
+          }
+        ],
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+        "source": "input",
+        "path": "minimumCurrentAbility",
+        "value": 130
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+        "source": "result",
+        "path": "team.id",
+        "value": 10031
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "filters.minimumCurrentAbility",
+        "value": 130
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "FM ability-profile similarity does not establish tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01",
+        "field": "name",
+        "value": "Nico Vale"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01",
+        "field": "age",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01",
+        "field": "name",
+        "value": "Tomas North"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01",
+        "field": "potentialAbility",
+        "value": 166
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01",
+        "field": "age",
+        "value": 27
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v29-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10031"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9861"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "9862"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9861"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9862"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9861"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9862"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10031"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-far-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v29-ref-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [
+      {
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+        "path": "minimumCurrentAbility",
+        "value": 130
+      },
+      {
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+        "path": "teamId",
+        "value": 10031
+      },
+      {
+        "turnId": "v29-team-cedarcoast-ca-refinement-turn-2",
+        "path": "position",
+        "value": "stc"
+      }
+    ]
+  },
+  "ageAsOfDate": "2026-11-04"
+}

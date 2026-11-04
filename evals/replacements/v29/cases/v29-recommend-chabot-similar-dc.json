@@ -1,0 +1,168 @@
+{
+  "caseId": "v29-recommend-chabot-similar-dc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v29-recommend-chabot-similar-dc-turn-1",
+        "value": "dc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v29-recommend-chabot-similar-dc-turn-1",
+        "value": "91177332"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v29-recommend-chabot-similar-dc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jeff Chabot",
+        "status": "resolved",
+        "turnId": "v29-recommend-chabot-similar-dc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jeff Chabot",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000262919"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98035093"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "84159608"
+          }
+        ],
+        "turnId": "v29-recommend-chabot-similar-dc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91177332",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91177332",
+        "value": 145
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp42482881fda34a",
+        "canonicalIdentityId": "rp42482881fda34a",
+        "mention": "Jeff Chabot",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91177332"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000262919"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "98035093"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "84159608"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000262919"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98035093"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "84159608"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v29-real-data",
+  "evidenceBundleSha256": "2b8e1957506d195240111427742bd6ef837b8f2091993d56c1e9c27da06f6618",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v29-recommend-chabot-similar-dc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-recommend-chabot-similar-dc-turn-1",
+      "userMessage": "Based on Jeff Chabot's DC profile, recommend similar players and show at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

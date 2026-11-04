@@ -195,8 +195,9 @@ const resolveReepRecord = (
   }
 };
 
-const fmIdsForCanonicalIdentity = (
+const sourceIdsForCanonicalIdentity = (
   registry: DatabaseSync,
+  provider: CandidateSourceRecord["provider"],
   canonicalIdentityId: string
 ): string[] =>
   z
@@ -206,13 +207,19 @@ const fmIdsForCanonicalIdentity = (
         .prepare(
           `SELECT DISTINCT external_id
            FROM bridges
-           WHERE provider = 'fm' AND namespace = 'player'
+           WHERE provider = ? AND namespace = 'player'
              AND redirect_status = 'resolved' AND canonical_reep_id = ?
            ORDER BY external_id`
         )
-        .all(canonicalIdentityId)
+        .all(provider, canonicalIdentityId)
     )
     .map(({ external_id }) => external_id);
+
+const fmIdsForCanonicalIdentity = (
+  registry: DatabaseSync,
+  canonicalIdentityId: string
+): string[] =>
+  sourceIdsForCanonicalIdentity(registry, "fm", canonicalIdentityId);
 
 const expandFmIdsForLinkedIdentity = (fmIds: string[]): string[] => {
   const expandedFmIds = new Set(fmIds.filter((fmId) => fmId.length > 0));
@@ -457,6 +464,7 @@ export {
   resolveApiFootballPlayerFmIds,
   resolveReepRecord,
   resolveSearchIdentityGroups,
+  sourceIdsForCanonicalIdentity,
 };
 
 export type { ReepRecordResolution, SearchIdentityGroup };

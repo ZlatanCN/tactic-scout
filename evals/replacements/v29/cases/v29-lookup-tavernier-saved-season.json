@@ -1,0 +1,203 @@
+{
+  "caseId": "v29-lookup-tavernier-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v29-lookup-tavernier-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "29162667"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10741",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Marcus Tavernier",
+        "status": "resolved",
+        "turnId": "v29-lookup-tavernier-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Marcus Tavernier",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Marcus Tavernier",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp55f4b39181b9e5",
+        "turnId": "v29-lookup-tavernier-saved-season-turn-1"
+      },
+      {
+        "mention": "Marcus Tavernier",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp55f4b39181b9e5",
+        "turnId": "v29-lookup-tavernier-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10741",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v29-lookup-tavernier-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29162667",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29162667",
+        "value": 145
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10741",
+        "value": 594
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10741",
+        "value": 2.524979144334793
+      },
+      {
+        "competition": "EPL",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10741",
+        "value": 4
+      },
+      {
+        "competition": "EPL",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10741",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp55f4b39181b9e5",
+        "canonicalIdentityId": "rp55f4b39181b9e5",
+        "mention": "Marcus Tavernier",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10741",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29162667"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10741",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10741",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v29-real-data",
+  "evidenceBundleSha256": "2b8e1957506d195240111427742bd6ef837b8f2091993d56c1e9c27da06f6618",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v29-lookup-tavernier-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-lookup-tavernier-saved-season-turn-1",
+      "userMessage": "Look up Marcus Tavernier's FM profile and 2026/27 EPL performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-lookup-tavernier-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,466 @@
+{
+  "caseId": "v29-compare-add-thuram-same-serie-a",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Manu Koné",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Matías Soulé",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Marcus Thuram",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Manu Koné",
+        "status": "resolved"
+      },
+      {
+        "mention": "Matías Soulé",
+        "status": "resolved"
+      },
+      {
+        "mention": "Marcus Thuram",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Manu Koné",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1"
+      },
+      {
+        "mention": "Matías Soulé",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1"
+      },
+      {
+        "mention": "Manu Koné",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2"
+      },
+      {
+        "mention": "Matías Soulé",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2"
+      },
+      {
+        "mention": "Marcus Thuram",
+        "status": "resolved",
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49047182"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7482",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14222108"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9965",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49047182"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7482",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14222108"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9965",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48037335"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5992",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v29-compare-add-thuram-same-serie-a-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49047182",
+        "value": 160
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49047182",
+        "value": 164
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "14222108",
+        "value": 159
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "14222108",
+        "value": 163
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48037335",
+        "value": 167
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48037335",
+        "value": 170
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7482",
+        "value": 419
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7482",
+        "value": 1.104264385998249
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9965",
+        "value": 412
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9965",
+        "value": 2.2586260978132486
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5992",
+        "value": 368
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5992",
+        "value": 4.324520781636238
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6d7ebda2f857cc",
+        "canonicalIdentityId": "rp6d7ebda2f857cc",
+        "mention": "Manu Koné",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49047182"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7482",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpfec91207d02e56",
+        "canonicalIdentityId": "rpfec91207d02e56",
+        "mention": "Matías Soulé",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14222108"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9965",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp1230647c4fe494",
+        "canonicalIdentityId": "rp1230647c4fe494",
+        "mention": "Marcus Thuram",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48037335"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5992",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49047182"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7482",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14222108"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9965",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48037335"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5992",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49047182"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7482",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14222108"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9965",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49047182"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7482",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14222108"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9965",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48037335"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5992",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v29-real-data",
+  "evidenceBundleSha256": "2b8e1957506d195240111427742bd6ef837b8f2091993d56c1e9c27da06f6618",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v29-compare-add-thuram-same-serie-a",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-compare-add-thuram-same-serie-a-turn-1",
+      "userMessage": "Compare Manu Koné and Matías Soulé for 2026/27 Serie A data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-compare-add-thuram-same-serie-a-turn-2",
+      "userMessage": "Add Marcus Thuram to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

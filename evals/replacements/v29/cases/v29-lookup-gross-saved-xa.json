@@ -1,0 +1,211 @@
+{
+  "caseId": "v29-lookup-gross-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v29-lookup-gross-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "92017376"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "239",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Pascal Groß",
+        "status": "resolved",
+        "turnId": "v29-lookup-gross-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Pascal Groß",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Pascal Groß",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpe886b1b1a39aaf",
+        "turnId": "v29-lookup-gross-saved-xa-turn-1"
+      },
+      {
+        "mention": "Pascal Groß",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpe886b1b1a39aaf",
+        "turnId": "v29-lookup-gross-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92017376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "239",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v29-lookup-gross-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92017376",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92017376",
+        "value": 155
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "239",
+        "value": 613
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "239",
+        "value": 1.9282620642334223
+      },
+      {
+        "competition": "EPL",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "239",
+        "value": 3
+      },
+      {
+        "competition": "EPL",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "239",
+        "value": 4
+      },
+      {
+        "provider": "understat",
+        "sourceId": "239",
+        "field": "expectedAssists",
+        "value": 3.0215802006423473,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpe886b1b1a39aaf",
+        "canonicalIdentityId": "rpe886b1b1a39aaf",
+        "mention": "Pascal Groß",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92017376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "239",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92017376"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "239",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92017376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "239",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v29-real-data",
+  "evidenceBundleSha256": "2b8e1957506d195240111427742bd6ef837b8f2091993d56c1e9c27da06f6618",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v29-lookup-gross-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-lookup-gross-saved-xa-turn-1",
+      "userMessage": "Look up Pascal Groß's FM profile and 2026/27 EPL performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-lookup-gross-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

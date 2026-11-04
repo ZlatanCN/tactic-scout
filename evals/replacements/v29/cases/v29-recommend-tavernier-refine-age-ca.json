@@ -1,0 +1,272 @@
+{
+  "caseId": "v29-recommend-tavernier-refine-age-ca",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1",
+        "value": "29162667"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2",
+        "value": "29162667"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2",
+        "value": 145
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Marcus Tavernier",
+        "status": "resolved",
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Marcus Tavernier",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000065479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000304635"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000062318"
+          }
+        ],
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000090211"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000027530"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000195626"
+          }
+        ],
+        "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29162667",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29162667",
+        "value": 145
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp55f4b39181b9e5",
+        "canonicalIdentityId": "rp55f4b39181b9e5",
+        "mention": "Marcus Tavernier",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29162667"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000065479"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000304635"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000062318"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000090211"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000027530"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000195626"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000065479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000304635"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000062318"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29162667"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000090211"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000027530"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000195626"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v29-real-data",
+  "evidenceBundleSha256": "2b8e1957506d195240111427742bd6ef837b8f2091993d56c1e9c27da06f6618",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v29-recommend-tavernier-refine-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-recommend-tavernier-refine-age-ca-turn-1",
+      "userMessage": "Based on Marcus Tavernier's AMR profile, recommend alternatives aged 23 or younger and show at most three."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v29-recommend-tavernier-refine-age-ca-turn-2",
+      "userMessage": "Refine to keep AMR players aged 23 or younger with CA at least 145, showing at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -5,15 +5,26 @@ import type {
   ReferenceCandidate,
   ReferenceLookupResult,
 } from "./contracts.js";
-import { readFmReferenceRecords } from "./football-manager.js";
-import { openIdentityRegistry, resolveReepRecord } from "./reep-registry.js";
+import {
+  readFmProfilesBySourceIds,
+  readFmReferenceRecords,
+} from "./football-manager.js";
+import { deduplicateSourceRecords } from "./name-matching.js";
+import {
+  openIdentityRegistry,
+  resolveReepRecord,
+  sourceIdsForCanonicalIdentity,
+} from "./reep-registry.js";
 import {
   assertModelProcessingAllowed,
   isLocalDataError,
   normalizePlayerName,
   resolveDataPath,
 } from "./shared.js";
-import { readUnderstatReferenceRecords } from "./understat.js";
+import {
+  readUnderstatBySourceIds,
+  readUnderstatReferenceRecords,
+} from "./understat.js";
 
 type ReferenceIdentityLookup = (
   mention: string
@@ -118,6 +129,82 @@ const groupReferenceCandidates = (
   }
 
   return sortReferenceCandidates([...groups.values()]);
+};
+
+const linkedRecordsForSource = (
+  record: CandidateSourceRecord,
+  registry: DatabaseSync,
+  expandedIdentities: Set<string>
+): CandidateSourceRecord[] => {
+  const identity = resolveReepRecord(
+    registry,
+    record.provider,
+    record.sourceId
+  );
+
+  if (identity.status !== "resolved" || identity.canonicalIdentityId === null) {
+    return [];
+  }
+
+  const linkedProvider = record.provider === "fm" ? "understat" : "fm";
+  const expansionKey = `${identity.canonicalIdentityId}:${linkedProvider}`;
+
+  if (expandedIdentities.has(expansionKey)) {
+    return [];
+  }
+
+  expandedIdentities.add(expansionKey);
+
+  const linkedIds = sourceIdsForCanonicalIdentity(
+    registry,
+    linkedProvider,
+    identity.canonicalIdentityId
+  );
+
+  if (linkedProvider === "understat") {
+    const understat = readUnderstatBySourceIds(linkedIds);
+
+    return understat.status === "found"
+      ? understat.records.map((linkedRecord) => ({
+          canonicalIdentityId: identity.canonicalIdentityId,
+          competition: linkedRecord.competition,
+          exactNameMatch: false,
+          name: linkedRecord.player,
+          provider: "understat" as const,
+          season: linkedRecord.season,
+          sourceId: linkedRecord.sourcePlayerId,
+          team: linkedRecord.team,
+        }))
+      : [];
+  }
+
+  const fm = readFmProfilesBySourceIds(linkedIds);
+
+  return fm.status === "found"
+    ? fm.records.map((linkedRecord) => ({
+        canonicalIdentityId: identity.canonicalIdentityId,
+        competition: null,
+        exactNameMatch: false,
+        name: linkedRecord.player,
+        provider: "fm" as const,
+        season: null,
+        sourceId: linkedRecord.identitySourceId,
+        team: null,
+      }))
+    : [];
+};
+
+const linkedSourceRecordsFor = (
+  records: CandidateSourceRecord[],
+  registry: DatabaseSync
+): CandidateSourceRecord[] => {
+  const expandedIdentities = new Set<string>();
+
+  const linkedRecords = records.flatMap((record) =>
+    linkedRecordsForSource(record, registry, expandedIdentities)
+  );
+
+  return deduplicateSourceRecords([...records, ...linkedRecords]);
 };
 
 const candidateProviders = (candidate: ReferenceCandidate): Set<string> =>
@@ -388,8 +475,10 @@ const resolvePlayerReference = (mention: string): ReferenceLookupResult => {
   }
 
   try {
+    const expandedRecords = linkedSourceRecordsFor(records, registry);
+
     const allCandidates = groupPossibleSamePersonCandidates(
-      groupReferenceCandidates(records, registry)
+      groupReferenceCandidates(expandedRecords, registry)
     );
 
     const limited = limitReferenceCandidates(allCandidates);

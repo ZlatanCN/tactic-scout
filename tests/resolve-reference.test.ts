@@ -85,7 +85,7 @@ describe("player reference data failures", () => {
     });
   });
 
-  it("finds an accented FM name with spaces and keeps its Reep-linked Understat record", () => {
+  it("includes a Reep-linked Understat record when its display name differs from FM", () => {
     const directory = mkdtempSync(
       path.join(tmpdir(), "tactiscout-accented-fm-")
     );
@@ -101,11 +101,11 @@ describe("player reference data failures", () => {
       ability_current: "172",
       ability_potential: "180",
       birth_date: "2000-01-31",
-      full_name: "Julián Álvarez",
+      full_name: "Alejandro Grimaldo",
       height_cm: "170",
-      name: "Julián Álvarez",
+      name: "Alejandro Grimaldo",
       natural_positions: "STC",
-      unique_id: "fm-julian-1",
+      unique_id: "fm-grimaldo-1",
       ...Object.fromEntries(
         [
           "acceleration",
@@ -137,10 +137,10 @@ describe("player reference data failures", () => {
               assists: "1",
               games: "5",
               goals: "0",
-              id: "us-julian-1",
+              id: "us-grimaldo-1",
               key_passes: "3",
               npxG: "1.2",
-              player_name: "Julián Álvarez",
+              player_name: "Álex Grimaldo",
               position: "F",
               shots: "8",
               team_title: "Atlético Madrid",
@@ -152,19 +152,20 @@ describe("player reference data failures", () => {
         })
       );
     fm.exec(
-      "CREATE TABLE players (record_id TEXT, name TEXT, payload BLOB);" +
+      "CREATE TABLE players (record_id TEXT, unique_id TEXT, name TEXT, payload BLOB);" +
         "CREATE TABLE aliases (record_id TEXT, name TEXT);"
     );
     fm.prepare(
-      "INSERT INTO players (record_id, name, payload) VALUES (?, ?, ?)"
+      "INSERT INTO players (record_id, unique_id, name, payload) VALUES (?, ?, ?, ?)"
     ).run(
-      "fm-row-julian-1",
-      "Julián Álvarez",
+      "fm-row-grimaldo-1",
+      "fm-grimaldo-1",
+      "Alejandro Grimaldo",
       deflateRawSync(Buffer.from(JSON.stringify(attributes), "utf-8"))
     );
     fm.prepare("INSERT INTO aliases (record_id, name) VALUES (?, ?)").run(
-      "fm-row-julian-1",
-      "julian alvarez"
+      "fm-row-grimaldo-1",
+      "Alejandro Grimaldo"
     );
     identity.exec(
       "CREATE TABLE metadata (key TEXT, value TEXT);" +
@@ -173,11 +174,11 @@ describe("player reference data failures", () => {
     );
 
     const insertBridge = identity.prepare(
-      "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES (?, 'player', ?, 'reep-julian-1', 'resolved')"
+      "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES (?, 'player', ?, 'reep-grimaldo-1', 'resolved')"
     );
 
-    insertBridge.run("fm", "fm-julian-1");
-    insertBridge.run("understat", "us-julian-1");
+    insertBridge.run("fm", "fm-grimaldo-1");
+    insertBridge.run("understat", "us-grimaldo-1");
     understat.close();
     fm.close();
     identity.close();
@@ -187,7 +188,7 @@ describe("player reference data failures", () => {
     vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", fmPath);
     vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", identityPath);
 
-    const result = resolvePlayerReference("Julián Álvarez");
+    const result = resolvePlayerReference("Alejandro Grimaldo");
 
     expect({
       candidateId: result.candidates[0]?.candidateId,
@@ -197,10 +198,27 @@ describe("player reference data failures", () => {
       })),
       status: result.status,
     }).toStrictEqual({
-      candidateId: "reep:reep-julian-1",
+      candidateId: "reep:reep-grimaldo-1",
       records: [
-        { provider: "understat", sourceId: "us-julian-1" },
-        { provider: "fm", sourceId: "fm-julian-1" },
+        { provider: "fm", sourceId: "fm-grimaldo-1" },
+        { provider: "understat", sourceId: "us-grimaldo-1" },
+      ],
+      status: "resolved",
+    });
+
+    const understatMention = resolvePlayerReference("Álex Grimaldo");
+
+    expect({
+      candidateId: understatMention.candidates[0]?.candidateId,
+      records: understatMention.candidates[0]?.records.map(
+        ({ provider, sourceId }) => ({ provider, sourceId })
+      ),
+      status: understatMention.status,
+    }).toStrictEqual({
+      candidateId: "reep:reep-grimaldo-1",
+      records: [
+        { provider: "understat", sourceId: "us-grimaldo-1" },
+        { provider: "fm", sourceId: "fm-grimaldo-1" },
       ],
       status: "resolved",
     });

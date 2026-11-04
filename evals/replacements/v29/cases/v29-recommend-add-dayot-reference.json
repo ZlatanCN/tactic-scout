@@ -1,0 +1,299 @@
+{
+  "caseId": "v29-recommend-add-dayot-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v29-recommend-add-dayot-reference",
+  "priorTuningExposure": "Authored for the independent v29 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v29-real-data",
+  "evidenceBundleSha256": "2b8e1957506d195240111427742bd6ef837b8f2091993d56c1e9c27da06f6618",
+  "turns": [
+    {
+      "turnId": "v29-recommend-add-dayot-reference-turn-1",
+      "userMessage": "根据 Jeff Chabot 的 DC 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v29-recommend-add-dayot-reference-turn-2",
+      "userMessage": "再加上 Dayot Upamecano 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jeff Chabot",
+        "status": "resolved"
+      },
+      {
+        "mention": "Dayot Upamecano",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jeff Chabot",
+        "status": "resolved",
+        "turnId": "v29-recommend-add-dayot-reference-turn-1"
+      },
+      {
+        "lookupName": "Dayot Upamecano",
+        "status": "resolved",
+        "turnId": "v29-recommend-add-dayot-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000262919"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98035093"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "84159608"
+          }
+        ],
+        "turnId": "v29-recommend-add-dayot-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16182894"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "86075795"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49039789"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91137493"
+          }
+        ],
+        "turnId": "v29-recommend-add-dayot-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-1",
+        "value": "dc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-1",
+        "value": "91177332"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-2",
+        "value": "dc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-2",
+        "value": "91177332"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v29-recommend-add-dayot-reference-turn-2",
+        "value": "16182894"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91177332",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91177332",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "16182894",
+        "value": 165
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "16182894",
+        "value": 170
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp42482881fda34a",
+        "canonicalIdentityId": "rp42482881fda34a",
+        "mention": "Jeff Chabot",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpdf2291a28a1519",
+        "canonicalIdentityId": "rpdf2291a28a1519",
+        "mention": "Dayot Upamecano",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16182894"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91177332"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000262919"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "98035093"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "84159608"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "16182894"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "86075795"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49039789"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91137493"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000262919"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98035093"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "84159608"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91177332"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16182894"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "86075795"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49039789"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91137493"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}
