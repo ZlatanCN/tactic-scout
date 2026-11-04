@@ -1,0 +1,298 @@
+{
+  "caseId": "v25-recommend-add-riquelme-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v25-recommend-add-riquelme-reference",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "turns": [
+    {
+      "turnId": "v25-recommend-add-riquelme-reference-turn-1",
+      "userMessage": "根据 Gonçalo Guedes 的 AMC 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v25-recommend-add-riquelme-reference-turn-2",
+      "userMessage": "再加上 Rodrigo Riquelme 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved"
+      },
+      {
+        "mention": "Rodrigo Riquelme",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-1"
+      },
+      {
+        "lookupName": "Rodrigo Riquelme",
+        "status": "resolved",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27045629"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43617790"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91144396"
+          }
+        ],
+        "turnId": "v25-recommend-add-riquelme-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67259880"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18101818"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14163705"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91157973"
+          }
+        ],
+        "turnId": "v25-recommend-add-riquelme-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-1",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-1",
+        "value": "55041710"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-2",
+        "value": "amc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-2",
+        "value": "55041710"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v25-recommend-add-riquelme-reference-turn-2",
+        "value": "67259880"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 152
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67259880",
+        "value": 139
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67259880",
+        "value": 154
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdf5d17e64f79f5",
+        "canonicalIdentityId": "rpdf5d17e64f79f5",
+        "mention": "Gonçalo Guedes",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpb245e1c00a2aac",
+        "canonicalIdentityId": "rpb245e1c00a2aac",
+        "mention": "Rodrigo Riquelme",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67259880"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "55041710"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "27045629"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43617790"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91144396"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67259880"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18101818"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14163705"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91157973"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27045629"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43617790"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91144396"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67259880"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18101818"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14163705"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91157973"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  }
+}

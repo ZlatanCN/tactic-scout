@@ -1,0 +1,202 @@
+{
+  "caseId": "v25-lookup-petkov-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v25-lookup-petkov-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "91194664"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9127",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Lukas Petkov",
+        "status": "resolved",
+        "turnId": "v25-lookup-petkov-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Lukas Petkov",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Lukas Petkov",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp2848a0392532a9",
+        "turnId": "v25-lookup-petkov-saved-season-turn-1"
+      },
+      {
+        "mention": "Lukas Petkov",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp2848a0392532a9",
+        "turnId": "v25-lookup-petkov-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91194664"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9127",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v25-lookup-petkov-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91194664",
+        "value": 120
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91194664",
+        "value": 130
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9127",
+        "value": 538
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9127",
+        "value": 2.143056869506836
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9127",
+        "value": 2
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9127",
+        "value": 2
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp2848a0392532a9",
+        "canonicalIdentityId": "rp2848a0392532a9",
+        "mention": "Lukas Petkov",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91194664"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9127",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91194664"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9127",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91194664"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9127",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v25-lookup-petkov-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-lookup-petkov-saved-season-turn-1",
+      "userMessage": "Look up Lukas Petkov's Football Manager profile and 2026/27 Bundesliga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-lookup-petkov-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

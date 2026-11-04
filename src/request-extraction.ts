@@ -119,6 +119,14 @@ const recommendationExtractionSchema = z.object({
   resultLimit: z.number().int().min(1).max(20).nullable().optional(),
 });
 
+const dataSourceMentionKeys = new Set([
+  "apifootball",
+  "fm",
+  "footballmanager",
+  "reep",
+  "understat",
+]);
+
 const requestExtractionSchema = z.object({
   comparisonAction: z
     .enum(["replace", "add", "refine"])
@@ -949,6 +957,42 @@ const isCollectiveReferenceMention = (mention: string): boolean =>
     normalizeMentionText(mention)
   );
 
+const isDataSourceMention = (mention: string): boolean =>
+  dataSourceMentionKeys.has(normalizeMentionText(mention));
+
+const isExplicitPlayerMention = (
+  messageKey: string,
+  mention: string
+): boolean => {
+  const mentionKey = normalizeMentionText(mention);
+
+  if (mentionKey.length === 0 || !messageKey.includes(mentionKey)) {
+    return false;
+  }
+
+  return (
+    !isDataSourceMention(mention) &&
+    !isPlayerReferenceMention(mention) &&
+    !isCollectiveReferenceMention(mention)
+  );
+};
+
+const isIgnoredPlayerMention = (
+  mention: string,
+  hasCollectiveParticipants: boolean,
+  hasSingleExplicitPlayer: boolean
+): boolean => {
+  if (isDataSourceMention(mention)) {
+    return true;
+  }
+
+  if (hasCollectiveParticipants && isCollectiveReferenceMention(mention)) {
+    return true;
+  }
+
+  return hasSingleExplicitPlayer && isPlayerReferenceMention(mention);
+};
+
 const normalizeExtractedPlayers = (
   message: string,
   players: ExtractedPlayerMention[]
@@ -956,16 +1000,9 @@ const normalizeExtractedPlayers = (
   const messageKey = normalizeMentionText(message);
 
   const explicitPlayerMentions = uniquePlayers(
-    players.filter(({ mention }) => {
-      const mentionKey = normalizeMentionText(mention);
-
-      return (
-        mentionKey.length > 0 &&
-        messageKey.includes(mentionKey) &&
-        !isPlayerReferenceMention(mention) &&
-        !isCollectiveReferenceMention(mention)
-      );
-    })
+    players.filter(({ mention }) =>
+      isExplicitPlayerMention(messageKey, mention)
+    )
   );
 
   const explicitPlayerCount = explicitPlayerMentions.length;
@@ -984,9 +1021,11 @@ const normalizeExtractedPlayers = (
 
   for (const player of players) {
     if (
-      (hasCollectiveParticipants &&
-        isCollectiveReferenceMention(player.mention)) ||
-      (hasSingleExplicitPlayer && isPlayerReferenceMention(player.mention))
+      isIgnoredPlayerMention(
+        player.mention,
+        hasCollectiveParticipants,
+        hasSingleExplicitPlayer
+      )
     ) {
       continue;
     }

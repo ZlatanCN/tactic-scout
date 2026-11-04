@@ -1,0 +1,167 @@
+{
+  "caseId": "v25-lookup-becker-pa-pronoun-boundary",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Sheraldo Becker",
+        "status": "resolved",
+        "turnId": "v25-lookup-becker-pa-pronoun-boundary-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Sheraldo Becker",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v25-lookup-becker-pa-pronoun-boundary-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37027194",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37027194",
+        "value": 142
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7882",
+        "value": 455
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7882",
+        "value": 1.715122863650322
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7882",
+        "value": 2
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7882",
+        "value": 3
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp306fec337db81c",
+        "canonicalIdentityId": "rp306fec337db81c",
+        "mention": "Sheraldo Becker",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "37027194"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7882",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v25-lookup-becker-pa-pronoun-boundary",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-lookup-becker-pa-pronoun-boundary-turn-1",
+      "userMessage": "How many appearances did Sheraldo Becker make in the 2026/27 Bundesliga? Use the available record. Does his PA guarantee future CA of 160?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

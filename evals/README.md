@@ -128,9 +128,13 @@ Run `060b307e-a485-40dc-a438-fe31fb785024` is exposed and not an acceptance gate
 
 Run `37a11cd1-a26a-4737-9be4-1252f29c8236` was stopped at 34/48 trials after 119 requests because the pack had already exposed case-contract mistakes in La Liga inputs and saved-result identity reuse. It also surfaced the recommendation reference ordering defect, now fixed with a graph-level regression. V23 is diagnostic only; v24 is the new independent replacement pack.
 
-## V24 replacement held-out candidate
+## Exposed V24 held-out attempt
 
-V24 contains 16 new cases (12 real-source, 4 synthetic team-roster) with new player/source IDs and a new synthetic fixture. All evidence hashes are prepared locally; the held-out preview reports 16/16 ready and estimates 834 requests for three trials per case plus judge calibration/scoring. The latest 32-case real-model development baseline passed before the small recommendation-reference-order correction; after that correction, the graph-level regression and all 253 offline tests pass. Run v24 as the sole final acceptance gate after committing and freezing the current code and cases.
+Run `e3e727f6-d532-4cc0-97d0-0015cbf72a6f` was stopped at 27/48 trials after 97 requests because a saved xA follow-up occasionally treated “Understat” as a player. V24 is exposed and diagnostic only. V25 is the independent replacement after filtering source names and matching metric follow-ups to saved lookups.
+
+## V25 replacement held-out candidate
+
+V25 contains 16 cases (12 real-source, 4 synthetic team-roster) with new player/source IDs and a new synthetic fixture. Evidence is prepared locally and the preview reports 16/16 ready, with an 834-request estimate. The exact Understat xA follow-up is included. Run v25 after committing and freezing this code and pack; it is the next final acceptance gate.
 
 ## V19 held-out result
 

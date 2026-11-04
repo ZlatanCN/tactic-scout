@@ -1,0 +1,178 @@
+{
+  "caseId": "v25-recommend-guedes-under-16-pa-boundary",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+        "value": "55041710"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+        "value": 16
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000495389"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2002078852"
+          }
+        ],
+        "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 152
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdf5d17e64f79f5",
+        "canonicalIdentityId": "rpdf5d17e64f79f5",
+        "mention": "Gonçalo Guedes",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "55041710"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000495389"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2002078852"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000495389"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2002078852"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v25-recommend-guedes-under-16-pa-boundary",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-recommend-guedes-under-16-pa-boundary-turn-1",
+      "userMessage": "Based on Gonçalo Guedes, recommend STC prospects aged 16 or younger with PA at least 140; show one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

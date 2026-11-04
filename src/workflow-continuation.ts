@@ -5,6 +5,7 @@ import { normalizeMentionText } from "./player-mentions.js";
 import {
   recommendationPatchFromRequest,
   explicitUnderstatSeasonStartYearFromText,
+  normalizeExtractedPlayers,
 } from "./request-extraction.js";
 import type {
   PreviousTurnSummary,
@@ -605,7 +606,9 @@ const savedLookupTargetMatches = (
     return false;
   }
 
-  if (extracted.players.length === 0) {
+  const currentPlayers = normalizeExtractedPlayers(text, extracted.players);
+
+  if (currentPlayers.length === 0) {
     return true;
   }
 
@@ -623,7 +626,7 @@ const savedLookupTargetMatches = (
     ].map(normalizeMentionText)
   );
 
-  const mentionsMatch = extracted.players.every((player) => {
+  const mentionsMatch = currentPlayers.every((player) => {
     if (player.referenceScope === "explicit") {
       return knownNames.has(normalizeMentionText(player.mention));
     }

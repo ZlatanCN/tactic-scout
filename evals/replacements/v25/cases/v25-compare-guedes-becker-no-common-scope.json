@@ -1,0 +1,272 @@
+{
+  "caseId": "v25-compare-guedes-becker-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Sheraldo Becker",
+        "status": "resolved",
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved"
+      },
+      {
+        "mention": "Sheraldo Becker",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1"
+      },
+      {
+        "mention": "Sheraldo Becker",
+        "status": "resolved",
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 152
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37027194",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37027194",
+        "value": 142
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5682",
+        "value": 349
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5682",
+        "value": 1.557546665892005
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7882",
+        "value": 455
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7882",
+        "value": 1.715122863650322
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdf5d17e64f79f5",
+        "canonicalIdentityId": "rpdf5d17e64f79f5",
+        "mention": "Gonçalo Guedes",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp306fec337db81c",
+        "canonicalIdentityId": "rp306fec337db81c",
+        "mention": "Sheraldo Becker",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "55041710"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5682",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37027194"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7882",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v25-compare-guedes-becker-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-compare-guedes-becker-no-common-scope-turn-1",
+      "userMessage": "Compare Gonçalo Guedes and Sheraldo Becker using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison"
+}

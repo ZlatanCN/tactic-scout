@@ -1,0 +1,171 @@
+{
+  "caseId": "v25-team-southport-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v25-team-southport-unmapped-roster",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v25-team-synthetic",
+  "evidenceBundleSha256": "418f19ea6d12f8492b97523be4700efde61f0546116c171d508385d6ec91c392",
+  "turns": [
+    {
+      "turnId": "v25-team-southport-unmapped-roster-turn-1",
+      "userMessage": "为 Southport Albion 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9983"
+          }
+        ],
+        "turnId": "v25-team-southport-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9983"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9994"
+          }
+        ],
+        "turnId": "v25-team-southport-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9994"
+          }
+        ],
+        "turnId": "v25-team-southport-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v25-team-southport-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 9994
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v25-team-southport-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v25-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v25-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v25-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v25-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v25-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v25-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "team:9983"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "player:9994"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9983"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:9983"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:9994"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:9994"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  }
+}

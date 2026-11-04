@@ -800,6 +800,128 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("reuses a saved lookup when a follow-up names a data source, not another player", async () => {
+    const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+    const firstMessage =
+      "Look up Mikel Oyarzabal's 2026/27 La Liga FM profile and performance.";
+
+    const followUp = "What xA did Understat report?";
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [fmRecord(player.name, "mikel-fm")], status: "found" },
+        identityGroups: {
+          canonicalGroups: [
+            {
+              canonicalIdentityId: "canonical-mikel",
+              name: player.name,
+              records: [
+                {
+                  identitySourceId: "mikel-fm",
+                  name: player.name,
+                  provider: "fm",
+                  recordId: "mikel-fm",
+                },
+                {
+                  identitySourceId: "mikel-understat",
+                  name: player.name,
+                  provider: "understat",
+                  recordId: "mikel-understat",
+                },
+              ],
+            },
+          ],
+          registryStatus: "available",
+          unlinkedRecords: [],
+        },
+        query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
+        understat: {
+          records: [
+            {
+              appearances: 9,
+              assists: 2,
+              competition: "La_liga",
+              expectedAssists: 1.4065424017608166,
+              expectedGoals: 2.2992119416594505,
+              goals: 2,
+              keyPasses: 11,
+              minutes: 606,
+              nonPenaltyExpectedGoals: 2.2992119416594505,
+              player: player.name,
+              position: "F M S",
+              season: "2026/27",
+              shots: 19,
+              source: "Understat",
+              sourcePlayerId: "mikel-understat",
+              team: "Real Sociedad",
+            },
+          ],
+          status: "found",
+        },
+      })
+    );
+
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          args: {
+            seasonStartYear: 2026,
+            sourceRecords: [
+              { provider: "fm", sourceId: "mikel-fm" },
+              { provider: "understat", sourceId: "mikel-understat" },
+            ],
+          },
+          name: "search_player_records",
+        },
+      ])
+      .respond(new AIMessage("The Mikel Oyarzabal lookup is complete."))
+      .respond(new AIMessage("The saved Understat result reports xA 1.41."));
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      playerIdentityLookup: resolvedLookup(player),
+      requestUnderstandingExtractor: createExtractor({
+        [firstMessage]: requestForPlayers("player_lookup", [player.name]),
+        [followUp]: requestForPlayers("player_lookup", ["Understat"]),
+      }),
+      tools: [createSearchTool(search)],
+    });
+
+    const config = {
+      configurable: { thread_id: "lookup-follow-up-source-mention" },
+    };
+
+    const firstResult = await graph.invoke(
+      { messages: [new HumanMessage(firstMessage)] },
+      config
+    );
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(followUp)] },
+      config
+    );
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      firstActiveLookup:
+        firstResult.conversationContext.activeLookup?.player.candidate.name,
+      firstOutcome: firstResult.outcome?.status,
+      lookupFollowUp: result.outcome?.status,
+      requestPlayers: result.request.players,
+      searchCalls: search.mock.calls.length,
+    }).toMatchObject({
+      answer: "The saved Understat result reports xA 1.41.",
+      firstActiveLookup: "Mikel Oyarzabal",
+      firstOutcome: "answer_ready",
+      lookupFollowUp: "lookup_follow_up",
+      requestPlayers: [],
+      searchCalls: 1,
+    });
+  });
+
   it("retains a completed player recommendation when its final explanation fails", async () => {
     const kane = playerCandidate("Harry Kane", "kane");
     const message = "Find striker alternatives to Kane.";

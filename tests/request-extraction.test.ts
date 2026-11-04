@@ -125,6 +125,20 @@ describe("request understanding extraction", () => {
     ]);
   });
 
+  it("does not treat a data source as a player mention", () => {
+    const message = "What xA did Understat report?";
+
+    expect(
+      normalizeExtractedPlayers(message, [
+        {
+          lookupName: null,
+          mention: "Understat",
+          referenceScope: "explicit",
+        },
+      ])
+    ).toStrictEqual([]);
+  });
+
   it("keeps real ChatOpenAI SDK retries inside the graph's physical request budget", async () => {
     const requestSchema = z.looseObject({
       tools: z.array(

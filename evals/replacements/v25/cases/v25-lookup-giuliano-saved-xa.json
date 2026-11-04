@@ -1,0 +1,210 @@
+{
+  "caseId": "v25-lookup-giuliano-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v25-lookup-giuliano-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "14250859"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9796",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Giuliano Simeone",
+        "status": "resolved",
+        "turnId": "v25-lookup-giuliano-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Giuliano Simeone",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Giuliano Simeone",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp738711e9ba764f",
+        "turnId": "v25-lookup-giuliano-saved-xa-turn-1"
+      },
+      {
+        "mention": "Giuliano Simeone",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp738711e9ba764f",
+        "turnId": "v25-lookup-giuliano-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14250859"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9796",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v25-lookup-giuliano-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "14250859",
+        "value": 152
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "14250859",
+        "value": 159
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9796",
+        "value": 643
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9796",
+        "value": 0.6814709985628724
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9796",
+        "value": 2
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9796",
+        "value": 2
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9796",
+        "field": "expectedAssists",
+        "value": 1.2222811076790094,
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp738711e9ba764f",
+        "canonicalIdentityId": "rp738711e9ba764f",
+        "mention": "Giuliano Simeone",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14250859"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9796",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "14250859"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9796",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14250859"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9796",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v25-lookup-giuliano-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-lookup-giuliano-saved-xa-turn-1",
+      "userMessage": "Look up Giuliano Simeone's Football Manager profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-lookup-giuliano-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

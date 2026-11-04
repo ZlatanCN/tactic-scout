@@ -61,6 +61,28 @@ const youthRecommendationPattern =
 const lookupFollowUpPattern =
   /\b(?:which|what)\s+(?:season|league|source)\b|哪个赛季|什么赛季|哪个联赛|什么联赛|刚才(?:查到|的).{0,8}(?:赛季|数据|资料)/iu;
 
+const lookupFollowUpQuestionPattern = /\b(?:what|which)\b|(?:多少|哪个|什么)/iu;
+
+const lookupFollowUpAbilityFieldPattern = /\b(?:xg|xa|ca|pa)\b/iu;
+
+const lookupFollowUpEnglishStatisticPattern =
+  /\b(?:goals?|assists?|minutes|appearances?|shots?|height|birth\s+date)\b/iu;
+
+const lookupFollowUpChineseStatisticPattern =
+  /进球|助攻|出场|分钟|射门|关键传球|身高|出生日期/iu;
+
+const isLookupFieldFollowUp = (text: string): boolean => {
+  if (!lookupFollowUpQuestionPattern.test(text)) {
+    return false;
+  }
+
+  return (
+    lookupFollowUpAbilityFieldPattern.test(text) ||
+    lookupFollowUpEnglishStatisticPattern.test(text) ||
+    lookupFollowUpChineseStatisticPattern.test(text)
+  );
+};
+
 const seasonConstraintNamePattern = /season|赛季/iu;
 
 const explicitMaximumAgePattern =
@@ -77,7 +99,10 @@ const isLookupFollowUpRequest = (
   text: string,
   context: ConversationContext
 ): boolean => {
-  if (context.activeLookup === null || !lookupFollowUpPattern.test(text)) {
+  if (
+    context.activeLookup === null ||
+    (!lookupFollowUpPattern.test(text) && !isLookupFieldFollowUp(text))
+  ) {
     return false;
   }
 

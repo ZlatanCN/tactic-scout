@@ -1,0 +1,460 @@
+{
+  "caseId": "v25-compare-add-becker-inherited-la-liga-scope",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+        "value": 0
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+        "value": false
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+        "value": 2
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1"
+      },
+      {
+        "lookupName": "Ander Barrenetxea",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1"
+      },
+      {
+        "lookupName": "Sheraldo Becker",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ander Barrenetxea",
+        "status": "resolved"
+      },
+      {
+        "mention": "Sheraldo Becker",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1"
+      },
+      {
+        "mention": "Ander Barrenetxea",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1"
+      },
+      {
+        "mention": "Gonçalo Guedes",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2"
+      },
+      {
+        "mention": "Ander Barrenetxea",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2"
+      },
+      {
+        "mention": "Sheraldo Becker",
+        "status": "resolved",
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276482"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7308",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276482"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7308",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          }
+        ],
+        "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "55041710",
+        "value": 152
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67276482",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67276482",
+        "value": 154
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37027194",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37027194",
+        "value": 142
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5682",
+        "value": 349
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5682",
+        "value": 1.557546665892005
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7308",
+        "value": 474
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7308",
+        "value": 0.8267306517809629
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdf5d17e64f79f5",
+        "canonicalIdentityId": "rpdf5d17e64f79f5",
+        "mention": "Gonçalo Guedes",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpac9e14e49ac35e",
+        "canonicalIdentityId": "rpac9e14e49ac35e",
+        "mention": "Ander Barrenetxea",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67276482"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7308",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp306fec337db81c",
+        "canonicalIdentityId": "rp306fec337db81c",
+        "mention": "Sheraldo Becker",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7882",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "55041710"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5682",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67276482"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7308",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37027194"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7882",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276482"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7308",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "55041710"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5682",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67276482"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7308",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37027194"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v25-real-data",
+  "evidenceBundleSha256": "f4049814d1ae805e1739845485684351a278a9aa6e50fd9f6b9df278cd4a2df2",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v25 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v25-compare-add-becker-inherited-la-liga-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-1",
+      "userMessage": "Compare Gonçalo Guedes and Ander Barrenetxea in 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v25-compare-add-becker-inherited-la-liga-scope-turn-2",
+      "userMessage": "Add Sheraldo Becker to the comparison."
+    }
+  ],
+  "workflow": "player_comparison"
+}
