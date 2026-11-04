@@ -1,3 +1,5 @@
+Status: exposed. Do not use v22 as a blind acceptance gate; its outputs were inspected and used to tune the agent.
+
 # V22 replacement held-out pack
 
 This 16-case pack replaces the exposed v21 attempt. It contains four cases for each workflow, with one ordinary, one boundary, and two multi-turn cases per workflow. Twelve cases use new local FM and Understat source records; four use a new synthetic API-Football roster fixture.

@@ -118,7 +118,11 @@ The v19 evaluator had judge-input and prompt changes for per-turn failures, play
 
 ### Latest development run
 
-Run `ab501a02-5b6c-4d55-9d8b-7352a2f6ccd0` completed the repaired 32-case development split: 96/96 Agent trials passed, calibration passed 32/32 (including validation 16/16), and semantic review passed 96/96. Required-fact omissions, factual contradictions, unsupported facts, and false execution claims were all zero. It used 411 requests (283 Agent, 32 calibration, 96 judge); three transient network failures were recovered and no requests were denied. The run's working tree was dirty, so it is a development repair baseline; freeze the committed source and evidence before the v22 held-out run.
+Run `615ed820-7097-465a-b35d-6ef74c71d5f5` completed the repaired 32-case development split: 96/96 trials passed code checks and semantic review. Calibration passed 32/32 (including validation 16/16). Required-fact omissions, factual contradictions, unsupported facts, and false execution claims were all zero. It used 402 requests (269 Agent, 32 calibration, 101 judge); two transient network failures were recovered and no requests were denied. The run's working tree was dirty, so it is a development repair baseline, not the frozen held-out gate.
+
+## Exposed V22 held-out attempt
+
+Run `060b307e-a485-40dc-a438-fe31fb785024` is exposed and not an acceptance gate. It completed 48 trials with 23 passing and 25 failing code contracts; semantic review reported one unsupported fact. Calibration passed 32/32. The failures exposed stale identity/tool expectations and the natural-position wording issue. V22 must not be reused for tuning or final acceptance; see `evals/replacements/v22/README.md` for its exposure status. V23 is the independent replacement pack.
 
 ## V19 held-out result
 

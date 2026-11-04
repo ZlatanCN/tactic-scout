@@ -1,0 +1,192 @@
+{
+  "caseId": "v23-lookup-aubameyang-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v23-lookup-aubameyang-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "43017197"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "318",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Pierre-Emerick Aubameyang",
+        "status": "resolved",
+        "turnId": "v23-lookup-aubameyang-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v23-lookup-aubameyang-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 170
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "318",
+        "value": 646
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "318",
+        "value": 4.143434464931488
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "318",
+        "value": 6
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "318",
+        "value": 4
+      },
+      {
+        "provider": "understat",
+        "sourceId": "318",
+        "field": "expectedAssists",
+        "value": 1.5796765610575676,
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpd1b2d260d647f8",
+        "canonicalIdentityId": "rpd1b2d260d647f8",
+        "mention": "Pierre-Emerick Aubameyang",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "43017197"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "318",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v23-real-data",
+  "evidenceBundleSha256": "536042e08d3bab875961f521fd1ef796fe6ae5e721f5ef25d258a006e3268924",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v23 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v23-lookup-aubameyang-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-lookup-aubameyang-saved-xa-turn-1",
+      "userMessage": "Look up Pierre-Emerick Aubameyang's Football Manager profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-lookup-aubameyang-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup"
+}

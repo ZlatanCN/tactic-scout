@@ -955,7 +955,7 @@ const normalizeExtractedPlayers = (
 ): NormalizedExtractedPlayerMention[] => {
   const messageKey = normalizeMentionText(message);
 
-  const explicitPlayerCount = uniquePlayers(
+  const explicitPlayerMentions = uniquePlayers(
     players.filter(({ mention }) => {
       const mentionKey = normalizeMentionText(mention);
 
@@ -966,9 +966,11 @@ const normalizeExtractedPlayers = (
         !isCollectiveReferenceMention(mention)
       );
     })
-  ).length;
+  );
 
+  const explicitPlayerCount = explicitPlayerMentions.length;
   const hasCollectiveParticipants = explicitPlayerCount >= 2;
+  const hasSingleExplicitPlayer = explicitPlayerCount === 1;
   const detectedReferenceCandidate = findPlayerReferenceMention(message);
 
   const detectedReference =
@@ -982,8 +984,9 @@ const normalizeExtractedPlayers = (
 
   for (const player of players) {
     if (
-      hasCollectiveParticipants &&
-      isCollectiveReferenceMention(player.mention)
+      (hasCollectiveParticipants &&
+        isCollectiveReferenceMention(player.mention)) ||
+      (hasSingleExplicitPlayer && isPlayerReferenceMention(player.mention))
     ) {
       continue;
     }
@@ -1001,6 +1004,7 @@ const normalizeExtractedPlayers = (
 
   if (
     detectedReference !== null &&
+    !hasSingleExplicitPlayer &&
     !normalizedPlayers.some((player) => player.referenceScope !== "explicit")
   ) {
     normalizedPlayers.push({

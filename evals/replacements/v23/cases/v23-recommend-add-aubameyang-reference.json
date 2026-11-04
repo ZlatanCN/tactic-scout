@@ -1,0 +1,346 @@
+{
+  "caseId": "v23-recommend-add-aubameyang-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v23-recommend-add-aubameyang-reference",
+  "priorTuningExposure": "Authored for the independent v23 held-out pack from fixed local snapshots; not run against a live model.",
+  "evidenceBundleId": "replacement-v23-real-data",
+  "evidenceBundleSha256": "536042e08d3bab875961f521fd1ef796fe6ae5e721f5ef25d258a006e3268924",
+  "turns": [
+    {
+      "turnId": "v23-recommend-add-aubameyang-reference-turn-1",
+      "userMessage": "根据 Sergio Camello 推荐 stc 球员。"
+    },
+    {
+      "turnId": "v23-recommend-add-aubameyang-reference-turn-2",
+      "userMessage": "再加上 Pierre-Emerick Aubameyang 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Sergio Camello",
+        "status": "resolved"
+      },
+      {
+        "mention": "Pierre-Emerick Aubameyang",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Sergio Camello",
+        "status": "resolved",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-1"
+      },
+      {
+        "lookupName": "Pierre-Emerick Aubameyang",
+        "status": "resolved",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67170824"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29125842"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14044409"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29106999"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28062309"
+          }
+        ],
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27088228"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43390644"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43107748"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14043242"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "96092561"
+          }
+        ],
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-1",
+        "value": "67272502"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-1",
+        "value": 5
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-2",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-2",
+        "value": "67272502"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-2",
+        "value": 5
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v23-recommend-add-aubameyang-reference-turn-2",
+        "value": "43017197"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67272502",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67272502",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 170
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpe2197cb3b0a88b",
+        "canonicalIdentityId": "rpe2197cb3b0a88b",
+        "mention": "Sergio Camello",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpd1b2d260d647f8",
+        "canonicalIdentityId": "rpd1b2d260d647f8",
+        "mention": "Pierre-Emerick Aubameyang",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67272502"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67170824"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29125842"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14044409"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29106999"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28062309"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43017197"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "27088228"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43390644"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43107748"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14043242"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "96092561"
+      }
+    ],
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67170824"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29125842"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14044409"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29106999"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28062309"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27088228"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43390644"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43107748"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14043242"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "96092561"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  }
+}

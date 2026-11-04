@@ -1,0 +1,465 @@
+{
+  "caseId": "v23-compare-add-aubameyang-same-la-liga-scope",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1",
+        "value": "La_liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2",
+        "value": "La_liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Sergio Camello",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1"
+      },
+      {
+        "lookupName": "Pierre-Emerick Aubameyang",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1"
+      },
+      {
+        "lookupName": "Lucas Boyé",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Sergio Camello",
+        "status": "resolved"
+      },
+      {
+        "mention": "Pierre-Emerick Aubameyang",
+        "status": "resolved"
+      },
+      {
+        "mention": "Lucas Boyé",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La_liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La_liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Sergio Camello",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1"
+      },
+      {
+        "mention": "Pierre-Emerick Aubameyang",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1"
+      },
+      {
+        "mention": "Sergio Camello",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2"
+      },
+      {
+        "mention": "Pierre-Emerick Aubameyang",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2"
+      },
+      {
+        "mention": "Lucas Boyé",
+        "status": "resolved",
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7528",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7528",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14110829"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1189",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67272502",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67272502",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 170
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "14110829",
+        "value": 138
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "14110829",
+        "value": 141
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7528",
+        "value": 572
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7528",
+        "value": 3.3731982856988907
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "318",
+        "value": 646
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "318",
+        "value": 4.143434464931488
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1189",
+        "value": 652
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1189",
+        "value": 2.9895246624946594
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpe2197cb3b0a88b",
+        "canonicalIdentityId": "rpe2197cb3b0a88b",
+        "mention": "Sergio Camello",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7528",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpd1b2d260d647f8",
+        "canonicalIdentityId": "rpd1b2d260d647f8",
+        "mention": "Pierre-Emerick Aubameyang",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp5d827fcb39c1df",
+        "canonicalIdentityId": "rp5d827fcb39c1df",
+        "mention": "Lucas Boyé",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14110829"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1189",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67272502"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7528",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43017197"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "318",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14110829"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1189",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7528",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67272502"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7528",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "318",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14110829"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1189",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v23-real-data",
+  "evidenceBundleSha256": "536042e08d3bab875961f521fd1ef796fe6ae5e721f5ef25d258a006e3268924",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v23 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v23-compare-add-aubameyang-same-la-liga-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-1",
+      "userMessage": "Compare Sergio Camello and Pierre-Emerick Aubameyang in 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-compare-add-aubameyang-same-la-liga-scope-turn-2",
+      "userMessage": "Add Lucas Boyé to the comparison."
+    }
+  ],
+  "workflow": "player_comparison"
+}

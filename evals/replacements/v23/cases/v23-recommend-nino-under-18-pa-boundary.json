@@ -1,0 +1,178 @@
+{
+  "caseId": "v23-recommend-nino-under-18-pa-boundary",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+        "value": "67258829"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+        "value": 18
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+        "value": 150
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Fer Niño",
+        "status": "resolved",
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Fer Niño",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67258829"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000326671"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000338371"
+          }
+        ],
+        "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67258829",
+        "value": 122
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67258829",
+        "value": 154
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp290a8eeeb423fd",
+        "canonicalIdentityId": "rp290a8eeeb423fd",
+        "mention": "Fer Niño",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67258829"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67258829"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000326671"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000338371"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67258829"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000326671"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000338371"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v23-real-data",
+  "evidenceBundleSha256": "536042e08d3bab875961f521fd1ef796fe6ae5e721f5ef25d258a006e3268924",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v23 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v23-recommend-nino-under-18-pa-boundary",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-recommend-nino-under-18-pa-boundary-turn-1",
+      "userMessage": "Based on Fer Niño, recommend STC prospects aged 18 or younger with PA at least 150; show one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation"
+}

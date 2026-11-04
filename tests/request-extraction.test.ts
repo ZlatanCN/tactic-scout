@@ -103,6 +103,28 @@ describe("request understanding extraction", () => {
     ]);
   });
 
+  it("uses a singular pronoun as the only explicit player reference in its turn", () => {
+    const message =
+      "How many appearances did Fisnik Asllani make? Does his PA guarantee future CA?";
+
+    const players = normalizeExtractedPlayers(message, [
+      {
+        lookupName: null,
+        mention: "Fisnik Asllani",
+        referenceScope: "explicit",
+      },
+      {
+        lookupName: null,
+        mention: "his",
+        referenceScope: "prior_context",
+      },
+    ]);
+
+    expect(players).toMatchObject([
+      { mention: "Fisnik Asllani", referenceScope: "explicit" },
+    ]);
+  });
+
   it("keeps real ChatOpenAI SDK retries inside the graph's physical request budget", async () => {
     const requestSchema = z.looseObject({
       tools: z.array(

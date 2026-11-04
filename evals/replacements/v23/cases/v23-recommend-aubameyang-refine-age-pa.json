@@ -1,0 +1,247 @@
+{
+  "caseId": "v23-recommend-aubameyang-refine-age-pa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-1",
+        "value": "43017197"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-1",
+        "value": 2
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+        "value": "43017197"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+        "value": 18
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+        "value": false
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+        "value": 2
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Pierre-Emerick Aubameyang",
+        "status": "resolved",
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Pierre-Emerick Aubameyang",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "58098760"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13189534"
+          }
+        ],
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000338371"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000293255"
+          }
+        ],
+        "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43017197",
+        "value": 170
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpd1b2d260d647f8",
+        "canonicalIdentityId": "rpd1b2d260d647f8",
+        "mention": "Pierre-Emerick Aubameyang",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "43017197"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "58098760"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "13189534"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000338371"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000293255"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "58098760"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13189534"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "recommend_player_candidates",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43017197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000338371"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000293255"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v23-real-data",
+  "evidenceBundleSha256": "536042e08d3bab875961f521fd1ef796fe6ae5e721f5ef25d258a006e3268924",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v23 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v23-recommend-aubameyang-refine-age-pa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-1",
+      "userMessage": "Based on Pierre-Emerick Aubameyang, recommend STC alternatives and show at most two."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v23-recommend-aubameyang-refine-age-pa-turn-2",
+      "userMessage": "Refine to players aged 18 or younger with PA at least 140, still showing at most two."
+    }
+  ],
+  "workflow": "player_recommendation"
+}
