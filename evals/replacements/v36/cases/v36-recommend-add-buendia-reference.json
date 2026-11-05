@@ -1,0 +1,291 @@
+{
+  "caseId": "v36-recommend-add-buendia-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v36-recommend-add-buendia-reference",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "turns": [
+    {
+      "turnId": "v36-recommend-add-buendia-reference-turn-1",
+      "userMessage": "Based on Fábio Vieira's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v36-recommend-add-buendia-reference-turn-2",
+      "userMessage": "Add Emiliano Buendía as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Fábio Vieira",
+        "status": "resolved"
+      },
+      {
+        "mention": "Emiliano Buendía",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Fábio Vieira",
+        "status": "resolved",
+        "turnId": "v36-recommend-add-buendia-reference-turn-1"
+      },
+      {
+        "lookupName": "Emiliano Buendía",
+        "status": "resolved",
+        "turnId": "v36-recommend-add-buendia-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "83174759"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85142865"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67291985"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27128917"
+          }
+        ],
+        "turnId": "v36-recommend-add-buendia-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "83174759"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67201783"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49055037"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27128917"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85142865"
+          }
+        ],
+        "turnId": "v36-recommend-add-buendia-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-1",
+        "value": "83174759"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-2",
+        "value": "83174759"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-2",
+        "value": "67201783"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v36-recommend-add-buendia-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "83174759",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "83174759",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67201783",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67201783",
+        "value": 155
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc98141ce0e1298",
+        "canonicalIdentityId": "rpc98141ce0e1298",
+        "mention": "Fábio Vieira",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "83174759"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpd0341a84e4f051",
+        "canonicalIdentityId": "rpd0341a84e4f051",
+        "mention": "Emiliano Buendía",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67201783"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "83174759"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85142865"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67291985"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "27128917"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67201783"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49055037"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "83174759"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85142865"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67291985"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27128917"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "83174759"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67201783"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49055037"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27128917"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85142865"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

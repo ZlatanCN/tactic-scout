@@ -1,0 +1,282 @@
+{
+  "caseId": "v36-compare-randy-williot-la-liga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Randy Nteka",
+        "status": "resolved",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Williot Swedberg",
+        "status": "resolved",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Randy Nteka",
+        "status": "resolved"
+      },
+      {
+        "mention": "Williot Swedberg",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Randy Nteka",
+        "status": "resolved",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1"
+      },
+      {
+        "mention": "Williot Swedberg",
+        "status": "resolved",
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67277397"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9813",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000008568"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v36-compare-randy-williot-la-liga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67277397",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67277397",
+        "value": 134
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000008568",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000008568",
+        "value": 159
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9813",
+        "value": 155
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9813",
+        "value": 0.6639002822339535
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10870",
+        "value": 380
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10870",
+        "value": 1.1323687434196472
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp07c8e7aa6f86ff",
+        "canonicalIdentityId": "rp07c8e7aa6f86ff",
+        "mention": "Randy Nteka",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67277397"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9813",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp517c710d9c6a17",
+        "canonicalIdentityId": "rp517c710d9c6a17",
+        "mention": "Williot Swedberg",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000008568"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67277397"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9813",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000008568"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10870",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67277397"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9813",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000008568"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-compare-randy-williot-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-compare-randy-williot-la-liga-turn-1",
+      "userMessage": "Compare Randy Nteka and Williot Swedberg using 2026/27 La Liga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

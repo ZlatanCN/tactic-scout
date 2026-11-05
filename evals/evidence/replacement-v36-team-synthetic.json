@@ -1,0 +1,625 @@
+{
+  "apiFootball": {
+    "capturedAt": "2025-11-20T12:00:00.000Z",
+    "requestedTeams": [],
+    "sourceRequests": null,
+    "squadResponses": [
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10101,
+                "name": "Northvale Athletic",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 19301,
+                  "name": "Niko Arendt",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 19302,
+                  "name": "Milo Fischer",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10101
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10102,
+                "name": "Northvale Athletic Reserves",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 19303,
+                  "name": "Ari Patel",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 19304,
+                  "name": "Soren Yu",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10102
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10103,
+                "name": "Eastwater City",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 10169,
+                  "name": "Liam Tide",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10103
+      }
+    ],
+    "teamSearchResponses": [
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10101,
+                "name": "Northvale Athletic",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Northvale Athletic"
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10101,
+                "name": "Northvale Athletic",
+                "country": "Westreach"
+              }
+            },
+            {
+              "team": {
+                "id": 10102,
+                "name": "Northvale Athletic Reserves",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Eastwater"
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10103,
+                "name": "Eastwater City",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Eastwater City"
+      }
+    ]
+  },
+  "bundleId": "replacement-v36-team-synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "synthetic-replacement-v36",
+      "inGameDate": "2025-11-23",
+      "sha256": "synthetic-replacement-v36-team-roster"
+    },
+    "players": [
+      {
+        "aliases": ["Arendt Beta"],
+        "birthDate": "2000-02-03",
+        "name": "Niko Arendt",
+        "payload": {
+          "ability_current": 150,
+          "ability_potential": 178,
+          "birth_date": "2000-02-03",
+          "common_name": "Niko Arendt",
+          "full_name": "Niko Arendt",
+          "height_cm": 182,
+          "name": "Niko Arendt",
+          "natural_positions": "STC;AMC",
+          "unique_id": "fm-v36-ref-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v36-ref-01",
+        "uniqueId": "fm-v36-ref-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2003-04-05",
+        "name": "Milo Fischer",
+        "payload": {
+          "ability_current": 146,
+          "ability_potential": 181,
+          "birth_date": "2003-04-05",
+          "common_name": "Milo Fischer",
+          "full_name": "Milo Fischer",
+          "height_cm": 179,
+          "name": "Milo Fischer",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-close-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v36-close-01",
+        "uniqueId": "fm-v36-close-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2007-06-07",
+        "name": "Ari Patel",
+        "payload": {
+          "ability_current": 124,
+          "ability_potential": 195,
+          "birth_date": "2007-06-07",
+          "common_name": "Ari Patel",
+          "full_name": "Ari Patel",
+          "height_cm": 180,
+          "name": "Ari Patel",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-future-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v36-future-01",
+        "uniqueId": "fm-v36-future-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "1999-08-09",
+        "name": "Soren Yu",
+        "payload": {
+          "ability_current": 160,
+          "ability_potential": 166,
+          "birth_date": "1999-08-09",
+          "common_name": "Soren Yu",
+          "full_name": "Soren Yu",
+          "height_cm": 188,
+          "name": "Soren Yu",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-far-01",
+          "raw_attributes_acceleration": 9,
+          "raw_attributes_pace": 9,
+          "raw_attributes_strength": 9,
+          "raw_attributes_jumping_reach": 9,
+          "raw_attributes_stamina": 9,
+          "raw_attributes_finishing": 9,
+          "raw_attributes_off_the_ball": 9,
+          "raw_attributes_heading": 9,
+          "raw_attributes_composure": 9,
+          "raw_attributes_anticipation": 9,
+          "raw_attributes_decisions": 9,
+          "raw_attributes_first_touch": 9,
+          "raw_attributes_passing": 9,
+          "raw_attributes_technique": 9,
+          "raw_attributes_vision": 9,
+          "raw_attributes_teamwork": 9,
+          "raw_attributes_dribbling": 9,
+          "raw_attributes_work_rate": 9
+        },
+        "recordId": "fm-row-v36-far-01",
+        "uniqueId": "fm-v36-far-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2001-01-01",
+        "name": "Jin Alvarez",
+        "payload": {
+          "ability_current": 140,
+          "ability_potential": 180,
+          "birth_date": "2001-01-01",
+          "common_name": "Jin Alvarez",
+          "full_name": "Jin Alvarez",
+          "height_cm": 183,
+          "name": "Jin Alvarez",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-missing-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": null,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v36-missing-01",
+        "uniqueId": "fm-v36-missing-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2002-01-01",
+        "name": "Rafael Costa",
+        "payload": {
+          "ability_current": 151,
+          "ability_potential": 181,
+          "birth_date": "2002-01-01",
+          "common_name": "Rafael Costa",
+          "full_name": "Rafael Costa",
+          "height_cm": 182,
+          "name": "Rafael Costa",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-ineligible-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v36-ineligible-01",
+        "uniqueId": "fm-v36-ineligible-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2000-01-01",
+        "name": "Theo Lin",
+        "payload": {
+          "ability_current": 135,
+          "ability_potential": 170,
+          "birth_date": "2000-01-01",
+          "common_name": "Theo Lin",
+          "full_name": "V23 Ambiguous A",
+          "height_cm": 180,
+          "name": "V23 Ambiguous A",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-amb-a",
+          "raw_attributes_acceleration": 14,
+          "raw_attributes_pace": 14,
+          "raw_attributes_strength": 14,
+          "raw_attributes_jumping_reach": 14,
+          "raw_attributes_stamina": 14,
+          "raw_attributes_finishing": 14,
+          "raw_attributes_off_the_ball": 14,
+          "raw_attributes_heading": 14,
+          "raw_attributes_composure": 14,
+          "raw_attributes_anticipation": 14,
+          "raw_attributes_decisions": 14,
+          "raw_attributes_first_touch": 14,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 14,
+          "raw_attributes_vision": 14,
+          "raw_attributes_teamwork": 14,
+          "raw_attributes_dribbling": 14,
+          "raw_attributes_work_rate": 14
+        },
+        "recordId": "fm-row-v36-ambiguous-a",
+        "uniqueId": "fm-v36-amb-a"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2004-01-01",
+        "name": "Theo Lin",
+        "payload": {
+          "ability_current": 142,
+          "ability_potential": 181,
+          "birth_date": "2004-01-01",
+          "common_name": "Theo Lin",
+          "full_name": "V23 Ambiguous B",
+          "height_cm": 184,
+          "name": "V23 Ambiguous B",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-amb-b",
+          "raw_attributes_acceleration": 16,
+          "raw_attributes_pace": 16,
+          "raw_attributes_strength": 16,
+          "raw_attributes_jumping_reach": 16,
+          "raw_attributes_stamina": 16,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 16,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 16,
+          "raw_attributes_decisions": 16,
+          "raw_attributes_first_touch": 16,
+          "raw_attributes_passing": 16,
+          "raw_attributes_technique": 16,
+          "raw_attributes_vision": 16,
+          "raw_attributes_teamwork": 16,
+          "raw_attributes_dribbling": 16,
+          "raw_attributes_work_rate": 16
+        },
+        "recordId": "fm-row-v36-ambiguous-b",
+        "uniqueId": "fm-v36-amb-b"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2001-03-04",
+        "name": "Nico Duarte",
+        "payload": {
+          "ability_current": 130,
+          "ability_potential": 172,
+          "birth_date": "2001-03-04",
+          "common_name": "Nico Duarte",
+          "full_name": "Nico Duarte",
+          "height_cm": 180,
+          "name": "Nico Duarte",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-failure-ref-01",
+          "raw_attributes_acceleration": 13,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 13,
+          "raw_attributes_jumping_reach": 13,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 13,
+          "raw_attributes_heading": 13,
+          "raw_attributes_composure": 13,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 13,
+          "raw_attributes_first_touch": 13,
+          "raw_attributes_passing": 13,
+          "raw_attributes_technique": 13,
+          "raw_attributes_vision": 13,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 13,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v36-failure-ref-01",
+        "uniqueId": "fm-v36-failure-ref-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2007-10-01",
+        "name": "Luca Petrov",
+        "payload": {
+          "ability_current": 128,
+          "ability_potential": null,
+          "birth_date": "2007-10-01",
+          "common_name": "Luca Petrov",
+          "full_name": "Luca Petrov",
+          "height_cm": 180,
+          "name": "Luca Petrov",
+          "natural_positions": "STC",
+          "unique_id": "fm-v36-no-pa-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v36-no-pa-01",
+        "uniqueId": "fm-v36-no-pa-01"
+      }
+    ],
+    "positions": [
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v36-ref-01"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v36-close-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v36-future-01"
+      },
+      {
+        "position": "stc",
+        "rating": 18,
+        "recordId": "fm-row-v36-far-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v36-missing-01"
+      },
+      {
+        "position": "stc",
+        "rating": 14,
+        "recordId": "fm-row-v36-ineligible-01"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v36-ambiguous-a"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v36-ambiguous-b"
+      },
+      {
+        "position": "stc",
+        "rating": 14,
+        "recordId": "fm-row-v36-failure-ref-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v36-no-pa-01"
+      }
+    ]
+  },
+  "identity": {
+    "bridges": [
+      {
+        "canonicalReepId": "identity-v36-ref-01",
+        "externalId": "19301",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-failure-ref-01",
+        "externalId": "fm-v36-failure-ref-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-ref-01",
+        "externalId": "fm-v36-ref-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-ambiguous",
+        "externalId": "fm-v36-amb-a",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-ambiguous",
+        "externalId": "fm-v36-amb-b",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-future-01",
+        "externalId": "fm-v36-future-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-future-01",
+        "externalId": "19303",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-far-01",
+        "externalId": "fm-v36-far-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v36-far-01",
+        "externalId": "19304",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      }
+    ],
+    "releaseStamp": "replacement-v36-team-synthetic-release"
+  },
+  "origin": "synthetic",
+  "understat": {
+    "snapshots": []
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "caseId": "v36-compare-dembele-noslin-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ousmane Dembélé",
+        "status": "resolved",
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Tijjani Noslin",
+        "status": "resolved",
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ousmane Dembélé",
+        "status": "resolved"
+      },
+      {
+        "mention": "Tijjani Noslin",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Ousmane Dembélé",
+        "status": "resolved",
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1"
+      },
+      {
+        "mention": "Tijjani Noslin",
+        "status": "resolved",
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85140178"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3226",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37071153"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12378",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85140178",
+        "value": 185
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85140178",
+        "value": 188
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37071153",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37071153",
+        "value": 139
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3226",
+        "value": 246
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3226",
+        "value": 3.0874309726059437
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12378",
+        "value": 324
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12378",
+        "value": 1.950190557166934
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp69c0807fd1f462",
+        "canonicalIdentityId": "rp69c0807fd1f462",
+        "mention": "Ousmane Dembélé",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85140178"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3226",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpa4c7450d2f0eff",
+        "canonicalIdentityId": "rpa4c7450d2f0eff",
+        "mention": "Tijjani Noslin",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37071153"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12378",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85140178"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3226",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37071153"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12378",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85140178"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3226",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37071153"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12378",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-compare-dembele-noslin-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-compare-dembele-noslin-no-common-scope-turn-1",
+      "userMessage": "Compare Ousmane Dembélé and Tijjani Noslin using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

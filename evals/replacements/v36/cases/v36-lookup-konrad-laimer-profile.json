@@ -1,0 +1,174 @@
+{
+  "caseId": "v36-lookup-konrad-laimer-profile",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v36-lookup-konrad-laimer-profile-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Konrad Laimer",
+        "status": "resolved",
+        "turnId": "v36-lookup-konrad-laimer-profile-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Konrad Laimer",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16147659"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6109",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v36-lookup-konrad-laimer-profile-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "16147659",
+        "value": 153
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "16147659",
+        "value": 155
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6109",
+        "value": 241
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6109",
+        "value": 0.4982674866914749
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6109",
+        "value": 0
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6109",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp59a6e0edfd5fe3",
+        "canonicalIdentityId": "rp59a6e0edfd5fe3",
+        "mention": "Konrad Laimer",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16147659"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6109",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "16147659"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6109",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16147659"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6109",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-lookup-konrad-laimer-profile",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-lookup-konrad-laimer-profile-turn-1",
+      "userMessage": "Look up Konrad Laimer's FM profile and 2026/27 Bundesliga performance."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

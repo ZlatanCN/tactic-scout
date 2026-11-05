@@ -10,7 +10,7 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 
 ## Frozen scope
 
-- Use the next independent pack `evals/replacements/v35/cases` and local evidence in `.data/evals/v35-evidence`. V33 and V34 are exposed and must not be reused.
+- Use the next independent pack `evals/replacements/v36/cases` and local evidence in `.data/evals/v36-evidence`. V33, V34, and V35 are exposed and must not be reused.
 - FM supports fixed CA, PA, natural positions, and attributes. Understat supports only returned season-scoped performance. Current registration, injuries, availability, transfer status, and other time-sensitive claims require a source covering the requested period.
 - Age is recalculated from birth date as of each case's fixed `ageAsOfDate`, separately from the FM snapshot date.
 - A Reep canonical ID may connect provider source IDs even when display names differ. Names alone never establish identity.
@@ -43,4 +43,7 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 - V34 run `7d7c2273-7fd3-43bf-aac9-6e86076d8df4` completed 48/48 trials in 225 requests. Calibration passed 32/32 (including validation 16/16); 44/48 trials passed. Three failures were false identity-continuity failures because a pronoun was recorded as unresolved despite correct saved-result reuse. One semantic judgment missed Eric Martel CA/PA 140/150 displayed in the answer table. Two transient network failures were recovered; no requests were denied. V34 is exposed.
 - The judge now decodes text blocks before semantic judgment and visible-table evidence checks. A regression reproduces the serialized-content format from the failed V34 trial. V35 uses a neutral saved-result follow-up wording to test result reuse without introducing an unresolved pronoun as a separate identity-resolution requirement.
 - V35 is prepared as a new independent 16-case pack with 12 real-source and 4 synthetic cases. Preview reports 16/16 evidence bundles ready, 48 trials, and 798 estimated requests. The 900-request ceiling is authorized. No V35 requests have started.
+- V35 partial run `23c127d1-645b-4cd8-bef9-7bf1007c9746` used 72 requests and recorded 24 trials: 2 failed and 22 unfinished. Both failures were the same identity-resolution failure: the model returned “Janik Haberer's” including a possessive suffix, which did not match the canonical name. No judge/calibration ran, and there were no network failures or budget denials. V35 is exposed.
+- The request normalizer now strips terminal English possessive suffixes from extracted mentions and lookup-name overrides. Vitest covers both straight and curly apostrophes. V36 must use fresh identities and include a possessive-name query to verify the fix end to end.
+- V36 is prepared with 16 identities/source bundles new to V1–V35, including a “Konrad Laimer's” query that verifies the possessive normalization in the real graph. Preview reports 16/16 bundles ready, 48 trials, and 798 estimated requests. The 900-request ceiling is authorized; no V36 model request has started.
 - Offline validation after the reference-detail correction: 32 Vitest files / 317 tests passed with loopback enabled; typecheck and targeted Ultracite passed. The full repository-wide `pnpm check` still scans installed `.agents` skill assets and reports unrelated existing issues.

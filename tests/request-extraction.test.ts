@@ -38,6 +38,27 @@ const mockShortModelTimeout = () => {
 };
 
 describe("request understanding extraction", () => {
+  it.each(["Janik Haberer's", "Janik Haberer’s"])(
+    "removes the possessive suffix from the explicit player name %s",
+    (mention) => {
+      const message = `Look up ${mention} FM profile.`;
+
+      expect(
+        normalizeExtractedPlayers(message, [
+          { lookupName: null, mention, referenceScope: "explicit" },
+        ])
+      ).toStrictEqual([
+        {
+          lookupName: null,
+          mention: "Janik Haberer",
+          recommendationRole: "reference",
+          referenceScope: "explicit",
+          referenceTargetMention: null,
+        },
+      ]);
+    }
+  );
+
   it("uses tool calling and recognizes a request to add a player to the active comparison", async () => {
     const model = fakeModel();
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");

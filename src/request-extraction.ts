@@ -272,6 +272,9 @@ const normalizeLookupName = (
     : lookupName;
 };
 
+const stripPlayerNamePossessive = (value: string): string =>
+  value.replaceAll(/['’]s$/giu, "");
+
 const explicitUnderstatSeasonStartYearFromText = (
   text: string
 ): number | null => {
@@ -884,7 +887,13 @@ const normalizeExtractedPlayer = (
   messageKey: string,
   detectedReference: string | null
 ): NormalizedExtractedPlayerMention | null => {
-  const mention = player.mention.trim();
+  const mention = stripPlayerNamePossessive(player.mention.trim());
+
+  const lookupName = normalizeLookupName(
+    player.lookupName === null || player.lookupName === undefined
+      ? player.lookupName
+      : stripPlayerNamePossessive(player.lookupName.trim())
+  );
 
   if (mention.length === 0) {
     return null;
@@ -910,7 +919,7 @@ const normalizeExtractedPlayer = (
     }
 
     return {
-      lookupName: normalizeLookupName(player.lookupName),
+      lookupName,
       mention,
       recommendationRole,
       referenceScope,
@@ -924,7 +933,7 @@ const normalizeExtractedPlayer = (
     !isPlayerReferenceMention(mention)
   ) {
     return {
-      lookupName: normalizeLookupName(player.lookupName),
+      lookupName,
       mention,
       recommendationRole,
       referenceScope: "explicit",

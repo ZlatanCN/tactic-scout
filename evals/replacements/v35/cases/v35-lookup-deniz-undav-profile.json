@@ -159,7 +159,7 @@
   "evidenceBundleId": "replacement-v35-real-data",
   "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "priorTuningExposure": "Exposed by V35 partial run 23c127d1-645b-4cd8-bef9-7bf1007c9746: 72 model requests, 24 trial records, 2 failed and 22 unfinished. Both failures were the Janik Haberer possessive-form lookup, which failed exact identity resolution. No judge or calibration ran; there were no network failures or budget denials. Do not use V35 for acceptance.",
   "scenarioFamily": "replacement-v35-lookup-deniz-undav-profile",
   "split": "held_out",
   "turns": [

@@ -1,0 +1,168 @@
+{
+  "caseId": "v36-recommend-joshua-kimmich-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v36-recommend-joshua-kimmich-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v36-recommend-joshua-kimmich-similar-mc-turn-1",
+        "value": "92039023"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v36-recommend-joshua-kimmich-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Joshua Kimmich",
+        "status": "resolved",
+        "turnId": "v36-recommend-joshua-kimmich-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Joshua Kimmich",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92039023"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14110846"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98003821"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91184426"
+          }
+        ],
+        "turnId": "v36-recommend-joshua-kimmich-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92039023",
+        "value": 179
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92039023",
+        "value": 183
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpd0633eb14ebe14",
+        "canonicalIdentityId": "rpd0633eb14ebe14",
+        "mention": "Joshua Kimmich",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92039023"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92039023"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14110846"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "98003821"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91184426"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92039023"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14110846"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98003821"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91184426"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-recommend-joshua-kimmich-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-recommend-joshua-kimmich-similar-mc-turn-1",
+      "userMessage": "Based on Joshua Kimmich's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v35-team-brookhaven-ranking",
-  "priorTuningExposure": "Authored for independent V35 from a new synthetic team roster after V34 was exposed; no V35 model request has started.",
+  "priorTuningExposure": "Exposed by V35 partial run 23c127d1-645b-4cd8-bef9-7bf1007c9746: 72 model requests, 24 trial records, 2 failed and 22 unfinished. Both failures were the Janik Haberer possessive-form lookup, which failed exact identity resolution. No judge or calibration ran; there were no network failures or budget denials. Do not use V35 for acceptance.",
   "evidenceBundleId": "replacement-v35-team-synthetic",
   "evidenceBundleSha256": "5628d683ce770c7e1175234fd85bfecd2a8be4ef230075114bcc75a45716ad72",
   "turns": [

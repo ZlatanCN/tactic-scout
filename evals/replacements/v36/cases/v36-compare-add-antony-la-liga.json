@@ -1,0 +1,489 @@
+{
+  "caseId": "v36-compare-add-antony-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Tete Morente",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Isi Palazón",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Antony",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Tete Morente",
+        "status": "resolved"
+      },
+      {
+        "mention": "Isi Palazón",
+        "status": "resolved"
+      },
+      {
+        "mention": "Antony",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v36-compare-add-antony-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v36-compare-add-antony-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Tete Morente",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1"
+      },
+      {
+        "mention": "Isi Palazón",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-1"
+      },
+      {
+        "mention": "Tete Morente",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2"
+      },
+      {
+        "mention": "Isi Palazón",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2"
+      },
+      {
+        "mention": "Antony",
+        "status": "resolved",
+        "turnId": "v36-compare-add-antony-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67211699"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8895",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67173045"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9812",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v36-compare-add-antony-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67211699"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8895",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67173045"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9812",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19338230"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11094",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v36-compare-add-antony-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67211699",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67211699",
+        "value": 134
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67173045",
+        "value": 138
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67173045",
+        "value": 144
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "19338230",
+        "value": 152
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "19338230",
+        "value": 158
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8895",
+        "value": 476
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8895",
+        "value": 0.1840620394796133
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9812",
+        "value": 147
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9812",
+        "value": 0.04719129949808121
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11094",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 544
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11094",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 2.8045675083994865
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp53d0330366376d",
+        "canonicalIdentityId": "rp53d0330366376d",
+        "mention": "Tete Morente",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67211699"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8895",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp5ca42b833ec11f",
+        "canonicalIdentityId": "rp5ca42b833ec11f",
+        "mention": "Isi Palazón",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67173045"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9812",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpd08f48182c0c3c",
+        "canonicalIdentityId": "rpd08f48182c0c3c",
+        "mention": "Antony",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19338230"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11094",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67211699"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8895",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67173045"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9812",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19338230"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11094",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67211699"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8895",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67173045"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9812",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67211699"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8895",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67173045"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9812",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19338230"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11094",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-compare-add-antony-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-compare-add-antony-la-liga-turn-1",
+      "userMessage": "Compare Tete Morente and Isi Palazón using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-compare-add-antony-la-liga-turn-2",
+      "userMessage": "Add Antony to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

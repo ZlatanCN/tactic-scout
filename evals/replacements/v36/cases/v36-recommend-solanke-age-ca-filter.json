@@ -1,0 +1,182 @@
+{
+  "caseId": "v36-recommend-solanke-age-ca-filter",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1",
+        "value": "29125191"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1",
+        "value": 22
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1",
+        "value": 125
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Dominic Solanke",
+        "status": "resolved",
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Dominic Solanke",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29125191"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000013430"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000031653"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000182279"
+          }
+        ],
+        "turnId": "v36-recommend-solanke-age-ca-filter-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29125191",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29125191",
+        "value": 160
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpbcb4a7e429fb45",
+        "canonicalIdentityId": "rpbcb4a7e429fb45",
+        "mention": "Dominic Solanke",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29125191"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29125191"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000013430"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000031653"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000182279"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29125191"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000013430"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000031653"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000182279"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-recommend-solanke-age-ca-filter",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-recommend-solanke-age-ca-filter-turn-1",
+      "userMessage": "Recommend STC players based on Dominic Solanke, age 22 or younger, with CA at least 125, up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

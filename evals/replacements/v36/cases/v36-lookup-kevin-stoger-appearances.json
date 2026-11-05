@@ -1,0 +1,138 @@
+{
+  "caseId": "v36-lookup-kevin-stoger-appearances",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Kevin Stöger",
+        "status": "resolved",
+        "turnId": "v36-lookup-kevin-stoger-appearances-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Kevin Stöger",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92012093"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7058",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v36-lookup-kevin-stoger-appearances-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92012093",
+        "value": 145
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7058",
+        "value": 3
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp48b453de9fffcc",
+        "canonicalIdentityId": "rp48b453de9fffcc",
+        "mention": "Kevin Stöger",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92012093"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7058",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92012093"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7058",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92012093"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7058",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-lookup-kevin-stoger-appearances",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-lookup-kevin-stoger-appearances-turn-1",
+      "userMessage": "Look up Kevin Stöger's 2026/27 Bundesliga appearances and PA."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

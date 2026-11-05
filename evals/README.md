@@ -146,7 +146,15 @@ Run `7d7c2273-7fd3-43bf-aac9-6e86076d8df4` completed 48 trials using 225 model r
 
 ## V35 replacement held-out candidate
 
-V35 contains 16 new cases and fresh source identities compared with V1–V34. Its fixed evidence preview reports 16/16 bundles ready and estimates 798 requests for the complete three-trial run and judge calibration. The 900-request limit is already authorized. No V35 requests have started; run only after committing and freezing the evaluator and pack.
+V35 contains 16 new cases and fresh source identities compared with V1–V34. Its fixed evidence preview reports 16/16 bundles ready and estimates 798 requests for the complete three-trial run and judge calibration. The 900-request limit is already authorized. V35 is exposed; see the run below.
+
+## Exposed V35 held-out attempt
+
+Run `23c127d1-645b-4cd8-bef9-7bf1007c9746` is partial and exposed. It used 72 requests before stopping at 24 trial records: two failures and 22 unfinished. Both failures were the Janik Haberer lookup: the extracted mention included the English possessive suffix and failed exact identity resolution. No judge or calibration request ran; there were no network failures or budget denials. The request normalizer now strips a terminal possessive suffix before identity resolution; V36 is the independent replacement.
+
+## V36 replacement held-out candidate
+
+V36 contains 16 cases with identities and source IDs not used in V1–V35. It includes a live-model query using the possessive form “Konrad Laimer's” to verify normalization before identity resolution. Preview reports 16/16 evidence bundles ready and estimates 798 requests for the full held-out run. The 900-request ceiling is already authorized; V36 has not started.
 
 ## V19 held-out result
 

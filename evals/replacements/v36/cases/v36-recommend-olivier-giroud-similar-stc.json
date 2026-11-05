@@ -1,0 +1,168 @@
+{
+  "caseId": "v36-recommend-olivier-giroud-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v36-recommend-olivier-giroud-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v36-recommend-olivier-giroud-similar-stc-turn-1",
+        "value": "34000647"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v36-recommend-olivier-giroud-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Olivier Giroud",
+        "status": "resolved",
+        "turnId": "v36-recommend-olivier-giroud-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Olivier Giroud",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "34000647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "8502440"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "51031041"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14023274"
+          }
+        ],
+        "turnId": "v36-recommend-olivier-giroud-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "34000647",
+        "value": 131
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "34000647",
+        "value": 160
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdc2f1d86626f9f",
+        "canonicalIdentityId": "rpdc2f1d86626f9f",
+        "mention": "Olivier Giroud",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "34000647"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "34000647"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "8502440"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "51031041"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14023274"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "34000647"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "8502440"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "51031041"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14023274"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v36-real-data",
+  "evidenceBundleSha256": "56f667275566223d20095497231aaf2fb98ed681c36f06b2c2070c04d7c308e1",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V36 from fixed local snapshots after V35 was exposed; no V36 model request has started.",
+  "scenarioFamily": "replacement-v36-recommend-olivier-giroud-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v36-recommend-olivier-giroud-similar-stc-turn-1",
+      "userMessage": "Based on Olivier Giroud's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}
