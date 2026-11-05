@@ -244,7 +244,7 @@
   "evidenceBundleId": "replacement-v31-real-data",
   "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
   "origin": "real",
-  "priorTuningExposure": "The initial V31 attempt ran 5 of 48 trials and stopped after 20 requests before calibration or semantic judging. Three repeated trials failed only because the evaluator compared the diacritic in Nikola Krstović exactly; all expected identity and source IDs matched. The evaluation scorer now ignores diacritics in identity mentions only; no agent prompt or workflow behavior was tuned from this output.",
+  "priorTuningExposure": "V31 has been partially evaluated: the initial run stopped at 5/48 trials for an accent-only scorer false negative; the corrected scorer then passed all 48 deterministic checks and 32 semantic trials before three Samatta trials were stopped for an overbroad answer-required evidence list. The Samatta contract now requires only CA, PA, and appearances, which match the user question. No agent prompt or workflow behavior was tuned from V31 output.",
   "scenarioFamily": "replacement-v31-recommend-moffi-refine-age-ca",
   "split": "held_out",
   "turns": [

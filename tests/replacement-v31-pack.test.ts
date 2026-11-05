@@ -311,4 +311,15 @@ describe("v31 replacement held-out pack", () => {
       )?.value
     ).toBe(1);
   });
+
+  it("requires only the Samatta facts requested by the question", () => {
+    const caseDefinition = replacementCases.find(
+      ({ caseDefinition: currentCase }) =>
+        currentCase.caseId === "v31-lookup-samatta-appearances"
+    )?.caseDefinition;
+
+    expect(
+      caseDefinition?.contract.requiredEvidence.map(({ field }) => field)
+    ).toStrictEqual(["currentAbility", "potentialAbility", "appearances"]);
+  });
 });
