@@ -1,0 +1,138 @@
+{
+  "caseId": "v33-lookup-calvert-appearances",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Dominic Calvert-Lewin",
+        "status": "resolved",
+        "turnId": "v33-lookup-calvert-appearances-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Dominic Calvert-Lewin",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29123128"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5555",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v33-lookup-calvert-appearances-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29123128",
+        "value": 163
+      },
+      {
+        "competition": "EPL",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5555",
+        "value": 7
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp59738182836c39",
+        "canonicalIdentityId": "rp59738182836c39",
+        "mention": "Dominic Calvert-Lewin",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29123128"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5555",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29123128"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5555",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29123128"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5555",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "scenarioFamily": "replacement-v33-lookup-calvert-appearances",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-lookup-calvert-appearances-turn-1",
+      "userMessage": "How many appearances did Dominic Calvert-Lewin make in 2026/27 EPL? Does his PA guarantee future CA of 180?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

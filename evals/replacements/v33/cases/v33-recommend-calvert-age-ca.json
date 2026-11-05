@@ -1,0 +1,182 @@
+{
+  "caseId": "v33-recommend-calvert-age-ca",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v33-recommend-calvert-age-ca-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v33-recommend-calvert-age-ca-turn-1",
+        "value": "29123128"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v33-recommend-calvert-age-ca-turn-1",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v33-recommend-calvert-age-ca-turn-1",
+        "value": 120
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v33-recommend-calvert-age-ca-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Dominic Calvert-Lewin",
+        "status": "resolved",
+        "turnId": "v33-recommend-calvert-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Dominic Calvert-Lewin",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29123128"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000120742"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000218258"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000190386"
+          }
+        ],
+        "turnId": "v33-recommend-calvert-age-ca-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29123128",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29123128",
+        "value": 163
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp59738182836c39",
+        "canonicalIdentityId": "rp59738182836c39",
+        "mention": "Dominic Calvert-Lewin",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29123128"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29123128"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000120742"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000218258"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000190386"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29123128"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000120742"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000218258"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000190386"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "scenarioFamily": "replacement-v33-recommend-calvert-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-recommend-calvert-age-ca-turn-1",
+      "userMessage": "Based on Dominic Calvert-Lewin STC profile, recommend alternatives aged 23 or younger with CA at least 120; show at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

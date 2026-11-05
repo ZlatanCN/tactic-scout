@@ -1403,6 +1403,56 @@ describe("LangGraph player workflows", () => {
     });
   });
 
+  it("restores reference CA and PA when a recommendation answer omits the reference", async () => {
+    const resultJson = JSON.stringify(
+      recommendationResultData("ready", "stc", {
+        referenceFmIds: ["2000180850"],
+        references: [
+          {
+            currentAbility: 127,
+            fmId: "2000180850",
+            name: "Mert Kömür",
+            positionRating: 16,
+            potentialAbility: 150,
+            sourceRecordId: "fm-row-mert-komur",
+          },
+        ],
+      })
+    );
+
+    const state = AgentState.parse({
+      messages: [
+        new HumanMessage("Based on Mert Kömür, recommend STC prospects."),
+      ],
+      outcome: {
+        kind: "player_recommendation",
+        resultJson,
+        source: "executed",
+        status: "ready",
+      },
+    });
+
+    const graph = new StateGraph(AgentState)
+      .addNode(
+        "answer",
+        createAnswerNode(
+          fakeModel().respond(
+            new AIMessage(
+              "## Current ability similarity candidates\n\nTest Candidate, CA 140, PA 160."
+            )
+          )
+        )
+      )
+      .addEdge(START, "answer")
+      .addEdge("answer", END)
+      .compile();
+
+    const result = await graph.invoke(state);
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain("- Mert Kömür (FM ID 2000180850; CA 127; PA 150)");
+  });
+
   it("corrects team answers that claim null filters were applied", async () => {
     const team = { country: "England", id: 42, name: "Arsenal" };
 

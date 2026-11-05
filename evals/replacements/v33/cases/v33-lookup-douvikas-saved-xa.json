@@ -1,0 +1,211 @@
+{
+  "caseId": "v33-lookup-douvikas-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v33-lookup-douvikas-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "36137588"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12030",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Tasos Douvikas",
+        "status": "resolved",
+        "turnId": "v33-lookup-douvikas-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Tasos Douvikas",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Tasos Douvikas",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp4f4b16bc6df35d",
+        "turnId": "v33-lookup-douvikas-saved-xa-turn-1"
+      },
+      {
+        "mention": "Tasos Douvikas",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp4f4b16bc6df35d",
+        "turnId": "v33-lookup-douvikas-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "36137588"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12030",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v33-lookup-douvikas-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "36137588",
+        "value": 141
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "36137588",
+        "value": 146
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12030",
+        "value": 503
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12030",
+        "value": 4.298816949129105
+      },
+      {
+        "competition": "Serie_A",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12030",
+        "value": 3
+      },
+      {
+        "competition": "Serie_A",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12030",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12030",
+        "field": "expectedAssists",
+        "value": 0.34816140681505203,
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp4f4b16bc6df35d",
+        "canonicalIdentityId": "rp4f4b16bc6df35d",
+        "mention": "Tasos Douvikas",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "36137588"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12030",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "36137588"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12030",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "36137588"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12030",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "scenarioFamily": "replacement-v33-lookup-douvikas-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-lookup-douvikas-saved-xa-turn-1",
+      "userMessage": "Look up Tasos Douvikas FM profile and 2026/27 Serie A performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-lookup-douvikas-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

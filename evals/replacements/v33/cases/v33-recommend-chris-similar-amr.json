@@ -1,0 +1,144 @@
+{
+  "caseId": "v33-recommend-chris-similar-amr",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v33-recommend-chris-similar-amr-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v33-recommend-chris-similar-amr-turn-1",
+        "value": "91178612"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v33-recommend-chris-similar-amr-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Chris Führich",
+        "status": "resolved",
+        "turnId": "v33-recommend-chris-similar-amr-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Chris Führich",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91178612"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28107919"
+          }
+        ],
+        "turnId": "v33-recommend-chris-similar-amr-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91178612",
+        "value": 138
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91178612",
+        "value": 146
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp001ebfbfc0e0f2",
+        "canonicalIdentityId": "rp001ebfbfc0e0f2",
+        "mention": "Chris Führich",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91178612"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91178612"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28107919"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91178612"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28107919"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "scenarioFamily": "replacement-v33-recommend-chris-similar-amr",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-recommend-chris-similar-amr-turn-1",
+      "userMessage": "Based on Chris Führich AMR profile, recommend similar players and show at most one."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

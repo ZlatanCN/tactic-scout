@@ -1,0 +1,203 @@
+{
+  "caseId": "v33-lookup-sinayoko-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v33-lookup-sinayoko-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "49049339"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10815",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Lassine Sinayoko",
+        "status": "resolved",
+        "turnId": "v33-lookup-sinayoko-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Lassine Sinayoko",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Lassine Sinayoko",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpbb855479e78f42",
+        "turnId": "v33-lookup-sinayoko-saved-season-turn-1"
+      },
+      {
+        "mention": "Lassine Sinayoko",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpbb855479e78f42",
+        "turnId": "v33-lookup-sinayoko-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49049339"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10815",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v33-lookup-sinayoko-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49049339",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49049339",
+        "value": 130
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10815",
+        "value": 615
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10815",
+        "value": 5.401902377605438
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10815",
+        "value": 6
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10815",
+        "value": 3
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpbb855479e78f42",
+        "canonicalIdentityId": "rpbb855479e78f42",
+        "mention": "Lassine Sinayoko",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49049339"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10815",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49049339"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10815",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49049339"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10815",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "scenarioFamily": "replacement-v33-lookup-sinayoko-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-lookup-sinayoko-saved-season-turn-1",
+      "userMessage": "Look up Lassine Sinayoko FM profile and 2026/27 Ligue 1 performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-lookup-sinayoko-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

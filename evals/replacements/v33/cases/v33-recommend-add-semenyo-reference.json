@@ -1,0 +1,287 @@
+{
+  "caseId": "v33-recommend-add-semenyo-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v33-recommend-add-semenyo-reference",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "turns": [
+    {
+      "turnId": "v33-recommend-add-semenyo-reference-turn-1",
+      "userMessage": "根据 Anthony Elanga 的 AMR 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v33-recommend-add-semenyo-reference-turn-2",
+      "userMessage": "再加上 Antoine Semenyo 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Anthony Elanga",
+        "status": "resolved"
+      },
+      {
+        "mention": "Antoine Semenyo",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Anthony Elanga",
+        "status": "resolved",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-1"
+      },
+      {
+        "lookupName": "Antoine Semenyo",
+        "status": "resolved",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28121568"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14181375"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18054004"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "58092242"
+          }
+        ],
+        "turnId": "v33-recommend-add-semenyo-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28121568"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29194724"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14181375"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18054004"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "58092242"
+          }
+        ],
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-1",
+        "value": "28121568"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2",
+        "value": "28121568"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2",
+        "value": "29194724"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28121568",
+        "value": 138
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28121568",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29194724",
+        "value": 159
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29194724",
+        "value": 161
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp73476ac639180d",
+        "canonicalIdentityId": "rp73476ac639180d",
+        "mention": "Anthony Elanga",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28121568"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp3e3e82dbcbd568",
+        "canonicalIdentityId": "rp3e3e82dbcbd568",
+        "mention": "Antoine Semenyo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29194724"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28121568"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14181375"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18054004"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "58092242"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29194724"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28121568"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14181375"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18054004"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "58092242"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28121568"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29194724"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14181375"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18054004"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "58092242"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

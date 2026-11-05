@@ -1,0 +1,167 @@
+{
+  "caseId": "v33-recommend-berardi-under-16-pa",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+        "value": "43094553"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+        "value": 16
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Domenico Berardi",
+        "status": "resolved",
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Domenico Berardi",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43094553"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2002082292"
+          }
+        ],
+        "turnId": "v33-recommend-berardi-under-16-pa-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43094553",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43094553",
+        "value": 155
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp77f7a3cc8eeef6",
+        "canonicalIdentityId": "rp77f7a3cc8eeef6",
+        "mention": "Domenico Berardi",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43094553"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "43094553"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2002082292"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43094553"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2002082292"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v33-real-data",
+  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "scenarioFamily": "replacement-v33-recommend-berardi-under-16-pa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v33-recommend-berardi-under-16-pa-turn-1",
+      "userMessage": "Based on Domenico Berardi, recommend AMR prospects aged 16 or younger with PA at least 140; show at most one candidate in each list, one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

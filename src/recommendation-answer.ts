@@ -316,12 +316,14 @@ const correctionForAnswer = (
   const ageDateMissing =
     answerMentionsAge && !answer.includes(result.ageAsOfDate);
 
-  if (
-    !currentListContradiction &&
-    !potentialListContradiction &&
-    !unsetFilterContradiction &&
-    !ageDateMissing
-  ) {
+  const correctionNeeded = [
+    currentListContradiction,
+    potentialListContradiction,
+    unsetFilterContradiction,
+    ageDateMissing,
+  ].some(Boolean);
+
+  if (!correctionNeeded) {
     return null;
   }
 
@@ -348,7 +350,33 @@ const correctRecommendationAnswer = (
     return null;
   }
 
-  return correctionForAnswer(answer, result);
+  const generalCorrection = correctionForAnswer(answer, result);
+
+  if (generalCorrection !== null) {
+    return generalCorrection;
+  }
+
+  const hasCandidates =
+    result.currentCandidates.length > 0 ||
+    (result.potentialCandidates?.length ?? 0) > 0;
+
+  const referenceDetailsMissing =
+    hasCandidates &&
+    result.references.some(
+      (reference) =>
+        !answer.includes(referenceLine(reference, "zh")) &&
+        !answer.includes(referenceLine(reference, "en"))
+    );
+
+  if (!referenceDetailsMissing) {
+    return null;
+  }
+
+  const language = /\p{Script=Han}/u.test(answer) ? "zh" : "en";
+
+  return language === "zh"
+    ? renderChineseCorrection(result)
+    : renderEnglishCorrection(result);
 };
 
 const renderChineseTeamCorrection = (
