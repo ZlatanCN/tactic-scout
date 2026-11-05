@@ -140,8 +140,29 @@ describe("evaluation identity lookup checks", () => {
       wrongIdentityWorker
     ).find(({ id }) => id === "resolved-identity")?.status;
 
-    expect({ checkStatuses, wrongIdentityStatus }).toStrictEqual({
+    const compatibilityVariantWorker = {
+      ...worker,
+      players: [
+        {
+          ...accentedPlayer,
+          mention: "Ｅlias Demo",
+          selectedName: "Ｅlias Demo",
+        },
+      ],
+    } satisfies WorkerTrialResult;
+
+    const compatibilityVariantStatus = checkCaseContract(
+      caseWithExpectedIdentity,
+      compatibilityVariantWorker
+    ).find(({ id }) => id === "resolved-identity")?.status;
+
+    expect({
+      checkStatuses,
+      compatibilityVariantStatus,
+      wrongIdentityStatus,
+    }).toStrictEqual({
       checkStatuses: ["passed", "passed", "passed"],
+      compatibilityVariantStatus: "failed",
       wrongIdentityStatus: "failed",
     });
   });

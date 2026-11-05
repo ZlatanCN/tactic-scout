@@ -33,7 +33,7 @@ const normalizeIdentityLookupName = (value: string): string =>
     .replaceAll(/[^\p{L}\p{N}]/gu, "");
 
 const normalizeIdentityMentionForEvaluation = (value: string): string =>
-  value.normalize("NFKD").replaceAll(/\p{Diacritic}/gu, "");
+  value.normalize("NFD").replaceAll(/\p{Diacritic}/gu, "");
 
 const sourceRecordKey = (provider: string, sourceId: string): string =>
   `${provider}:${sourceId}`;
