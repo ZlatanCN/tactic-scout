@@ -8,7 +8,7 @@ V31 is exposed and is not an acceptance pack. Its failures led to these V32 chan
 
 - The team answer now reads the top-level `rankingBasis` field and reports its exact calculation method. A deterministic correction handles model claims that the method was omitted.
 - The Mert Kömür lookup asks only for appearances and whether PA guarantees future CA. Its required answer facts are limited to appearances and PA; the unrelated current CA is not required.
-- The CA-filter recommendation is a single-turn question. Multi-turn recommendation coverage remains in the independent add-reference case, while the team workflow retains two filter-refinement cases.
+- The CA-filter recommendation is a single-turn question because V31's multi-turn case led the judge to confuse a candidate shown before refinement with the later filtered list. Multi-turn recommendation coverage remains in the independent add-reference case, while the team workflow retains two filter-refinement cases.
 
 Offline validation:
 
