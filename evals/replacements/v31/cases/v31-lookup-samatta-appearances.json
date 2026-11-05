@@ -161,7 +161,7 @@
   "evidenceBundleId": "replacement-v31-real-data",
   "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
   "origin": "real",
-  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "priorTuningExposure": "The initial V31 attempt ran 5 of 48 trials and stopped after 20 requests before calibration or semantic judging. Three repeated trials failed only because the evaluator compared the diacritic in Nikola Krstović exactly; all expected identity and source IDs matched. The evaluation scorer now ignores diacritics in identity mentions only; no agent prompt or workflow behavior was tuned from this output.",
   "scenarioFamily": "replacement-v31-lookup-samatta-appearances",
   "split": "held_out",
   "turns": [

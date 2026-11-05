@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v31-team-redwood-ca-refinement",
-  "priorTuningExposure": "Authored for the independent v31 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "priorTuningExposure": "The initial V31 attempt ran 5 of 48 trials and stopped after 20 requests before calibration or semantic judging. Three repeated trials failed only because the evaluator compared the diacritic in Nikola Krstović exactly; all expected identity and source IDs matched. The evaluation scorer now ignores diacritics in identity mentions only; no agent prompt or workflow behavior was tuned from this output.",
   "evidenceBundleId": "replacement-v31-team-synthetic",
   "evidenceBundleSha256": "55ca021a7dbc0ab564205f615ba67dd6fb58bd7349264226e066969fca038859",
   "turns": [

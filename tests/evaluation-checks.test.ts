@@ -21,6 +21,131 @@ const observationPlayer = (
 });
 
 describe("evaluation identity lookup checks", () => {
+  it("accepts an accent-only mention difference but still requires the same identity ID", () => {
+    const caseDefinition = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(
+            process.cwd(),
+            "evals/cases/lookup-identity-clarification-v1.json"
+          ),
+          "utf-8"
+        )
+      )
+    );
+
+    const [initialTurn, followupTurn, unavailableTurn] = caseDefinition.turns;
+
+    if (
+      initialTurn === undefined ||
+      followupTurn === undefined ||
+      unavailableTurn === undefined
+    ) {
+      throw new Error("The lookup fixture must declare three user turns.");
+    }
+
+    const expectedPlayer = {
+      candidateId: "reep:identity-demo-01",
+      canonicalIdentityId: "identity-demo-01",
+      mention: "Elias Demo",
+      sourceRecords: [{ provider: "fm" as const, sourceId: "fm-demo-01" }],
+    };
+
+    const caseWithExpectedIdentity = {
+      ...caseDefinition,
+      contract: {
+        ...caseDefinition.contract,
+        expectedIdentityStatuses: [
+          { mention: "Elias Demo", status: "resolved" },
+        ],
+        resolvedPlayers: [expectedPlayer],
+      },
+    };
+
+    const accentedPlayer = {
+      candidates: [
+        {
+          candidateId: expectedPlayer.candidateId,
+          canonicalIdentityId: expectedPlayer.canonicalIdentityId,
+          records: expectedPlayer.sourceRecords,
+        },
+      ],
+      lookupName: "Eliás Demo",
+      mention: "Eliás Demo",
+      resolutionStatus: "resolved",
+      selectedCandidateId: expectedPlayer.candidateId,
+      selectedName: "Eliás Demo",
+    };
+
+    const turns = [
+      { player: accentedPlayer, status: "answer_ready", turn: initialTurn },
+      { player: accentedPlayer, status: "answer_ready", turn: followupTurn },
+      {
+        player: observationPlayer(
+          "Synthetic Failure Demo",
+          "data_unavailable",
+          null
+        ),
+        status: "identity_data_unavailable",
+        turn: unavailableTurn,
+      },
+    ].map(({ player, status, turn }, index) => {
+      const availableResultKinds: WorkerTrialResult["turns"][number]["availableResultKinds"] =
+        index < 2 ? ["player_lookup"] : [];
+
+      return {
+        assistantMessages: [],
+        availableResultKinds,
+        clarificationAnswers: [],
+        clarificationKinds: [],
+        deliveredEvidenceIds: [],
+        effectiveConditions: null,
+        effectiveConstraints: [],
+        outcomeKind: "player_lookup",
+        outcomeStatus: status,
+        players: [player],
+        requestKind: "player_lookup",
+        reuse:
+          index === 1
+            ? { evidenceIds: [], kind: "saved_lookup_result" as const }
+            : null,
+        turnId: turn.turnId,
+        userMessage: turn.userMessage,
+      };
+    });
+
+    const worker = {
+      ...emptyWorkerResult("accent-variant-test"),
+      players: [accentedPlayer],
+      turns,
+    } satisfies WorkerTrialResult;
+
+    const checks = checkCaseContract(caseWithExpectedIdentity, worker);
+
+    const checkStatuses = [
+      "identity-resolution-status",
+      "resolved-identity",
+      "turn-identity-continuity",
+    ].map((id) => checks.find((check) => check.id === id)?.status);
+
+    const wrongIdentityWorker = {
+      ...worker,
+      players: [
+        { ...accentedPlayer, selectedCandidateId: "reep:wrong-identity" },
+      ],
+    } satisfies WorkerTrialResult;
+
+    const wrongIdentityStatus = checkCaseContract(
+      caseWithExpectedIdentity,
+      wrongIdentityWorker
+    ).find(({ id }) => id === "resolved-identity")?.status;
+
+    expect({ checkStatuses, wrongIdentityStatus }).toStrictEqual({
+      checkStatuses: ["passed", "passed", "passed"],
+      wrongIdentityStatus: "failed",
+    });
+  });
+
   it("rejects a player expectation whose candidate ID disagrees with its canonical Reep ID", () => {
     const caseDefinition = evaluationCaseSchema.parse(
       JSON.parse(

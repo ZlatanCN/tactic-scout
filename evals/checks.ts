@@ -32,6 +32,9 @@ const normalizeIdentityLookupName = (value: string): string =>
     .toLowerCase()
     .replaceAll(/[^\p{L}\p{N}]/gu, "");
 
+const normalizeIdentityMentionForEvaluation = (value: string): string =>
+  value.normalize("NFKD").replaceAll(/\p{Diacritic}/gu, "");
+
 const sourceRecordKey = (provider: string, sourceId: string): string =>
   `${provider}:${sourceId}`;
 
@@ -48,7 +51,7 @@ const expectedPlayerKeys = (
   players
     .map((player) =>
       [
-        player.mention,
+        normalizeIdentityMentionForEvaluation(player.mention),
         player.candidateId,
         player.canonicalIdentityId ?? "",
         sortedSourceRecordKeys(player.sourceRecords).join(","),
@@ -68,7 +71,10 @@ const expectedIdentityStatusKeys = (
         }));
 
   return expectedStatuses
-    .map(({ mention, status }) => `${mention}|${status}`)
+    .map(
+      ({ mention, status }) =>
+        `${normalizeIdentityMentionForEvaluation(mention)}|${status}`
+    )
     .toSorted();
 };
 
@@ -83,7 +89,7 @@ const selectedPlayerKeys = (worker: WorkerTrialResult): string[] =>
         ? []
         : [
             [
-              player.mention,
+              normalizeIdentityMentionForEvaluation(player.mention),
               candidate.candidateId,
               candidate.canonicalIdentityId ?? "",
               sortedSourceRecordKeys(candidate.records).join(","),
@@ -94,7 +100,10 @@ const selectedPlayerKeys = (worker: WorkerTrialResult): string[] =>
 
 const observedIdentityStatusKeys = (worker: WorkerTrialResult): string[] =>
   worker.players
-    .map(({ mention, resolutionStatus }) => `${mention}|${resolutionStatus}`)
+    .map(
+      ({ mention, resolutionStatus }) =>
+        `${normalizeIdentityMentionForEvaluation(mention)}|${resolutionStatus}`
+    )
     .toSorted();
 
 type ExpectedTurnIdentityStatus =
@@ -130,7 +139,7 @@ const expectedTurnIdentityStatusLabels = (
   expected
     .map(
       ({ acceptableStatuses, mention, selectedCandidateId, status, turnId }) =>
-        `${turnId}|${mention}|${[status, ...(acceptableStatuses ?? [])].join("/")}|${selectedCandidateId ?? "*"}`
+        `${turnId}|${normalizeIdentityMentionForEvaluation(mention)}|${[status, ...(acceptableStatuses ?? [])].join("/")}|${selectedCandidateId ?? "*"}`
     )
     .toSorted();
 
@@ -140,7 +149,7 @@ const observedTurnIdentityStatusLabels = (
   actual
     .map(
       ({ mention, resolutionStatus, selectedCandidateId, turnId }) =>
-        `${turnId}|${mention}|${resolutionStatus}|${selectedCandidateId ?? "*"}`
+        `${turnId}|${normalizeIdentityMentionForEvaluation(mention)}|${resolutionStatus}|${selectedCandidateId ?? "*"}`
     )
     .toSorted();
 
@@ -155,7 +164,8 @@ const turnIdentityStatusMatches = (
 
   if (
     actual.turnId !== expected.turnId ||
-    actual.mention !== expected.mention
+    normalizeIdentityMentionForEvaluation(actual.mention) !==
+      normalizeIdentityMentionForEvaluation(expected.mention)
   ) {
     return false;
   }
