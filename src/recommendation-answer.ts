@@ -63,9 +63,12 @@ const falseMissingTeamRankingBasisPhrases = [
   "队内参考画像的选择方式未在结果中说明",
   "团队参考画像的成员筛选方式未在结果中说明",
   "工具未提供团队参考画像的成员筛选标准或计算方法",
+  "工具未提供这些参考对象的筛选标准或计算方法",
+  "这些参考对象的筛选标准或计算方法未提供",
   "the squad reference profile selection method was not specified",
   "the reference profile selection method was not provided",
   "the team reference selection criteria or calculation method was not provided",
+  "the tool did not provide selection criteria or a calculation method for these references",
 ];
 
 const answerContainsAnyPhrase = (
@@ -214,8 +217,8 @@ const teamRankingBasisSummary = (
 ): string => {
   if (rankingBasis === "equal_weight_mean_of_position_capable_squad_profiles") {
     return language === "zh"
-      ? "参考画像计算方式：选取在目标位置有评分的队内 FM 画像，并对其属性取等权平均。"
-      : "Reference calculation: equally weight the attributes of squad FM profiles rated for the target position.";
+      ? "参考画像计算方式：将目标位置评分至少 15 且所需属性完整的队内 FM 画像属性取等权平均。"
+      : "Reference calculation: equally weight the target-position attributes of squad FM profiles rated at least 15 with all required attributes.";
   }
 
   return language === "zh"

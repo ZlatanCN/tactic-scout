@@ -1487,69 +1487,75 @@ describe("LangGraph player workflows", () => {
     });
   });
 
-  it("corrects team answers that deny a provided squad ranking basis", async () => {
-    const team = { country: "Testland", id: 901, name: "Synthetic Town FC" };
+  it.each([
+    "工具未提供团队参考画像的成员筛选标准或计算方法。",
+    "工具未提供这些参考对象的筛选标准或计算方法。",
+  ])(
+    "corrects team answers that deny the provided basis: %s",
+    async (falseBasisClaim) => {
+      const team = { country: "Testland", id: 901, name: "Synthetic Town FC" };
 
-    const input: RecommendTeamPlayerCandidatesInput = {
-      includePotential: false,
-      maxAge: null,
-      minimumCurrentAbility: null,
-      minimumPotentialAbility: null,
-      position: "stc",
-      referenceFmIds: [],
-      referenceMode: "squad",
-      resultLimit: 5,
-      roster: {
-        members: [],
-        retrievedAt: "2025-11-20T12:00:00.000Z",
+      const input: RecommendTeamPlayerCandidatesInput = {
+        includePotential: false,
+        maxAge: null,
+        minimumCurrentAbility: null,
+        minimumPotentialAbility: null,
+        position: "stc",
+        referenceFmIds: [],
+        referenceMode: "squad",
+        resultLimit: 5,
+        roster: {
+          members: [],
+          retrievedAt: "2025-11-20T12:00:00.000Z",
+          team,
+        },
         team,
-      },
-      team,
-    };
+      };
 
-    const resultJson = teamRecommendationResult("ready", input);
+      const resultJson = teamRecommendationResult("ready", input);
 
-    const state = AgentState.parse({
-      messages: [new HumanMessage("为 Synthetic Town FC 推荐 stc 球员。")],
-      outcome: {
-        kind: "team_recommendation",
-        resultJson,
-        source: "executed",
-        status: "ready",
-      },
-    });
+      const state = AgentState.parse({
+        messages: [new HumanMessage("为 Synthetic Town FC 推荐 stc 球员。")],
+        outcome: {
+          kind: "team_recommendation",
+          resultJson,
+          source: "executed",
+          status: "ready",
+        },
+      });
 
-    const graph = new StateGraph(AgentState)
-      .addNode(
-        "answer",
-        createAnswerNode(
-          fakeModel().respond(
-            new AIMessage([
-              {
-                text: "工具未提供团队参考画像的成员筛选标准或计算方法。",
-                type: "text",
-              },
-            ])
+      const graph = new StateGraph(AgentState)
+        .addNode(
+          "answer",
+          createAnswerNode(
+            fakeModel().respond(
+              new AIMessage([
+                {
+                  text: falseBasisClaim,
+                  type: "text",
+                },
+              ])
+            )
           )
         )
-      )
-      .addEdge(START, "answer")
-      .addEdge("answer", END)
-      .compile();
+        .addEdge(START, "answer")
+        .addEdge("answer", END)
+        .compile();
 
-    const result = await graph.invoke(state);
-    const answer = z.string().parse(result.messages.at(-1)?.content);
+      const result = await graph.invoke(state);
+      const answer = z.string().parse(result.messages.at(-1)?.content);
 
-    expect({
-      hasGroundedBasis: answer.includes(
-        "参考画像计算方式：选取在目标位置有评分的队内 FM 画像，并对其属性取等权平均。"
-      ),
-      repeatsMissingBasisClaim: answer.includes("未在结果中说明"),
-    }).toStrictEqual({
-      hasGroundedBasis: true,
-      repeatsMissingBasisClaim: false,
-    });
-  });
+      expect({
+        hasGroundedBasis: answer.includes(
+          "参考画像计算方式：将目标位置评分至少 15 且所需属性完整的队内 FM 画像属性取等权平均。"
+        ),
+        repeatsMissingBasisClaim: answer.includes("未在结果中说明"),
+      }).toStrictEqual({
+        hasGroundedBasis: true,
+        repeatsMissingBasisClaim: false,
+      });
+    }
+  );
 
   it("names reference profiles when an answer claims no exclusion identities were returned", async () => {
     const team = { country: "England", id: 42, name: "Arsenal" };
