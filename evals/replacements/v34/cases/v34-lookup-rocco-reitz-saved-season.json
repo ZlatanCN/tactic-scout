@@ -1,0 +1,203 @@
+{
+  "caseId": "v34-lookup-rocco-reitz-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-lookup-rocco-reitz-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "91206105"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8826",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Rocco Reitz",
+        "status": "resolved",
+        "turnId": "v34-lookup-rocco-reitz-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Rocco Reitz",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Rocco Reitz",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpa663dd90e063d5",
+        "turnId": "v34-lookup-rocco-reitz-saved-season-turn-1"
+      },
+      {
+        "mention": "Rocco Reitz",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpa663dd90e063d5",
+        "turnId": "v34-lookup-rocco-reitz-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91206105"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8826",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-lookup-rocco-reitz-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91206105",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91206105",
+        "value": 152
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8826",
+        "value": 172
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8826",
+        "value": 0.5753656774759293
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8826",
+        "value": 1
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8826",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpa663dd90e063d5",
+        "canonicalIdentityId": "rpa663dd90e063d5",
+        "mention": "Rocco Reitz",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91206105"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8826",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91206105"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8826",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91206105"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8826",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-lookup-rocco-reitz-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-lookup-rocco-reitz-saved-season-turn-1",
+      "userMessage": "Look up Rocco Reitz's FM profile and 2026/27 Bundesliga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-lookup-rocco-reitz-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

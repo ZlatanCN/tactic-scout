@@ -173,4 +173,35 @@ describe("v33 replacement held-out pack", () => {
       turnCount: 1,
     });
   });
+
+  it("inherits the age cap when adding a recommendation reference", () => {
+    const caseDefinition = replacementCases.find(
+      ({ caseDefinition: currentCase }) =>
+        currentCase.caseId === "v33-recommend-add-semenyo-reference"
+    )?.caseDefinition;
+
+    expect({
+      ageLimits: caseDefinition?.contract.expectedActionValues
+        .filter(({ path: actionPath }) => actionPath === "maxAge")
+        .map(({ turnId, value }) => [turnId, value]),
+      secondTurnReferences:
+        caseDefinition?.contract.expectedTurnToolActions[1]?.sourceRecords.map(
+          ({ sourceId }) => sourceId
+        ),
+      turnCount: caseDefinition?.turns.length,
+    }).toStrictEqual({
+      ageLimits: [
+        ["v33-recommend-add-semenyo-reference-turn-1", 18],
+        ["v33-recommend-add-semenyo-reference-turn-2", 18],
+      ],
+      secondTurnReferences: [
+        "28121568",
+        "29194724",
+        "2000385919",
+        "2000357640",
+        "2000375662",
+      ],
+      turnCount: 2,
+    });
+  });
 });

@@ -5,17 +5,17 @@
   "split": "held_out",
   "origin": "real",
   "scenarioFamily": "replacement-v33-recommend-add-semenyo-reference",
-  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "priorTuningExposure": "Exposed by V33 run 090c0264-3023-466e-944e-9d7780e7cb08: 218 model requests, 35 trials passed, 3 failed on the add-reference case contract, and 10 were not assessed. The run used an incorrect candidate list for that case; its expected results were corrected after the run. Do not use V33 for acceptance.",
   "evidenceBundleId": "replacement-v33-real-data",
-  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "evidenceBundleSha256": "23d666cf036459fbc51ceba0a6f6a6744e4f44e53a82b34ac2f2976aeb12f7d2",
   "turns": [
     {
       "turnId": "v33-recommend-add-semenyo-reference-turn-1",
-      "userMessage": "根据 Anthony Elanga 的 AMR 画像推荐球员，最多三名。"
+      "userMessage": "Based on Anthony Elanga AMR, recommend players aged 18 or younger, up to three."
     },
     {
       "turnId": "v33-recommend-add-semenyo-reference-turn-2",
-      "userMessage": "再加上 Antoine Semenyo 作为参考。"
+      "userMessage": "Add Antoine Semenyo as a reference and keep the age limit."
     }
   ],
   "contract": {
@@ -55,15 +55,15 @@
           },
           {
             "provider": "fm",
-            "sourceId": "14181375"
+            "sourceId": "2000392431"
           },
           {
             "provider": "fm",
-            "sourceId": "18054004"
+            "sourceId": "2000357640"
           },
           {
             "provider": "fm",
-            "sourceId": "58092242"
+            "sourceId": "2000318285"
           }
         ],
         "turnId": "v33-recommend-add-semenyo-reference-turn-1"
@@ -82,15 +82,15 @@
           },
           {
             "provider": "fm",
-            "sourceId": "14181375"
+            "sourceId": "2000385919"
           },
           {
             "provider": "fm",
-            "sourceId": "18054004"
+            "sourceId": "2000357640"
           },
           {
             "provider": "fm",
-            "sourceId": "58092242"
+            "sourceId": "2000375662"
           }
         ],
         "turnId": "v33-recommend-add-semenyo-reference-turn-2"
@@ -113,6 +113,13 @@
       },
       {
         "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-1",
+        "value": 18
+      },
+      {
+        "name": "recommend_player_candidates",
         "path": "resultLimit",
         "source": "input",
         "turnId": "v33-recommend-add-semenyo-reference-turn-1",
@@ -131,6 +138,13 @@
         "source": "input",
         "turnId": "v33-recommend-add-semenyo-reference-turn-2",
         "value": "28121568"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v33-recommend-add-semenyo-reference-turn-2",
+        "value": 18
       },
       {
         "name": "recommend_player_candidates",
@@ -214,19 +228,27 @@
       },
       {
         "provider": "fm",
-        "sourceId": "14181375"
+        "sourceId": "2000392431"
       },
       {
         "provider": "fm",
-        "sourceId": "18054004"
+        "sourceId": "2000357640"
       },
       {
         "provider": "fm",
-        "sourceId": "58092242"
+        "sourceId": "2000318285"
       },
       {
         "provider": "fm",
         "sourceId": "29194724"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000385919"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000375662"
       }
     ],
     "toolActions": [
@@ -240,15 +262,15 @@
           },
           {
             "provider": "fm",
-            "sourceId": "14181375"
+            "sourceId": "2000392431"
           },
           {
             "provider": "fm",
-            "sourceId": "18054004"
+            "sourceId": "2000357640"
           },
           {
             "provider": "fm",
-            "sourceId": "58092242"
+            "sourceId": "2000318285"
           }
         ]
       },
@@ -266,15 +288,15 @@
           },
           {
             "provider": "fm",
-            "sourceId": "14181375"
+            "sourceId": "2000385919"
           },
           {
             "provider": "fm",
-            "sourceId": "18054004"
+            "sourceId": "2000357640"
           },
           {
             "provider": "fm",
-            "sourceId": "58092242"
+            "sourceId": "2000375662"
           }
         ]
       }

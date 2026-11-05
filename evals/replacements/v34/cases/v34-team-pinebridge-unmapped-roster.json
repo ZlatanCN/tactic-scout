@@ -1,0 +1,172 @@
+{
+  "caseId": "v34-team-pinebridge-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v34-team-pinebridge-unmapped-roster",
+  "priorTuningExposure": "Authored for independent V34 from a new synthetic team roster after V33 was exposed; no V34 model request has started.",
+  "evidenceBundleId": "replacement-v34-team-synthetic",
+  "evidenceBundleSha256": "18efeb823d13456b4ec27ebea5e2f2d1db134438480468edde1e34c1a52785c4",
+  "turns": [
+    {
+      "turnId": "v34-team-pinebridge-unmapped-roster-turn-1",
+      "userMessage": "为 Pinebridge FC 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10083"
+          }
+        ],
+        "turnId": "v34-team-pinebridge-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10083"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10149"
+          }
+        ],
+        "turnId": "v34-team-pinebridge-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10149"
+          }
+        ],
+        "turnId": "v34-team-pinebridge-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v34-team-pinebridge-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 10149
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v34-team-pinebridge-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10083"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10149"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10083"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10083"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10149"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10149"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

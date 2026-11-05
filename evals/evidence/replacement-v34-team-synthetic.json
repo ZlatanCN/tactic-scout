@@ -1,0 +1,625 @@
+{
+  "apiFootball": {
+    "capturedAt": "2025-11-20T12:00:00.000Z",
+    "requestedTeams": [],
+    "sourceRequests": null,
+    "squadResponses": [
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10081,
+                "name": "Summit FC",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 19101,
+                  "name": "Felix Duarte",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 19102,
+                  "name": "Ivo Petrov",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10081
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10082,
+                "name": "Summit FC Reserves",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 19103,
+                  "name": "Malik Chen",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 19104,
+                  "name": "Thiago Ramires",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10082
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10083,
+                "name": "Pinebridge FC",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 10149,
+                  "name": "Liam Tide",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10083
+      }
+    ],
+    "teamSearchResponses": [
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10081,
+                "name": "Summit FC",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Summit FC"
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10081,
+                "name": "Summit FC",
+                "country": "Westreach"
+              }
+            },
+            {
+              "team": {
+                "id": 10082,
+                "name": "Summit FC Reserves",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Pinebridge"
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10083,
+                "name": "Pinebridge FC",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Pinebridge FC"
+      }
+    ]
+  },
+  "bundleId": "replacement-v34-team-synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "synthetic-replacement-v34",
+      "inGameDate": "2025-11-23",
+      "sha256": "synthetic-replacement-v34-team-roster"
+    },
+    "players": [
+      {
+        "aliases": ["Duarte Beta"],
+        "birthDate": "2000-02-03",
+        "name": "Felix Duarte",
+        "payload": {
+          "ability_current": 150,
+          "ability_potential": 178,
+          "birth_date": "2000-02-03",
+          "common_name": "Felix Duarte",
+          "full_name": "Felix Duarte",
+          "height_cm": 182,
+          "name": "Felix Duarte",
+          "natural_positions": "STC;AMC",
+          "unique_id": "fm-v34-ref-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v34-ref-01",
+        "uniqueId": "fm-v34-ref-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2003-04-05",
+        "name": "Ivo Petrov",
+        "payload": {
+          "ability_current": 146,
+          "ability_potential": 181,
+          "birth_date": "2003-04-05",
+          "common_name": "Ivo Petrov",
+          "full_name": "Ivo Petrov",
+          "height_cm": 179,
+          "name": "Ivo Petrov",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-close-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v34-close-01",
+        "uniqueId": "fm-v34-close-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2007-06-07",
+        "name": "Malik Chen",
+        "payload": {
+          "ability_current": 124,
+          "ability_potential": 195,
+          "birth_date": "2007-06-07",
+          "common_name": "Malik Chen",
+          "full_name": "Malik Chen",
+          "height_cm": 180,
+          "name": "Malik Chen",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-future-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v34-future-01",
+        "uniqueId": "fm-v34-future-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "1999-08-09",
+        "name": "Thiago Ramires",
+        "payload": {
+          "ability_current": 160,
+          "ability_potential": 166,
+          "birth_date": "1999-08-09",
+          "common_name": "Thiago Ramires",
+          "full_name": "Thiago Ramires",
+          "height_cm": 188,
+          "name": "Thiago Ramires",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-far-01",
+          "raw_attributes_acceleration": 9,
+          "raw_attributes_pace": 9,
+          "raw_attributes_strength": 9,
+          "raw_attributes_jumping_reach": 9,
+          "raw_attributes_stamina": 9,
+          "raw_attributes_finishing": 9,
+          "raw_attributes_off_the_ball": 9,
+          "raw_attributes_heading": 9,
+          "raw_attributes_composure": 9,
+          "raw_attributes_anticipation": 9,
+          "raw_attributes_decisions": 9,
+          "raw_attributes_first_touch": 9,
+          "raw_attributes_passing": 9,
+          "raw_attributes_technique": 9,
+          "raw_attributes_vision": 9,
+          "raw_attributes_teamwork": 9,
+          "raw_attributes_dribbling": 9,
+          "raw_attributes_work_rate": 9
+        },
+        "recordId": "fm-row-v34-far-01",
+        "uniqueId": "fm-v34-far-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2001-01-01",
+        "name": "Kenji Sato",
+        "payload": {
+          "ability_current": 140,
+          "ability_potential": 180,
+          "birth_date": "2001-01-01",
+          "common_name": "Kenji Sato",
+          "full_name": "Kenji Sato",
+          "height_cm": 183,
+          "name": "Kenji Sato",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-missing-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": null,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v34-missing-01",
+        "uniqueId": "fm-v34-missing-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2002-01-01",
+        "name": "Dante Rossi",
+        "payload": {
+          "ability_current": 151,
+          "ability_potential": 181,
+          "birth_date": "2002-01-01",
+          "common_name": "Dante Rossi",
+          "full_name": "Dante Rossi",
+          "height_cm": 182,
+          "name": "Dante Rossi",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-ineligible-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v34-ineligible-01",
+        "uniqueId": "fm-v34-ineligible-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2000-01-01",
+        "name": "Leo Madsen",
+        "payload": {
+          "ability_current": 135,
+          "ability_potential": 170,
+          "birth_date": "2000-01-01",
+          "common_name": "Leo Madsen",
+          "full_name": "V23 Ambiguous A",
+          "height_cm": 180,
+          "name": "V23 Ambiguous A",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-amb-a",
+          "raw_attributes_acceleration": 14,
+          "raw_attributes_pace": 14,
+          "raw_attributes_strength": 14,
+          "raw_attributes_jumping_reach": 14,
+          "raw_attributes_stamina": 14,
+          "raw_attributes_finishing": 14,
+          "raw_attributes_off_the_ball": 14,
+          "raw_attributes_heading": 14,
+          "raw_attributes_composure": 14,
+          "raw_attributes_anticipation": 14,
+          "raw_attributes_decisions": 14,
+          "raw_attributes_first_touch": 14,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 14,
+          "raw_attributes_vision": 14,
+          "raw_attributes_teamwork": 14,
+          "raw_attributes_dribbling": 14,
+          "raw_attributes_work_rate": 14
+        },
+        "recordId": "fm-row-v34-ambiguous-a",
+        "uniqueId": "fm-v34-amb-a"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2004-01-01",
+        "name": "Leo Madsen",
+        "payload": {
+          "ability_current": 142,
+          "ability_potential": 181,
+          "birth_date": "2004-01-01",
+          "common_name": "Leo Madsen",
+          "full_name": "V23 Ambiguous B",
+          "height_cm": 184,
+          "name": "V23 Ambiguous B",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-amb-b",
+          "raw_attributes_acceleration": 16,
+          "raw_attributes_pace": 16,
+          "raw_attributes_strength": 16,
+          "raw_attributes_jumping_reach": 16,
+          "raw_attributes_stamina": 16,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 16,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 16,
+          "raw_attributes_decisions": 16,
+          "raw_attributes_first_touch": 16,
+          "raw_attributes_passing": 16,
+          "raw_attributes_technique": 16,
+          "raw_attributes_vision": 16,
+          "raw_attributes_teamwork": 16,
+          "raw_attributes_dribbling": 16,
+          "raw_attributes_work_rate": 16
+        },
+        "recordId": "fm-row-v34-ambiguous-b",
+        "uniqueId": "fm-v34-amb-b"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2001-03-04",
+        "name": "Noah Kim",
+        "payload": {
+          "ability_current": 130,
+          "ability_potential": 172,
+          "birth_date": "2001-03-04",
+          "common_name": "Noah Kim",
+          "full_name": "Noah Kim",
+          "height_cm": 180,
+          "name": "Noah Kim",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-failure-ref-01",
+          "raw_attributes_acceleration": 13,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 13,
+          "raw_attributes_jumping_reach": 13,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 13,
+          "raw_attributes_heading": 13,
+          "raw_attributes_composure": 13,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 13,
+          "raw_attributes_first_touch": 13,
+          "raw_attributes_passing": 13,
+          "raw_attributes_technique": 13,
+          "raw_attributes_vision": 13,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 13,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v34-failure-ref-01",
+        "uniqueId": "fm-v34-failure-ref-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2007-10-01",
+        "name": "Mateo Silva",
+        "payload": {
+          "ability_current": 128,
+          "ability_potential": null,
+          "birth_date": "2007-10-01",
+          "common_name": "Mateo Silva",
+          "full_name": "Mateo Silva",
+          "height_cm": 180,
+          "name": "Mateo Silva",
+          "natural_positions": "STC",
+          "unique_id": "fm-v34-no-pa-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v34-no-pa-01",
+        "uniqueId": "fm-v34-no-pa-01"
+      }
+    ],
+    "positions": [
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v34-ref-01"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v34-close-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v34-future-01"
+      },
+      {
+        "position": "stc",
+        "rating": 18,
+        "recordId": "fm-row-v34-far-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v34-missing-01"
+      },
+      {
+        "position": "stc",
+        "rating": 14,
+        "recordId": "fm-row-v34-ineligible-01"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v34-ambiguous-a"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v34-ambiguous-b"
+      },
+      {
+        "position": "stc",
+        "rating": 14,
+        "recordId": "fm-row-v34-failure-ref-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v34-no-pa-01"
+      }
+    ]
+  },
+  "identity": {
+    "bridges": [
+      {
+        "canonicalReepId": "identity-v34-ref-01",
+        "externalId": "19101",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-failure-ref-01",
+        "externalId": "fm-v34-failure-ref-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-ref-01",
+        "externalId": "fm-v34-ref-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-ambiguous",
+        "externalId": "fm-v34-amb-a",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-ambiguous",
+        "externalId": "fm-v34-amb-b",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-future-01",
+        "externalId": "fm-v34-future-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-future-01",
+        "externalId": "19103",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-far-01",
+        "externalId": "fm-v34-far-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v34-far-01",
+        "externalId": "19104",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      }
+    ],
+    "releaseStamp": "replacement-v34-team-synthetic-release"
+  },
+  "origin": "synthetic",
+  "understat": {
+    "snapshots": []
+  }
+}

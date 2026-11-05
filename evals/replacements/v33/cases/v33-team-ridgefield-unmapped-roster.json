@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v33-team-ridgefield-unmapped-roster",
-  "priorTuningExposure": "Authored for independent V33 from a new synthetic team roster after V32 findings; no V33 model request has started.",
+  "priorTuningExposure": "Exposed by V33 run 090c0264-3023-466e-944e-9d7780e7cb08: 218 model requests, 35 trials passed, 3 failed on the add-reference case contract, and 10 were not assessed. The run used an incorrect candidate list for that case; its expected results were corrected after the run. Do not use V33 for acceptance.",
   "evidenceBundleId": "replacement-v33-team-synthetic",
   "evidenceBundleSha256": "de4641c4835d95375439fccc0e81bf221c4010de20acfb67c7d9904231942cb2",
   "turns": [

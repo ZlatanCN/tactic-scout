@@ -47,7 +47,7 @@ describe("evaluation identity lookup checks", () => {
     const expectedPlayer = {
       candidateId: "reep:identity-demo-01",
       canonicalIdentityId: "identity-demo-01",
-      mention: "Elias Demo",
+      mention: "Nikola Krstović",
       sourceRecords: [{ provider: "fm" as const, sourceId: "fm-demo-01" }],
     };
 
@@ -56,7 +56,27 @@ describe("evaluation identity lookup checks", () => {
       contract: {
         ...caseDefinition.contract,
         expectedIdentityStatuses: [
-          { mention: "Elias Demo", status: "resolved" },
+          { mention: "Nikola Krstović", status: "resolved" },
+        ],
+        expectedTurnIdentityStatuses: [
+          {
+            mention: "Nikola Krstović",
+            selectedCandidateId: expectedPlayer.candidateId,
+            status: "resolved",
+            turnId: initialTurn.turnId,
+          },
+          {
+            acceptableStatuses: ["saved_result_reuse"],
+            mention: "Nikola Krstović",
+            selectedCandidateId: expectedPlayer.candidateId,
+            status: "resolved",
+            turnId: followupTurn.turnId,
+          },
+          {
+            mention: "Synthetic Failure Demo",
+            status: "data_unavailable",
+            turnId: unavailableTurn.turnId,
+          },
         ],
         resolvedPlayers: [expectedPlayer],
       },
@@ -70,11 +90,11 @@ describe("evaluation identity lookup checks", () => {
           records: expectedPlayer.sourceRecords,
         },
       ],
-      lookupName: "Eliás Demo",
-      mention: "Eliás Demo",
+      lookupName: "Nikola Krstovic",
+      mention: "Nikola Krstovic",
       resolutionStatus: "resolved",
       selectedCandidateId: expectedPlayer.candidateId,
-      selectedName: "Eliás Demo",
+      selectedName: "Nikola Krstovic",
     };
 
     const turns = [

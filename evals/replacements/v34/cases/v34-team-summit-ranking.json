@@ -1,0 +1,489 @@
+{
+  "caseId": "v34-team-summit-ranking",
+  "category": "ordinary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v34-team-summit-ranking",
+  "priorTuningExposure": "Authored for independent V34 from a new synthetic team roster after V33 was exposed; no V34 model request has started.",
+  "evidenceBundleId": "replacement-v34-team-synthetic",
+  "evidenceBundleSha256": "18efeb823d13456b4ec27ebea5e2f2d1db134438480468edde1e34c1a52785c4",
+  "turns": [
+    {
+      "turnId": "v34-team-summit-ranking-turn-1",
+      "userMessage": "为 Summit FC 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10081"
+          }
+        ],
+        "turnId": "v34-team-summit-ranking-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10081"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19101"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19102"
+          }
+        ],
+        "turnId": "v34-team-summit-ranking-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19101"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-ref-01"
+          }
+        ],
+        "turnId": "v34-team-summit-ranking-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19102"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-close-01"
+          }
+        ],
+        "turnId": "v34-team-summit-ranking-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10081"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-far-01"
+          }
+        ],
+        "turnId": "v34-team-summit-ranking-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.search_teams",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "query",
+        "value": "Summit FC"
+      },
+      {
+        "name": "api_football.search_teams",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "data.0.id",
+        "value": 10081
+      },
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "teamId",
+        "value": 10081
+      },
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "data.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      },
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 19101
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "apiFootballPlayerId",
+        "value": 19101
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "resolved"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "apiFootballPlayerId",
+        "value": 19102
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "needs_confirmation"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "team.id",
+        "value": 10081
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "referenceMode",
+        "value": "squad"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "roster.members.0.fmId",
+        "value": "fm-v34-ref-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "input",
+        "path": "roster.members.1.fmId",
+        "value": "fm-v34-close-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "fmSnapshotDate",
+        "value": "2025-11-23"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.currentCandidates.0.fmId",
+        "value": "fm-v34-future-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.referenceFmIds.0",
+        "value": "fm-v34-close-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.referenceFmIds.1",
+        "value": "fm-v34-ref-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.currentCandidates.0.fmId",
+        "value": "fm-v34-future-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v34-team-summit-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.currentCandidates.1.fmId",
+        "value": "fm-v34-far-01"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "fmSnapshotDate",
+        "value": "2025-11-23"
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "recommendation.currentCandidates.0.fmId",
+        "value": "fm-v34-future-01"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "The ranking is an FM ability-profile comparison and does not establish tactical fit or transfer feasibility."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01",
+        "field": "name",
+        "value": "Malik Chen"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01",
+        "field": "age",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01",
+        "field": "name",
+        "value": "Thiago Ramires"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01",
+        "field": "age",
+        "value": 27
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01",
+        "field": "potentialAbility",
+        "value": 166
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v34-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10081"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "19101"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "19102"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10081"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10081"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19101"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19102"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19101"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19102"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10081"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v34-far-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

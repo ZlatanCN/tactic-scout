@@ -1,0 +1,282 @@
+{
+  "caseId": "v34-compare-adamu-moerstedt-bundesliga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Junior Adamu",
+        "status": "resolved",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Max Moerstedt",
+        "status": "resolved",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Junior Adamu",
+        "status": "resolved"
+      },
+      {
+        "mention": "Max Moerstedt",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Junior Adamu",
+        "status": "resolved",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1"
+      },
+      {
+        "mention": "Max Moerstedt",
+        "status": "resolved",
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16202374"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12069",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000230641"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12470",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "16202374",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "16202374",
+        "value": 135
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000230641",
+        "value": 122
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000230641",
+        "value": 141
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12069",
+        "value": 234
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12069",
+        "value": 1.4240805506706238
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12470",
+        "value": 101
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12470",
+        "value": 1.1814613342285156
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp67b31b7040da74",
+        "canonicalIdentityId": "rp67b31b7040da74",
+        "mention": "Junior Adamu",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16202374"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12069",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp4a0617853dec87",
+        "canonicalIdentityId": "rp4a0617853dec87",
+        "mention": "Max Moerstedt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000230641"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12470",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "16202374"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12069",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000230641"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12470",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16202374"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12069",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000230641"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12470",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-compare-adamu-moerstedt-bundesliga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-compare-adamu-moerstedt-bundesliga-turn-1",
+      "userMessage": "Compare Junior Adamu and Max Moerstedt using 2026/27 Bundesliga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

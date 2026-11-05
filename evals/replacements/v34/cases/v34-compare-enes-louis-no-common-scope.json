@@ -1,0 +1,273 @@
+{
+  "caseId": "v34-compare-enes-louis-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Enes Ünal",
+        "status": "resolved",
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Louis Mafouta",
+        "status": "resolved",
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Enes Ünal",
+        "status": "resolved"
+      },
+      {
+        "mention": "Louis Mafouta",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Enes Ünal",
+        "status": "resolved",
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1"
+      },
+      {
+        "mention": "Louis Mafouta",
+        "status": "resolved",
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "70087488"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6219",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "36127713"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10342",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-compare-enes-louis-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "70087488",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "70087488",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "36127713",
+        "value": 102
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "36127713",
+        "value": 118
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6219",
+        "value": 622
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6219",
+        "value": 1.200442336499691
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10342",
+        "value": 592
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10342",
+        "value": 5.235729977488518
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdce7f16627c279",
+        "canonicalIdentityId": "rpdce7f16627c279",
+        "mention": "Enes Ünal",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "70087488"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6219",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpbc1a61ab3df806",
+        "canonicalIdentityId": "rpbc1a61ab3df806",
+        "mention": "Louis Mafouta",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "36127713"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10342",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "70087488"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6219",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "36127713"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10342",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "70087488"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6219",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "36127713"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10342",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-compare-enes-louis-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-compare-enes-louis-no-common-scope-turn-1",
+      "userMessage": "Compare Enes Ünal and Louis Mafouta using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

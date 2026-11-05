@@ -1,0 +1,466 @@
+{
+  "caseId": "v34-compare-add-parrott-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Troy Parrott",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Asier Villalibre",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Ezequiel Ponce",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Troy Parrott",
+        "status": "resolved"
+      },
+      {
+        "mention": "Asier Villalibre",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ezequiel Ponce",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Troy Parrott",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1"
+      },
+      {
+        "mention": "Asier Villalibre",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1"
+      },
+      {
+        "mention": "Troy Parrott",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2"
+      },
+      {
+        "mention": "Asier Villalibre",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2"
+      },
+      {
+        "mention": "Ezequiel Ponce",
+        "status": "resolved",
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122837"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8145",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67195730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5173",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-compare-add-parrott-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122837"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8145",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67195730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5173",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14092553"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2057",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-compare-add-parrott-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28122837",
+        "value": 138
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28122837",
+        "value": 140
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67195730",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67195730",
+        "value": 142
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "14092553",
+        "value": 125
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "14092553",
+        "value": 130
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8145",
+        "value": 194
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8145",
+        "value": 1.5816928106360137
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5173",
+        "value": 255
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5173",
+        "value": 0.4898625835776329
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2057",
+        "value": 115
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2057",
+        "value": 0.19454673491418362
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpd8c9b875df839e",
+        "canonicalIdentityId": "rpd8c9b875df839e",
+        "mention": "Troy Parrott",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122837"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8145",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp5383c8a448b4c6",
+        "canonicalIdentityId": "rp5383c8a448b4c6",
+        "mention": "Asier Villalibre",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67195730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5173",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp5e0cb1662eba79",
+        "canonicalIdentityId": "rp5e0cb1662eba79",
+        "mention": "Ezequiel Ponce",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14092553"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2057",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28122837"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8145",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67195730"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5173",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14092553"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2057",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122837"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8145",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67195730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5173",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28122837"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8145",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67195730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5173",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14092553"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2057",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-compare-add-parrott-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-compare-add-parrott-la-liga-turn-1",
+      "userMessage": "Compare Troy Parrott and Asier Villalibre using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-compare-add-parrott-la-liga-turn-2",
+      "userMessage": "Add Ezequiel Ponce to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

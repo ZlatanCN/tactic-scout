@@ -1,0 +1,489 @@
+{
+  "caseId": "v34-compare-add-amiri-bundesliga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Florian Neuhaus",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Eric Martel",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Nadiem Amiri",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Florian Neuhaus",
+        "status": "resolved"
+      },
+      {
+        "mention": "Eric Martel",
+        "status": "resolved"
+      },
+      {
+        "mention": "Nadiem Amiri",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Florian Neuhaus",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1"
+      },
+      {
+        "mention": "Eric Martel",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1"
+      },
+      {
+        "mention": "Florian Neuhaus",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2"
+      },
+      {
+        "mention": "Eric Martel",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2"
+      },
+      {
+        "mention": "Nadiem Amiri",
+        "status": "resolved",
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91167376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7065",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9053",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91167376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7065",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9053",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143491"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "82",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-compare-add-amiri-bundesliga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91167376",
+        "value": 132
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91167376",
+        "value": 143
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91205203",
+        "value": 140
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91205203",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91143491",
+        "value": 150
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91143491",
+        "value": 150
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7065",
+        "value": 206
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7065",
+        "value": 0.4221401885151863
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9053",
+        "value": 94
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9053",
+        "value": 0.7265632301568985
+      },
+      {
+        "provider": "understat",
+        "sourceId": "82",
+        "competition": "Bundesliga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 536
+      },
+      {
+        "provider": "understat",
+        "sourceId": "82",
+        "competition": "Bundesliga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 1.6816764641553164
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpd214e536943c41",
+        "canonicalIdentityId": "rpd214e536943c41",
+        "mention": "Florian Neuhaus",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91167376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7065",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp2452162ed07bba",
+        "canonicalIdentityId": "rp2452162ed07bba",
+        "mention": "Eric Martel",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91205203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9053",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc6a8b2560d3ed3",
+        "canonicalIdentityId": "rpc6a8b2560d3ed3",
+        "mention": "Nadiem Amiri",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91143491"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "82",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91167376"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7065",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91205203"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9053",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91143491"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "82",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91167376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7065",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9053",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91167376"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7065",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91205203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9053",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91143491"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "82",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-compare-add-amiri-bundesliga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-compare-add-amiri-bundesliga-turn-1",
+      "userMessage": "Compare Florian Neuhaus and Eric Martel using 2026/27 Bundesliga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-compare-add-amiri-bundesliga-turn-2",
+      "userMessage": "Add Nadiem Amiri to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,168 @@
+{
+  "caseId": "v34-recommend-jordan-henderson-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v34-recommend-jordan-henderson-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v34-recommend-jordan-henderson-similar-mc-turn-1",
+        "value": "28005568"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v34-recommend-jordan-henderson-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jordan Henderson",
+        "status": "resolved",
+        "turnId": "v34-recommend-jordan-henderson-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jordan Henderson",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28005568"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37001813"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67256515"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16147660"
+          }
+        ],
+        "turnId": "v34-recommend-jordan-henderson-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28005568",
+        "value": 141
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28005568",
+        "value": 165
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpa08428590d3aa9",
+        "canonicalIdentityId": "rpa08428590d3aa9",
+        "mention": "Jordan Henderson",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28005568"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28005568"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37001813"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67256515"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "16147660"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28005568"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37001813"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67256515"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16147660"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-recommend-jordan-henderson-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-recommend-jordan-henderson-similar-mc-turn-1",
+      "userMessage": "Based on Jordan Henderson's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

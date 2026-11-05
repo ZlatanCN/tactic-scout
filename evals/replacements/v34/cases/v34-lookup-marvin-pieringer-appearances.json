@@ -1,0 +1,138 @@
+{
+  "caseId": "v34-lookup-marvin-pieringer-appearances",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Marvin Pieringer",
+        "status": "resolved",
+        "turnId": "v34-lookup-marvin-pieringer-appearances-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Marvin Pieringer",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91190216"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11856",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v34-lookup-marvin-pieringer-appearances-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91190216",
+        "value": 132
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11856",
+        "value": 6
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp4720828a33312d",
+        "canonicalIdentityId": "rp4720828a33312d",
+        "mention": "Marvin Pieringer",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91190216"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11856",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91190216"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11856",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91190216"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11856",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "scenarioFamily": "replacement-v34-lookup-marvin-pieringer-appearances",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v34-lookup-marvin-pieringer-appearances-turn-1",
+      "userMessage": "Look up Marvin Pieringer's 2026/27 Bundesliga appearances and PA."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

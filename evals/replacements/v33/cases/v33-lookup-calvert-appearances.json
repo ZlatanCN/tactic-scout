@@ -121,9 +121,9 @@
   "declaredDataFaults": [],
   "declaredTurnFaults": [],
   "evidenceBundleId": "replacement-v33-real-data",
-  "evidenceBundleSha256": "cf82efd19d6072f45267bc2ab3da4a73ce2f8a47d83f7fe5738bc5788a5ebf07",
+  "evidenceBundleSha256": "23d666cf036459fbc51ceba0a6f6a6744e4f44e53a82b34ac2f2976aeb12f7d2",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V33 from fixed local snapshots after V32 findings; no V33 model request has started.",
+  "priorTuningExposure": "Exposed by V33 run 090c0264-3023-466e-944e-9d7780e7cb08: 218 model requests, 35 trials passed, 3 failed on the add-reference case contract, and 10 were not assessed. The run used an incorrect candidate list for that case; its expected results were corrected after the run. Do not use V33 for acceptance.",
   "scenarioFamily": "replacement-v33-lookup-calvert-appearances",
   "split": "held_out",
   "turns": [

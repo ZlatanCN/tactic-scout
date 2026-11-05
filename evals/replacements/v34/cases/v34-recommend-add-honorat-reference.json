@@ -1,0 +1,295 @@
+{
+  "caseId": "v34-recommend-add-honorat-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v34-recommend-add-honorat-reference",
+  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "evidenceBundleId": "replacement-v34-real-data",
+  "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
+  "turns": [
+    {
+      "turnId": "v34-recommend-add-honorat-reference-turn-1",
+      "userMessage": "Based on Mitchell Weiser's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v34-recommend-add-honorat-reference-turn-2",
+      "userMessage": "Add Franck Honorat as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Mitchell Weiser",
+        "status": "resolved"
+      },
+      {
+        "mention": "Franck Honorat",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Mitchell Weiser",
+        "status": "resolved",
+        "turnId": "v34-recommend-add-honorat-reference-turn-1"
+      },
+      {
+        "lookupName": "Franck Honorat",
+        "status": "resolved",
+        "turnId": "v34-recommend-add-honorat-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92016244"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18073840"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37076659"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28094954"
+          }
+        ],
+        "turnId": "v34-recommend-add-honorat-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92016244"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48036785"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28094954"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67277676"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000021340"
+          }
+        ],
+        "turnId": "v34-recommend-add-honorat-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-1",
+        "value": "92016244"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-2",
+        "value": "92016244"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-2",
+        "value": "48036785"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v34-recommend-add-honorat-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92016244",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92016244",
+        "value": 140
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48036785",
+        "value": 138
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48036785",
+        "value": 142
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp2c964ffe91197a",
+        "canonicalIdentityId": "rp2c964ffe91197a",
+        "mention": "Mitchell Weiser",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92016244"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc3298e8b25ab69",
+        "canonicalIdentityId": "rpc3298e8b25ab69",
+        "mention": "Franck Honorat",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036785"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92016244"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18073840"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37076659"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28094954"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48036785"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67277676"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000021340"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92016244"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18073840"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37076659"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28094954"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92016244"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48036785"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28094954"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67277676"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000021340"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}
