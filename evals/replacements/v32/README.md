@@ -19,7 +19,7 @@ pnpm exec ultracite check src/nodes/assistant.ts src/recommendation-answer.ts te
 node --import tsx evals/cli.ts preview --mode held_out --judge --case-directory evals/replacements/v32/cases --evidence-directory .data/evals/v32-evidence
 ```
 
-The current preview reports 16/16 bundles ready, 48 trials, and an estimate of 816 physical model requests. Offline preflight also verifies that each required Understat value matches the exact fixed source row, so an incorrect golden value is rejected before dispatch. Run from the committed clean tree with the exact freeze fingerprint from the final preview. The previously authorized request ceiling is 900; the runner retains a partial report if it reaches the cap. The run must include judge calibration and semantic scoring.
+The current preview reports 16/16 bundles ready, 48 trials, and an estimate of 816 physical model requests. Offline preflight verifies each required Understat value against the exact fixed source row, and does not coerce blank numeric strings to zero. A bad golden value is rejected before dispatch. Run from the committed clean tree with the exact freeze fingerprint from the final preview. The previously authorized request ceiling is 900; the runner retains a partial report if it reaches the cap. The run must include judge calibration and semantic scoring.
 
 ```sh
 node --import tsx evals/cli.ts run \

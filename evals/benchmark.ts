@@ -318,6 +318,12 @@ const providerValueMatchesExpectation = (
       return false;
     }
 
+    const actualText = z.string().safeParse(actualNumber.data);
+
+    if (actualText.success && actualText.data.trim().length === 0) {
+      return false;
+    }
+
     const parsedNumber = Number(actualNumber.data);
 
     return (
