@@ -1,0 +1,176 @@
+{
+  "caseId": "v31-lookup-samatta-appearances",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ally Samatta",
+        "status": "resolved",
+        "turnId": "v31-lookup-samatta-appearances-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ally Samatta",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13102011"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8287",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v31-lookup-samatta-appearances-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "13102011",
+        "value": 114
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "13102011",
+        "value": 130
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8287",
+        "value": 614
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8287",
+        "value": 7
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8287",
+        "value": 2.582575410604477
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8287",
+        "value": 2
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8287",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp13f33a07ec50b1",
+        "canonicalIdentityId": "rp13f33a07ec50b1",
+        "mention": "Ally Samatta",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13102011"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8287",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "13102011"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8287",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13102011"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8287",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v31-real-data",
+  "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v31-lookup-samatta-appearances",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-lookup-samatta-appearances-turn-1",
+      "userMessage": "How many appearances did Ally Samatta make in 2026/27 Ligue 1? Does his PA guarantee future CA of 180?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

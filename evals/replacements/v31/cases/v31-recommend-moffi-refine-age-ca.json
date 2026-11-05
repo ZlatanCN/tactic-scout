@@ -1,0 +1,264 @@
+{
+  "caseId": "v31-recommend-moffi-refine-age-ca",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-1",
+        "value": "47079007"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-1",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-2",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-2",
+        "value": "47079007"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-2",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-2",
+        "value": 120
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Terem Moffi",
+        "status": "resolved",
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Terem Moffi",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "47079007"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000015270"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000218959"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000304487"
+          }
+        ],
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "47079007"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000015270"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000304487"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000104850"
+          }
+        ],
+        "turnId": "v31-recommend-moffi-refine-age-ca-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "47079007",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "47079007",
+        "value": 140
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp4ad0b9b4da0e81",
+        "canonicalIdentityId": "rp4ad0b9b4da0e81",
+        "mention": "Terem Moffi",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "47079007"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "47079007"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000015270"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000218959"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000304487"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000104850"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "47079007"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000015270"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000218959"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000304487"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "47079007"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000015270"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000304487"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000104850"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v31-real-data",
+  "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v31-recommend-moffi-refine-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-recommend-moffi-refine-age-ca-turn-1",
+      "userMessage": "Based on Terem Moffi's STC profile, recommend alternatives aged 23 or younger and show at most three."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-recommend-moffi-refine-age-ca-turn-2",
+      "userMessage": "Refine to keep STC players aged 23 or younger with CA at least 120, showing at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,211 @@
+{
+  "caseId": "v31-lookup-amo-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v31-lookup-amo-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "2000190479"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11618",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Sam Amo-Ameyaw",
+        "status": "resolved",
+        "turnId": "v31-lookup-amo-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Sam Amo-Ameyaw",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Sam Amo-Ameyaw",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpbce34997b3d6a1",
+        "turnId": "v31-lookup-amo-saved-xa-turn-1"
+      },
+      {
+        "mention": "Sam Amo-Ameyaw",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpbce34997b3d6a1",
+        "turnId": "v31-lookup-amo-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000190479"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11618",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v31-lookup-amo-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000190479",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000190479",
+        "value": 158
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11618",
+        "value": 229
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11618",
+        "value": 0.4838209580630064
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11618",
+        "value": 2
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11618",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11618",
+        "field": "expectedAssists",
+        "value": 0.1933647319674492,
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpbce34997b3d6a1",
+        "canonicalIdentityId": "rpbce34997b3d6a1",
+        "mention": "Sam Amo-Ameyaw",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000190479"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11618",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000190479"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11618",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000190479"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11618",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v31-real-data",
+  "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v31-lookup-amo-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-lookup-amo-saved-xa-turn-1",
+      "userMessage": "Look up Sam Amo-Ameyaw's FM profile and 2026/27 Ligue 1 performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-lookup-amo-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

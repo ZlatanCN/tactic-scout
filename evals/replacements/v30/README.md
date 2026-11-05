@@ -1,6 +1,6 @@
 # V30 replacement held-out pack
 
-Status: prepared, not yet run against a live model.
+Status: exposed; do not use as the acceptance pack.
 
 This pack contains 16 independent cases across the four workflows: 12 real-source cases and 4 synthetic team-roster cases. `v30-lookup-waldschmidt-profile` checks a linked source-name variant (FM “Luca Waldschmidt”, Understat “Gian-Luca Waldschmidt”). The pack test also verifies that every resolved provider ID appears in the corresponding expected tool action.
 
@@ -29,15 +29,4 @@ cp evals/evidence/replacement-v30-team-synthetic.json \
   .data/evals/v30-evidence/replacement-v30-team-synthetic.json
 ```
 
-Preview all cases before dispatch. The estimate is 834 physical model requests for 48 trials plus judge calibration; the approved ceiling is 900. Run once with the exact preview fingerprint. Any tuning based on V30 findings exposes the pack.
-
-```sh
-pnpm eval:run \
-  --mode held_out \
-  --judge \
-  --freeze-id <freezeFingerprint> \
-  --case-directory evals/replacements/v30/cases \
-  --evidence-directory .data/evals/v30-evidence \
-  --max-model-requests 900 \
-  --output .data/evals/v30-heldout-runs
-```
+The partial run `757ba2b1-6bf4-4308-bf0b-c82941eeb42f` stopped after 37 of 48 trials and 126 model requests. No judge calibration or semantic scoring ran. It exposed two case-contract problems: “Josh King” resolved to multiple identities and correctly requested clarification, while the case expected automatic resolution; the high-potential case's wording produced `resultLimit: 2` while its contract expected `1`. Those findings were used to prepare the independent V31 pack, so V30 cannot be reused as a held-out gate.

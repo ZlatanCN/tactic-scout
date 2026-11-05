@@ -1,0 +1,179 @@
+{
+  "caseId": "v31-recommend-samatta-under-16-pa",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+        "value": "13102011"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+        "value": 16
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ally Samatta",
+        "status": "resolved",
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ally Samatta",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13102011"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2002078715"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000130681"
+          }
+        ],
+        "turnId": "v31-recommend-samatta-under-16-pa-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "13102011",
+        "value": 114
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "13102011",
+        "value": 130
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp13f33a07ec50b1",
+        "canonicalIdentityId": "rp13f33a07ec50b1",
+        "mention": "Ally Samatta",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13102011"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "13102011"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2002078715"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000130681"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13102011"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2002078715"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000130681"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v31-real-data",
+  "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v31-recommend-samatta-under-16-pa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-recommend-samatta-under-16-pa-turn-1",
+      "userMessage": "Based on Ally Samatta, recommend STC prospects aged 16 or younger with PA at least 140; show at most one candidate in each list, one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

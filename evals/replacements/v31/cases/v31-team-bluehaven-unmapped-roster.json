@@ -1,0 +1,172 @@
+{
+  "caseId": "v31-team-bluehaven-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v31-team-bluehaven-unmapped-roster",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from a new synthetic roster fixture; not run against a live model.",
+  "evidenceBundleId": "replacement-v31-team-synthetic",
+  "evidenceBundleSha256": "55ca021a7dbc0ab564205f615ba67dd6fb58bd7349264226e066969fca038859",
+  "turns": [
+    {
+      "turnId": "v31-team-bluehaven-unmapped-roster-turn-1",
+      "userMessage": "为 Bluehaven Town 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10053"
+          }
+        ],
+        "turnId": "v31-team-bluehaven-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10053"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10109"
+          }
+        ],
+        "turnId": "v31-team-bluehaven-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10109"
+          }
+        ],
+        "turnId": "v31-team-bluehaven-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v31-team-bluehaven-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 10109
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v31-team-bluehaven-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v31-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v31-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v31-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v31-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v31-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v31-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10053"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10109"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10053"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10053"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10109"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10109"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

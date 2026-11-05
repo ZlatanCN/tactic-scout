@@ -1,0 +1,466 @@
+{
+  "caseId": "v31-compare-add-hakan-serie-a",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Antonio Raimondo",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Nikola Krstović",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Hakan Çalhanoğlu",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Antonio Raimondo",
+        "status": "resolved"
+      },
+      {
+        "mention": "Nikola Krstović",
+        "status": "resolved"
+      },
+      {
+        "mention": "Hakan Çalhanoğlu",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Antonio Raimondo",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1"
+      },
+      {
+        "mention": "Nikola Krstović",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1"
+      },
+      {
+        "mention": "Antonio Raimondo",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2"
+      },
+      {
+        "mention": "Nikola Krstović",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2"
+      },
+      {
+        "mention": "Hakan Çalhanoğlu",
+        "status": "resolved",
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000021170"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9539",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62195758"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12008",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v31-compare-add-hakan-serie-a-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000021170"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9539",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62195758"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12008",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92026209"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "189",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v31-compare-add-hakan-serie-a-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000021170",
+        "value": 113
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000021170",
+        "value": 143
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "62195758",
+        "value": 139
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "62195758",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92026209",
+        "value": 155
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92026209",
+        "value": 164
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9539",
+        "value": 581
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9539",
+        "value": 5.149180732667446
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12008",
+        "value": 367
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12008",
+        "value": 3.536315326578915
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "189",
+        "value": 208
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "189",
+        "value": 0.868811110034585
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp684c71ec43045c",
+        "canonicalIdentityId": "rp684c71ec43045c",
+        "mention": "Antonio Raimondo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000021170"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9539",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp33fe2927c831cb",
+        "canonicalIdentityId": "rp33fe2927c831cb",
+        "mention": "Nikola Krstović",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "62195758"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12008",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpb2b61bd586ba3c",
+        "canonicalIdentityId": "rpb2b61bd586ba3c",
+        "mention": "Hakan Çalhanoğlu",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92026209"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "189",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000021170"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9539",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "62195758"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12008",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92026209"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "189",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000021170"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9539",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62195758"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12008",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000021170"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9539",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "62195758"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12008",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92026209"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "189",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v31-real-data",
+  "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v31-compare-add-hakan-serie-a",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-compare-add-hakan-serie-a-turn-1",
+      "userMessage": "Compare Antonio Raimondo and Nikola Krstović for 2026/27 Serie A data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-compare-add-hakan-serie-a-turn-2",
+      "userMessage": "Add Hakan Çalhanoğlu to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

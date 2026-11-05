@@ -1,0 +1,168 @@
+{
+  "caseId": "v31-recommend-amo-similar-amr",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v31-recommend-amo-similar-amr-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v31-recommend-amo-similar-amr-turn-1",
+        "value": "2000190479"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v31-recommend-amo-similar-amr-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Sam Amo-Ameyaw",
+        "status": "resolved",
+        "turnId": "v31-recommend-amo-similar-amr-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Sam Amo-Ameyaw",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000190479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "23464197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000086446"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "83120995"
+          }
+        ],
+        "turnId": "v31-recommend-amo-similar-amr-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000190479",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000190479",
+        "value": 158
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpbce34997b3d6a1",
+        "canonicalIdentityId": "rpbce34997b3d6a1",
+        "mention": "Sam Amo-Ameyaw",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000190479"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000190479"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "23464197"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000086446"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "83120995"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000190479"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "23464197"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000086446"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "83120995"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v31-real-data",
+  "evidenceBundleSha256": "d8300233374e9253376549de0b9b2b9f27144985ad037e9e03dbe39b45c6a239",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v31 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v31-recommend-amo-similar-amr",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v31-recommend-amo-similar-amr-turn-1",
+      "userMessage": "Based on Sam Amo-Ameyaw's AMR profile, recommend similar players and show at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

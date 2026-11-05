@@ -1171,6 +1171,8 @@ describe("LangGraph player workflows", () => {
       "除非工具列出具体对象，否则不要推断具体排除了谁或属于哪类身份",
       "名单长度不等于任何阶段数量",
       "球员推荐只能从 filters.resultLimit 读取名单上限",
+      "resultLimit 分别限制 currentCandidates 和 potentialCandidates 各自的名单数",
+      "resultLimit 为 1 时，两份名单可以各返回 1 名球员",
       "不得从名单长度或 afterIdentityExclusion 推断上限",
     ].every((promptRule) => modelInput.includes(promptRule));
 
