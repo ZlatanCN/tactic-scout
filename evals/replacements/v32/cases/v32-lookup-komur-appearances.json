@@ -1,0 +1,138 @@
+{
+  "caseId": "v32-lookup-komur-appearances",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Mert Kömür",
+        "status": "resolved",
+        "turnId": "v32-lookup-komur-appearances-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Mert Kömür",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180850"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11604",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-lookup-komur-appearances-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000180850",
+        "value": 150
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11604",
+        "value": 6
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpa30d1f827fcad4",
+        "canonicalIdentityId": "rpa30d1f827fcad4",
+        "mention": "Mert Kömür",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180850"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11604",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000180850"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11604",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180850"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11604",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "scenarioFamily": "replacement-v32-lookup-komur-appearances",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-lookup-komur-appearances-turn-1",
+      "userMessage": "How many appearances did Mert Kömür make in 2026/27 Bundesliga? Does his PA guarantee future CA of 180?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,211 @@
+{
+  "caseId": "v32-lookup-aouchiche-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v32-lookup-aouchiche-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "49048441"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7980",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Adil Aouchiche",
+        "status": "resolved",
+        "turnId": "v32-lookup-aouchiche-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Adil Aouchiche",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Adil Aouchiche",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp4b08faf359f2e5",
+        "turnId": "v32-lookup-aouchiche-saved-xa-turn-1"
+      },
+      {
+        "mention": "Adil Aouchiche",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp4b08faf359f2e5",
+        "turnId": "v32-lookup-aouchiche-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49048441"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7980",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-lookup-aouchiche-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49048441",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49048441",
+        "value": 145
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7980",
+        "value": 415
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7980",
+        "value": 1.1180583387613297
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7980",
+        "value": 1
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7980",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7980",
+        "field": "expectedAssists",
+        "value": 1.6488009914755821,
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp4b08faf359f2e5",
+        "canonicalIdentityId": "rp4b08faf359f2e5",
+        "mention": "Adil Aouchiche",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49048441"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7980",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49048441"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7980",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49048441"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7980",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "scenarioFamily": "replacement-v32-lookup-aouchiche-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-lookup-aouchiche-saved-xa-turn-1",
+      "userMessage": "Look up Adil Aouchiche's FM profile and 2026/27 Bundesliga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-lookup-aouchiche-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

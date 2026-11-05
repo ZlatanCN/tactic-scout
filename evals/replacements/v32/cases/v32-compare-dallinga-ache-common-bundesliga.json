@@ -1,0 +1,282 @@
+{
+  "caseId": "v32-compare-dallinga-ache-common-bundesliga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Thijs Dallinga",
+        "status": "resolved",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Ragnar Ache",
+        "status": "resolved",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Thijs Dallinga",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ragnar Ache",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Thijs Dallinga",
+        "status": "resolved",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1"
+      },
+      {
+        "mention": "Ragnar Ache",
+        "status": "resolved",
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37070210"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10794",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37063419"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8869",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37070210",
+        "value": 131
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37070210",
+        "value": 138
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37063419",
+        "value": 128
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37063419",
+        "value": 132
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10794",
+        "value": 156
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10794",
+        "value": 2.2601040601730347
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8869",
+        "value": 189
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8869",
+        "value": 0.8789453655481339
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc243cf12374f09",
+        "canonicalIdentityId": "rpc243cf12374f09",
+        "mention": "Thijs Dallinga",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37070210"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10794",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpeb9bd7fa86c3da",
+        "canonicalIdentityId": "rpeb9bd7fa86c3da",
+        "mention": "Ragnar Ache",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37063419"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8869",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "37070210"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10794",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37063419"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8869",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37070210"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10794",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37063419"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8869",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "scenarioFamily": "replacement-v32-compare-dallinga-ache-common-bundesliga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-compare-dallinga-ache-common-bundesliga-turn-1",
+      "userMessage": "Compare Thijs Dallinga and Ragnar Ache using 2026/27 Bundesliga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,489 @@
+{
+  "caseId": "v32-compare-add-gruda-bundesliga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ritsu Doan",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Jan Thielmann",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Brajan Gruda",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ritsu Doan",
+        "status": "resolved"
+      },
+      {
+        "mention": "Jan Thielmann",
+        "status": "resolved"
+      },
+      {
+        "mention": "Brajan Gruda",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Ritsu Doan",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1"
+      },
+      {
+        "mention": "Jan Thielmann",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1"
+      },
+      {
+        "mention": "Ritsu Doan",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2"
+      },
+      {
+        "mention": "Jan Thielmann",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2"
+      },
+      {
+        "mention": "Brajan Gruda",
+        "status": "resolved",
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45095577"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8791",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91185080"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8205",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45095577"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8791",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91185080"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8205",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11310",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-compare-add-gruda-bundesliga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "45095577",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "45095577",
+        "value": 152
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91185080",
+        "value": 125
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91185080",
+        "value": 140
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000180822",
+        "value": 140
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000180822",
+        "value": 165
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8791",
+        "value": 406
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8791",
+        "value": 0.5682322643697264
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8205",
+        "value": 143
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8205",
+        "value": 0.09306352958083153
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11310",
+        "competition": "Bundesliga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 279
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11310",
+        "competition": "Bundesliga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.398727647960186
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp4f4bc87db2c8c0",
+        "canonicalIdentityId": "rp4f4bc87db2c8c0",
+        "mention": "Ritsu Doan",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45095577"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8791",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp5afacd1eaf6204",
+        "canonicalIdentityId": "rp5afacd1eaf6204",
+        "mention": "Jan Thielmann",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91185080"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8205",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp8689c152d7f8cf",
+        "canonicalIdentityId": "rp8689c152d7f8cf",
+        "mention": "Brajan Gruda",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11310",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "45095577"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8791",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91185080"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8205",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000180822"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11310",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45095577"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8791",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91185080"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8205",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45095577"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8791",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91185080"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8205",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11310",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "scenarioFamily": "replacement-v32-compare-add-gruda-bundesliga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-compare-add-gruda-bundesliga-turn-1",
+      "userMessage": "Compare Ritsu Doan and Jan Thielmann using 2026/27 Bundesliga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-compare-add-gruda-bundesliga-turn-2",
+      "userMessage": "Add Brajan Gruda to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

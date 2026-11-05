@@ -1,0 +1,466 @@
+{
+  "caseId": "v32-compare-add-debruyne-serie-a",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Adrien Rabiot",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Che Adams",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Kevin De Bruyne",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Adrien Rabiot",
+        "status": "resolved"
+      },
+      {
+        "mention": "Che Adams",
+        "status": "resolved"
+      },
+      {
+        "mention": "Kevin De Bruyne",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Adrien Rabiot",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1"
+      },
+      {
+        "mention": "Che Adams",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1"
+      },
+      {
+        "mention": "Adrien Rabiot",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2"
+      },
+      {
+        "mention": "Che Adams",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2"
+      },
+      {
+        "mention": "Kevin De Bruyne",
+        "status": "resolved",
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85086031"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3291",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "90055302"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7700",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85086031"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3291",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "90055302"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7700",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18004457"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "447",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v32-compare-add-debruyne-serie-a-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85086031",
+        "value": 157
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85086031",
+        "value": 160
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "90055302",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "90055302",
+        "value": 142
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "18004457",
+        "value": 166
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "18004457",
+        "value": 190
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3291",
+        "value": 486
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3291",
+        "value": 1.7634277697652578
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7700",
+        "value": 326
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7700",
+        "value": 1.781380895525217
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "447",
+        "value": 380
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "447",
+        "value": 3.047609777189791
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp13178b61874996",
+        "canonicalIdentityId": "rp13178b61874996",
+        "mention": "Adrien Rabiot",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85086031"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3291",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp706b0396106ebd",
+        "canonicalIdentityId": "rp706b0396106ebd",
+        "mention": "Che Adams",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "90055302"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7700",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp2a03e4462d5da1",
+        "canonicalIdentityId": "rp2a03e4462d5da1",
+        "mention": "Kevin De Bruyne",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "18004457"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "447",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85086031"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3291",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "90055302"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7700",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18004457"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "447",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85086031"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3291",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "90055302"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7700",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85086031"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3291",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "90055302"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7700",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18004457"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "447",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "scenarioFamily": "replacement-v32-compare-add-debruyne-serie-a",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-compare-add-debruyne-serie-a-turn-1",
+      "userMessage": "Compare Adrien Rabiot and Che Adams using 2026/27 Serie A data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-compare-add-debruyne-serie-a-turn-2",
+      "userMessage": "Add Kevin De Bruyne to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,182 @@
+{
+  "caseId": "v32-recommend-dallinga-age-ca",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1",
+        "value": "37070210"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1",
+        "value": 23
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1",
+        "value": 120
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Thijs Dallinga",
+        "status": "resolved",
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Thijs Dallinga",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37070210"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000184216"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37086853"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000006275"
+          }
+        ],
+        "turnId": "v32-recommend-dallinga-age-ca-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37070210",
+        "value": 131
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37070210",
+        "value": 138
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc243cf12374f09",
+        "canonicalIdentityId": "rpc243cf12374f09",
+        "mention": "Thijs Dallinga",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37070210"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "37070210"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000184216"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37086853"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000006275"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37070210"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000184216"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37086853"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000006275"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "scenarioFamily": "replacement-v32-recommend-dallinga-age-ca",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v32-recommend-dallinga-age-ca-turn-1",
+      "userMessage": "Based on Thijs Dallinga's STC profile, recommend alternatives aged 23 or younger with CA at least 120; show at most three."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

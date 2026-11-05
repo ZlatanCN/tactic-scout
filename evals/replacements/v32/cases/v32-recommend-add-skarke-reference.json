@@ -1,0 +1,299 @@
+{
+  "caseId": "v32-recommend-add-skarke-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v32-recommend-add-skarke-reference",
+  "priorTuningExposure": "Authored for independent V32 from fixed local snapshots after V31 findings; no V32 live model request has started.",
+  "evidenceBundleId": "replacement-v32-real-data",
+  "evidenceBundleSha256": "0bb58ff748c99f5a0d009d72c6431c36156bd007c75a12174a9e21cad998dbfe",
+  "turns": [
+    {
+      "turnId": "v32-recommend-add-skarke-reference-turn-1",
+      "userMessage": "根据 Brajan Gruda 的 AMR 画像推荐球员，最多三名。"
+    },
+    {
+      "turnId": "v32-recommend-add-skarke-reference-turn-2",
+      "userMessage": "再加上 Tim Skarke 作为参考。"
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Brajan Gruda",
+        "status": "resolved"
+      },
+      {
+        "mention": "Tim Skarke",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Brajan Gruda",
+        "status": "resolved",
+        "turnId": "v32-recommend-add-skarke-reference-turn-1"
+      },
+      {
+        "lookupName": "Tim Skarke",
+        "status": "resolved",
+        "turnId": "v32-recommend-add-skarke-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000081972"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000100095"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000312673"
+          }
+        ],
+        "turnId": "v32-recommend-add-skarke-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92074815"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000277689"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19287055"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000130471"
+          }
+        ],
+        "turnId": "v32-recommend-add-skarke-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-1",
+        "value": "2000180822"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-2",
+        "value": "2000180822"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-2",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v32-recommend-add-skarke-reference-turn-2",
+        "value": "92074815"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000180822",
+        "value": 140
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000180822",
+        "value": 165
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92074815",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92074815",
+        "value": 130
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp8689c152d7f8cf",
+        "canonicalIdentityId": "rp8689c152d7f8cf",
+        "mention": "Brajan Gruda",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp5d897f869c3130",
+        "canonicalIdentityId": "rp5d897f869c3130",
+        "mention": "Tim Skarke",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92074815"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000180822"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000081972"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000100095"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000312673"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92074815"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000277689"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19287055"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000130471"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000081972"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000100095"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000312673"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000180822"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92074815"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000277689"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19287055"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000130471"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}
