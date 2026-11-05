@@ -1,0 +1,179 @@
+{
+  "caseId": "v30-recommend-king-under-21-pa",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1",
+        "value": "2000276594"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1",
+        "value": 21
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumPotentialAbility",
+        "source": "input",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1",
+        "value": 140
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "includePotential",
+        "source": "input",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1",
+        "value": true
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Josh King",
+        "status": "resolved",
+        "turnId": "v30-recommend-king-under-21-pa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Josh King",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000161829"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000169739"
+          }
+        ],
+        "turnId": "v30-recommend-king-under-21-pa-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future current ability."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000276594",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000276594",
+        "value": 155
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp739e5ac7337d17",
+        "canonicalIdentityId": "rp739e5ac7337d17",
+        "mention": "Josh King",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000276594"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000161829"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000169739"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000161829"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000169739"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v30-real-data",
+  "evidenceBundleSha256": "814755ccbc9d7607dd29d23c2b3b12b1cc2dbb7fadc3a9d38cda5540cac50d13",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v30 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v30-recommend-king-under-21-pa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-recommend-king-under-21-pa-turn-1",
+      "userMessage": "Based on Josh King, recommend MC prospects aged 21 or younger with PA at least 140; show one current-profile match and one high-potential prospect."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

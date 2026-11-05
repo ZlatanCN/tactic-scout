@@ -43,21 +43,21 @@
         "path": "coverage.commonUnderstatScopeCount",
         "source": "result",
         "turnId": "v29-compare-add-bruno-inherited-epl-turn-2",
-        "value": 0
+        "value": 1
       },
       {
         "name": "compare_player_records",
         "path": "understatScopeGroups.0.coverage.coversAllParticipants",
         "source": "result",
         "turnId": "v29-compare-add-bruno-inherited-epl-turn-2",
-        "value": false
+        "value": true
       },
       {
         "name": "compare_player_records",
         "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
         "source": "result",
         "turnId": "v29-compare-add-bruno-inherited-epl-turn-2",
-        "value": 2
+        "value": 3
       }
     ],
     "expectedActiveLookupSourceRecords": [],
@@ -205,6 +205,12 @@
           {
             "provider": "fm",
             "sourceId": "43124203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1228",
+            "competition": "EPL",
+            "season": "2026/27"
           }
         ],
         "turnId": "v29-compare-add-bruno-inherited-epl-turn-2"
@@ -289,6 +295,22 @@
         "season": "2026/27",
         "sourceId": "239",
         "value": 1.9282620642334223
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1228",
+        "competition": "EPL",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 630
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1228",
+        "competition": "EPL",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 3.170292127877474
       }
     ],
     "resolvedPlayers": [
@@ -431,6 +453,12 @@
           {
             "provider": "fm",
             "sourceId": "43124203"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1228",
+            "competition": "EPL",
+            "season": "2026/27"
           }
         ]
       }

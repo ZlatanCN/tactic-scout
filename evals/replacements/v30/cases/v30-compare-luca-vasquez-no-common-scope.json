@@ -1,0 +1,273 @@
+{
+  "caseId": "v30-compare-luca-vasquez-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Luca Waldschmidt",
+        "status": "resolved",
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Johan Felipe Vásquez",
+        "status": "resolved",
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Luca Waldschmidt",
+        "status": "resolved"
+      },
+      {
+        "mention": "Johan Felipe Vásquez",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Luca Waldschmidt",
+        "status": "resolved",
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1"
+      },
+      {
+        "mention": "Johan Felipe Vásquez",
+        "status": "resolved",
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91119468"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "294",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "51067636"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9985",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91119468",
+        "value": 121
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91119468",
+        "value": 136
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "51067636",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "51067636",
+        "value": 140
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "294",
+        "value": 11
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "294",
+        "value": 0.10153844952583313
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9985",
+        "value": 528
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9985",
+        "value": 0.1473471913486719
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpf43c1616ae0dc8",
+        "canonicalIdentityId": "rpf43c1616ae0dc8",
+        "mention": "Luca Waldschmidt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91119468"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "294",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp7e1206a387c79b",
+        "canonicalIdentityId": "rp7e1206a387c79b",
+        "mention": "Johan Felipe Vásquez",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "51067636"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9985",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91119468"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "294",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "51067636"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9985",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91119468"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "294",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "51067636"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9985",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v30-real-data",
+  "evidenceBundleSha256": "814755ccbc9d7607dd29d23c2b3b12b1cc2dbb7fadc3a9d38cda5540cac50d13",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v30 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v30-compare-luca-vasquez-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-compare-luca-vasquez-no-common-scope-turn-1",
+      "userMessage": "Compare Luca Waldschmidt and Johan Felipe Vásquez using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

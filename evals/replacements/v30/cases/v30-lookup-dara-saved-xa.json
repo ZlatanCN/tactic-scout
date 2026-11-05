@@ -1,0 +1,211 @@
+{
+  "caseId": "v30-lookup-dara-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v30-lookup-dara-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "28106528"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8756",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Dara O'Shea",
+        "status": "resolved",
+        "turnId": "v30-lookup-dara-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Dara O'Shea",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Dara O'Shea",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpc403fdf4b54513",
+        "turnId": "v30-lookup-dara-saved-xa-turn-1"
+      },
+      {
+        "mention": "Dara O'Shea",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpc403fdf4b54513",
+        "turnId": "v30-lookup-dara-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v30-lookup-dara-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28106528",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28106528",
+        "value": 140
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8756",
+        "value": 630
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8756",
+        "value": 0.5702799595892429
+      },
+      {
+        "competition": "EPL",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8756",
+        "value": 1
+      },
+      {
+        "competition": "EPL",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8756",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8756",
+        "field": "expectedAssists",
+        "value": 0.2653389796614647,
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc403fdf4b54513",
+        "canonicalIdentityId": "rpc403fdf4b54513",
+        "mention": "Dara O'Shea",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28106528"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8756",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v30-real-data",
+  "evidenceBundleSha256": "814755ccbc9d7607dd29d23c2b3b12b1cc2dbb7fadc3a9d38cda5540cac50d13",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v30 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v30-lookup-dara-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-lookup-dara-saved-xa-turn-1",
+      "userMessage": "Look up Dara O'Shea's FM profile and 2026/27 Premier League performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-lookup-dara-saved-xa-turn-2",
+      "userMessage": "What xA did Understat report?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

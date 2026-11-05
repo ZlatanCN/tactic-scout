@@ -1,0 +1,203 @@
+{
+  "caseId": "v30-lookup-raba-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v30-lookup-raba-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "67216778"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5199",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Dani Raba",
+        "status": "resolved",
+        "turnId": "v30-lookup-raba-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Dani Raba",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Dani Raba",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpc269e89c7b8056",
+        "turnId": "v30-lookup-raba-saved-season-turn-1"
+      },
+      {
+        "mention": "Dani Raba",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpc269e89c7b8056",
+        "turnId": "v30-lookup-raba-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67216778"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5199",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v30-lookup-raba-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67216778",
+        "value": 131
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67216778",
+        "value": 135
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5199",
+        "value": 121
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5199",
+        "value": 0.6679990384727716
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5199",
+        "value": 1
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5199",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc269e89c7b8056",
+        "canonicalIdentityId": "rpc269e89c7b8056",
+        "mention": "Dani Raba",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67216778"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5199",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67216778"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5199",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67216778"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5199",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v30-real-data",
+  "evidenceBundleSha256": "814755ccbc9d7607dd29d23c2b3b12b1cc2dbb7fadc3a9d38cda5540cac50d13",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v30 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v30-lookup-raba-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-lookup-raba-saved-season-turn-1",
+      "userMessage": "Look up Dani Raba's FM profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-lookup-raba-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,489 @@
+{
+  "caseId": "v30-compare-add-yehor-inherited-epl",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1",
+        "value": "EPL"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+        "value": "EPL"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Josh King",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1"
+      },
+      {
+        "lookupName": "Dara O'Shea",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1"
+      },
+      {
+        "lookupName": "Yehor Yarmoliuk",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Josh King",
+        "status": "resolved"
+      },
+      {
+        "mention": "Dara O'Shea",
+        "status": "resolved"
+      },
+      {
+        "mention": "Yehor Yarmoliuk",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "EPL"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "EPL"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Josh King",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1"
+      },
+      {
+        "mention": "Dara O'Shea",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1"
+      },
+      {
+        "mention": "Josh King",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2"
+      },
+      {
+        "mention": "Dara O'Shea",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2"
+      },
+      {
+        "mention": "Yehor Yarmoliuk",
+        "status": "resolved",
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12410",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12410",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "71110357"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11772",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v30-compare-add-yehor-inherited-epl-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000276594",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000276594",
+        "value": 155
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28106528",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28106528",
+        "value": 140
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "71110357",
+        "value": 141
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "71110357",
+        "value": 165
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12410",
+        "value": 584
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12410",
+        "value": 1.8244603350758553
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8756",
+        "value": 630
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8756",
+        "value": 0.5702799595892429
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11772",
+        "competition": "EPL",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 336
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11772",
+        "competition": "EPL",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.13729575835168362
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp739e5ac7337d17",
+        "canonicalIdentityId": "rp739e5ac7337d17",
+        "mention": "Josh King",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12410",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc403fdf4b54513",
+        "canonicalIdentityId": "rpc403fdf4b54513",
+        "mention": "Dara O'Shea",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp778e5fbd915144",
+        "canonicalIdentityId": "rp778e5fbd915144",
+        "mention": "Yehor Yarmoliuk",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "71110357"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11772",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000276594"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12410",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28106528"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8756",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "71110357"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11772",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12410",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000276594"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12410",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28106528"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8756",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "71110357"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11772",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v30-real-data",
+  "evidenceBundleSha256": "814755ccbc9d7607dd29d23c2b3b12b1cc2dbb7fadc3a9d38cda5540cac50d13",
+  "origin": "real",
+  "priorTuningExposure": "Authored for the independent v30 held-out pack from fixed local snapshots; not run against a live model.",
+  "scenarioFamily": "replacement-v30-compare-add-yehor-inherited-epl",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-compare-add-yehor-inherited-epl-turn-1",
+      "userMessage": "Compare Josh King and Dara O'Shea for 2026/27 EPL data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v30-compare-add-yehor-inherited-epl-turn-2",
+      "userMessage": "Add Yehor Yarmoliuk to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}
