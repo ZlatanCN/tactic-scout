@@ -1,0 +1,168 @@
+{
+  "caseId": "v35-recommend-rani-khedira-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v35-recommend-rani-khedira-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v35-recommend-rani-khedira-similar-mc-turn-1",
+        "value": "92017509"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v35-recommend-rani-khedira-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Rani Khedira",
+        "status": "resolved",
+        "turnId": "v35-recommend-rani-khedira-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Rani Khedira",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92017509"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92074021"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18096574"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91193886"
+          }
+        ],
+        "turnId": "v35-recommend-rani-khedira-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92017509",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92017509",
+        "value": 140
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpb3070e3ffd26b2",
+        "canonicalIdentityId": "rpb3070e3ffd26b2",
+        "mention": "Rani Khedira",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92017509"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92017509"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92074021"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18096574"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91193886"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92017509"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92074021"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18096574"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91193886"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "scenarioFamily": "replacement-v35-recommend-rani-khedira-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-recommend-rani-khedira-similar-mc-turn-1",
+      "userMessage": "Based on Rani Khedira's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

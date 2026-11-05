@@ -290,12 +290,21 @@ describe("semantic judge validation rules", () => {
     }
 
     const answer = [
-      "## Football Manager",
-      "| 球员 | 当前能力 | 潜力能力 |",
-      "|---|---:|---:|",
-      "| Bukayo Saka | 182 | 188 |",
-      "| Phil Foden | 169 | 180 |",
+      "## Football Manager 数据",
+      "| 球员 | 出生日期 | 身高 | 自然位置 | 当前能力 | 潜力能力 |",
+      "|---|---|---:|---|---:|---:|",
+      "| Bukayo Saka | 2001-09-05 | 178 cm | AMR | 182 | 188 |",
+      "| Phil Foden | 2000-05-28 | 171 cm | AMC; AML; AMR | 169 | 180 |",
     ].join("\n");
+
+    const serializedAnswer = JSON.stringify([
+      {
+        annotations: [],
+        phase: "final_answer",
+        text: answer,
+        type: "text",
+      },
+    ]);
 
     const coverage = allFactsCovered(caseDefinition).map((fact) =>
       fact.factId === "required-fact-1" || fact.factId === "required-fact-2"
@@ -305,9 +314,13 @@ describe("semantic judge validation rules", () => {
 
     const worker = workerForCase(
       caseDefinition,
-      new Map([[turnId, [answer]]]),
+      new Map([[turnId, [serializedAnswer]]]),
       "player_comparison"
     );
+
+    expect(
+      judgeInputForTrial(caseDefinition, worker).turns[0]?.assistantMessages
+    ).toStrictEqual([answer]);
 
     const judgment = semanticJudgeOutputSchema.parse({
       findings: [],

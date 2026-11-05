@@ -745,6 +745,35 @@ const normalizeEvidenceLabel = (value: string): string =>
     .replaceAll(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
+const visibleAssistantMessage = (message: string): string => {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(message);
+  } catch {
+    return message;
+  }
+
+  const blocks = z
+    .array(
+      z.looseObject({
+        text: z.string().optional(),
+        type: z.string().optional(),
+      })
+    )
+    .safeParse(parsed);
+
+  if (!blocks.success) {
+    return message;
+  }
+
+  const textBlocks = blocks.data.flatMap(({ text, type }) =>
+    type === "text" && text !== undefined ? [text] : []
+  );
+
+  return textBlocks.length > 0 ? textBlocks.join("\n") : message;
+};
+
 const markdownCells = (line: string): string[] =>
   line
     .trim()
@@ -1193,7 +1222,7 @@ const requiredFactCoveredByVisibleTable = (
   return worker.turns.some(({ assistantMessages }) =>
     assistantMessages.some((answer) =>
       tableExplicitlyCoversRequiredFact(
-        answer,
+        visibleAssistantMessage(answer),
         playerNames,
         allPlayerNames,
         fact
@@ -1266,7 +1295,7 @@ const judgeInputForTrial = (
     })),
     teamRosterCoverage: worker.teamRosterCoverage,
     turns: worker.turns.map((turn) => ({
-      assistantMessages: turn.assistantMessages,
+      assistantMessages: turn.assistantMessages.map(visibleAssistantMessage),
       availableResultKinds: turn.availableResultKinds,
       clarificationAnswers: turn.clarificationAnswers,
       nodeFailure: turn.nodeFailure ?? null,

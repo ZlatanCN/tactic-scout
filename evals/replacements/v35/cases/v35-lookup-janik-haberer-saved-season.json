@@ -1,0 +1,203 @@
+{
+  "caseId": "v35-lookup-janik-haberer-saved-season",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v35-lookup-janik-haberer-saved-season-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "92056736"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "4271",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Janik Haberer",
+        "status": "resolved",
+        "turnId": "v35-lookup-janik-haberer-saved-season-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Janik Haberer",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Janik Haberer",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpeb2b03f4e55c3b",
+        "turnId": "v35-lookup-janik-haberer-saved-season-turn-1"
+      },
+      {
+        "mention": "Janik Haberer",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpeb2b03f4e55c3b",
+        "turnId": "v35-lookup-janik-haberer-saved-season-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92056736"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "4271",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v35-lookup-janik-haberer-saved-season-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92056736",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92056736",
+        "value": 138
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "4271",
+        "value": 267
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "4271",
+        "value": 0.5156179275363684
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "4271",
+        "value": 0
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "4271",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpeb2b03f4e55c3b",
+        "canonicalIdentityId": "rpeb2b03f4e55c3b",
+        "mention": "Janik Haberer",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92056736"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "4271",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92056736"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "4271",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92056736"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "4271",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "scenarioFamily": "replacement-v35-lookup-janik-haberer-saved-season",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-lookup-janik-haberer-saved-season-turn-1",
+      "userMessage": "Look up Janik Haberer's FM profile and 2026/27 Bundesliga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-lookup-janik-haberer-saved-season-turn-2",
+      "userMessage": "Which season was that record from?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

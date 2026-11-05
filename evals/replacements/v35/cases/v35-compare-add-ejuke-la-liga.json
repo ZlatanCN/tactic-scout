@@ -1,0 +1,489 @@
+{
+  "caseId": "v35-compare-add-ejuke-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Kike Barja",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Luis Rioja",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Chidera Ejuke",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Kike Barja",
+        "status": "resolved"
+      },
+      {
+        "mention": "Luis Rioja",
+        "status": "resolved"
+      },
+      {
+        "mention": "Chidera Ejuke",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Kike Barja",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1"
+      },
+      {
+        "mention": "Luis Rioja",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1"
+      },
+      {
+        "mention": "Kike Barja",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2"
+      },
+      {
+        "mention": "Luis Rioja",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2"
+      },
+      {
+        "mention": "Chidera Ejuke",
+        "status": "resolved",
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67196202"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5140",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67196000"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67196202"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5140",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67196000"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13182752"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8694",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v35-compare-add-ejuke-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67196202",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67196202",
+        "value": 140
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67196000",
+        "value": 140
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67196000",
+        "value": 140
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "13182752",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "13182752",
+        "value": 145
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5140",
+        "value": 234
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5140",
+        "value": 0.8258503377437592
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7870",
+        "value": 149
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7870",
+        "value": 0.4916338250041008
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8694",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 227
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8694",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.3909448962658644
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpaa8ac015270519",
+        "canonicalIdentityId": "rpaa8ac015270519",
+        "mention": "Kike Barja",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67196202"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5140",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp9dd99f69107fc0",
+        "canonicalIdentityId": "rp9dd99f69107fc0",
+        "mention": "Luis Rioja",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67196000"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpcf2b4dd6b701f2",
+        "canonicalIdentityId": "rpcf2b4dd6b701f2",
+        "mention": "Chidera Ejuke",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "13182752"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8694",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67196202"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5140",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67196000"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7870",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "13182752"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8694",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67196202"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5140",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67196000"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67196202"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5140",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67196000"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7870",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "13182752"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8694",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "scenarioFamily": "replacement-v35-compare-add-ejuke-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-compare-add-ejuke-la-liga-turn-1",
+      "userMessage": "Compare Kike Barja and Luis Rioja using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-compare-add-ejuke-la-liga-turn-2",
+      "userMessage": "Add Chidera Ejuke to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

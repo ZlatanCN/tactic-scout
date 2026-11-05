@@ -1,0 +1,273 @@
+{
+  "caseId": "v35-compare-thauvin-kvernadze-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Florian Thauvin",
+        "status": "resolved",
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Giorgi Kvernadze",
+        "status": "resolved",
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Florian Thauvin",
+        "status": "resolved"
+      },
+      {
+        "mention": "Giorgi Kvernadze",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Florian Thauvin",
+        "status": "resolved",
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1"
+      },
+      {
+        "mention": "Giorgi Kvernadze",
+        "status": "resolved",
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85046587"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "942",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "59139122"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11882",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85046587",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85046587",
+        "value": 154
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "59139122",
+        "value": 120
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "59139122",
+        "value": 138
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "942",
+        "value": 612
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "942",
+        "value": 3.96711016446352
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11882",
+        "value": 610
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11882",
+        "value": 2.1376046240329742
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp3370ce8b89342a",
+        "canonicalIdentityId": "rp3370ce8b89342a",
+        "mention": "Florian Thauvin",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85046587"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "942",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp0be5f32cae9a39",
+        "canonicalIdentityId": "rp0be5f32cae9a39",
+        "mention": "Giorgi Kvernadze",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "59139122"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11882",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85046587"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "942",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "59139122"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11882",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85046587"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "942",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "59139122"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11882",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "scenarioFamily": "replacement-v35-compare-thauvin-kvernadze-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-compare-thauvin-kvernadze-no-common-scope-turn-1",
+      "userMessage": "Compare Florian Thauvin and Giorgi Kvernadze using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

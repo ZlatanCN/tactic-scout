@@ -1,0 +1,299 @@
+{
+  "caseId": "v35-recommend-add-wimmer-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v35-recommend-add-wimmer-reference",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "turns": [
+    {
+      "turnId": "v35-recommend-add-wimmer-reference-turn-1",
+      "userMessage": "Based on Bakery Jatta's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v35-recommend-add-wimmer-reference-turn-2",
+      "userMessage": "Add Patrick Wimmer as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bakery Jatta",
+        "status": "resolved"
+      },
+      {
+        "mention": "Patrick Wimmer",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bakery Jatta",
+        "status": "resolved",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-1"
+      },
+      {
+        "lookupName": "Patrick Wimmer",
+        "status": "resolved",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92083800"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000146355"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91172594"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27137320"
+          }
+        ],
+        "turnId": "v35-recommend-add-wimmer-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92083800"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16253898"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "50065275"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91150290"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92099272"
+          }
+        ],
+        "turnId": "v35-recommend-add-wimmer-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-1",
+        "value": "92083800"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-2",
+        "value": "92083800"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-2",
+        "value": "16253898"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v35-recommend-add-wimmer-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92083800",
+        "value": 120
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92083800",
+        "value": 130
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "16253898",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "16253898",
+        "value": 150
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp7981151f9bfa86",
+        "canonicalIdentityId": "rp7981151f9bfa86",
+        "mention": "Bakery Jatta",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92083800"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpa679e0f2074db9",
+        "canonicalIdentityId": "rpa679e0f2074db9",
+        "mention": "Patrick Wimmer",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "16253898"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92083800"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000146355"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91172594"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "27137320"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "16253898"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "50065275"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91150290"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92099272"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92083800"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000146355"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91172594"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27137320"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92083800"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16253898"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "50065275"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91150290"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92099272"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

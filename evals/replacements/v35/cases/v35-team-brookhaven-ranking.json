@@ -1,0 +1,489 @@
+{
+  "caseId": "v35-team-brookhaven-ranking",
+  "category": "ordinary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v35-team-brookhaven-ranking",
+  "priorTuningExposure": "Authored for independent V35 from a new synthetic team roster after V34 was exposed; no V35 model request has started.",
+  "evidenceBundleId": "replacement-v35-team-synthetic",
+  "evidenceBundleSha256": "5628d683ce770c7e1175234fd85bfecd2a8be4ef230075114bcc75a45716ad72",
+  "turns": [
+    {
+      "turnId": "v35-team-brookhaven-ranking-turn-1",
+      "userMessage": "为 Brookhaven FC 推荐 stc 球员。",
+      "clarificationAnswers": [
+        {
+          "expectedKind": "team_roster_profile",
+          "resumeValue": "1"
+        }
+      ]
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10091"
+          }
+        ],
+        "turnId": "v35-team-brookhaven-ranking-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10091"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19201"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19202"
+          }
+        ],
+        "turnId": "v35-team-brookhaven-ranking-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19201"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-ref-01"
+          }
+        ],
+        "turnId": "v35-team-brookhaven-ranking-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19202"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-close-01"
+          }
+        ],
+        "turnId": "v35-team-brookhaven-ranking-turn-1"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10091"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-far-01"
+          }
+        ],
+        "turnId": "v35-team-brookhaven-ranking-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.search_teams",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "query",
+        "value": "Brookhaven FC"
+      },
+      {
+        "name": "api_football.search_teams",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "data.0.id",
+        "value": 10091
+      },
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "teamId",
+        "value": 10091
+      },
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "data.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      },
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 19201
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "apiFootballPlayerId",
+        "value": 19201
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "resolved"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "apiFootballPlayerId",
+        "value": 19202
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "needs_confirmation"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "team.id",
+        "value": 10091
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "referenceMode",
+        "value": "squad"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "roster.members.0.fmId",
+        "value": "fm-v35-ref-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "input",
+        "path": "roster.members.1.fmId",
+        "value": "fm-v35-close-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "fmSnapshotDate",
+        "value": "2025-11-23"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "roster.retrievedAt",
+        "value": "2025-11-20T12:00:00.000Z"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.currentCandidates.0.fmId",
+        "value": "fm-v35-future-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.referenceFmIds.0",
+        "value": "fm-v35-close-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.referenceFmIds.1",
+        "value": "fm-v35-ref-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.currentCandidates.0.fmId",
+        "value": "fm-v35-future-01"
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "turnId": "v35-team-brookhaven-ranking-turn-1",
+        "source": "result",
+        "path": "recommendation.currentCandidates.1.fmId",
+        "value": "fm-v35-far-01"
+      }
+    ],
+    "expectedActiveResultValues": [
+      {
+        "kind": "team_recommendation",
+        "path": "status",
+        "value": "ready"
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "fmSnapshotDate",
+        "value": "2025-11-23"
+      },
+      {
+        "kind": "team_recommendation",
+        "path": "recommendation.currentCandidates.0.fmId",
+        "value": "fm-v35-future-01"
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [
+      "The ranking is an FM ability-profile comparison and does not establish tactical fit or transfer feasibility."
+    ],
+    "requiredEvidence": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01",
+        "field": "name",
+        "value": "Luis Rossi"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01",
+        "field": "currentAbility",
+        "value": 124
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01",
+        "field": "age",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01",
+        "field": "positionRating",
+        "value": 19
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01",
+        "field": "currentDistance",
+        "value": 2.7688746209726918
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01",
+        "field": "potentialAbility",
+        "value": 195
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01",
+        "field": "name",
+        "value": "Kaito Tanaka"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01",
+        "field": "currentAbility",
+        "value": 160
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01",
+        "field": "age",
+        "value": 27
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01",
+        "field": "positionRating",
+        "value": 18
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01",
+        "field": "currentDistance",
+        "value": 6.059886320899281
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01",
+        "field": "potentialAbility",
+        "value": 166
+      }
+    ],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10091"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "19201"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "19202"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10091"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10091"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19201"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:19202"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "resolved",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19201"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-ref-01"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "needs_confirmation",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:19202"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-close-01"
+          }
+        ]
+      },
+      {
+        "name": "recommend_team_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10091"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-ref-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-close-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-future-01"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "fm-v35-far-01"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

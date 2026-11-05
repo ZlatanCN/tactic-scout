@@ -1,0 +1,172 @@
+{
+  "caseId": "v35-team-cedar-grove-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v35-team-cedar-grove-unmapped-roster",
+  "priorTuningExposure": "Authored for independent V35 from a new synthetic team roster after V34 was exposed; no V35 model request has started.",
+  "evidenceBundleId": "replacement-v35-team-synthetic",
+  "evidenceBundleSha256": "5628d683ce770c7e1175234fd85bfecd2a8be4ef230075114bcc75a45716ad72",
+  "turns": [
+    {
+      "turnId": "v35-team-cedar-grove-unmapped-roster-turn-1",
+      "userMessage": "为 Cedar Grove FC 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10093"
+          }
+        ],
+        "turnId": "v35-team-cedar-grove-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10093"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10159"
+          }
+        ],
+        "turnId": "v35-team-cedar-grove-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10159"
+          }
+        ],
+        "turnId": "v35-team-cedar-grove-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v35-team-cedar-grove-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 10159
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v35-team-cedar-grove-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v35-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10093"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10159"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10093"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10093"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10159"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10159"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

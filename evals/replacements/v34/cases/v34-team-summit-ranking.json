@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v34-team-summit-ranking",
-  "priorTuningExposure": "Authored for independent V34 from a new synthetic team roster after V33 was exposed; no V34 model request has started.",
+  "priorTuningExposure": "Exposed by V34 run 7d7c2273-7fd3-43bf-aac9-6e86076d8df4: 225 model requests; 44/48 trials passed; judge calibration passed 32/32, including validation 16/16. Three failures were identity-continuity checks on a saved-result pronoun recorded as unresolved despite correct reuse. One semantic judgment missed visible Eric Martel CA/PA values 140/150. Two transient network failures were recovered and no requests were denied. Do not use V34 for acceptance.",
   "evidenceBundleId": "replacement-v34-team-synthetic",
   "evidenceBundleSha256": "18efeb823d13456b4ec27ebea5e2f2d1db134438480468edde1e34c1a52785c4",
   "turns": [

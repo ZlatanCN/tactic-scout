@@ -1,0 +1,168 @@
+{
+  "caseId": "v35-recommend-chuba-akpom-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v35-recommend-chuba-akpom-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v35-recommend-chuba-akpom-similar-stc-turn-1",
+        "value": "28084927"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v35-recommend-chuba-akpom-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Chuba Akpom",
+        "status": "resolved",
+        "turnId": "v35-recommend-chuba-akpom-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Chuba Akpom",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28084927"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000068412"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28108499"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16283625"
+          }
+        ],
+        "turnId": "v35-recommend-chuba-akpom-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28084927",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28084927",
+        "value": 134
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp7209596353344d",
+        "canonicalIdentityId": "rp7209596353344d",
+        "mention": "Chuba Akpom",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28084927"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28084927"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000068412"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28108499"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "16283625"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28084927"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000068412"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28108499"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16283625"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "scenarioFamily": "replacement-v35-recommend-chuba-akpom-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-recommend-chuba-akpom-similar-stc-turn-1",
+      "userMessage": "Based on Chuba Akpom's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

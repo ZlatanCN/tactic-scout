@@ -1,0 +1,282 @@
+{
+  "caseId": "v35-compare-guruzeta-de-frutos-la-liga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gorka Guruzeta",
+        "status": "resolved",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Jorge De Frutos",
+        "status": "resolved",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gorka Guruzeta",
+        "status": "resolved"
+      },
+      {
+        "mention": "Jorge De Frutos",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Gorka Guruzeta",
+        "status": "resolved",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1"
+      },
+      {
+        "mention": "Jorge De Frutos",
+        "status": "resolved",
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67200930"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7020",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67231100"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8107",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67200930",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67200930",
+        "value": 143
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67231100",
+        "value": 146
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67231100",
+        "value": 146
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7020",
+        "value": 183
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7020",
+        "value": 0.0630546435713768
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8107",
+        "value": 452
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8107",
+        "value": 0.13098837435245514
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp86e6bc2bcbb7aa",
+        "canonicalIdentityId": "rp86e6bc2bcbb7aa",
+        "mention": "Gorka Guruzeta",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67200930"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7020",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpefe8490b47adfa",
+        "canonicalIdentityId": "rpefe8490b47adfa",
+        "mention": "Jorge De Frutos",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67231100"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8107",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67200930"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7020",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67231100"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8107",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67200930"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7020",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67231100"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8107",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v35-real-data",
+  "evidenceBundleSha256": "e394c5142851399e6aa63bce7c4e3f19bb606c96ca477f199c1304087a4cee01",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V35 from fixed local snapshots after V34 was exposed; no V35 model request has started.",
+  "scenarioFamily": "replacement-v35-compare-guruzeta-de-frutos-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v35-compare-guruzeta-de-frutos-la-liga-turn-1",
+      "userMessage": "Compare Gorka Guruzeta and Jorge De Frutos using 2026/27 La Liga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -153,7 +153,7 @@
   "evidenceBundleId": "replacement-v34-real-data",
   "evidenceBundleSha256": "562a4703da2d70bb40bb4fbf5c858644bb6b46d3f93de04475f5efed310ca8d5",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V34 from fixed local snapshots after V33 was exposed; no V34 model request has started.",
+  "priorTuningExposure": "Exposed by V34 run 7d7c2273-7fd3-43bf-aac9-6e86076d8df4: 225 model requests; 44/48 trials passed; judge calibration passed 32/32, including validation 16/16. Three failures were identity-continuity checks on a saved-result pronoun recorded as unresolved despite correct reuse. One semantic judgment missed visible Eric Martel CA/PA values 140/150. Two transient network failures were recovered and no requests were denied. Do not use V34 for acceptance.",
   "scenarioFamily": "replacement-v34-recommend-archer-similar-stc",
   "split": "held_out",
   "turns": [

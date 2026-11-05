@@ -140,6 +140,14 @@ Run `e5dde68f-5ae0-4ab8-8ae7-ea6ba6b05d2a` was stopped at 17/48 trials after 55 
 
 V26 has 16 independent cases (12 real-source, 4 synthetic team-roster) and new source IDs. The source rules are explicit: Understat supplies season performance; FM supplies the fixed ability snapshot. The saved xA follow-up covers a provider name in user text, and the new preflight check prevents missing or mis-scoped Understat evidence from reaching the model. Preview reports 16/16 ready and estimates 834 requests. Run v26 after committing and freezing the final code and evidence.
 
+## Exposed V34 held-out attempt
+
+Run `7d7c2273-7fd3-43bf-aac9-6e86076d8df4` completed 48 trials using 225 model requests. Judge calibration passed 32/32, including validation 16/16, but the quality gate failed: 44/48 trials passed. Three identity-continuity failures came from an unresolved pronoun in a saved xA follow-up even though the result was correctly reused. One semantic review missed visible Eric Martel CA/PA values (140/150) because answer text blocks were passed to the judge as escaped JSON. Two transient network failures were recovered and none were denied. V34 is exposed. The judge now receives decoded text blocks; acceptance requires a new independent V35 pack.
+
+## V35 replacement held-out candidate
+
+V35 contains 16 new cases and fresh source identities compared with V1–V34. Its fixed evidence preview reports 16/16 bundles ready and estimates 798 requests for the complete three-trial run and judge calibration. The 900-request limit is already authorized. No V35 requests have started; run only after committing and freezing the evaluator and pack.
+
 ## V19 held-out result
 
 Run `ccc52335-f8ec-4ae1-8c44-96eec0afe682` completed all 48 trials and passed judge calibration 32/32. It used 251 requests (Agent 171, calibration 32, judge 48), with 3 network failures and no budget denials. The quality gate did not pass: 38/48 trials passed both checks, 10 failed code contracts, semantic review had 40 pass, 2 fail, 5 inconclusive, and 1 invalid, and 12/16 cases passed all three repetitions. The judge reported one factual contradiction and four required-fact omissions across 42 valid judgments; it reported no confirmed unsupported-fact or false-execution claims. See [the failure analysis](../.scratch/agent-evaluation/baseline-analysis.md) and the ignored local report at `.data/evals/runs/ccc52335-f8ec-4ae1-8c44-96eec0afe682/report.md`.
