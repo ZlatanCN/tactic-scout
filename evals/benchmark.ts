@@ -290,6 +290,54 @@ const understatExpectationMatchesCaseScope = (
   });
 };
 
+const understatPropertyByEvidenceField = new Map([
+  ["appearances", "games"],
+  ["expectedAssists", "xA"],
+  ["expectedGoals", "xG"],
+  ["keyPasses", "key_passes"],
+  ["minutes", "time"],
+  ["nonPenaltyExpectedGoals", "npxG"],
+  ["shots", "shots"],
+  ["team", "team_title"],
+]);
+
+const providerValueMatchesExpectation = (
+  actual: JsonValue | undefined,
+  expected: JsonValue
+): boolean => {
+  if (expected === null) {
+    return actual === null || actual === undefined;
+  }
+
+  const expectedNumber = z.number().safeParse(expected);
+
+  if (expectedNumber.success) {
+    const actualNumber = z.union([z.number(), z.string()]).safeParse(actual);
+
+    if (!actualNumber.success) {
+      return false;
+    }
+
+    const parsedNumber = Number(actualNumber.data);
+
+    return (
+      Number.isFinite(parsedNumber) && parsedNumber === expectedNumber.data
+    );
+  }
+
+  const expectedString = z.string().safeParse(expected);
+
+  if (expectedString.success) {
+    const actualString = z.string().safeParse(actual);
+
+    return actualString.success && actualString.data === expectedString.data;
+  }
+
+  return (
+    actual !== undefined && JSON.stringify(actual) === JSON.stringify(expected)
+  );
+};
+
 const requiredUnderstatEvidenceAvailableForCase = (
   caseDefinition: EvaluationCase,
   bundle: EvaluationEvidenceBundle
@@ -324,8 +372,17 @@ const requiredUnderstatEvidenceAvailableForCase = (
             .union([z.string(), z.number()])
             .safeParse(object.data.id);
 
+          const sourceField =
+            understatPropertyByEvidenceField.get(expectation.field) ??
+            expectation.field;
+
           return (
-            sourceId.success && String(sourceId.data) === expectation.sourceId
+            sourceId.success &&
+            String(sourceId.data) === expectation.sourceId &&
+            providerValueMatchesExpectation(
+              object.data[sourceField],
+              expectation.value
+            )
           );
         });
       });
