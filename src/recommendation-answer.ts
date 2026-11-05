@@ -217,7 +217,7 @@ const teamRankingBasisSummary = (
 ): string => {
   if (rankingBasis === "equal_weight_mean_of_position_capable_squad_profiles") {
     return language === "zh"
-      ? "参考画像计算方式：将目标位置评分至少 15 且所需属性完整的队内 FM 画像属性取等权平均。"
+      ? "参考画像计算方式：选取目标位置评分至少 15 且该位置所需属性完整的队内 FM 画像，对该位置所需属性取等权平均。"
       : "Reference calculation: equally weight the target-position attributes of squad FM profiles rated at least 15 with all required attributes.";
   }
 

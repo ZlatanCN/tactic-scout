@@ -1547,7 +1547,7 @@ describe("LangGraph player workflows", () => {
 
       expect({
         hasGroundedBasis: answer.includes(
-          "参考画像计算方式：将目标位置评分至少 15 且所需属性完整的队内 FM 画像属性取等权平均。"
+          "参考画像计算方式：选取目标位置评分至少 15 且该位置所需属性完整的队内 FM 画像，对该位置所需属性取等权平均。"
         ),
         repeatsMissingBasisClaim: answer.includes("未在结果中说明"),
       }).toStrictEqual({

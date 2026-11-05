@@ -338,7 +338,7 @@ describe("team recommendation graph", () => {
         "高潜名单的每一行也必须包括姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance"
       ),
       explicitRankingBasisInstruction: modelInput.includes(
-        "必须读取 recommendation.rankingBasis 并说明对应计算方式"
+        "必须读取顶层 rankingBasis 并说明对应计算方式"
       ),
       includesOverlySpecificExample: modelInput.includes(
         "团队参考画像是位置评分至少 15 且特征完整的队内球员属性等权平均"
@@ -356,15 +356,13 @@ describe("team recommendation graph", () => {
         modelInput.includes("199") &&
         modelInput.includes("3.42"),
       rankingBasisDefinition: modelInput.includes(
-        "对目标位置评分至少 15 且所需属性完整的队内 FM 画像属性取等权平均"
+        "选取目标位置评分至少 15 且该位置所需属性完整的队内 FM 画像，对该位置所需属性取等权平均"
       ),
       referenceMethodGrounded:
         modelInput.includes(
           "不要推断团队参考画像的成员筛选标准或计算方法，除非 recommendation 结果明确提供"
         ) &&
-        modelInput.includes(
-          "必须读取 recommendation.rankingBasis 并说明对应计算方式"
-        ) &&
+        modelInput.includes("必须读取顶层 rankingBasis 并说明对应计算方式") &&
         !modelInput.includes(
           "团队参考画像是位置评分至少 15 且特征完整的队内球员属性等权平均"
         ),
