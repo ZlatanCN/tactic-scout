@@ -1,0 +1,138 @@
+{
+  "caseId": "v39-lookup-valentin-rongier-assists",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Valentin Rongier",
+        "status": "resolved",
+        "turnId": "v39-lookup-valentin-rongier-assists-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Valentin Rongier",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85085142"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3673",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-lookup-valentin-rongier-assists-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85085142",
+        "value": 147
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3673",
+        "value": 7
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp9d5c4468bfbba7",
+        "canonicalIdentityId": "rp9d5c4468bfbba7",
+        "mention": "Valentin Rongier",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85085142"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3673",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85085142"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3673",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85085142"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3673",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-lookup-valentin-rongier-assists",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-lookup-valentin-rongier-assists-turn-1",
+      "userMessage": "Look up Valentin Rongier's 2026/27 Ligue 1 assists and CA."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

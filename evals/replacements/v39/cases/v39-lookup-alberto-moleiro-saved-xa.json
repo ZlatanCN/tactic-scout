@@ -1,0 +1,211 @@
+{
+  "caseId": "v39-lookup-alberto-moleiro-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "2000028320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12160",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Alberto Moleiro",
+        "status": "resolved",
+        "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Alberto Moleiro",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Alberto Moleiro",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp1c21b65356cd02",
+        "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-1"
+      },
+      {
+        "mention": "Alberto Moleiro",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp1c21b65356cd02",
+        "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000028320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12160",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000028320",
+        "value": 153
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000028320",
+        "value": 165
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12160",
+        "value": 664
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12160",
+        "value": 3.4201080352067947
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12160",
+        "value": 2
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12160",
+        "value": 3
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12160",
+        "field": "expectedAssists",
+        "value": 3.0309672877192497,
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp1c21b65356cd02",
+        "canonicalIdentityId": "rp1c21b65356cd02",
+        "mention": "Alberto Moleiro",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000028320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12160",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000028320"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12160",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000028320"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12160",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-lookup-alberto-moleiro-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-1",
+      "userMessage": "Look up Alberto Moleiro's FM profile and 2026/27 La Liga performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-lookup-alberto-moleiro-saved-xa-turn-2",
+      "userMessage": "What was the xA for that record?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

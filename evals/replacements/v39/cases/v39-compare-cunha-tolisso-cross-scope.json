@@ -1,0 +1,273 @@
+{
+  "caseId": "v39-compare-cunha-tolisso-cross-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Matheus Cunha",
+        "status": "resolved",
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1"
+      },
+      {
+        "lookupName": "Corentin Tolisso",
+        "status": "resolved",
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Matheus Cunha",
+        "status": "resolved"
+      },
+      {
+        "mention": "Corentin Tolisso",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Matheus Cunha",
+        "status": "resolved",
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1"
+      },
+      {
+        "mention": "Corentin Tolisso",
+        "status": "resolved",
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19334410"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7080",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29114971"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3603",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "19334410",
+        "value": 152
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "19334410",
+        "value": 162
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29114971",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29114971",
+        "value": 145
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7080",
+        "value": 511
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7080",
+        "value": 0.6910431869328022
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3603",
+        "value": 496
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3603",
+        "value": 1.025724209845066
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rped1e8ae1548fbc",
+        "canonicalIdentityId": "rped1e8ae1548fbc",
+        "mention": "Matheus Cunha",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19334410"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7080",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpf336b781a3aad9",
+        "canonicalIdentityId": "rpf336b781a3aad9",
+        "mention": "Corentin Tolisso",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29114971"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3603",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "19334410"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7080",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29114971"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3603",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19334410"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7080",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29114971"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3603",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-compare-cunha-tolisso-cross-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-compare-cunha-tolisso-cross-scope-turn-1",
+      "userMessage": "Compare Matheus Cunha and Corentin Tolisso using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

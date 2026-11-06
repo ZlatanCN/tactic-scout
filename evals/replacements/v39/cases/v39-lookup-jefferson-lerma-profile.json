@@ -1,0 +1,174 @@
+{
+  "caseId": "v39-lookup-jefferson-lerma-profile",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v39-lookup-jefferson-lerma-profile-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jefferson Lerma",
+        "status": "resolved",
+        "turnId": "v39-lookup-jefferson-lerma-profile-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jefferson Lerma",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "76038475"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2182",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-lookup-jefferson-lerma-profile-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "76038475",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "76038475",
+        "value": 148
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2182",
+        "value": 157
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2182",
+        "value": 1.0639907121658325
+      },
+      {
+        "competition": "EPL",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2182",
+        "value": 1
+      },
+      {
+        "competition": "EPL",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2182",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpddd93a60769d78",
+        "canonicalIdentityId": "rpddd93a60769d78",
+        "mention": "Jefferson Lerma",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "76038475"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2182",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "76038475"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2182",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "76038475"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2182",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-lookup-jefferson-lerma-profile",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-lookup-jefferson-lerma-profile-turn-1",
+      "userMessage": "Look up Jefferson Lerma's FM profile and 2026/27 EPL performance."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

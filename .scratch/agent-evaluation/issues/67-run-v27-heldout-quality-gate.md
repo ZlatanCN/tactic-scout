@@ -10,7 +10,7 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 
 ## Frozen scope
 
-- Use the next independent pack `evals/replacements/v38/cases` and local evidence in `.data/evals/v38-evidence`. V33–V37 are exposed and must not be reused.
+- Use the next independent pack `evals/replacements/v39/cases` and local evidence in `.data/evals/v39-evidence`. V33–V38 are exposed and must not be reused.
 - FM supports fixed CA, PA, natural positions, and attributes. Understat supports only returned season-scoped performance. Current registration, injuries, availability, transfer status, and other time-sensitive claims require a source covering the requested period.
 - Age is recalculated from birth date as of each case's fixed `ageAsOfDate`, separately from the FM snapshot date.
 - A Reep canonical ID may connect provider source IDs even when display names differ. Names alone never establish identity.
@@ -48,5 +48,6 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 - V36 run `b39c7477-6e47-432a-8953-c93e805c4039` completed in 222 requests; judge calibration passed 32/32, but 45/48 trials passed. Three semantic failures exposed cross-turn fact coverage gaps and a wrong team-roster retrieval date. V36 is exposed.
 - The evaluator now verifies visible fact values against delivered source values for the exact provider/source, resolves candidate names through returned tool results, and recognizes labeled prose as well as tables across turns. Team recommendations correct roster dates from `retrievedAt` and correct reference-profile counts from the tool's returned reference list.
 - V37 run `4e55b236-4cfc-4477-9d01-51d0961da245` completed in 215 requests, passed calibration 32/32 and 47/48 trials. One failure caught a false team-reference count. The deterministic correction was changed during the run, so V37 did not use a single frozen revision and is exposed.
-- V38 is prepared with identities/source IDs new to V1–V37, an English possessive-name lookup, and independently calculated recommendation order using the fixed feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready, 48 trials, and 753 estimated requests. The 900-request ceiling is authorized; no V38 model request has started.
-- Offline validation after the reference-detail correction: 32 Vitest files / 317 tests passed with loopback enabled; typecheck and targeted Ultracite passed. The full repository-wide `pnpm check` still scans installed `.agents` skill assets and reports unrelated existing issues.
+- V38 was stopped after 16/48 trials and 44 model requests because its saved-result follow-up accidentally contained “his”; the case contract expected pronoun-free reuse. One trial failed identity checks and the other 15 were unassessed. Calibration did not start; there were no network failures or budget denials. V38 is exposed.
+- V39 uses new identities/source IDs compared with V1–V38, a neutral saved-result follow-up, an accent-insensitive lookup spelling, and independently calculated recommendation order. Preview reports 16/16 evidence bundles ready, 48 trials, and 753 estimated requests. The 900-request ceiling is authorized; no V39 model request has started.
+- Offline validation after the reference-detail correction: 37 Vitest files / 360 tests passed; typecheck and targeted Ultracite passed. The full repository-wide `pnpm check` still scans installed `.agents` skill assets and reports unrelated existing issues.

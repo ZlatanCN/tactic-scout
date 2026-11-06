@@ -1,0 +1,168 @@
+{
+  "caseId": "v39-recommend-wilson-isidor-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v39-recommend-wilson-isidor-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v39-recommend-wilson-isidor-similar-stc-turn-1",
+        "value": "49039033"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v39-recommend-wilson-isidor-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Wilson Isidor",
+        "status": "resolved",
+        "turnId": "v39-recommend-wilson-isidor-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Wilson Isidor",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49039033"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "57175882"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19363232"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000145876"
+          }
+        ],
+        "turnId": "v39-recommend-wilson-isidor-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49039033",
+        "value": 132
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49039033",
+        "value": 137
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp28c0f35118b968",
+        "canonicalIdentityId": "rp28c0f35118b968",
+        "mention": "Wilson Isidor",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49039033"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49039033"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "57175882"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19363232"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000145876"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49039033"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "57175882"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19363232"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000145876"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-recommend-wilson-isidor-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-recommend-wilson-isidor-similar-stc-turn-1",
+      "userMessage": "Based on Wilson Isidor's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

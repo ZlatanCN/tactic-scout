@@ -1,0 +1,295 @@
+{
+  "caseId": "v39-recommend-add-faivre-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v39-recommend-add-faivre-reference",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "turns": [
+    {
+      "turnId": "v39-recommend-add-faivre-reference-turn-1",
+      "userMessage": "Based on Giovanni Reyna's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v39-recommend-add-faivre-reference-turn-2",
+      "userMessage": "Add Romain Faivre as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Giovanni Reyna",
+        "status": "resolved"
+      },
+      {
+        "mention": "Romain Faivre",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Giovanni Reyna",
+        "status": "resolved",
+        "turnId": "v39-recommend-add-faivre-reference-turn-1"
+      },
+      {
+        "lookupName": "Romain Faivre",
+        "status": "resolved",
+        "turnId": "v39-recommend-add-faivre-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "72051281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000259411"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91177001"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "24046837"
+          }
+        ],
+        "turnId": "v39-recommend-add-faivre-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "72051281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49040542"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000259411"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25062517"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000146258"
+          }
+        ],
+        "turnId": "v39-recommend-add-faivre-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-1",
+        "value": "72051281"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-2",
+        "value": "72051281"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-2",
+        "value": "49040542"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v39-recommend-add-faivre-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "72051281",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "72051281",
+        "value": 156
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49040542",
+        "value": 135
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49040542",
+        "value": 140
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp5f6e5d75f724b4",
+        "canonicalIdentityId": "rp5f6e5d75f724b4",
+        "mention": "Giovanni Reyna",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "72051281"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp3ccbcc6e7f69c8",
+        "canonicalIdentityId": "rp3ccbcc6e7f69c8",
+        "mention": "Romain Faivre",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49040542"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "72051281"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000259411"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91177001"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "24046837"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49040542"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "25062517"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000146258"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "72051281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000259411"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91177001"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "24046837"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "72051281"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49040542"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000259411"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "25062517"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000146258"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,168 @@
+{
+  "caseId": "v39-recommend-vitaly-janelt-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v39-recommend-vitaly-janelt-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v39-recommend-vitaly-janelt-similar-mc-turn-1",
+        "value": "91143519"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v39-recommend-vitaly-janelt-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Vitaly Janelt",
+        "status": "resolved",
+        "turnId": "v39-recommend-vitaly-janelt-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Vitaly Janelt",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91143519"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49048461"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000027898"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000013132"
+          }
+        ],
+        "turnId": "v39-recommend-vitaly-janelt-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91143519",
+        "value": 142
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91143519",
+        "value": 153
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp3f53ba102d2c4b",
+        "canonicalIdentityId": "rp3f53ba102d2c4b",
+        "mention": "Vitaly Janelt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91143519"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91143519"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49048461"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000027898"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000013132"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91143519"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49048461"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000027898"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000013132"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-recommend-vitaly-janelt-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-recommend-vitaly-janelt-similar-mc-turn-1",
+      "userMessage": "Based on Vitaly Janelt's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

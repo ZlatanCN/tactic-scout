@@ -162,9 +162,13 @@ The evaluator now requires matching delivered source values before crediting vis
 
 V37 run `4e55b236-4cfc-4477-9d01-51d0961da245` completed 48 trials in 215 requests. Judge calibration passed 32/32 and 47/48 trials passed. One answer falsely said the team reference profile included five squad members when the tool result listed two. A deterministic correction for that claim was changed while the run was active, so V37 did not use one frozen code version and cannot be accepted. There were no network failures or budget denials.
 
-## V38 replacement held-out candidate
+## Exposed V38 held-out attempt
 
-V38 is the next independent 16-case pack with source identities new to V1–V37. It includes a possessive-name query, cross-turn fact checks, and deterministic validation of provider-supplied team dates and reference counts. Candidate rankings use an independent calculation from the fixed feature map and Reep identity links. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V38 has not started.
+Run `a7a72e78-5fad-4828-a52b-0864f8b2bb83` was stopped after 16/48 trials and 44 model requests. One saved-result case accidentally asked “What was his xA for that record?” while its contract expected pronoun-free saved-result reuse; it failed identity checks. The other 15 trials were unassessed. Judge calibration had not started. There were no network failures or budget denials. V38 is exposed and cannot be reused.
+
+## V39 replacement held-out candidate
+
+V39 is an independent 16-case pack with fresh player mentions, provider identities, source IDs, and synthetic team-roster IDs compared with V1–V38. Its saved-result follow-up asks “What was the xA for that record?” without a pronoun. Recommendation order is calculated independently from the fixed FM feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V39 has not started.
 
 ## V19 held-out result
 

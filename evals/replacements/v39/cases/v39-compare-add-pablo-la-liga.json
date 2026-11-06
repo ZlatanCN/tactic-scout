@@ -1,0 +1,489 @@
+{
+  "caseId": "v39-compare-add-pablo-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Koke",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Carlos Dotor",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Pablo Fornals",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Koke",
+        "status": "resolved"
+      },
+      {
+        "mention": "Carlos Dotor",
+        "status": "resolved"
+      },
+      {
+        "mention": "Pablo Fornals",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Koke",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1"
+      },
+      {
+        "mention": "Carlos Dotor",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1"
+      },
+      {
+        "mention": "Koke",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2"
+      },
+      {
+        "mention": "Carlos Dotor",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2"
+      },
+      {
+        "mention": "Pablo Fornals",
+        "status": "resolved",
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67047092"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2269",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67293616"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11540",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-compare-add-pablo-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67047092"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2269",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67293616"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11540",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67214613"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2335",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-compare-add-pablo-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67047092",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67047092",
+        "value": 162
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67293616",
+        "value": 114
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67293616",
+        "value": 146
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67214613",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67214613",
+        "value": 165
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2269",
+        "value": 443
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2269",
+        "value": 0.17125144600868225
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11540",
+        "value": 574
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11540",
+        "value": 0.2914519291371107
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2335",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 623
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2335",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.586470952257514
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp9410563531546f",
+        "canonicalIdentityId": "rp9410563531546f",
+        "mention": "Koke",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67047092"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2269",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpe912f7fe28ec91",
+        "canonicalIdentityId": "rpe912f7fe28ec91",
+        "mention": "Carlos Dotor",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67293616"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11540",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpf34fdcfafa5201",
+        "canonicalIdentityId": "rpf34fdcfafa5201",
+        "mention": "Pablo Fornals",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67214613"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2335",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67047092"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2269",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67293616"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11540",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67214613"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2335",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67047092"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2269",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67293616"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11540",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67047092"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2269",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67293616"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11540",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67214613"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2335",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-compare-add-pablo-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-compare-add-pablo-la-liga-turn-1",
+      "userMessage": "Compare Koke and Carlos Dotor using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-compare-add-pablo-la-liga-turn-2",
+      "userMessage": "Add Pablo Fornals to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

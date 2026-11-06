@@ -191,7 +191,7 @@
   "evidenceBundleId": "replacement-v38-real-data",
   "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "priorTuningExposure": "Exposed by V38 run a7a72e78-5fad-4828-a52b-0864f8b2bb83: 44 requests; 16/48 trials recorded (1 failed, 15 unassessed); judge calibration did not start. The saved-result follow-up used “his” despite its pronoun-free reuse contract. There were no network failures or request denials. Do not use V38 for acceptance.",
   "scenarioFamily": "replacement-v38-lookup-gustav-isaksen-saved-xa",
   "split": "held_out",
   "turns": [

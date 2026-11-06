@@ -1,0 +1,282 @@
+{
+  "caseId": "v39-compare-orsolini-raspadori-serie-a",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Riccardo Orsolini",
+        "status": "resolved",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Giacomo Raspadori",
+        "status": "resolved",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Riccardo Orsolini",
+        "status": "resolved"
+      },
+      {
+        "mention": "Giacomo Raspadori",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Riccardo Orsolini",
+        "status": "resolved",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1"
+      },
+      {
+        "mention": "Giacomo Raspadori",
+        "status": "resolved",
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43162321"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6160",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43316850"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7500",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43162321",
+        "value": 152
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43162321",
+        "value": 155
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43316850",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43316850",
+        "value": 151
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6160",
+        "value": 186
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6160",
+        "value": 0.049948617815971375
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7500",
+        "value": 179
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7500",
+        "value": 0.4085751324892044
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp14085be12e1134",
+        "canonicalIdentityId": "rp14085be12e1134",
+        "mention": "Riccardo Orsolini",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43162321"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6160",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpb73c5efc0215bf",
+        "canonicalIdentityId": "rpb73c5efc0215bf",
+        "mention": "Giacomo Raspadori",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43316850"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7500",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "43162321"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6160",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43316850"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7500",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43162321"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6160",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43316850"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7500",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v39-real-data",
+  "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "scenarioFamily": "replacement-v39-compare-orsolini-raspadori-serie-a",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v39-compare-orsolini-raspadori-serie-a-turn-1",
+      "userMessage": "Compare Riccardo Orsolini and Giacomo Raspadori using 2026/27 Serie A data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}
