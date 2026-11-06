@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v39-team-redbrook-ranking",
-  "priorTuningExposure": "Authored for independent V39 from a new synthetic team roster after V38 was exposed; no V39 model request has started.",
+  "priorTuningExposure": "Exposed by V39 run 9b99f1ab-3444-479b-919d-9a2636cd1f53: 30 Agent requests; 12/48 trials recorded (3 failed, 9 unassessed); judge calibration did not start. Three EPL comparison trials failed because the case expected Bundesliga. There were no network failures or request denials. Do not use V39 for acceptance.",
   "evidenceBundleId": "replacement-v39-team-synthetic",
   "evidenceBundleSha256": "11f81ee7d807aa5f68e7757b067b17e0af6afacdb7660e690c9f1a1d5006ad41",
   "turns": [

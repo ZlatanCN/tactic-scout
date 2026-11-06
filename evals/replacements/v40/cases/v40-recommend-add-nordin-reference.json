@@ -1,0 +1,299 @@
+{
+  "caseId": "v40-recommend-add-nordin-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v40-recommend-add-nordin-reference",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "turns": [
+    {
+      "turnId": "v40-recommend-add-nordin-reference-turn-1",
+      "userMessage": "Based on Antoine Rabillard's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v40-recommend-add-nordin-reference-turn-2",
+      "userMessage": "Add Arnaud Nordin as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Antoine Rabillard",
+        "status": "resolved"
+      },
+      {
+        "mention": "Arnaud Nordin",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Antoine Rabillard",
+        "status": "resolved",
+        "turnId": "v40-recommend-add-nordin-reference-turn-1"
+      },
+      {
+        "lookupName": "Arnaud Nordin",
+        "status": "resolved",
+        "turnId": "v40-recommend-add-nordin-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036765"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43266791"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19202462"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19154516"
+          }
+        ],
+        "turnId": "v40-recommend-add-nordin-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036765"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85145157"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000060326"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "93122987"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29224008"
+          }
+        ],
+        "turnId": "v40-recommend-add-nordin-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-1",
+        "value": "48036765"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-2",
+        "value": "48036765"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-2",
+        "value": "85145157"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v40-recommend-add-nordin-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48036765",
+        "value": 101
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48036765",
+        "value": 108
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85145157",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85145157",
+        "value": 136
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp01e6f79d932fa2",
+        "canonicalIdentityId": "rp01e6f79d932fa2",
+        "mention": "Antoine Rabillard",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036765"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc2ad5beb6195a8",
+        "canonicalIdentityId": "rpc2ad5beb6195a8",
+        "mention": "Arnaud Nordin",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85145157"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "48036765"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43266791"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19202462"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19154516"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85145157"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000060326"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "93122987"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29224008"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036765"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43266791"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19202462"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19154516"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036765"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85145157"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000060326"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "93122987"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29224008"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

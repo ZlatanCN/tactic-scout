@@ -166,9 +166,13 @@ V37 run `4e55b236-4cfc-4477-9d01-51d0961da245` completed 48 trials in 215 reques
 
 Run `a7a72e78-5fad-4828-a52b-0864f8b2bb83` was stopped after 16/48 trials and 44 model requests. One saved-result case accidentally asked “What was his xA for that record?” while its contract expected pronoun-free saved-result reuse; it failed identity checks. The other 15 trials were unassessed. Judge calibration had not started. There were no network failures or budget denials. V38 is exposed and cannot be reused.
 
-## V39 replacement held-out candidate
+## Exposed V39 held-out attempt
 
-V39 is an independent 16-case pack with fresh player mentions, provider identities, source IDs, and synthetic team-roster IDs compared with V1–V38. Its saved-result follow-up asks “What was the xA for that record?” without a pronoun. Recommendation order is calculated independently from the fixed FM feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V39 has not started.
+Run `9b99f1ab-3444-479b-919d-9a2636cd1f53` was stopped after 12/48 trials and 30 Agent requests. Three trials failed the same deterministic contract because an EPL question inherited an expected Bundesliga scope from its source template; nine trials were unassessed. Calibration had not started. There were no network failures or request denials. V39 is exposed and cannot be reused.
+
+## V40 replacement held-out candidate
+
+V40 is an independent 16-case pack with fresh player mentions, provider identities, source IDs, and synthetic team-roster IDs compared with V1–V39. Its saved-result follow-up is pronoun-free, explicit league scopes were cross-checked against case contracts, and recommendation order is calculated independently from the fixed FM feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V40 has not started.
 
 ## V19 held-out result
 

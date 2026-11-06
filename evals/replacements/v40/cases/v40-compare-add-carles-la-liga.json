@@ -1,0 +1,489 @@
+{
+  "caseId": "v40-compare-add-carles-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jon Ander Olasagasti",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Pepelu",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Carles Aleñá",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jon Ander Olasagasti",
+        "status": "resolved"
+      },
+      {
+        "mention": "Pepelu",
+        "status": "resolved"
+      },
+      {
+        "mention": "Carles Aleñá",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v40-compare-add-carles-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v40-compare-add-carles-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Jon Ander Olasagasti",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1"
+      },
+      {
+        "mention": "Pepelu",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-1"
+      },
+      {
+        "mention": "Jon Ander Olasagasti",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2"
+      },
+      {
+        "mention": "Pepelu",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2"
+      },
+      {
+        "mention": "Carles Aleñá",
+        "status": "resolved",
+        "turnId": "v40-compare-add-carles-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67262370"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9466",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67207683"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2551",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v40-compare-add-carles-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67262370"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9466",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67207683"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2551",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67213011"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5058",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v40-compare-add-carles-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67262370",
+        "value": 122
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67262370",
+        "value": 132
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67207683",
+        "value": 139
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67207683",
+        "value": 152
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67213011",
+        "value": 135
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67213011",
+        "value": 148
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9466",
+        "value": 625
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9466",
+        "value": 0.7187615968286991
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2551",
+        "value": 760
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2551",
+        "value": 0.10389648750424385
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5058",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 175
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5058",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.1660046372562647
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdd994fa677f4cc",
+        "canonicalIdentityId": "rpdd994fa677f4cc",
+        "mention": "Jon Ander Olasagasti",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67262370"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9466",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp813f06a569631f",
+        "canonicalIdentityId": "rp813f06a569631f",
+        "mention": "Pepelu",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67207683"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2551",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpe34a694010880a",
+        "canonicalIdentityId": "rpe34a694010880a",
+        "mention": "Carles Aleñá",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67213011"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5058",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67262370"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9466",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67207683"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2551",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67213011"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5058",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67262370"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9466",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67207683"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2551",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67262370"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9466",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67207683"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2551",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67213011"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5058",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-compare-add-carles-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-compare-add-carles-la-liga-turn-1",
+      "userMessage": "Compare Jon Ander Olasagasti and Pepelu using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-compare-add-carles-la-liga-turn-2",
+      "userMessage": "Add Carles Aleña to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,211 @@
+{
+  "caseId": "v40-lookup-billy-gilmour-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "61078265"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7988",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Billy Gilmour",
+        "status": "resolved",
+        "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Billy Gilmour",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Billy Gilmour",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp78fc6966b15db7",
+        "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-1"
+      },
+      {
+        "mention": "Billy Gilmour",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp78fc6966b15db7",
+        "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "61078265"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7988",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "61078265",
+        "value": 148
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "61078265",
+        "value": 154
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7988",
+        "value": 262
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7988",
+        "value": 0.11506123840808868
+      },
+      {
+        "competition": "Serie_A",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7988",
+        "value": 1
+      },
+      {
+        "competition": "Serie_A",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7988",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7988",
+        "field": "expectedAssists",
+        "value": 0.13572216033935547,
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp78fc6966b15db7",
+        "canonicalIdentityId": "rp78fc6966b15db7",
+        "mention": "Billy Gilmour",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "61078265"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7988",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "61078265"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7988",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "61078265"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7988",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-lookup-billy-gilmour-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-1",
+      "userMessage": "Look up Billy Gilmour's FM profile and 2026/27 Serie A performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-lookup-billy-gilmour-saved-xa-turn-2",
+      "userMessage": "What was the xA for that record?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -153,7 +153,7 @@
   "evidenceBundleId": "replacement-v39-real-data",
   "evidenceBundleSha256": "eaf689542db79521cd2fe072d69ad573784ac8c823e25c963d48a5dabd21fcab",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V39 from fixed local snapshots with new identities after V38 was exposed; no V39 model request has started.",
+  "priorTuningExposure": "Exposed by V39 run 9b99f1ab-3444-479b-919d-9a2636cd1f53: 30 Agent requests; 12/48 trials recorded (3 failed, 9 unassessed); judge calibration did not start. Three EPL comparison trials failed because the case expected Bundesliga. There were no network failures or request denials. Do not use V39 for acceptance.",
   "scenarioFamily": "replacement-v39-recommend-wilson-isidor-similar-stc",
   "split": "held_out",
   "turns": [

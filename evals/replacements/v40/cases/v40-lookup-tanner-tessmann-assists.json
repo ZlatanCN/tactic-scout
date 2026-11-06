@@ -1,0 +1,138 @@
+{
+  "caseId": "v40-lookup-tanner-tessmann-assists",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Tanner Tessmann",
+        "status": "resolved",
+        "turnId": "v40-lookup-tanner-tessmann-assists-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Tanner Tessmann",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000015818"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9885",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v40-lookup-tanner-tessmann-assists-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000015818",
+        "value": 143
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9885",
+        "value": 6
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpccbbd969b5c248",
+        "canonicalIdentityId": "rpccbbd969b5c248",
+        "mention": "Tanner Tessmann",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000015818"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9885",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000015818"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9885",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000015818"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9885",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-lookup-tanner-tessmann-assists",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-lookup-tanner-tessmann-assists-turn-1",
+      "userMessage": "Look up Tanner Tessmann's 2026/27 Ligue 1 assists and CA."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

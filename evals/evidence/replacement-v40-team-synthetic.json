@@ -1,0 +1,625 @@
+{
+  "apiFootball": {
+    "capturedAt": "2025-11-20T12:00:00.000Z",
+    "requestedTeams": [],
+    "sourceRequests": null,
+    "squadResponses": [
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10141,
+                "name": "Stonefield Rovers",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 19701,
+                  "name": "Iker Soler",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 19702,
+                  "name": "Aisha Malik",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10141
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10142,
+                "name": "Stonefield Rovers Reserves",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 19703,
+                  "name": "Theo Okafor",
+                  "position": "Attacker"
+                },
+                {
+                  "id": 19704,
+                  "name": "Yuki Tanaka",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10142
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10143,
+                "name": "Westmere FC",
+                "country": "Westreach"
+              },
+              "players": [
+                {
+                  "id": 10209,
+                  "name": "Luka Marin",
+                  "position": "Attacker"
+                }
+              ]
+            }
+          ]
+        },
+        "teamId": 10143
+      }
+    ],
+    "teamSearchResponses": [
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10141,
+                "name": "Stonefield Rovers",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Stonefield Rovers"
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10141,
+                "name": "Stonefield Rovers",
+                "country": "Westreach"
+              }
+            },
+            {
+              "team": {
+                "id": 10142,
+                "name": "Stonefield Rovers Reserves",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Westmere"
+      },
+      {
+        "payload": {
+          "errors": {},
+          "response": [
+            {
+              "team": {
+                "id": 10143,
+                "name": "Westmere FC",
+                "country": "Westreach"
+              }
+            }
+          ]
+        },
+        "query": "Westmere FC"
+      }
+    ]
+  },
+  "bundleId": "replacement-v40-team-synthetic",
+  "fm": {
+    "manifest": {
+      "databaseVersion": "evaluation-fixture-v1",
+      "gameBuild": "synthetic-replacement-v40",
+      "inGameDate": "2025-11-23",
+      "sha256": "synthetic-replacement-v40-team-roster"
+    },
+    "players": [
+      {
+        "aliases": ["Soler Beta"],
+        "birthDate": "2000-02-03",
+        "name": "Iker Soler",
+        "payload": {
+          "ability_current": 150,
+          "ability_potential": 178,
+          "birth_date": "2000-02-03",
+          "common_name": "Iker Soler",
+          "full_name": "Iker Soler",
+          "height_cm": 182,
+          "name": "Iker Soler",
+          "natural_positions": "STC;AMC",
+          "unique_id": "fm-v40-ref-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v40-ref-01",
+        "uniqueId": "fm-v40-ref-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2003-04-05",
+        "name": "Aisha Malik",
+        "payload": {
+          "ability_current": 146,
+          "ability_potential": 181,
+          "birth_date": "2003-04-05",
+          "common_name": "Aisha Malik",
+          "full_name": "Aisha Malik",
+          "height_cm": 179,
+          "name": "Aisha Malik",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-close-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v40-close-01",
+        "uniqueId": "fm-v40-close-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2007-06-07",
+        "name": "Theo Okafor",
+        "payload": {
+          "ability_current": 124,
+          "ability_potential": 195,
+          "birth_date": "2007-06-07",
+          "common_name": "Theo Okafor",
+          "full_name": "Theo Okafor",
+          "height_cm": 180,
+          "name": "Theo Okafor",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-future-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v40-future-01",
+        "uniqueId": "fm-v40-future-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "1999-08-09",
+        "name": "Yuki Tanaka",
+        "payload": {
+          "ability_current": 160,
+          "ability_potential": 166,
+          "birth_date": "1999-08-09",
+          "common_name": "Yuki Tanaka",
+          "full_name": "Yuki Tanaka",
+          "height_cm": 188,
+          "name": "Yuki Tanaka",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-far-01",
+          "raw_attributes_acceleration": 9,
+          "raw_attributes_pace": 9,
+          "raw_attributes_strength": 9,
+          "raw_attributes_jumping_reach": 9,
+          "raw_attributes_stamina": 9,
+          "raw_attributes_finishing": 9,
+          "raw_attributes_off_the_ball": 9,
+          "raw_attributes_heading": 9,
+          "raw_attributes_composure": 9,
+          "raw_attributes_anticipation": 9,
+          "raw_attributes_decisions": 9,
+          "raw_attributes_first_touch": 9,
+          "raw_attributes_passing": 9,
+          "raw_attributes_technique": 9,
+          "raw_attributes_vision": 9,
+          "raw_attributes_teamwork": 9,
+          "raw_attributes_dribbling": 9,
+          "raw_attributes_work_rate": 9
+        },
+        "recordId": "fm-row-v40-far-01",
+        "uniqueId": "fm-v40-far-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2001-01-01",
+        "name": "Daniela Ionescu",
+        "payload": {
+          "ability_current": 140,
+          "ability_potential": 180,
+          "birth_date": "2001-01-01",
+          "common_name": "Daniela Ionescu",
+          "full_name": "Daniela Ionescu",
+          "height_cm": 183,
+          "name": "Daniela Ionescu",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-missing-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": null,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v40-missing-01",
+        "uniqueId": "fm-v40-missing-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2002-01-01",
+        "name": "Femi Adeyemi",
+        "payload": {
+          "ability_current": 151,
+          "ability_potential": 181,
+          "birth_date": "2002-01-01",
+          "common_name": "Femi Adeyemi",
+          "full_name": "Femi Adeyemi",
+          "height_cm": 182,
+          "name": "Femi Adeyemi",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-ineligible-01",
+          "raw_attributes_acceleration": 15,
+          "raw_attributes_pace": 15,
+          "raw_attributes_strength": 15,
+          "raw_attributes_jumping_reach": 15,
+          "raw_attributes_stamina": 15,
+          "raw_attributes_finishing": 15,
+          "raw_attributes_off_the_ball": 15,
+          "raw_attributes_heading": 15,
+          "raw_attributes_composure": 15,
+          "raw_attributes_anticipation": 15,
+          "raw_attributes_decisions": 15,
+          "raw_attributes_first_touch": 15,
+          "raw_attributes_passing": 15,
+          "raw_attributes_technique": 15,
+          "raw_attributes_vision": 15,
+          "raw_attributes_teamwork": 15,
+          "raw_attributes_dribbling": 15,
+          "raw_attributes_work_rate": 15
+        },
+        "recordId": "fm-row-v40-ineligible-01",
+        "uniqueId": "fm-v40-ineligible-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2000-01-01",
+        "name": "Riku Watanabe",
+        "payload": {
+          "ability_current": 135,
+          "ability_potential": 170,
+          "birth_date": "2000-01-01",
+          "common_name": "Riku Watanabe",
+          "full_name": "V40 Pair A",
+          "height_cm": 180,
+          "name": "V40 Pair A",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-amb-a",
+          "raw_attributes_acceleration": 14,
+          "raw_attributes_pace": 14,
+          "raw_attributes_strength": 14,
+          "raw_attributes_jumping_reach": 14,
+          "raw_attributes_stamina": 14,
+          "raw_attributes_finishing": 14,
+          "raw_attributes_off_the_ball": 14,
+          "raw_attributes_heading": 14,
+          "raw_attributes_composure": 14,
+          "raw_attributes_anticipation": 14,
+          "raw_attributes_decisions": 14,
+          "raw_attributes_first_touch": 14,
+          "raw_attributes_passing": 14,
+          "raw_attributes_technique": 14,
+          "raw_attributes_vision": 14,
+          "raw_attributes_teamwork": 14,
+          "raw_attributes_dribbling": 14,
+          "raw_attributes_work_rate": 14
+        },
+        "recordId": "fm-row-v40-ambiguous-a",
+        "uniqueId": "fm-v40-amb-a"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2004-01-01",
+        "name": "Riku Watanabe",
+        "payload": {
+          "ability_current": 142,
+          "ability_potential": 181,
+          "birth_date": "2004-01-01",
+          "common_name": "Riku Watanabe",
+          "full_name": "V40 Pair B",
+          "height_cm": 184,
+          "name": "V40 Pair B",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-amb-b",
+          "raw_attributes_acceleration": 16,
+          "raw_attributes_pace": 16,
+          "raw_attributes_strength": 16,
+          "raw_attributes_jumping_reach": 16,
+          "raw_attributes_stamina": 16,
+          "raw_attributes_finishing": 16,
+          "raw_attributes_off_the_ball": 16,
+          "raw_attributes_heading": 16,
+          "raw_attributes_composure": 16,
+          "raw_attributes_anticipation": 16,
+          "raw_attributes_decisions": 16,
+          "raw_attributes_first_touch": 16,
+          "raw_attributes_passing": 16,
+          "raw_attributes_technique": 16,
+          "raw_attributes_vision": 16,
+          "raw_attributes_teamwork": 16,
+          "raw_attributes_dribbling": 16,
+          "raw_attributes_work_rate": 16
+        },
+        "recordId": "fm-row-v40-ambiguous-b",
+        "uniqueId": "fm-v40-amb-b"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2001-03-04",
+        "name": "Samira Benali",
+        "payload": {
+          "ability_current": 130,
+          "ability_potential": 172,
+          "birth_date": "2001-03-04",
+          "common_name": "Samira Benali",
+          "full_name": "Samira Benali",
+          "height_cm": 180,
+          "name": "Samira Benali",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-failure-ref-01",
+          "raw_attributes_acceleration": 13,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 13,
+          "raw_attributes_jumping_reach": 13,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 13,
+          "raw_attributes_heading": 13,
+          "raw_attributes_composure": 13,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 13,
+          "raw_attributes_first_touch": 13,
+          "raw_attributes_passing": 13,
+          "raw_attributes_technique": 13,
+          "raw_attributes_vision": 13,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 13,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v40-failure-ref-01",
+        "uniqueId": "fm-v40-failure-ref-01"
+      },
+      {
+        "aliases": [],
+        "birthDate": "2007-10-01",
+        "name": "Mateo Costa",
+        "payload": {
+          "ability_current": 128,
+          "ability_potential": null,
+          "birth_date": "2007-10-01",
+          "common_name": "Mateo Costa",
+          "full_name": "Mateo Costa",
+          "height_cm": 180,
+          "name": "Mateo Costa",
+          "natural_positions": "STC",
+          "unique_id": "fm-v40-no-pa-01",
+          "raw_attributes_acceleration": 12,
+          "raw_attributes_pace": 13,
+          "raw_attributes_strength": 12,
+          "raw_attributes_jumping_reach": 12,
+          "raw_attributes_stamina": 13,
+          "raw_attributes_finishing": 13,
+          "raw_attributes_off_the_ball": 12,
+          "raw_attributes_heading": 12,
+          "raw_attributes_composure": 12,
+          "raw_attributes_anticipation": 13,
+          "raw_attributes_decisions": 12,
+          "raw_attributes_first_touch": 12,
+          "raw_attributes_passing": 12,
+          "raw_attributes_technique": 12,
+          "raw_attributes_vision": 12,
+          "raw_attributes_teamwork": 13,
+          "raw_attributes_dribbling": 12,
+          "raw_attributes_work_rate": 13
+        },
+        "recordId": "fm-row-v40-no-pa-01",
+        "uniqueId": "fm-v40-no-pa-01"
+      }
+    ],
+    "positions": [
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v40-ref-01"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v40-close-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v40-future-01"
+      },
+      {
+        "position": "stc",
+        "rating": 18,
+        "recordId": "fm-row-v40-far-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v40-missing-01"
+      },
+      {
+        "position": "stc",
+        "rating": 14,
+        "recordId": "fm-row-v40-ineligible-01"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v40-ambiguous-a"
+      },
+      {
+        "position": "stc",
+        "rating": 20,
+        "recordId": "fm-row-v40-ambiguous-b"
+      },
+      {
+        "position": "stc",
+        "rating": 14,
+        "recordId": "fm-row-v40-failure-ref-01"
+      },
+      {
+        "position": "stc",
+        "rating": 19,
+        "recordId": "fm-row-v40-no-pa-01"
+      }
+    ]
+  },
+  "identity": {
+    "bridges": [
+      {
+        "canonicalReepId": "identity-v40-ref-01",
+        "externalId": "19701",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-failure-ref-01",
+        "externalId": "fm-v40-failure-ref-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-ref-01",
+        "externalId": "fm-v40-ref-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-ambiguous",
+        "externalId": "fm-v40-amb-a",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-ambiguous",
+        "externalId": "fm-v40-amb-b",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-future-01",
+        "externalId": "fm-v40-future-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-future-01",
+        "externalId": "19703",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-far-01",
+        "externalId": "fm-v40-far-01",
+        "provider": "fm",
+        "redirectStatus": "resolved"
+      },
+      {
+        "canonicalReepId": "identity-v40-far-01",
+        "externalId": "19704",
+        "provider": "api_football",
+        "redirectStatus": "resolved"
+      }
+    ],
+    "releaseStamp": "replacement-v40-team-synthetic-release"
+  },
+  "origin": "synthetic",
+  "understat": {
+    "snapshots": []
+  }
+}

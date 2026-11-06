@@ -1,0 +1,273 @@
+{
+  "caseId": "v40-compare-ainsley-adrien-cross-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ainsley Maitland-Niles",
+        "status": "resolved",
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1"
+      },
+      {
+        "lookupName": "Adrien Thomasson",
+        "status": "resolved",
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ainsley Maitland-Niles",
+        "status": "resolved"
+      },
+      {
+        "mention": "Adrien Thomasson",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Ainsley Maitland-Niles",
+        "status": "resolved",
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1"
+      },
+      {
+        "mention": "Adrien Thomasson",
+        "status": "resolved",
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28095584"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1750",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85128018"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3549",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28095584",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28095584",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85128018",
+        "value": 140
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85128018",
+        "value": 142
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1750",
+        "value": 317
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1750",
+        "value": 0.04600551724433899
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3549",
+        "value": 488
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3549",
+        "value": 1.8069261759519577
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp0816c9e0e91ba2",
+        "canonicalIdentityId": "rp0816c9e0e91ba2",
+        "mention": "Ainsley Maitland-Niles",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28095584"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1750",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpbbe2aef543d4f4",
+        "canonicalIdentityId": "rpbbe2aef543d4f4",
+        "mention": "Adrien Thomasson",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85128018"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3549",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28095584"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1750",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85128018"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3549",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28095584"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1750",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85128018"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3549",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-compare-ainsley-adrien-cross-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-compare-ainsley-adrien-cross-scope-turn-1",
+      "userMessage": "Compare Ainsley Maitland-Niles and Adrien Thomasson using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

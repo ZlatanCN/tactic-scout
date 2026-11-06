@@ -1,0 +1,182 @@
+{
+  "caseId": "v40-recommend-joe-gelhardt-age-ca-filter",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1",
+        "value": "222724"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1",
+        "value": 22
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1",
+        "value": 130
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Joe Gelhardt",
+        "status": "resolved",
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Joe Gelhardt",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "222724"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000154217"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000074825"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000117767"
+          }
+        ],
+        "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "222724",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "222724",
+        "value": 140
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc54ad0edda8bb2",
+        "canonicalIdentityId": "rpc54ad0edda8bb2",
+        "mention": "Joe Gelhardt",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "222724"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "222724"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000154217"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000074825"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000117767"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "222724"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000154217"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000074825"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000117767"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-recommend-joe-gelhardt-age-ca-filter",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-recommend-joe-gelhardt-age-ca-filter-turn-1",
+      "userMessage": "Recommend STC players based on Joe Gelhardt, age 22 or younger, with CA at least 130, up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

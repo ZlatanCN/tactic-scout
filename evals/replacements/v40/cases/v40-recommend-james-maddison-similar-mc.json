@@ -1,0 +1,168 @@
+{
+  "caseId": "v40-recommend-james-maddison-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v40-recommend-james-maddison-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v40-recommend-james-maddison-similar-mc-turn-1",
+        "value": "28093567"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v40-recommend-james-maddison-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "James Maddison",
+        "status": "resolved",
+        "turnId": "v40-recommend-james-maddison-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "James Maddison",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28093567"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28115788"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19258928"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "75045691"
+          }
+        ],
+        "turnId": "v40-recommend-james-maddison-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28093567",
+        "value": 151
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28093567",
+        "value": 163
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6bfd63e484794d",
+        "canonicalIdentityId": "rp6bfd63e484794d",
+        "mention": "James Maddison",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28093567"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28093567"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28115788"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19258928"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "75045691"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28093567"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28115788"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19258928"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "75045691"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-recommend-james-maddison-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-recommend-james-maddison-similar-mc-turn-1",
+      "userMessage": "Based on James Maddison's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

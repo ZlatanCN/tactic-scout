@@ -1,0 +1,282 @@
+{
+  "caseId": "v40-compare-pulisic-pinamonti-serie-a",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Christian Pulisic",
+        "status": "resolved",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Andrea Pinamonti",
+        "status": "resolved",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Christian Pulisic",
+        "status": "resolved"
+      },
+      {
+        "mention": "Andrea Pinamonti",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Christian Pulisic",
+        "status": "resolved",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1"
+      },
+      {
+        "mention": "Andrea Pinamonti",
+        "status": "resolved",
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92074020"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2662",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43252773"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "4895",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92074020",
+        "value": 160
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92074020",
+        "value": 163
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43252773",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43252773",
+        "value": 141
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2662",
+        "value": 274
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "2662",
+        "value": 0.521464504301548
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "4895",
+        "value": 139
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "4895",
+        "value": 0.8256010189652443
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6db0be53c084d3",
+        "canonicalIdentityId": "rp6db0be53c084d3",
+        "mention": "Christian Pulisic",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92074020"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2662",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp831c69b08b7b41",
+        "canonicalIdentityId": "rp831c69b08b7b41",
+        "mention": "Andrea Pinamonti",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43252773"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "4895",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92074020"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "2662",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43252773"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "4895",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92074020"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "2662",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43252773"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "4895",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v40-real-data",
+  "evidenceBundleSha256": "78ca1ca386ec8efd949103f70db204b52ddf849fb760513e090ec31286fa6d5d",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V40 from fixed local snapshots with new identities after V39 was exposed; no V40 model request has started.",
+  "scenarioFamily": "replacement-v40-compare-pulisic-pinamonti-serie-a",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v40-compare-pulisic-pinamonti-serie-a-turn-1",
+      "userMessage": "Compare Christian Pulisic and Andrea Pinamonti using 2026/27 Serie A data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}
