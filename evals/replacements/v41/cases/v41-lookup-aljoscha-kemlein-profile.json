@@ -1,0 +1,174 @@
+{
+  "caseId": "v41-lookup-aljoscha-kemlein-profile",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v41-lookup-aljoscha-kemlein-profile-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Aljoscha Kemlein",
+        "status": "resolved",
+        "turnId": "v41-lookup-aljoscha-kemlein-profile-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Aljoscha Kemlein",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000154161"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11236",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v41-lookup-aljoscha-kemlein-profile-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000154161",
+        "value": 134
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000154161",
+        "value": 148
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11236",
+        "value": 235
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11236",
+        "value": 0
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11236",
+        "value": 0
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11236",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp8d483c836aa773",
+        "canonicalIdentityId": "rp8d483c836aa773",
+        "mention": "Aljoscha Kemlein",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000154161"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11236",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000154161"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11236",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000154161"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11236",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v41-real-data",
+  "evidenceBundleSha256": "62329c60425531e185fcb97c9cc2265866b202529dd9aea70ff81f28083c76c3",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V41 from fixed local snapshots with new identities after V40 was exposed; no V41 model request has started.",
+  "scenarioFamily": "replacement-v41-lookup-aljoscha-kemlein-profile",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v41-lookup-aljoscha-kemlein-profile-turn-1",
+      "userMessage": "Look up Aljoscha Kemlein's FM profile and 2026/27 Bundesliga performance."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

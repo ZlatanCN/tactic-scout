@@ -3,6 +3,7 @@ import type { GraphNode } from "@langchain/langgraph";
 import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { ReferenceIdentityLookup } from "../player-data/resolve-reference.js";
+import { normalizePlayerName } from "../player-data/shared.js";
 import {
   isPlayerReferenceMention,
   normalizeMentionText,
@@ -65,12 +66,7 @@ const cleanReferenceAnswer = (answer: string): string => {
   return cleaned.trim();
 };
 
-const normalizeName = (value: string): string =>
-  value
-    .normalize("NFKD")
-    .replaceAll(/\p{Diacritic}/gu, "")
-    .toLocaleLowerCase()
-    .replaceAll(/[^a-z0-9]/gu, "");
+const normalizeName = (value: string): string => normalizePlayerName(value);
 
 type CandidateSelection = {
   candidates: ReferenceCandidate[];

@@ -21,6 +21,111 @@ const observationPlayer = (
 });
 
 describe("evaluation identity lookup checks", () => {
+  it("accepts a Latin spelling variant while requiring the exact selected identity", () => {
+    const baseCase = evaluationCaseSchema.parse(
+      JSON.parse(
+        readFileSync(
+          path.join(process.cwd(), "evals/cases/lookup-haaland-real-v1.json"),
+          "utf-8"
+        )
+      )
+    );
+
+    const expectedPlayer = {
+      candidateId: "reep:reep-jorgen-1",
+      canonicalIdentityId: "reep-jorgen-1",
+      mention: "Jørgen Strand Larsen",
+      sourceRecords: [{ provider: "fm" as const, sourceId: "fm-jorgen-1" }],
+    };
+
+    const caseDefinition = {
+      ...baseCase,
+      contract: {
+        ...baseCase.contract,
+        expectedActionValues: [],
+        expectedActiveLookupSourceRecords: [],
+        expectedActiveResultValues: [],
+        expectedIdentityLookups: [],
+        expectedIdentityStatuses: [
+          { mention: expectedPlayer.mention, status: "resolved" },
+        ],
+        expectedTeamRosterCoverage: null,
+        expectedTurnConstraints: [],
+        expectedTurnIdentityStatuses: [],
+        expectedTurnParameters: [],
+        expectedTurnToolActions: [],
+        outcomeStatus: "answer_ready" as const,
+        requiredAbstentions: [],
+        requiredEvidence: [],
+        resolvedPlayers: [expectedPlayer],
+        sourceScope: [],
+        taskKind: "player_lookup" as const,
+        toolActions: [],
+      },
+    };
+
+    const player = {
+      candidates: [
+        {
+          candidateId: expectedPlayer.candidateId,
+          canonicalIdentityId: expectedPlayer.canonicalIdentityId,
+          records: expectedPlayer.sourceRecords,
+        },
+      ],
+      lookupName: "Jorgen Strand Larsen",
+      mention: "Jorgen Strand Larsen",
+      resolutionStatus: "resolved",
+      selectedCandidateId: expectedPlayer.candidateId,
+      selectedName: "Jorgen Strand Larsen",
+    };
+
+    const worker = {
+      ...emptyWorkerResult("variant test"),
+      outcomeKind: "player_lookup",
+      outcomeStatus: "answer_ready",
+      players: [player],
+      requestKind: "player_lookup",
+    } satisfies WorkerTrialResult;
+
+    const checks = checkCaseContract(caseDefinition, worker);
+
+    const identityStatuses = checks
+      .filter(({ id }) =>
+        ["identity-resolution-status", "resolved-identity"].includes(id)
+      )
+      .map(({ id, status }) => [id, status]);
+
+    const wrongIdentityWorker = {
+      ...worker,
+      players: [
+        {
+          ...player,
+          candidates: [
+            {
+              ...player.candidates[0],
+              candidateId: "reep:some-other-player",
+              canonicalIdentityId: "some-other-player",
+            },
+          ],
+          selectedCandidateId: "reep:some-other-player",
+        },
+      ],
+    } satisfies WorkerTrialResult;
+
+    const wrongIdentityStatus = checkCaseContract(
+      caseDefinition,
+      wrongIdentityWorker
+    ).find(({ id }) => id === "resolved-identity")?.status;
+
+    expect({ identityStatuses, wrongIdentityStatus }).toStrictEqual({
+      identityStatuses: [
+        ["identity-resolution-status", "passed"],
+        ["resolved-identity", "passed"],
+      ],
+      wrongIdentityStatus: "failed",
+    });
+  });
+
   it("accepts an accent-only mention difference but still requires the same identity ID", () => {
     const caseDefinition = evaluationCaseSchema.parse(
       JSON.parse(

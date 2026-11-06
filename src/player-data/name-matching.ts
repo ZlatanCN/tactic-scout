@@ -1,13 +1,28 @@
 import type { CandidateSourceRecord } from "./contracts.js";
-import { normalizePlayerName } from "./shared.js";
+import { normalizeLatinNameSpelling, normalizePlayerName } from "./shared.js";
 
 const tokenizePlayerName = (value: string): string[] =>
-  value
-    .normalize("NFKD")
-    .replaceAll(/\p{Diacritic}/gu, "")
+  normalizeLatinNameSpelling(value.normalize("NFKD"))
     .toLocaleLowerCase()
     .split(/[^a-z0-9]+/u)
     .filter(Boolean);
+
+const tokenSearchPatterns = (token: string): string[] => {
+  const patterns = new Set([token]);
+  const accentableLatinCharacters = new Set("acdeghilnorstuyz");
+
+  for (let index = 0; index < token.length; index += 1) {
+    const character = token[index] ?? "";
+
+    if (!accentableLatinCharacters.has(character)) {
+      continue;
+    }
+
+    patterns.add(`${token.slice(0, index)}_${token.slice(index + 1)}`);
+  }
+
+  return [...patterns];
+};
 
 const hasContiguousTokens = (source: string[], target: string[]): boolean =>
   source.some((_, index) =>
@@ -67,4 +82,9 @@ const deduplicateSourceRecords = (
   return [...unique.values()];
 };
 
-export { deduplicateSourceRecords, matchReferenceName, tokenizePlayerName };
+export {
+  deduplicateSourceRecords,
+  matchReferenceName,
+  tokenSearchPatterns,
+  tokenizePlayerName,
+};

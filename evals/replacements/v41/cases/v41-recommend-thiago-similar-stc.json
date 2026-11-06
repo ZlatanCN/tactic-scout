@@ -1,0 +1,168 @@
+{
+  "caseId": "v41-recommend-thiago-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v41-recommend-thiago-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v41-recommend-thiago-similar-stc-turn-1",
+        "value": "19409389"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v41-recommend-thiago-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Thiago",
+        "status": "resolved",
+        "turnId": "v41-recommend-thiago-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Thiago",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19409389"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000096364"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19377081"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91158071"
+          }
+        ],
+        "turnId": "v41-recommend-thiago-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "19409389",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "19409389",
+        "value": 155
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6e2981f87e8594",
+        "canonicalIdentityId": "rp6e2981f87e8594",
+        "mention": "Thiago",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19409389"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "19409389"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000096364"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19377081"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91158071"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "19409389"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000096364"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19377081"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91158071"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v41-real-data",
+  "evidenceBundleSha256": "62329c60425531e185fcb97c9cc2265866b202529dd9aea70ff81f28083c76c3",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V41 from fixed local snapshots with new identities after V40 was exposed; no V41 model request has started.",
+  "scenarioFamily": "replacement-v41-recommend-thiago-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v41-recommend-thiago-similar-stc-turn-1",
+      "userMessage": "Based on Thiago's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

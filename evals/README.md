@@ -170,9 +170,13 @@ Run `a7a72e78-5fad-4828-a52b-0864f8b2bb83` was stopped after 16/48 trials and 44
 
 Run `9b99f1ab-3444-479b-919d-9a2636cd1f53` was stopped after 12/48 trials and 30 Agent requests. Three trials failed the same deterministic contract because an EPL question inherited an expected Bundesliga scope from its source template; nine trials were unassessed. Calibration had not started. There were no network failures or request denials. V39 is exposed and cannot be reused.
 
-## V40 replacement held-out candidate
+## Exposed V40 held-out attempt
 
-V40 is an independent 16-case pack with fresh player mentions, provider identities, source IDs, and synthetic team-roster IDs compared with V1–V39. Its saved-result follow-up is pronoun-free, explicit league scopes were cross-checked against case contracts, and recommendation order is calculated independently from the fixed FM feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V40 has not started.
+Run `ec24f5ed-5552-4b48-8f89-691802a4ca52` was stopped after 24/48 trials and 68 Agent requests. Three trials failed because the runtime could not match accentless `Jorgen` to source spelling `Jørgen`; 21 trials were unassessed. Judge calibration had not started. There were no network failures or request denials. The search normalizer now handles non-decomposing Latin variants such as `ø`/`o`, while Reep IDs still control identity grouping. V40 is exposed.
+
+## V41 replacement held-out candidate
+
+V41 is an independent 16-case pack with fresh player mentions, provider identities, source IDs, and synthetic team-roster IDs compared with V1–V40. It includes an accentless `Pierre-Emile Hojbjerg` lookup, neutral saved-result reuse, and explicit league constraints audited against the request text. Recommendation order is calculated independently from the fixed FM feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V41 has not started.
 
 ## V19 held-out result
 

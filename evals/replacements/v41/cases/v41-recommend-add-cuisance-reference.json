@@ -1,0 +1,299 @@
+{
+  "caseId": "v41-recommend-add-cuisance-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v41-recommend-add-cuisance-reference",
+  "priorTuningExposure": "Authored for independent V41 from fixed local snapshots with new identities after V40 was exposed; no V41 model request has started.",
+  "evidenceBundleId": "replacement-v41-real-data",
+  "evidenceBundleSha256": "62329c60425531e185fcb97c9cc2265866b202529dd9aea70ff81f28083c76c3",
+  "turns": [
+    {
+      "turnId": "v41-recommend-add-cuisance-reference-turn-1",
+      "userMessage": "Based on Dan Ndoye's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v41-recommend-add-cuisance-reference-turn-2",
+      "userMessage": "Add Michaël Cuisance as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Dan Ndoye",
+        "status": "resolved"
+      },
+      {
+        "mention": "Michaël Cuisance",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Dan Ndoye",
+        "status": "resolved",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-1"
+      },
+      {
+        "lookupName": "Michaël Cuisance",
+        "status": "resolved",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "84153276"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19320258"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67269484"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49037698"
+          }
+        ],
+        "turnId": "v41-recommend-add-cuisance-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "84153276"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042512"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000032231"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48036558"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53131647"
+          }
+        ],
+        "turnId": "v41-recommend-add-cuisance-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-1",
+        "value": "84153276"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-2",
+        "value": "84153276"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-2",
+        "value": "48042512"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v41-recommend-add-cuisance-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "84153276",
+        "value": 144
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "84153276",
+        "value": 154
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48042512",
+        "value": 132
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48042512",
+        "value": 140
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpfce2353b4b66bb",
+        "canonicalIdentityId": "rpfce2353b4b66bb",
+        "mention": "Dan Ndoye",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "84153276"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp7b5f35674f105c",
+        "canonicalIdentityId": "rp7b5f35674f105c",
+        "mention": "Michaël Cuisance",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48042512"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "84153276"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19320258"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67269484"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49037698"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48042512"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000032231"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48036558"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "53131647"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "84153276"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19320258"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67269484"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49037698"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "84153276"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48042512"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000032231"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48036558"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53131647"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

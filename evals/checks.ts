@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod/v4";
 
+import { normalizeLatinNameSpelling } from "../src/player-data/shared.js";
 import type {
   LoadedEvaluationCase,
   PreparedEvaluationCase,
@@ -26,14 +27,12 @@ type ObservedToolAction = {
 const jsonValue = (value: string[]): string => JSON.stringify(value);
 
 const normalizeIdentityLookupName = (value: string): string =>
-  value
-    .normalize("NFKD")
-    .replaceAll(/\p{Diacritic}/gu, "")
+  normalizeLatinNameSpelling(value.normalize("NFKD"))
     .toLowerCase()
     .replaceAll(/[^\p{L}\p{N}]/gu, "");
 
 const normalizeIdentityMentionForEvaluation = (value: string): string =>
-  value.normalize("NFD").replaceAll(/\p{Diacritic}/gu, "");
+  normalizeLatinNameSpelling(value);
 
 const sourceRecordKey = (provider: string, sourceId: string): string =>
   `${provider}:${sourceId}`;

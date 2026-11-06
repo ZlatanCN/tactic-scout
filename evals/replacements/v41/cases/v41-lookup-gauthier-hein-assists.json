@@ -1,0 +1,138 @@
+{
+  "caseId": "v41-lookup-gauthier-hein-assists",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gauthier Hein",
+        "status": "resolved",
+        "turnId": "v41-lookup-gauthier-hein-assists-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gauthier Hein",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85138173"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5727",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v41-lookup-gauthier-hein-assists-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85138173",
+        "value": 135
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "appearances",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "5727",
+        "value": 7
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp80ab8d39486d58",
+        "canonicalIdentityId": "rp80ab8d39486d58",
+        "mention": "Gauthier Hein",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85138173"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5727",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85138173"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5727",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85138173"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5727",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v41-real-data",
+  "evidenceBundleSha256": "62329c60425531e185fcb97c9cc2265866b202529dd9aea70ff81f28083c76c3",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V41 from fixed local snapshots with new identities after V40 was exposed; no V41 model request has started.",
+  "scenarioFamily": "replacement-v41-lookup-gauthier-hein-assists",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v41-lookup-gauthier-hein-assists-turn-1",
+      "userMessage": "Look up Gauthier Hein's 2026/27 Ligue 1 appearances and CA."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

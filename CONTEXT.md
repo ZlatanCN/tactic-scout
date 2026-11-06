@@ -64,7 +64,9 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Scouting evaluation trial**: One independent execution of a scouting evaluation case, including all of its scripted turns and clarification answers. A confirmed critical failure anywhere in the conversation fails the trial; repeating the case creates a separate trial.
 
-**Evaluation identity-name comparison**: Evaluation checks ignore Unicode diacritics when comparing player mention strings. They still require exact selected candidate IDs, canonical Reep IDs, provider source IDs, and resolution statuses; this is not an identity-merging rule.
+**Player-name search normalization**: Player lookup ignores Unicode diacritics and common one-to-one Latin orthographic variants such as `ø`/`o` when finding source records. This only broadens candidate retrieval; records with different Reep IDs remain separate and require confirmation.
+
+**Evaluation identity-name comparison**: Evaluation checks use the same diacritic and common Latin spelling normalization for player mention strings. They still require exact selected candidate IDs, canonical Reep IDs, provider source IDs, and resolution statuses; this is not an identity-merging rule.
 
 **Fixed evaluation evidence**: Versioned FM profiles, Understat performance records, and squad snapshots available to a scouting evaluation case, retaining provider identities, source dates, and missing fields. Grounding a generated claim additionally requires that its supporting evidence was actually supplied to the agent or legitimately reused from saved context.
 
@@ -97,6 +99,6 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - Each active workflow snapshot stores a complete validated result. The snapshot and its completed outcome are committed together before answer generation; valid empty results count as completed, malformed results surface as contract errors, and failed or interrupted work does not replace a snapshot.
 - Completed outcomes identify whether data was executed this turn or reused from a saved result. Saved-result explanations route directly to the answer node. Historical tool messages do not reconstruct missing context.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
-- Evaluation name matching ignores diacritics only. It does not relax the exact identity or source-ID checks and does not alter runtime identity resolution.
+- Evaluation name matching ignores diacritics and common Latin orthographic variants only. It does not relax the exact identity or source-ID checks. Runtime lookup uses the same spelling normalization to find candidates, while canonical identity grouping still relies on Reep IDs or explicit thread confirmation.
 - Thread checkpointing uses LangGraph's in-memory saver. There is no Store. Restarting the process loses thread state.
 - There is no frontend, RAG pipeline, or application database in this branch.

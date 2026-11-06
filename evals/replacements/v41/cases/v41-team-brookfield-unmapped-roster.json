@@ -1,0 +1,172 @@
+{
+  "caseId": "v41-team-brookfield-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v41-team-brookfield-unmapped-roster",
+  "priorTuningExposure": "Authored for independent V41 from a new synthetic team roster after V40 was exposed; no V41 model request has started.",
+  "evidenceBundleId": "replacement-v41-team-synthetic",
+  "evidenceBundleSha256": "63c859e0d66a023f79c56f70798ed6dfd36daf882f581a0f5ac1444a08fa481c",
+  "turns": [
+    {
+      "turnId": "v41-team-brookfield-unmapped-roster-turn-1",
+      "userMessage": "为 Brookfield Town 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10153"
+          }
+        ],
+        "turnId": "v41-team-brookfield-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10153"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10219"
+          }
+        ],
+        "turnId": "v41-team-brookfield-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10219"
+          }
+        ],
+        "turnId": "v41-team-brookfield-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v41-team-brookfield-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 10219
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v41-team-brookfield-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v41-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v41-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v41-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v41-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v41-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v41-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10153"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10219"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10153"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10153"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10219"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10219"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

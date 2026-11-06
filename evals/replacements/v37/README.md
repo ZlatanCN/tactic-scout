@@ -10,24 +10,24 @@ V37 includes a possessive-form player query, an earlier-turn saved-result follow
 
 V37 run `4e55b236-4cfc-4477-9d01-51d0961da245` completed 48 trials in 215 requests (135 Agent, 32 calibration, 48 judge). Calibration passed 32/32 and 47/48 trials passed. One semantic judgment caught a real false reference-count claim: the answer said the squad reference profile used five players, while the tool result listed two. There were no network failures or budget denials. A deterministic correction for this count was added while the run was active, so V37 does not represent one frozen revision and cannot be used for acceptance. V37 is exposed.
 
-The team answer now corrects a squad reference count that differs from the returned reference list. V38 and V39 are exposed; V40 is the next independent pack.
+The team answer now corrects a squad reference count that differs from the returned reference list. V38–V40 are exposed; V41 is the next independent pack.
 
 ```sh
 node --import tsx evals/cli.ts preview \
   --mode held_out \
-  --case-directory evals/replacements/v40/cases \
-  --evidence-directory .data/evals/v40-evidence \
+  --case-directory evals/replacements/v41/cases \
+  --evidence-directory .data/evals/v41-evidence \
   --freeze-id <preview-fingerprint> \
   --judge
 
 node --import tsx evals/cli.ts run \
   --mode held_out \
-  --case-directory evals/replacements/v40/cases \
-  --evidence-directory .data/evals/v40-evidence \
+  --case-directory evals/replacements/v41/cases \
+  --evidence-directory .data/evals/v41-evidence \
   --freeze-id <preview-fingerprint> \
   --judge \
   --max-model-requests 900 \
-  --output .data/evals/v40-heldout-runs
+  --output .data/evals/v41-heldout-runs
 ```
 
-A partial or failed V40 report exposes the pack; it cannot be rerun for acceptance after tuning.
+A partial or failed V41 report exposes the pack; it cannot be rerun for acceptance after tuning.

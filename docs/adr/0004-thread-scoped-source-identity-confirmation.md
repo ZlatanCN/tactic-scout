@@ -8,6 +8,7 @@ The identity resolver can return separate candidates for records from different 
 
 ## Decision
 
+- Normalize Unicode diacritics and common one-to-one Latin spelling variants (for example `Jorgen` / `Jørgen`) when searching candidate names. This affects candidate retrieval and text matching only; it does not merge records or create a canonical identity.
 - Records linked to the same canonical Reep ID form one person candidate automatically.
 - Similar, unlinked records from different providers may be presented as a tentative person candidate only when the match is strong and unambiguous. Selecting that group confirms the relationship for the current thread.
 - Exact same-name records without a shared canonical Reep ID remain separate candidates. If they map to different canonical Reep IDs, they cannot be merged.

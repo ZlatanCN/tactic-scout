@@ -223,4 +223,138 @@ describe("player reference data failures", () => {
       status: "resolved",
     });
   });
+
+  it("matches a non-decomposing Latin accent without merging distinct Reep identities", () => {
+    const directory = mkdtempSync(
+      path.join(tmpdir(), "tactiscout-diacritic-name-")
+    );
+
+    const understatPath = path.join(directory, "understat.sqlite");
+    const fmPath = path.join(directory, "fm.sqlite");
+    const identityPath = path.join(directory, "identity.sqlite");
+    const understat = new DatabaseSync(understatPath);
+    const fm = new DatabaseSync(fmPath);
+    const identity = new DatabaseSync(identityPath);
+
+    temporaryDirectories.push(directory);
+    understat.exec(
+      "CREATE TABLE source_snapshots (kind TEXT, resource_id TEXT, season_start_year INTEGER, payload_json TEXT);"
+    );
+    fm.exec(
+      "CREATE TABLE players (record_id TEXT, name TEXT, payload BLOB);" +
+        "CREATE TABLE aliases (record_id TEXT, name TEXT);"
+    );
+    identity.exec(
+      "CREATE TABLE metadata (key TEXT, value TEXT);" +
+        "INSERT INTO metadata (key, value) VALUES ('release_stamp', 'test');" +
+        "CREATE TABLE bridges (provider TEXT, namespace TEXT, external_id TEXT, canonical_reep_id TEXT, redirect_status TEXT);"
+    );
+
+    const playerRows = [
+      {
+        canonicalId: "reep-jorgen-ascii",
+        name: "Jorgen Strand Larsen",
+        recordId: "fm-row-jorgen-ascii",
+        sourceId: "fm-jorgen-ascii",
+      },
+      {
+        canonicalId: "reep-jorgen-diacritic",
+        name: "Jørgen Strand Larsen",
+        recordId: "fm-row-jorgen-diacritic",
+        sourceId: "fm-jorgen-diacritic",
+      },
+    ];
+
+    const profileFields = [
+      "acceleration",
+      "decisions",
+      "finishing",
+      "first_touch",
+      "off_the_ball",
+      "pace",
+      "passing",
+      "strength",
+      "technique",
+      "vision",
+    ];
+
+    const insertPlayer = fm.prepare(
+      "INSERT INTO players (record_id, name, payload) VALUES (?, ?, ?)"
+    );
+
+    const insertAlias = fm.prepare(
+      "INSERT INTO aliases (record_id, name) VALUES (?, ?)"
+    );
+
+    const insertBridge = identity.prepare(
+      "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES ('fm', 'player', ?, ?, 'resolved')"
+    );
+
+    for (const player of playerRows) {
+      insertPlayer.run(
+        player.recordId,
+        player.name,
+        deflateRawSync(
+          Buffer.from(
+            JSON.stringify({
+              ability_current: "140",
+              ability_potential: "160",
+              birth_date: "2000-02-01",
+              common_name: player.name,
+              full_name: player.name,
+              height_cm: "180",
+              name: player.name,
+              natural_positions: "STC",
+              unique_id: player.sourceId,
+              ...Object.fromEntries(
+                profileFields.map((field) => [`raw_attributes_${field}`, "70"])
+              ),
+            })
+          )
+        )
+      );
+      insertAlias.run(player.recordId, player.name);
+      insertBridge.run(player.sourceId, player.canonicalId);
+    }
+
+    understat.close();
+    fm.close();
+    identity.close();
+
+    vi.stubEnv("OPENAI_BASE_URL", "http://127.0.0.1:1234");
+    vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", understatPath);
+    vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", fmPath);
+    vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", identityPath);
+
+    const result = resolvePlayerReference("Jorgen Strand Larsen");
+
+    expect({
+      candidateIdentities: result.candidates
+        .map(({ candidateId, canonicalIdentityId, records }) => ({
+          candidateId,
+          canonicalIdentityId,
+          sourceIds: records.map(({ sourceId }) => sourceId),
+        }))
+        .toSorted((left, right) =>
+          left.candidateId.localeCompare(right.candidateId)
+        ),
+      selectedCandidateId: result.selectedCandidateId,
+      status: result.status,
+    }).toStrictEqual({
+      candidateIdentities: [
+        {
+          candidateId: "reep:reep-jorgen-ascii",
+          canonicalIdentityId: "reep-jorgen-ascii",
+          sourceIds: ["fm-jorgen-ascii"],
+        },
+        {
+          candidateId: "reep:reep-jorgen-diacritic",
+          canonicalIdentityId: "reep-jorgen-diacritic",
+          sourceIds: ["fm-jorgen-diacritic"],
+        },
+      ],
+      selectedCandidateId: null,
+      status: "needs_confirmation",
+    });
+  });
 });

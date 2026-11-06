@@ -1,0 +1,282 @@
+{
+  "caseId": "v41-compare-gakpo-rashford-epl",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1",
+        "value": "EPL"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Cody Gakpo",
+        "status": "resolved",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1"
+      },
+      {
+        "lookupName": "Marcus Rashford",
+        "status": "resolved",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Cody Gakpo",
+        "status": "resolved"
+      },
+      {
+        "mention": "Marcus Rashford",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "EPL"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Cody Gakpo",
+        "status": "resolved",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1"
+      },
+      {
+        "mention": "Marcus Rashford",
+        "status": "resolved",
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37062185"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11296",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28100266"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "556",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v41-compare-gakpo-rashford-epl-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37062185",
+        "value": 155
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37062185",
+        "value": 164
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28100266",
+        "value": 156
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28100266",
+        "value": 173
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11296",
+        "value": 373
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11296",
+        "value": 0.5316769182682037
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "556",
+        "value": 360
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "556",
+        "value": 1.31516495347023
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpe754a105a4c697",
+        "canonicalIdentityId": "rpe754a105a4c697",
+        "mention": "Cody Gakpo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37062185"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11296",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc4d392d1e97207",
+        "canonicalIdentityId": "rpc4d392d1e97207",
+        "mention": "Marcus Rashford",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28100266"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "556",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "37062185"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11296",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28100266"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "556",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37062185"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11296",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28100266"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "556",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v41-real-data",
+  "evidenceBundleSha256": "62329c60425531e185fcb97c9cc2265866b202529dd9aea70ff81f28083c76c3",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V41 from fixed local snapshots with new identities after V40 was exposed; no V41 model request has started.",
+  "scenarioFamily": "replacement-v41-compare-gakpo-rashford-epl",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v41-compare-gakpo-rashford-epl-turn-1",
+      "userMessage": "Compare Cody Gakpo and Marcus Rashford using 2026/27 EPL data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -13,10 +13,28 @@ const parseJson = <Schema extends z.ZodType>(
   schema: Schema
 ): z.output<Schema> => schema.parse(JSON.parse(text));
 
-const normalizePlayerName = (value: string): string =>
+const normalizeLatinNameSpelling = (value: string): string =>
   value
-    .normalize("NFKD")
+    .normalize("NFD")
     .replaceAll(/\p{Diacritic}/gu, "")
+    .replaceAll("ø", "o")
+    .replaceAll("Ø", "O")
+    .replaceAll("ł", "l")
+    .replaceAll("Ł", "L")
+    .replaceAll("đ", "d")
+    .replaceAll("Đ", "D")
+    .replaceAll("ð", "d")
+    .replaceAll("Ð", "D")
+    .replaceAll("ħ", "h")
+    .replaceAll("Ħ", "H")
+    .replaceAll("ı", "i")
+    .replaceAll("ŋ", "n")
+    .replaceAll("Ŋ", "N")
+    .replaceAll("ŧ", "t")
+    .replaceAll("Ŧ", "T");
+
+const normalizePlayerName = (value: string): string =>
+  normalizeLatinNameSpelling(value.normalize("NFKD"))
     .toLocaleLowerCase()
     .replaceAll(/[^a-z0-9]/gu, "");
 
@@ -142,6 +160,7 @@ export {
   firstNonEmptyString,
   isLocalDataFailure,
   isLocalDataError,
+  normalizeLatinNameSpelling,
   normalizePlayerName,
   nullableString,
   numeric,

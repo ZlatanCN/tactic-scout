@@ -8,6 +8,7 @@ import type { CandidateSourceRecord } from "./contracts.js";
 import {
   deduplicateSourceRecords,
   matchReferenceName,
+  tokenSearchPatterns,
   tokenizePlayerName,
 } from "./name-matching.js";
 import {
@@ -586,14 +587,18 @@ const readFmReferenceRecords = (mention: string): CandidateSourceRecord[] => {
       return [];
     }
 
-    const namePredicates = nameTokens
-      .map(() => "(LOWER(a.name) LIKE ? OR LOWER(p.name) LIKE ?)")
+    const patternsByToken = nameTokens.map(tokenSearchPatterns);
+
+    const namePredicates = patternsByToken
+      .map(
+        (patterns) =>
+          `(${patterns.map(() => "(LOWER(a.name) LIKE ? OR LOWER(p.name) LIKE ?)").join(" OR ")})`
+      )
       .join(" AND ");
 
-    const namePatterns = nameTokens.flatMap((token) => [
-      `%${token}%`,
-      `%${token}%`,
-    ]);
+    const namePatterns = patternsByToken.flatMap((patterns) =>
+      patterns.flatMap((pattern) => [`%${pattern}%`, `%${pattern}%`])
+    );
 
     const rows = z.array(fmProfileRowSchema).parse(
       database

@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v40-team-stonefield-ca-refinement",
-  "priorTuningExposure": "Authored for independent V40 from a new synthetic team roster after V39 was exposed; no V40 model request has started.",
+  "priorTuningExposure": "Exposed by V40 run ec24f5ed-5552-4b48-8f89-691802a4ca52: 68 Agent requests; 24/48 trials recorded (3 failed, 21 unassessed); judge calibration did not start. All three failures came from the accentless “Jorgen” lookup not matching the source spelling “Jørgen”. The runtime spelling lookup was fixed after this run. There were no network failures or request denials. Do not use V40 for acceptance.",
   "evidenceBundleId": "replacement-v40-team-synthetic",
   "evidenceBundleSha256": "f4c85ab8f56f92ad5254680afabef26b2d4a0cf1f98b944a01591c0e668182a7",
   "turns": [
