@@ -32,7 +32,7 @@ describe("semantic judge calibration gate", () => {
     const observedStateSnapshots: unknown[] = [];
 
     writeFileSync(
-      path.join(anchorDirectory, "v8.json"),
+      path.join(anchorDirectory, "v9.json"),
       JSON.stringify({
         anchorVersion: "calibration-gate-test-v1",
         anchors,

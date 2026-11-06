@@ -217,7 +217,7 @@ const judgeAnchorPackSchema = z.object({
 
 const judgeAnchors = judgeAnchorPackSchema.parse(
   JSON.parse(
-    readFileSync(path.join(process.cwd(), "evals/anchors/v8.json"), "utf-8")
+    readFileSync(path.join(process.cwd(), "evals/anchors/v9.json"), "utf-8")
   )
 ).anchors;
 
@@ -4285,8 +4285,8 @@ describe("local scouting evaluation entry", () => {
         validation: { passed: 16, total: 16 },
       },
       anchorPriorTuningExposure:
-        "Version 8 clarifies that a current operation can fail while a prior result remains active and that unsupported current-turn operation claims are false_execution_claim. It replaces a development identity paraphrase with a correct active-result counterpart to the v6 no-state retention anchor. The v7 validation examples and labels are retained; no validation finding informed this prompt revision. The v7 pack and reports remain historical.",
-      anchorVersion: "scouting-judge-anchors-v8",
+        "Version 9 adds an explicit application source rule for the fixed-date FM snapshot after V41 exposed a judge false positive. It distinguishes the general snapshot property from a specific date claim. A reserved validation anchor confirms that an exact date is supported when the evidence supplies it. V41 is exposed and is not reused.",
+      anchorVersion: "scouting-judge-anchors-v9",
       calibrationRequests: 32,
       calibrationStatus: "passed",
       calibrationTelemetry: {
@@ -4296,7 +4296,7 @@ describe("local scouting evaluation entry", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v22",
+      judgePromptVersion: "scouting-semantic-judge-v23",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,
@@ -4322,6 +4322,7 @@ describe("local scouting evaluation entry", () => {
         "unsupported-fact-08-v2",
         "factual-contradiction-09-v4",
         "false-execution-claim-overlap-07-v3",
+        "correct-paraphrase-06-v5",
       ],
       rubricVersion: "scouting-evaluation-rubric-v3",
       semanticStatus: "passed",

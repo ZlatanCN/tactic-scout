@@ -26,7 +26,7 @@ pnpm eval:run --mode smoke --judge --evidence-directory .data/evals/evidence --c
 
 Formal runs repeat each selected case three times. Add `--judge` to run the 32-anchor calibration before semantic scoring. The request estimate reserves up to three model attempts for each calibration anchor and each trial judgment, including one validation-guided repair when needed. The judge defaults to the configured agent model; set `TACTISCOUT_EVAL_JUDGE_MODEL` to choose a separate model through the same gateway.
 
-The active judge anchor pack is `evals/anchors/v8.json`. Rubric v3 assigns one most-specific category per claim; distinct claims may receive different categories. V8 clarifies retained-result state after a failed new operation and requires current-turn actions for comparison/filter claims. Its development anchors cover those cases. V8 passed live validation 16/16 in run `426f3ce3-1b71-41cd-b782-7259b48d52e1`; that smoke also exposed a same-identity alternate-profile candidate, which issue 20 fixed. The targeted post-fix recommendation smoke `c0d751ad-4aee-43cf-893a-2e7d86aed9f5` passed deterministic and semantic checks with v8 calibration 16/16. V1-v7 packs and reports remain historical.
+The active judge anchor pack is `evals/anchors/v9.json`. Rubric v3 assigns one most-specific category per claim; distinct claims may receive different categories. V9 preserves V8's retained-result and current-turn-action rules, and adds an explicit FM snapshot policy plus anchors distinguishing the general fixed-date snapshot from a specific date claim. V1–V8 packs and reports remain historical.
 
 Judge prompt v9 adds per-turn identity-resolver outcomes to the action evidence and constrains identity-failure claims to the exact mention. Prompt v10 added turn-specific participants and passed all 32 live anchors, including 16/16 reserved validation anchors. The v10 development report exposed a player-recommendation routing error and over-scoped empty Understat lookup answers. V11 added selected source records and stricter lookup bounds, then passed 32/32 live anchors. Its five-case smoke passed four cases; the remaining Mbappé finding showed the judge also needed exact tool inputs to assess filter claims. V13 added exact action inputs and distinguished requested from executed events; its five-case smoke still found that clarification resume state was missing from judge input. V14 adds resume answers and selected post-resume identity state and passed all 32 live anchors plus the five-case smoke.
 
@@ -174,9 +174,13 @@ Run `9b99f1ab-3444-479b-919d-9a2636cd1f53` was stopped after 12/48 trials and 30
 
 Run `ec24f5ed-5552-4b48-8f89-691802a4ca52` was stopped after 24/48 trials and 68 Agent requests. Three trials failed because the runtime could not match accentless `Jorgen` to source spelling `Jørgen`; 21 trials were unassessed. Judge calibration had not started. There were no network failures or request denials. The search normalizer now handles non-decomposing Latin variants such as `ø`/`o`, while Reep IDs still control identity grouping. V40 is exposed.
 
-## V41 replacement held-out candidate
+## Exposed V41 held-out attempt
 
-V41 is an independent 16-case pack with fresh player mentions, provider identities, source IDs, and synthetic team-roster IDs compared with V1–V40. It includes an accentless `Pierre-Emile Hojbjerg` lookup, neutral saved-result reuse, and explicit league constraints audited against the request text. Recommendation order is calculated independently from the fixed FM feature map and Reep-linked exclusions. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V41 has not started.
+Run `ebaaec2f-9fcb-4ce1-8436-b163d5906c6e` completed 48 trials in 219 requests. Judge calibration passed 32/32 (validation 16/16), but 44/48 trials passed. Three Gauthier Hein trials failed required-fact coverage because the prompt asked for appearances while the case contract still expected assists. One Aljoscha Kemlein answer called FM values a fixed-date snapshot and the judge flagged the statement unsupported. There was one recovered network failure and no request denial. V41 is exposed.
+
+## V42 replacement held-out candidate
+
+V42 will use fresh identities and source IDs compared with V1–V41, fix the Gauthier Hein field mismatch, and calibrate the judge's FM fixed-snapshot rule with a new v9 anchor pack. Recommendation order remains independently calculated from the fixed FM feature map and Reep-linked exclusions. Preview must report 16/16 evidence bundles ready and no explicit league-contract mismatches before dispatch. The 900-request ceiling is authorized; V42 has not started.
 
 ## V19 held-out result
 

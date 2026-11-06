@@ -1,0 +1,295 @@
+{
+  "caseId": "v42-recommend-add-randal-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v42-recommend-add-randal-reference",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "turns": [
+    {
+      "turnId": "v42-recommend-add-randal-reference-turn-1",
+      "userMessage": "Based on Timothy Weah's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v42-recommend-add-randal-reference-turn-2",
+      "userMessage": "Add Randal Kolo Muani as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Timothy Weah",
+        "status": "resolved"
+      },
+      {
+        "mention": "Randal Kolo Muani",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Timothy Weah",
+        "status": "resolved",
+        "turnId": "v42-recommend-add-randal-reference-turn-1"
+      },
+      {
+        "lookupName": "Randal Kolo Muani",
+        "status": "resolved",
+        "turnId": "v42-recommend-add-randal-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48042432"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000155489"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18081111"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48036493"
+          }
+        ],
+        "turnId": "v42-recommend-add-randal-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48042432"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48043873"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "12091290"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18081111"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "83257793"
+          }
+        ],
+        "turnId": "v42-recommend-add-randal-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-1",
+        "value": "48042432"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-2",
+        "value": "48042432"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-2",
+        "value": "48043873"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v42-recommend-add-randal-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48042432",
+        "value": 143
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48042432",
+        "value": 148
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48043873",
+        "value": 148
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48043873",
+        "value": 157
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp0c6571beb16243",
+        "canonicalIdentityId": "rp0c6571beb16243",
+        "mention": "Timothy Weah",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48042432"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpaea72bcf42ab6b",
+        "canonicalIdentityId": "rpaea72bcf42ab6b",
+        "mention": "Randal Kolo Muani",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48043873"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "48042432"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000155489"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18081111"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48036493"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48043873"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "12091290"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "83257793"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48042432"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000155489"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18081111"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48036493"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48042432"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48043873"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "12091290"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18081111"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "83257793"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

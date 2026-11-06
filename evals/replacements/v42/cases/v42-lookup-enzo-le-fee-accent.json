@@ -1,0 +1,174 @@
+{
+  "caseId": "v42-lookup-enzo-le-fee-accent",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v42-lookup-enzo-le-fee-accent-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Enzo Le Fée",
+        "status": "resolved",
+        "turnId": "v42-lookup-enzo-le-fee-accent-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Enzo Le Fée",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49040114"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8651",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v42-lookup-enzo-le-fee-accent-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49040114",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49040114",
+        "value": 142
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8651",
+        "value": 615
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8651",
+        "value": 1.8752702493220568
+      },
+      {
+        "competition": "EPL",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8651",
+        "value": 1
+      },
+      {
+        "competition": "EPL",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8651",
+        "value": 1
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp346d144cc1c6d0",
+        "canonicalIdentityId": "rp346d144cc1c6d0",
+        "mention": "Enzo Le Fée",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49040114"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8651",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49040114"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8651",
+        "competition": "EPL",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49040114"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8651",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "scenarioFamily": "replacement-v42-lookup-enzo-le-fee-accent",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-lookup-enzo-le-fee-accent-turn-1",
+      "userMessage": "Look up Enzo Le Fee's FM profile and 2026/27 EPL performance."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

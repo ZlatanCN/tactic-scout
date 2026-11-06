@@ -1,0 +1,168 @@
+{
+  "caseId": "v42-recommend-daichi-kamada-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v42-recommend-daichi-kamada-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v42-recommend-daichi-kamada-similar-mc-turn-1",
+        "value": "45092714"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v42-recommend-daichi-kamada-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Daichi Kamada",
+        "status": "resolved",
+        "turnId": "v42-recommend-daichi-kamada-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Daichi Kamada",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45092714"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16135875"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "93151088"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000136301"
+          }
+        ],
+        "turnId": "v42-recommend-daichi-kamada-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "45092714",
+        "value": 141
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "45092714",
+        "value": 150
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp49f6281017a856",
+        "canonicalIdentityId": "rp49f6281017a856",
+        "mention": "Daichi Kamada",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45092714"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "45092714"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "16135875"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "93151088"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000136301"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "45092714"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "16135875"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "93151088"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000136301"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "scenarioFamily": "replacement-v42-recommend-daichi-kamada-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-recommend-daichi-kamada-similar-mc-turn-1",
+      "userMessage": "Based on Daichi Kamada's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

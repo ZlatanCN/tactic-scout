@@ -1,0 +1,172 @@
+{
+  "caseId": "v42-team-rivermere-unmapped-roster",
+  "category": "boundary",
+  "workflow": "team_recommendation",
+  "split": "held_out",
+  "origin": "synthetic",
+  "scenarioFamily": "replacement-v42-team-rivermere-unmapped-roster",
+  "priorTuningExposure": "Authored for independent V42 from a new synthetic team roster after V41 was exposed; no V42 model request has started.",
+  "evidenceBundleId": "replacement-v42-team-synthetic",
+  "evidenceBundleSha256": "141f82fc1c06deba6d78ce28ab3e6b86ad4e3ed313d0dfec0aa5b689a6bc8fe7",
+  "turns": [
+    {
+      "turnId": "v42-team-rivermere-unmapped-roster-turn-1",
+      "userMessage": "为 Rivermere City 推荐 stc 球员。"
+    }
+  ],
+  "contract": {
+    "taskKind": "team_recommendation",
+    "outcomeStatus": "team_roster_member_unmapped",
+    "expectedIdentityStatuses": [],
+    "expectedIdentityLookups": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnConstraints": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10163"
+          }
+        ],
+        "turnId": "v42-team-rivermere-unmapped-roster-turn-1"
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10163"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10229"
+          }
+        ],
+        "turnId": "v42-team-rivermere-unmapped-roster-turn-1"
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10229"
+          }
+        ],
+        "turnId": "v42-team-rivermere-unmapped-roster-turn-1"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "api_football.get_squad",
+        "turnId": "v42-team-rivermere-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "data.players.0.id",
+        "value": 10229
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "turnId": "v42-team-rivermere-unmapped-roster-turn-1",
+        "source": "result",
+        "path": "status",
+        "value": "no_profile"
+      }
+    ],
+    "expectedTeamRosterCoverage": {
+      "mappedMembers": 0,
+      "noLocalProfileMembers": 1,
+      "pendingMembers": 0,
+      "reepBridgeMappings": 0,
+      "totalMembers": 1,
+      "userConfirmedMappings": 0
+    },
+    "expectedActiveResultValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "prohibitedClaims": [
+      "transfer_feasibility",
+      "contract",
+      "transfer_fee",
+      "current_registration",
+      "tactical_fit"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [],
+    "resolvedPlayers": [],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "fm-v42-ref-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v42-close-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v42-future-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v42-far-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v42-missing-01"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "fm-v42-ineligible-01"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10163"
+      },
+      {
+        "provider": "api_football",
+        "sourceId": "10229"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "api_football.search_teams",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10163"
+          }
+        ]
+      },
+      {
+        "name": "api_football.get_squad",
+        "businessOutcome": "ok",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "team:10163"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:10229"
+          }
+        ]
+      },
+      {
+        "name": "resolve_team_roster_identity",
+        "businessOutcome": "no_profile",
+        "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:10229"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

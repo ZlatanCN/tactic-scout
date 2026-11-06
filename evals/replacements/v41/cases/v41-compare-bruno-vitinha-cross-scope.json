@@ -258,7 +258,7 @@
   "evidenceBundleId": "replacement-v41-real-data",
   "evidenceBundleSha256": "62329c60425531e185fcb97c9cc2265866b202529dd9aea70ff81f28083c76c3",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V41 from fixed local snapshots with new identities after V40 was exposed; no V41 model request has started.",
+  "priorTuningExposure": "Exposed by V41 run ebaaec2f-9fcb-4ce1-8436-b163d5906c6e: 219 requests; 48/48 trials adjudicated, 44 passed and 4 failed. Calibration passed 32/32 (validation 16/16); there was 1 recovered network failure and no request denial. Three Gauthier Hein trials had a stale expected-fact mismatch. One Aljoscha Kemlein answer was flagged for describing FM values as fixed-date snapshot data. Do not use V41 for acceptance.",
   "scenarioFamily": "replacement-v41-compare-bruno-vitinha-cross-scope",
   "split": "held_out",
   "turns": [

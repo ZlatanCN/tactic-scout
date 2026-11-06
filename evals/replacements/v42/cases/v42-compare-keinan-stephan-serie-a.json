@@ -1,0 +1,282 @@
+{
+  "caseId": "v42-compare-keinan-stephan-serie-a",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1",
+        "value": "Serie A"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Keinan Davis",
+        "status": "resolved",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1"
+      },
+      {
+        "lookupName": "Stephan El Shaarawy",
+        "status": "resolved",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Keinan Davis",
+        "status": "resolved"
+      },
+      {
+        "mention": "Stephan El Shaarawy",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Serie A"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Keinan Davis",
+        "status": "resolved",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1"
+      },
+      {
+        "mention": "Stephan El Shaarawy",
+        "status": "resolved",
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28107730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1053",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43036636"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1252",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v42-compare-keinan-stephan-serie-a-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28107730",
+        "value": 131
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28107730",
+        "value": 138
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43036636",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43036636",
+        "value": 152
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1053",
+        "value": 373
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1053",
+        "value": 0.5483301375061274
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1252",
+        "value": 178
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1252",
+        "value": 0.19924163073301315
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6cb82899b57442",
+        "canonicalIdentityId": "rp6cb82899b57442",
+        "mention": "Keinan Davis",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28107730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1053",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpa5397a05d28b9a",
+        "canonicalIdentityId": "rpa5397a05d28b9a",
+        "mention": "Stephan El Shaarawy",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43036636"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1252",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28107730"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1053",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43036636"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1252",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28107730"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1053",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43036636"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1252",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "scenarioFamily": "replacement-v42-compare-keinan-stephan-serie-a",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-compare-keinan-stephan-serie-a-turn-1",
+      "userMessage": "Compare Keinan Davis and Stephan El Shaarawy using 2026/27 Serie A data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

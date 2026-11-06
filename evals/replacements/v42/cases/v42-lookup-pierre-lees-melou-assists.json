@@ -1,0 +1,138 @@
+{
+  "caseId": "v42-lookup-pierre-lees-melou-assists",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Pierre Lees-Melou",
+        "status": "resolved",
+        "turnId": "v42-lookup-pierre-lees-melou-assists-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Pierre Lees-Melou",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48034511"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5619",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v42-lookup-pierre-lees-melou-assists-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "PA is a potential ceiling signal, not a guarantee of future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48034511",
+        "value": 132
+      },
+      {
+        "field": "assists",
+        "provider": "understat",
+        "sourceId": "5619",
+        "value": 0,
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpa19a87ec62cdd0",
+        "canonicalIdentityId": "rpa19a87ec62cdd0",
+        "mention": "Pierre Lees-Melou",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48034511"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5619",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "48034511"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "5619",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48034511"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "5619",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "scenarioFamily": "replacement-v42-lookup-pierre-lees-melou-assists",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-lookup-pierre-lees-melou-assists-turn-1",
+      "userMessage": "Look up Pierre Lees-Melou's 2026/27 Ligue 1 assists and CA."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,211 @@
+{
+  "caseId": "v42-lookup-paulo-dybala-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "14044150"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1294",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Paulo Dybala",
+        "status": "resolved",
+        "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Paulo Dybala",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Paulo Dybala",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rp09999e06eec683",
+        "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-1"
+      },
+      {
+        "mention": "Paulo Dybala",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rp09999e06eec683",
+        "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14044150"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1294",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "14044150",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "14044150",
+        "value": 177
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1294",
+        "value": 503
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1294",
+        "value": 2.299108996987343
+      },
+      {
+        "competition": "Serie_A",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1294",
+        "value": 0
+      },
+      {
+        "competition": "Serie_A",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1294",
+        "value": 4
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1294",
+        "field": "expectedAssists",
+        "value": 4.287253022193909,
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp09999e06eec683",
+        "canonicalIdentityId": "rp09999e06eec683",
+        "mention": "Paulo Dybala",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14044150"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1294",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "14044150"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1294",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "14044150"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1294",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "scenarioFamily": "replacement-v42-lookup-paulo-dybala-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-1",
+      "userMessage": "Look up Paulo Dybala's FM profile and 2026/27 Serie A performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-lookup-paulo-dybala-saved-xa-turn-2",
+      "userMessage": "What was the xA for that record?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -30,7 +30,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v22";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v23";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -224,6 +224,7 @@ Application-specific evidence rules:
 - If an actual Understat search input has seasonStartYear 2024 and its returned result is not_found with no records, it supports “no row was returned for this selected source for 2024/25” and “the result contains no xG value.” It does not establish that the player's xG is unavailable in other data or seasons.
 - A clarification answer and a same-turn participant marked resolved with a selectedCandidateId establish the selected identity after resume, even when the earlier identity lookup action returned needs_confirmation.
 - FM attribute keys techniqueRaw and dribblingRaw refer to distinct attributes: Technique is 技术; Dribbling is 盘带. Do not treat one as the other.
+- This application uses FM profiles from one fixed-date snapshot. Calling returned FM CA, PA, natural positions, or attributes values snapshot values is supported by the application source policy even when a particular tool result omits the date. A claim about the specific snapshot date is supported only when that date appears in delivered evidence.
 - A non-null canonicalIdentityId repeated across resolved turn participants means those mentions refer to one canonical player. If that turn's outcomeStatus is insufficient_distinct_players, asking for another distinct player is supported.
 - Recommendation filters.resultLimit is the requested player-list cap; do not infer it from returned list length or afterIdentityExclusion counts.
 - For recommend_player_candidates and recommend_team_player_candidates results, filterCounts.excludedMissingAttribute counts profiles missing one or more attributes needed to calculate distance. This supports stating that those profiles could not be ranked because distance attributes were incomplete; do not infer which specific attribute was missing.
@@ -290,7 +291,7 @@ const createSemanticJudge = (options: {
 const loadJudgeAnchors = (
   anchorDirectory = path.join(import.meta.dirname, "anchors")
 ) => {
-  const filePath = path.join(anchorDirectory, "v8.json");
+  const filePath = path.join(anchorDirectory, "v9.json");
   let contents: unknown;
 
   try {

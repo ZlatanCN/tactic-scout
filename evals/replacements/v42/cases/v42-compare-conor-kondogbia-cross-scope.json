@@ -1,0 +1,273 @@
+{
+  "caseId": "v42-compare-conor-kondogbia-cross-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Conor Gallagher",
+        "status": "resolved",
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1"
+      },
+      {
+        "lookupName": "Geoffrey Kondogbia",
+        "status": "resolved",
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Conor Gallagher",
+        "status": "resolved"
+      },
+      {
+        "mention": "Geoffrey Kondogbia",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Conor Gallagher",
+        "status": "resolved",
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1"
+      },
+      {
+        "mention": "Geoffrey Kondogbia",
+        "status": "resolved",
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28108036"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9040",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85033422"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1516",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28108036",
+        "value": 149
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28108036",
+        "value": 164
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85033422",
+        "value": 132
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85033422",
+        "value": 155
+      },
+      {
+        "competition": "EPL",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9040",
+        "value": 225
+      },
+      {
+        "competition": "EPL",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9040",
+        "value": 0.971852496266365
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1516",
+        "value": 207
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1516",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpe5ed3e3763c4e3",
+        "canonicalIdentityId": "rpe5ed3e3763c4e3",
+        "mention": "Conor Gallagher",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28108036"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9040",
+            "competition": "EPL",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc4ed5d0e8f5a9e",
+        "canonicalIdentityId": "rpc4ed5d0e8f5a9e",
+        "mention": "Geoffrey Kondogbia",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85033422"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1516",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28108036"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9040",
+        "competition": "EPL",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85033422"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1516",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28108036"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9040",
+            "competition": "EPL",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85033422"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1516",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v42-real-data",
+  "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "scenarioFamily": "replacement-v42-compare-conor-kondogbia-cross-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v42-compare-conor-kondogbia-cross-scope-turn-1",
+      "userMessage": "Compare Conor Gallagher and Geoffrey Kondogbia using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}
