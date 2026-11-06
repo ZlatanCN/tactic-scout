@@ -182,9 +182,9 @@ Run `ebaaec2f-9fcb-4ce1-8436-b163d5906c6e` completed 48 trials in 219 requests. 
 
 Run `ed7b544a-c400-4ddb-8529-197ecf9eba9f` stopped after 36/48 trials and 105 Agent requests. One recommendation trial omitted an explicit `resultLimit: 3` for “up to three players”; the default candidate pool happened to contain three players. The other 35 trials were unassessed. Calibration and semantic judging had not started. There were no network failures or request denials. V42 is exposed.
 
-## V43 replacement held-out candidate
+## Passed V43 held-out quality gate
 
-V43 uses fresh identities/source IDs compared with V1–V42 and tests the deterministic English and Chinese result-limit parser with “up to three players”. Its lookup cases ask for and require the same facts. Preview reports 16/16 evidence bundles ready, no duplicate mentions/source IDs, no league-scope mismatches, and no requested-fact mismatches. It estimates 753 requests; the 900-request ceiling is authorized. V43 has not started.
+Run `81a665f6-61e2-44b0-9ab1-1b46a84a781d` completed all 48 trials in 218 model requests (138 Agent, 32 calibration, 48 judge). Judge calibration passed 32/32, including validation 16/16. All 48/48 trials passed, all 16 cases passed 3/3 repetitions, and required-fact omissions, factual contradictions, unsupported facts, and false execution claims were zero. There were no inconclusive, invalid, errored, unfinished, or denied trials. Three transient network failures were recovered. The run used freeze fingerprint `scouting-eval-v1-75bab6be6e8778af6d8441be2624debaad21673d677f9edfc94320edee3e208a` from commit `0234e8cb`; the 900-request cap was not approached.
 
 ## V19 held-out result
 

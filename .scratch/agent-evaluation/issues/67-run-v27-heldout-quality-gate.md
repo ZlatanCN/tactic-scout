@@ -1,8 +1,8 @@
 # 67 · Repair source identity expansion and pass a replacement quality gate
 
-**Status:** claimed
+**Status:** resolved
 
-**Label:** ready-for-agent
+**Label:** ready-for-human
 
 ## Goal
 
@@ -56,5 +56,5 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 - Runtime identity search now folds non-decomposing Latin variants such as `ø`/`o` before local record matching. A SQLite regression reproduces Jorgen/Jørgen resolution and proves distinct Reep IDs remain separate. Evaluation name checks use the same spelling normalization.
 - V42 stopped after 36/48 trials and 105 Agent requests when one recommendation request omitted the explicit `resultLimit: 3` for “up to three players”. The other 35 trials were unassessed; judge calibration did not start. No network failures or denials occurred. V42 is exposed.
 - Request extraction now parses explicit English and Chinese result limits deterministically and overrides model extraction. Vitest reproduces `up to three` and `最多 3 名`.
-- V43 uses fresh identities/source IDs compared with V1–V42, includes an accented name lookup, tests explicit result-limit extraction, and uses the v9 FM snapshot judge rule. Its 16/16 evidence bundles are ready; the audit found no duplicate mentions/source IDs, league mismatches, or requested-fact mismatches. The 900-request ceiling is authorized; no V43 request has started.
+- V43 run `81a665f6-61e2-44b0-9ab1-1b46a84a781d` completed all 48 trials in 218 requests (138 Agent, 32 calibration, 48 judge). All 48/48 trials and all 16 cases passed; every case passed 3/3 repetitions. Calibration passed 32/32, including reserved validation 16/16. Contradictions, unsupported claims, false execution claims, and required-fact omissions were all zero; there were no inconclusive, invalid, errored, unfinished, or denied trials. Three transient network failures recovered. The held-out quality gate passed with freeze fingerprint `scouting-eval-v1-75bab6be6e8778af6d8441be2624debaad21673d677f9edfc94320edee3e208a`.
 - Offline validation: 37 Vitest files / 364 tests passed; typecheck and targeted Ultracite passed. The full repository-wide `pnpm check` still scans installed `.agents` skill assets and reports unrelated existing issues.
