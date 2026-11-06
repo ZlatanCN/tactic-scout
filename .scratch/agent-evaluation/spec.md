@@ -1,7 +1,7 @@
 # Agent evaluation v1: fixed evidence and truthful execution
 
-Status: open
-Labels: ready-for-agent
+Status: resolved
+Labels: ready-for-human
 
 ## Problem Statement
 

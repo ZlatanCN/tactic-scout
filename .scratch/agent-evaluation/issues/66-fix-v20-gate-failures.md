@@ -2,9 +2,9 @@
 
 **Blocked by:** 65
 
-**Status:** claimed
+**Status:** resolved
 
-**Label:** ready-for-agent
+**Label:** ready-for-human
 
 ## Goal
 
@@ -60,3 +60,8 @@ Use the v20 report as diagnostic input and the development set as the repair set
 - Recommendation age is now computed from birth date as of a fixed per-case date, separate from the FM attribute snapshot. V30 is prepared with 16 independent cases, 12 real and 4 synthetic; preview shows 16/16 evidence ready and estimates 834 requests.
 - Final offline validation after the identity-expansion repair: 28 test files / 280 tests passed, typecheck passed, and Ultracite passed on all changed TypeScript and JSON files.
 - V30 is exposed after a partial held-out run found two case-contract errors. Issue 67 now tracks the final attempt using independent V31 cases; V31 has 16/16 evidence bundles ready and an 834-request estimate under the previously approved 900-request ceiling. Do not reuse V30 or tune against V31 after the frozen gate starts.
+
+
+## Completion
+
+The independent frozen held-out objective was completed by V43, not by reusing v20. V43 passed all 48 trials, judge calibration 32/32, and all critical hallucination and omission metrics were zero. See [issue 67](67-run-v27-heldout-quality-gate.md) and [the V43 report summary](../../evals/replacements/v43/README.md).
