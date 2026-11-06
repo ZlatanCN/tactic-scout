@@ -1,0 +1,273 @@
+{
+  "caseId": "v37-compare-romain-akor-no-common-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Romain Del Castillo",
+        "status": "resolved",
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1"
+      },
+      {
+        "lookupName": "Akor Adams",
+        "status": "resolved",
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Romain Del Castillo",
+        "status": "resolved"
+      },
+      {
+        "mention": "Akor Adams",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Romain Del Castillo",
+        "status": "resolved",
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1"
+      },
+      {
+        "mention": "Akor Adams",
+        "status": "resolved",
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036653"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3721",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53167062"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11783",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v37-compare-romain-akor-no-common-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48036653",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48036653",
+        "value": 139
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "53167062",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "53167062",
+        "value": 140
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3721",
+        "value": 145
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3721",
+        "value": 0.2247554063796997
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11783",
+        "value": 591
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11783",
+        "value": 2.6512024328112602
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpdfab19131eb4fb",
+        "canonicalIdentityId": "rpdfab19131eb4fb",
+        "mention": "Romain Del Castillo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036653"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3721",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp557836fc749ca7",
+        "canonicalIdentityId": "rp557836fc749ca7",
+        "mention": "Akor Adams",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "53167062"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11783",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "48036653"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3721",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "53167062"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11783",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48036653"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3721",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "53167062"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11783",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v37-compare-romain-akor-no-common-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-compare-romain-akor-no-common-scope-turn-1",
+      "userMessage": "Compare Romain Del Castillo and Akor Adams using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

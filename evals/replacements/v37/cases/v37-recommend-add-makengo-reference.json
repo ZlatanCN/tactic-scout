@@ -1,0 +1,295 @@
+{
+  "caseId": "v37-recommend-add-makengo-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v37-recommend-add-makengo-reference",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "turns": [
+    {
+      "turnId": "v37-recommend-add-makengo-reference-turn-1",
+      "userMessage": "Based on Laurin Ulrich's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v37-recommend-add-makengo-reference-turn-2",
+      "userMessage": "Add Jean-Victor Makengo as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Laurin Ulrich",
+        "status": "resolved"
+      },
+      {
+        "mention": "Jean-Victor Makengo",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Laurin Ulrich",
+        "status": "resolved",
+        "turnId": "v37-recommend-add-makengo-reference-turn-1"
+      },
+      {
+        "lookupName": "Jean-Victor Makengo",
+        "status": "resolved",
+        "turnId": "v37-recommend-add-makengo-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2001040995"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49063538"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91193169"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000164598"
+          }
+        ],
+        "turnId": "v37-recommend-add-makengo-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2001040995"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85144993"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49063538"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000047196"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000141600"
+          }
+        ],
+        "turnId": "v37-recommend-add-makengo-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-1",
+        "value": "2001040995"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-2",
+        "value": "2001040995"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-2",
+        "value": "85144993"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v37-recommend-add-makengo-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2001040995",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2001040995",
+        "value": 142
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85144993",
+        "value": 123
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85144993",
+        "value": 143
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6ad158f575a41c",
+        "canonicalIdentityId": "rp6ad158f575a41c",
+        "mention": "Laurin Ulrich",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2001040995"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp3d74d15f73f382",
+        "canonicalIdentityId": "rp3d74d15f73f382",
+        "mention": "Jean-Victor Makengo",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85144993"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2001040995"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49063538"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91193169"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000164598"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85144993"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000047196"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000141600"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2001040995"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49063538"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91193169"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000164598"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2001040995"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85144993"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49063538"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000047196"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000141600"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

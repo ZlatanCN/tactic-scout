@@ -1,0 +1,174 @@
+{
+  "caseId": "v37-lookup-bilal-nadir-possessive",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v37-lookup-bilal-nadir-possessive-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Bilal Nadir",
+        "status": "resolved",
+        "turnId": "v37-lookup-bilal-nadir-possessive-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Bilal Nadir",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000011617"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9673",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v37-lookup-bilal-nadir-possessive-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000011617",
+        "value": 110
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000011617",
+        "value": 135
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9673",
+        "value": 138
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9673",
+        "value": 0.03167378529906273
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9673",
+        "value": 0
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9673",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp9985a8cfc3afe3",
+        "canonicalIdentityId": "rp9985a8cfc3afe3",
+        "mention": "Bilal Nadir",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000011617"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9673",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000011617"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9673",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000011617"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9673",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v37-lookup-bilal-nadir-possessive",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-lookup-bilal-nadir-possessive-turn-1",
+      "userMessage": "Look up Bilal Nadir's FM profile and 2026/27 Bundesliga performance."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

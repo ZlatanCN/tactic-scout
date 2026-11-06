@@ -239,13 +239,11 @@ describe("team recommendation graph", () => {
     );
 
     expect({
-      answer: result.messages.at(-1)?.content,
       getSquadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
       input: recommend.mock.calls[0]?.[0],
       searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
       storedTeam: result.conversationContext.activeTeamRecommendation?.team,
     }).toMatchObject({
-      answer: "Team results are ready.",
       getSquadCalls: [[42]],
       input: {
         position: "stc",
@@ -265,6 +263,9 @@ describe("team recommendation graph", () => {
       searchCalls: [["Arsenal"]],
       storedTeam: arsenal,
     });
+    expect(result.messages.at(-1)?.content).toContain(
+      "Roster source: API-Football, retrieved "
+    );
   });
 
   it("instructs team recommendation answers to list every candidate with CA and PA", async () => {
@@ -599,14 +600,15 @@ describe("team recommendation graph", () => {
     );
 
     expect({
-      answer: result.messages.at(-1)?.content,
       fetchCalls: fetcher.mock.calls.length,
       recommendationCalls: recommend.mock.calls.length,
     }).toStrictEqual({
-      answer: "Team results are ready.",
       fetchCalls: 3,
       recommendationCalls: 1,
     });
+    expect(result.messages.at(-1)?.content).toContain(
+      "Roster source: API-Football, retrieved "
+    );
   });
 
   it("retries roster acquisition before mapping and ranking the roster", async () => {
@@ -655,16 +657,17 @@ describe("team recommendation graph", () => {
     );
 
     expect({
-      answer: result.messages.at(-1)?.content,
       fetchCalls: fetcher.mock.calls.length,
       mappedRoster: readRosterMember(result).map((member) => member.fmId),
       recommendationCalls: recommend.mock.calls.length,
     }).toStrictEqual({
-      answer: "Team results are ready.",
       fetchCalls: 3,
       mappedRoster: ["fm-1001"],
       recommendationCalls: 1,
     });
+    expect(result.messages.at(-1)?.content).toContain(
+      "Roster source: API-Football, retrieved "
+    );
   });
 
   it("recovers one short 429 while acquiring a team roster", async () => {
@@ -713,16 +716,17 @@ describe("team recommendation graph", () => {
     );
 
     expect({
-      answer: result.messages.at(-1)?.content,
       fetchCalls: fetcher.mock.calls.length,
       mappedRoster: readRosterMember(result).map((member) => member.fmId),
       recommendationCalls: recommend.mock.calls.length,
     }).toStrictEqual({
-      answer: "Team results are ready.",
       fetchCalls: 3,
       mappedRoster: ["fm-1001"],
       recommendationCalls: 1,
     });
+    expect(result.messages.at(-1)?.content).toContain(
+      "Roster source: API-Football, retrieved "
+    );
   });
 
   it("gives roster acquisition its own short-429 retry after team clarification", async () => {
@@ -857,14 +861,15 @@ describe("team recommendation graph", () => {
     );
 
     expect({
-      answer: result.messages.at(-1)?.content,
       fetchCalls: fetcher.mock.calls.length,
       recommendationCalls: recommend.mock.calls.length,
     }).toStrictEqual({
-      answer: "Team results are ready.",
       fetchCalls: 3,
       recommendationCalls: 1,
     });
+    expect(result.messages.at(-1)?.content).toContain(
+      "Roster source: API-Football, retrieved "
+    );
   });
 
   it("does not retry a second short 429 in the same team lookup", async () => {
@@ -1788,7 +1793,6 @@ describe("team recommendation graph", () => {
         resumed.conversationContext.activeRecommendation?.maxAge,
       activeTeamRecommendation:
         resumed.conversationContext.activeTeamRecommendation?.maxAge,
-      explanationAnswer: explained.messages.at(-1)?.content,
       explanationRequestKind: explained.request.kind,
       explanationSource:
         explained.outcome !== null && "source" in explained.outcome
@@ -1812,7 +1816,6 @@ describe("team recommendation graph", () => {
     }).toStrictEqual({
       activePlayerRecommendation: 25,
       activeTeamRecommendation: 21,
-      explanationAnswer: "This is the saved team recommendation.",
       explanationRequestKind: "team_recommendation",
       explanationSource: "saved",
       explanationWasInterrupted: true,
@@ -1829,6 +1832,9 @@ describe("team recommendation graph", () => {
         "当前没有对应的已完成结果可供解释或修改，请先完成一次该类任务。",
       wrongTeamOutcome: "saved_result_unavailable",
     });
+    expect(explained.messages.at(-1)?.content).toContain(
+      "Roster source: API-Football, retrieved 2026-10-26T10:00:00.000Z"
+    );
   });
 
   it("does not apply a refinement to an old team result after a different team request fails", async () => {

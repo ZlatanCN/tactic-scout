@@ -1,0 +1,168 @@
+{
+  "caseId": "v37-recommend-martin-adeline-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v37-recommend-martin-adeline-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v37-recommend-martin-adeline-similar-mc-turn-1",
+        "value": "2000024505"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v37-recommend-martin-adeline-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Martin Adeline",
+        "status": "resolved",
+        "turnId": "v37-recommend-martin-adeline-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Martin Adeline",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000024505"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29223964"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14201730"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000136501"
+          }
+        ],
+        "turnId": "v37-recommend-martin-adeline-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000024505",
+        "value": 116
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000024505",
+        "value": 140
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp9cbdc2792f0231",
+        "canonicalIdentityId": "rp9cbdc2792f0231",
+        "mention": "Martin Adeline",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000024505"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000024505"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "29223964"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14201730"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000136501"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000024505"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "29223964"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14201730"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000136501"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v37-recommend-martin-adeline-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-recommend-martin-adeline-similar-mc-turn-1",
+      "userMessage": "Based on Martin Adeline's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

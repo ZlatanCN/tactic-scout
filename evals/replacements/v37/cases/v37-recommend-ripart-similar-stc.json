@@ -1,0 +1,168 @@
+{
+  "caseId": "v37-recommend-ripart-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v37-recommend-ripart-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v37-recommend-ripart-similar-stc-turn-1",
+        "value": "29114948"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v37-recommend-ripart-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Renaud Ripart",
+        "status": "resolved",
+        "turnId": "v37-recommend-ripart-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Renaud Ripart",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29114948"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85138168"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000131024"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48037827"
+          }
+        ],
+        "turnId": "v37-recommend-ripart-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "29114948",
+        "value": 109
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "29114948",
+        "value": 130
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp6fac3dd568f67b",
+        "canonicalIdentityId": "rp6fac3dd568f67b",
+        "mention": "Renaud Ripart",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29114948"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "29114948"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "85138168"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000131024"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48037827"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "29114948"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "85138168"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000131024"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48037827"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v37-recommend-ripart-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-recommend-ripart-similar-stc-turn-1",
+      "userMessage": "Based on Renaud Ripart's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

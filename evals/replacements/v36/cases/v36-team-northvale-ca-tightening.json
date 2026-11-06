@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v36-team-northvale-ca-tightening",
-  "priorTuningExposure": "Authored for independent V36 from a new synthetic team roster after V35 was exposed; no V36 model request has started.",
+  "priorTuningExposure": "Exposed by V36 run b39c7477-6e47-432a-8953-c93e805c4039: 222 model requests (142 Agent, 32 calibration, 48 judge), 45/48 trials passed. Calibration passed 32/32 including validation 16/16. Three semantic failures: the judge missed facts shown earlier in a saved-result conversation; a team answer reported 2026-11-20 instead of the roster timestamp 2025-11-20; and the judge missed candidate CA/PA shown earlier in a team refinement. One transient network failure was recovered; no requests were denied. Do not use V36 for acceptance.",
   "evidenceBundleId": "replacement-v36-team-synthetic",
   "evidenceBundleSha256": "cb1dbd98dc8e059f34f23446019bdb64895f09241600d1783705d26372f44c76",
   "turns": [

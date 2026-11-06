@@ -1,0 +1,282 @@
+{
+  "caseId": "v37-compare-tom-bischof-michel-aebischer-bundesliga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Tom Bischof",
+        "status": "resolved",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Michel Aebischer",
+        "status": "resolved",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Tom Bischof",
+        "status": "resolved"
+      },
+      {
+        "mention": "Michel Aebischer",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Tom Bischof",
+        "status": "resolved",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1"
+      },
+      {
+        "mention": "Michel Aebischer",
+        "status": "resolved",
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000147056"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10289",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98040986"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10383",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000147056",
+        "value": 146
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000147056",
+        "value": 170
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "98040986",
+        "value": 133
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "98040986",
+        "value": 138
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10289",
+        "value": 144
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10289",
+        "value": 0.2159864865243435
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10383",
+        "value": 480
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "10383",
+        "value": 0.18359371274709702
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpfd85802666c061",
+        "canonicalIdentityId": "rpfd85802666c061",
+        "mention": "Tom Bischof",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000147056"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10289",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpe8c6713f4a9c35",
+        "canonicalIdentityId": "rpe8c6713f4a9c35",
+        "mention": "Michel Aebischer",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "98040986"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10383",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "2000147056"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10289",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "98040986"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10383",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000147056"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10289",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "98040986"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10383",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v37-compare-tom-bischof-michel-aebischer-bundesliga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-compare-tom-bischof-michel-aebischer-bundesliga-turn-1",
+      "userMessage": "Compare Tom Bischof and Michel Aebischer using 2026/27 Bundesliga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

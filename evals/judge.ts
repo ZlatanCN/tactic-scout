@@ -22,6 +22,7 @@ import {
 import type {
   EvaluationCase,
   JudgeCalibrationReport,
+  JsonValue,
   WorkerTrialResult,
 } from "./contracts.js";
 
@@ -203,7 +204,7 @@ When teamRosterCoverage is present, treat it as the deterministic roster-mapping
 
 Quote the exact assistant text, use the matching turnId, cite the correctly typed IDs when they exist, and explain the basis briefly. For a claim unsupported by any evidence, the evidenceIds array may be empty. For a claim that an operation never ran, the actionIds array may be empty. Do not label a careful abstention as an error. PA is a potential ceiling signal, not a guaranteed future CA. A missing record does not prove a player is weak. A successful tool result does not prove real-world tactical fit or transfer feasibility.
 
-For each required fact, mark whether it is covered in the visible assistant responses. If the answer cannot be assessed from the supplied evidence, use uncertain.
+For each required fact, assess coverage across all assistant responses in the conversation, not only the last answer. A fact stated correctly in an earlier turn remains covered when a later follow-up asks a narrower question or a filtered result omits that earlier candidate. The fact must still be supported by evidence delivered to the assistant or legitimately reused in that turn. If the answer cannot be assessed from the supplied evidence, use uncertain.
 
 If validationFeedback is present, it lists deterministic validation errors from a previous judgment. Re-evaluate the supplied conversation and correct those specific reference or coverage errors. Do not preserve or remove a finding merely to make validation pass: keep every supported critical finding, use an exact quote from the named turn, cite only IDs of the correct kind, and return coverage for every required fact exactly once.
 
@@ -685,21 +686,77 @@ const playerHasRequiredSource = (
     )
   );
 
+const playerNamesInSourceResult = (
+  value: JsonValue,
+  sourceId: string
+): string[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => playerNamesInSourceResult(item, sourceId));
+  }
+
+  const parsed = z.record(z.string(), z.json()).safeParse(value);
+
+  if (!parsed.success) {
+    return [];
+  }
+
+  const record = parsed.data;
+
+  const sourceMatches = [
+    "fmId",
+    "identitySourceId",
+    "sourceId",
+    "sourcePlayerId",
+    "sourceRecordId",
+    "understatId",
+  ].some((key) => record[key] === sourceId);
+
+  const recordName = z.string().safeParse(record.name ?? record.player);
+
+  return [
+    ...(sourceMatches && recordName.success ? [recordName.data] : []),
+    ...Object.values(record).flatMap((item) =>
+      playerNamesInSourceResult(item, sourceId)
+    ),
+  ];
+};
+
+const playerNamesFromActionResults = (
+  worker: WorkerTrialResult,
+  sourceId: string
+): string[] =>
+  worker.actionEvents.flatMap(({ result }) => {
+    if (result === null) {
+      return [];
+    }
+
+    try {
+      const parsed = z.json().safeParse(JSON.parse(result));
+
+      return parsed.success
+        ? playerNamesInSourceResult(parsed.data, sourceId)
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
 const playerNamesForRequiredSource = (
   worker: WorkerTrialResult,
   provider: string,
   sourceId: string
 ): string[] =>
   [
-    ...new Set(
-      worker.turns.flatMap(({ players }) =>
+    ...new Set([
+      ...worker.turns.flatMap(({ players }) =>
         players.flatMap((player) =>
           playerHasRequiredSource(player, provider, sourceId)
             ? [player.selectedName ?? player.mention]
             : []
         )
-      )
-    ),
+      ),
+      ...playerNamesFromActionResults(worker, sourceId),
+    ]),
   ].toSorted();
 
 const requiredFactDescription = (
@@ -730,11 +787,17 @@ const requiredFactDescription = (
 
 const requiredFactFieldAliases = {
   age: ["age", "年龄"],
+  appearances: ["appearance", "appearances", "出场", "出场次数"],
+  assists: ["assist", "assists", "助攻"],
   currentAbility: ["current ability", "ca", "当前能力"],
-  currentDistance: ["current distance", "当前差距"],
+  currentDistance: ["current distance", "currentDistance", "当前差距"],
+  expectedAssists: ["expected assists", "xa", "预期助攻"],
   expectedGoals: ["expected goals", "xg", "预期进球"],
-  positionRating: ["position rating", "位置评分"],
+  goals: ["goal", "goals", "进球"],
+  minutes: ["minutes", "minute", "min", "分钟", "上场时间"],
+  positionRating: ["position rating", "positionRating", "位置评分"],
   potentialAbility: ["potential ability", "pa", "潜力能力"],
+  shots: ["shot", "shots", "射门"],
 } satisfies Record<string, string[]>;
 
 const normalizeEvidenceLabel = (value: string): string =>
@@ -811,6 +874,202 @@ const numericValuesMatchAtDisplayedPrecision = (
     Math.round(actualNumber * multiplier) ===
     Math.round(parsedExpected.data * multiplier)
   );
+};
+
+const escapedRegularExpression = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+const inlineNumericFactMatches = (
+  line: string,
+  aliases: string[],
+  expectedValue: EvaluationCase["contract"]["requiredEvidence"][number]["value"]
+): boolean => {
+  const aliasPattern = aliases
+    .map((alias) =>
+      alias.trim().split(/\s+/u).map(escapedRegularExpression).join("\\s+")
+    )
+    .join("|");
+
+  const numberPattern = "(-?(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?)";
+
+  const numericBeforeAlias = new RegExp(
+    `(?:^|[^\\p{L}\\p{N}])(?:${aliasPattern})[^\\p{L}\\p{N}]+${numberPattern}(?=$|[^\\p{L}\\p{N}])`,
+    "iu"
+  );
+
+  const numericAfterAlias = new RegExp(
+    `(?:^|[^\\p{L}\\p{N}])${numberPattern}[^\\p{L}\\p{N}]+(?:${aliasPattern})(?=$|[^\\p{L}\\p{N}])`,
+    "iu"
+  );
+
+  return [numericBeforeAlias, numericAfterAlias].some((pattern) => {
+    const displayedValue = pattern.exec(line)?.[1];
+
+    return (
+      displayedValue !== undefined &&
+      numericValuesMatchAtDisplayedPrecision(displayedValue, expectedValue)
+    );
+  });
+};
+
+const evidenceFieldNames = {
+  age: ["age"],
+  appearances: ["appearances", "games"],
+  assists: ["assists"],
+  currentAbility: ["currentAbility", "ability_current"],
+  currentDistance: ["currentDistance"],
+  expectedAssists: ["expectedAssists", "xA"],
+  expectedGoals: ["expectedGoals", "xG"],
+  goals: ["goals"],
+  minutes: ["minutes", "time"],
+  name: ["name", "player"],
+  positionRating: ["positionRating"],
+  potentialAbility: ["potentialAbility", "ability_potential"],
+  shots: ["shots"],
+} satisfies Record<string, string[]>;
+
+const isEvidenceFieldName = (
+  field: string
+): field is keyof typeof evidenceFieldNames =>
+  Object.hasOwn(evidenceFieldNames, field);
+
+const sourceValueMatchesExpected = (
+  actual: JsonValue | undefined,
+  expected: EvaluationCase["contract"]["requiredEvidence"][number]["value"]
+): boolean => {
+  if (actual === undefined) {
+    return false;
+  }
+
+  const expectedNumber = z.number().safeParse(expected);
+
+  if (expectedNumber.success) {
+    const actualNumber = z.union([z.number(), z.string()]).safeParse(actual);
+
+    return (
+      actualNumber.success && Number(actualNumber.data) === expectedNumber.data
+    );
+  }
+
+  return actual === expected;
+};
+
+const sourceResultContainsRequiredValue = (
+  value: JsonValue,
+  fact: EvaluationCase["contract"]["requiredEvidence"][number]
+): boolean => {
+  if (Array.isArray(value)) {
+    return value.some((item) => sourceResultContainsRequiredValue(item, fact));
+  }
+
+  const parsed = z.record(z.string(), z.json()).safeParse(value);
+
+  if (!parsed.success) {
+    return false;
+  }
+
+  const record = parsed.data;
+
+  const directFactMatches =
+    record.field === fact.field &&
+    record.sourceId === fact.sourceId &&
+    sourceValueMatchesExpected(record.value, fact.value);
+
+  const fieldNames = isEvidenceFieldName(fact.field)
+    ? evidenceFieldNames[fact.field]
+    : [fact.field];
+
+  const namedFieldMatches = fieldNames.some((fieldName) =>
+    sourceValueMatchesExpected(record[fieldName], fact.value)
+  );
+
+  return (
+    directFactMatches ||
+    namedFieldMatches ||
+    Object.values(record).some((item) =>
+      sourceResultContainsRequiredValue(item, fact)
+    )
+  );
+};
+
+const requiredFactValueWasDelivered = (
+  fact: EvaluationCase["contract"]["requiredEvidence"][number],
+  worker: WorkerTrialResult
+): boolean =>
+  worker.deliveredEvidence.some((evidence) => {
+    if (
+      evidence.provider !== fact.provider ||
+      evidence.sourceId !== fact.sourceId
+    ) {
+      return false;
+    }
+
+    try {
+      const content = z.json().safeParse(JSON.parse(evidence.content));
+
+      return (
+        content.success && sourceResultContainsRequiredValue(content.data, fact)
+      );
+    } catch {
+      return false;
+    }
+  });
+
+const proseExplicitlyCoversRequiredFact = (
+  answer: string,
+  playerNames: string[],
+  allPlayerNames: string[],
+  fact: EvaluationCase["contract"]["requiredEvidence"][number]
+): boolean => {
+  const aliases = Object.entries(requiredFactFieldAliases).find(
+    ([field]) => field === fact.field
+  )?.[1];
+
+  const normalizedNames = playerNames.map(normalizeEvidenceLabel);
+  const normalizedAllPlayerNames = allPlayerNames.map(normalizeEvidenceLabel);
+  let headingNamesPlayer = false;
+
+  return answer.split(/\r?\n/u).some((line) => {
+    if (isPlayerSectionHeading(line)) {
+      const heading = normalizeEvidenceLabel(line);
+
+      const namesPlayer = normalizedAllPlayerNames.some(
+        (name) => name.length > 0 && heading.includes(name)
+      );
+
+      if (namesPlayer) {
+        headingNamesPlayer = normalizedNames.some(
+          (name) => name.length > 0 && heading.includes(name)
+        );
+      }
+
+      return false;
+    }
+
+    const normalizedLine = normalizeEvidenceLabel(line);
+
+    const lineNamesPlayer = normalizedNames.some(
+      (name) => name.length > 0 && normalizedLine.includes(name)
+    );
+
+    if (!headingNamesPlayer && !lineNamesPlayer) {
+      return false;
+    }
+
+    if (fact.field === "name") {
+      const expectedName = z.string().safeParse(fact.value);
+
+      return (
+        expectedName.success &&
+        normalizedLine.includes(normalizeEvidenceLabel(expectedName.data))
+      );
+    }
+
+    return (
+      aliases !== undefined &&
+      inlineNumericFactMatches(line, aliases, fact.value)
+    );
+  });
 };
 
 const tableExplicitlyCoversRequiredFact = (
@@ -1203,10 +1462,14 @@ const teamRosterExclusionClaimSupportedByActions = (
     );
   });
 
-const requiredFactCoveredByVisibleTable = (
+const requiredFactCoveredByVisibleAnswer = (
   fact: EvaluationCase["contract"]["requiredEvidence"][number],
   worker: WorkerTrialResult
 ): boolean => {
+  if (!requiredFactValueWasDelivered(fact, worker)) {
+    return false;
+  }
+
   const playerNames = playerNamesForRequiredSource(
     worker,
     fact.provider,
@@ -1217,17 +1480,28 @@ const requiredFactCoveredByVisibleTable = (
     ...new Set(
       worker.players.map((player) => player.selectedName ?? player.mention)
     ),
+    ...playerNames,
   ];
 
   return worker.turns.some(({ assistantMessages }) =>
-    assistantMessages.some((answer) =>
-      tableExplicitlyCoversRequiredFact(
-        visibleAssistantMessage(answer),
-        playerNames,
-        allPlayerNames,
-        fact
-      )
-    )
+    assistantMessages.some((answer) => {
+      const visibleAnswer = visibleAssistantMessage(answer);
+
+      return (
+        tableExplicitlyCoversRequiredFact(
+          visibleAnswer,
+          playerNames,
+          allPlayerNames,
+          fact
+        ) ||
+        proseExplicitlyCoversRequiredFact(
+          visibleAnswer,
+          playerNames,
+          allPlayerNames,
+          fact
+        )
+      );
+    })
   );
 };
 
@@ -1344,7 +1618,7 @@ const validateTrialJudgment = (
     if (
       fact !== undefined &&
       coverage.status !== "covered" &&
-      requiredFactCoveredByVisibleTable(fact, worker)
+      requiredFactCoveredByVisibleAnswer(fact, worker)
     ) {
       return { ...coverage, status: "covered" as const };
     }

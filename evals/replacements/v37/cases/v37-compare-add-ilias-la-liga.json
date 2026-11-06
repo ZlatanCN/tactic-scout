@@ -1,0 +1,489 @@
+{
+  "caseId": "v37-compare-add-ilias-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Umar Sadiq",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Hugo Duro",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Ilias Akhomach",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Umar Sadiq",
+        "status": "resolved"
+      },
+      {
+        "mention": "Hugo Duro",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ilias Akhomach",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Umar Sadiq",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1"
+      },
+      {
+        "mention": "Hugo Duro",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1"
+      },
+      {
+        "mention": "Umar Sadiq",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2"
+      },
+      {
+        "mention": "Hugo Duro",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2"
+      },
+      {
+        "mention": "Ilias Akhomach",
+        "status": "resolved",
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43195181"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1450",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67274349"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6637",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v37-compare-add-ilias-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43195181"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1450",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67274349"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6637",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000056415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10121",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v37-compare-add-ilias-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43195181",
+        "value": 135
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43195181",
+        "value": 159
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67274349",
+        "value": 141
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67274349",
+        "value": 150
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000056415",
+        "value": 137
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000056415",
+        "value": 165
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1450",
+        "value": 151
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "1450",
+        "value": 1.0633442997932434
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6637",
+        "value": 391
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6637",
+        "value": 0.9758735597133636
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10121",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 322
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10121",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.3404866475611925
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp5683e7d0cce424",
+        "canonicalIdentityId": "rp5683e7d0cce424",
+        "mention": "Umar Sadiq",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43195181"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1450",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp0bdfee357301ce",
+        "canonicalIdentityId": "rp0bdfee357301ce",
+        "mention": "Hugo Duro",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67274349"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6637",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpfdc81a71b9a8e6",
+        "canonicalIdentityId": "rpfdc81a71b9a8e6",
+        "mention": "Ilias Akhomach",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000056415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10121",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "43195181"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "1450",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67274349"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6637",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000056415"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10121",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43195181"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1450",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67274349"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6637",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43195181"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "1450",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67274349"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6637",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000056415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10121",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v37-real-data",
+  "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v37-compare-add-ilias-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-compare-add-ilias-la-liga-turn-1",
+      "userMessage": "Compare Umar Sadiq and Hugo Duro using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v37-compare-add-ilias-la-liga-turn-2",
+      "userMessage": "Add Ilias Akhomach to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

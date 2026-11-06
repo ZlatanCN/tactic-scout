@@ -30,6 +30,33 @@ type TeamRecommendationAnswerData = {
   team: TeamRecommendationResult["team"];
 };
 
+const rosterDateFormatters = [
+  new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }),
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }),
+  new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }),
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }),
+];
+
 const falseEmptyListPhrases = {
   current: [
     "当前能力相似名单为空",
@@ -379,6 +406,35 @@ const correctRecommendationAnswer = (
     : renderEnglishCorrection(result);
 };
 
+const answerReportsRosterRetrievalDate = (
+  answer: string,
+  retrievedAt: string
+): boolean => {
+  const retrievedDate = new Date(retrievedAt);
+
+  if (!Number.isFinite(retrievedDate.getTime())) {
+    return false;
+  }
+
+  const dateVariants = [
+    retrievedDate.toISOString().slice(0, 10),
+    `${retrievedDate.getUTCFullYear()}年${retrievedDate.getUTCMonth() + 1}月${retrievedDate.getUTCDate()}日`,
+    ...rosterDateFormatters.map((formatter) => formatter.format(retrievedDate)),
+  ];
+
+  const retrievalLines = answer
+    .split(/\r?\n/u)
+    .filter((line) =>
+      /(?:阵容|roster|squad|api-football).*(?:获取|来源|retrieved|source)|(?:获取|retrieved).*(?:阵容|roster|squad|api-football)/iu.test(
+        line
+      )
+    );
+
+  return retrievalLines.some((line) =>
+    dateVariants.some((dateVariant) => line.includes(dateVariant))
+  );
+};
+
 const renderChineseTeamCorrection = (
   data: TeamRecommendationAnswerData
 ): string => {
@@ -535,6 +591,7 @@ const correctTeamRecommendationAnswer = (
   const correctionNeeded = [
     correctionForAnswer(answer, data.recommendation) !== null,
     answerClaimsAnUnsetFilterWasApplied(answer, data.filters),
+    !answerReportsRosterRetrievalDate(answer, data.roster.retrievedAt),
     answerContainsAnyPhrase(answer, falseMissingTeamRankingBasisPhrases),
     data.recommendation.references.length > 0 &&
       answerContainsAnyPhrase(answer, falseMissingExclusionPhrases),

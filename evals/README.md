@@ -152,9 +152,15 @@ V35 contains 16 new cases and fresh source identities compared with V1–V34. It
 
 Run `23c127d1-645b-4cd8-bef9-7bf1007c9746` is partial and exposed. It used 72 requests before stopping at 24 trial records: two failures and 22 unfinished. Both failures were the Janik Haberer lookup: the extracted mention included the English possessive suffix and failed exact identity resolution. No judge or calibration request ran; there were no network failures or budget denials. The request normalizer now strips a terminal possessive suffix before identity resolution; V36 is the independent replacement.
 
-## V36 replacement held-out candidate
+## Exposed V36 held-out attempt
 
-V36 contains 16 cases with identities and source IDs not used in V1–V35. It includes a live-model query using the possessive form “Konrad Laimer's” to verify normalization before identity resolution. Preview reports 16/16 evidence bundles ready and estimates 798 requests for the full held-out run. The 900-request ceiling is already authorized; V36 has not started.
+Run `b39c7477-6e47-432a-8953-c93e805c4039` completed 48 trials in 222 model requests. Calibration passed 32/32, including validation 16/16, but only 45/48 trials passed. One multi-turn saved xA trial omitted no facts in its visible answers, but the semantic judge failed to carry earlier-turn facts into its coverage result. One team response misstated the roster retrieval date; another team refinement was missing earlier-turn candidate CA/PA coverage. A transient network failure was recovered; no requests were denied. V36 is exposed.
+
+The evaluator now requires matching delivered source values before crediting visible facts, links candidate names to tool-result source IDs, and checks tables and labeled prose across the conversation. The team answer corrector uses the exact roster retrieval date from provider data. V37 is the independent replacement.
+
+## V37 replacement held-out candidate
+
+V37 contains 16 cases with identities and source IDs not used in V1–V36. It repeats the possessive-form lookup for a fresh player and adds regression coverage for cross-turn facts and provider roster dates. Preview reports 16/16 evidence bundles ready and estimates 798 requests for the full held-out run. The 900-request ceiling is authorized; V37 has not started.
 
 ## V19 held-out result
 
