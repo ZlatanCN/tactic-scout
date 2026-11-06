@@ -267,7 +267,7 @@
   "evidenceBundleId": "replacement-v37-real-data",
   "evidenceBundleSha256": "0f14b97eabeebf7332fef13a31622015f6b01b2e8343944082d5206868eb55c7",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "priorTuningExposure": "Exposed by V37 run 4e55b236-4cfc-4477-9d01-51d0961da245: 215 requests; 47/48 trials passed, calibration passed 32/32. One semantic finding reported a false squad reference count. The deterministic correction was edited while this run was active, so the run did not use a single frozen source revision. No network failures or budget denials occurred. Do not use V37 for acceptance.",
   "scenarioFamily": "replacement-v37-compare-tom-bischof-michel-aebischer-bundesliga",
   "split": "held_out",
   "turns": [

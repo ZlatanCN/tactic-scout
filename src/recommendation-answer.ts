@@ -435,6 +435,26 @@ const answerReportsRosterRetrievalDate = (
   );
 };
 
+const answerClaimsWrongSquadReferenceCount = (
+  answer: string,
+  referenceCount: number
+): boolean => {
+  const normalized = answer.normalize("NFKC").toLocaleLowerCase();
+
+  const referenceCountPatterns = [
+    /(?:球队|队内)?参考画像(?:由|包含|包括|有)\s*(?<count>\d+)\s*[名个人]/u,
+    /(?:team|squad)\s+reference\s+profiles?\s+(?:use|include|contain)\s+(?<count>\d+)\s+(?:squad\s+)?profiles?/iu,
+  ];
+
+  return referenceCountPatterns.some((pattern) => {
+    const reportedCount = Number(pattern.exec(normalized)?.groups?.count);
+
+    return (
+      Number.isSafeInteger(reportedCount) && reportedCount !== referenceCount
+    );
+  });
+};
+
 const renderChineseTeamCorrection = (
   data: TeamRecommendationAnswerData
 ): string => {
@@ -592,6 +612,10 @@ const correctTeamRecommendationAnswer = (
     correctionForAnswer(answer, data.recommendation) !== null,
     answerClaimsAnUnsetFilterWasApplied(answer, data.filters),
     !answerReportsRosterRetrievalDate(answer, data.roster.retrievedAt),
+    answerClaimsWrongSquadReferenceCount(
+      answer,
+      data.recommendation.references.length
+    ),
     answerContainsAnyPhrase(answer, falseMissingTeamRankingBasisPhrases),
     data.recommendation.references.length > 0 &&
       answerContainsAnyPhrase(answer, falseMissingExclusionPhrases),

@@ -1,0 +1,489 @@
+{
+  "caseId": "v38-compare-add-ramon-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Oihan Sancet",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Ilaix Moriba",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Ramón Terrats",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Oihan Sancet",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ilaix Moriba",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ramón Terrats",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Oihan Sancet",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1"
+      },
+      {
+        "mention": "Ilaix Moriba",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1"
+      },
+      {
+        "mention": "Oihan Sancet",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2"
+      },
+      {
+        "mention": "Ilaix Moriba",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2"
+      },
+      {
+        "mention": "Ramón Terrats",
+        "status": "resolved",
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67260204"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7779",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67279753"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9243",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v38-compare-add-ramon-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67260204"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7779",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67279753"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9243",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000063225"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10947",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v38-compare-add-ramon-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67260204",
+        "value": 156
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67260204",
+        "value": 162
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67279753",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67279753",
+        "value": 155
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000063225",
+        "value": 141
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000063225",
+        "value": 150
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7779",
+        "value": 517
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "7779",
+        "value": 2.650330051779747
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9243",
+        "value": 630
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9243",
+        "value": 0.1605392163619399
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10947",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 658
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10947",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 1.5309485755860806
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp5cc159042ac6bf",
+        "canonicalIdentityId": "rp5cc159042ac6bf",
+        "mention": "Oihan Sancet",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67260204"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7779",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpea92785ddfc438",
+        "canonicalIdentityId": "rpea92785ddfc438",
+        "mention": "Ilaix Moriba",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67279753"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9243",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp1f27170db15b38",
+        "canonicalIdentityId": "rp1f27170db15b38",
+        "mention": "Ramón Terrats",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000063225"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10947",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67260204"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7779",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67279753"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9243",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000063225"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "10947",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67260204"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7779",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67279753"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9243",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67260204"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7779",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67279753"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9243",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000063225"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "10947",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-compare-add-ramon-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-compare-add-ramon-la-liga-turn-1",
+      "userMessage": "Compare Oihan Sancet and Ilaix Moriba using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-compare-add-ramon-la-liga-turn-2",
+      "userMessage": "Add Ramon Terrats to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

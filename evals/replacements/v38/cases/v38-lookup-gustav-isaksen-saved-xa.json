@@ -1,0 +1,211 @@
+{
+  "caseId": "v38-lookup-gustav-isaksen-saved-xa",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [
+      {
+        "provider": "fm",
+        "sourceId": "27129146"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11951",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gustav Isaksen",
+        "status": "resolved",
+        "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gustav Isaksen",
+        "status": "saved_result_reuse"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Gustav Isaksen",
+        "status": "resolved",
+        "selectedCandidateId": "reep:rpa1dc8e694a0890",
+        "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-1"
+      },
+      {
+        "mention": "Gustav Isaksen",
+        "status": "saved_result_reuse",
+        "selectedCandidateId": "reep:rpa1dc8e694a0890",
+        "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "27129146"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11951",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-1"
+      }
+    ],
+    "outcomeStatus": "lookup_follow_up",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "27129146",
+        "value": 139
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "27129146",
+        "value": 150
+      },
+      {
+        "competition": "Serie_A",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11951",
+        "value": 323
+      },
+      {
+        "competition": "Serie_A",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11951",
+        "value": 1.2403490915894508
+      },
+      {
+        "competition": "Serie_A",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11951",
+        "value": 2
+      },
+      {
+        "competition": "Serie_A",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "11951",
+        "value": 0
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11951",
+        "field": "expectedAssists",
+        "value": 0.07694607973098755,
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpa1dc8e694a0890",
+        "canonicalIdentityId": "rpa1dc8e694a0890",
+        "mention": "Gustav Isaksen",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "27129146"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11951",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "27129146"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "11951",
+        "competition": "Serie_A",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "27129146"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "11951",
+            "competition": "Serie_A",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-lookup-gustav-isaksen-saved-xa",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-1",
+      "userMessage": "Look up Gustav Isaksen's FM profile and 2026/27 Serie A performance."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-lookup-gustav-isaksen-saved-xa-turn-2",
+      "userMessage": "What was his xA for that record?"
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}

@@ -1,0 +1,168 @@
+{
+  "caseId": "v38-recommend-neil-el-aynaoui-similar-mc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v38-recommend-neil-el-aynaoui-similar-mc-turn-1",
+        "value": "mc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v38-recommend-neil-el-aynaoui-similar-mc-turn-1",
+        "value": "49045412"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v38-recommend-neil-el-aynaoui-similar-mc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Neil El Aynaoui",
+        "status": "resolved",
+        "turnId": "v38-recommend-neil-el-aynaoui-similar-mc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Neil El Aynaoui",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49045412"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19406135"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000101285"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48031590"
+          }
+        ],
+        "turnId": "v38-recommend-neil-el-aynaoui-similar-mc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "49045412",
+        "value": 139
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "49045412",
+        "value": 149
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp476d460ce564cb",
+        "canonicalIdentityId": "rp476d460ce564cb",
+        "mention": "Neil El Aynaoui",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49045412"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "49045412"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19406135"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000101285"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48031590"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "49045412"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19406135"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000101285"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48031590"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-recommend-neil-el-aynaoui-similar-mc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-recommend-neil-el-aynaoui-similar-mc-turn-1",
+      "userMessage": "Based on Neil El Aynaoui's MC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

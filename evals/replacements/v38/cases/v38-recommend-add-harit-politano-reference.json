@@ -1,0 +1,299 @@
+{
+  "caseId": "v38-recommend-add-harit-politano-reference",
+  "category": "multi_turn",
+  "workflow": "player_recommendation",
+  "split": "held_out",
+  "origin": "real",
+  "scenarioFamily": "replacement-v38-recommend-add-harit-politano-reference",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "turns": [
+    {
+      "turnId": "v38-recommend-add-harit-politano-reference-turn-1",
+      "userMessage": "Based on Amine Harit's AMR profile, recommend up to three players."
+    },
+    {
+      "turnId": "v38-recommend-add-harit-politano-reference-turn-2",
+      "userMessage": "Add Matteo Politano as another reference and keep the same position and limit."
+    }
+  ],
+  "contract": {
+    "taskKind": "player_recommendation",
+    "outcomeStatus": "ready",
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Amine Harit",
+        "status": "resolved"
+      },
+      {
+        "mention": "Matteo Politano",
+        "status": "resolved"
+      }
+    ],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Amine Harit",
+        "status": "resolved",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-1"
+      },
+      {
+        "lookupName": "Matteo Politano",
+        "status": "resolved",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-2"
+      }
+    ],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85137101"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28122195"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92088303"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18105831"
+          }
+        ],
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-1"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85137101"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43093382"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37055842"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "71081398"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67260440"
+          }
+        ],
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-2"
+      }
+    ],
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-1",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-1",
+        "value": "85137101"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-1",
+        "value": 3
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-2",
+        "value": "amr"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-2",
+        "value": "85137101"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.1.fmIds.0",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-2",
+        "value": "43093382"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v38-recommend-add-harit-politano-reference-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveResultValues": [],
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "FM position similarity and PA are not evidence of tactical fit, transfer feasibility, or guaranteed future CA."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "85137101",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "85137101",
+        "value": 142
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43093382",
+        "value": 148
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43093382",
+        "value": 153
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpc4d41ea5fe8159",
+        "canonicalIdentityId": "rpc4d41ea5fe8159",
+        "mention": "Amine Harit",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85137101"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp060e54ce18174e",
+        "canonicalIdentityId": "rp060e54ce18174e",
+        "mention": "Matteo Politano",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43093382"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "85137101"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "28122195"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "92088303"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "18105831"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "43093382"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "37055842"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "71081398"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67260440"
+      }
+    ],
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85137101"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "28122195"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "92088303"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "18105831"
+          }
+        ]
+      },
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "85137101"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "43093382"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "37055842"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "71081398"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67260440"
+          }
+        ]
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnConstraints": [],
+    "expectedActiveLookupSourceRecords": []
+  },
+  "ageAsOfDate": "2026-11-04"
+}

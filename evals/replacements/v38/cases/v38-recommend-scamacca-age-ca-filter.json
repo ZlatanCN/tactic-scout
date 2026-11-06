@@ -1,0 +1,182 @@
+{
+  "caseId": "v38-recommend-scamacca-age-ca-filter",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1",
+        "value": "37053643"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1",
+        "value": 26
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1",
+        "value": 160
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Gianluca Scamacca",
+        "status": "resolved",
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Gianluca Scamacca",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37053643"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91187791"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49062667"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "89056845"
+          }
+        ],
+        "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "37053643",
+        "value": 145
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "37053643",
+        "value": 153
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpec293e384c54a7",
+        "canonicalIdentityId": "rpec293e384c54a7",
+        "mention": "Gianluca Scamacca",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37053643"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "37053643"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "91187791"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "49062667"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "89056845"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "37053643"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "91187791"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "49062667"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "89056845"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-recommend-scamacca-age-ca-filter",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-recommend-scamacca-age-ca-filter-turn-1",
+      "userMessage": "Recommend STC players based on Gianluca Scamacca, age 26 or younger, with CA at least 160, up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

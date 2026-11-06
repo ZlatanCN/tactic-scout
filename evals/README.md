@@ -158,9 +158,13 @@ Run `b39c7477-6e47-432a-8953-c93e805c4039` completed 48 trials in 222 model requ
 
 The evaluator now requires matching delivered source values before crediting visible facts, links candidate names to tool-result source IDs, and checks tables and labeled prose across the conversation. The team answer corrector uses the exact roster retrieval date from provider data. V37 is the independent replacement.
 
-## V37 replacement held-out candidate
+## Exposed V37 held-out attempt
 
-V37 contains 16 cases with identities and source IDs not used in V1–V36. It repeats the possessive-form lookup for a fresh player and adds regression coverage for cross-turn facts and provider roster dates. Preview reports 16/16 evidence bundles ready and estimates 798 requests for the full held-out run. The 900-request ceiling is authorized; V37 has not started.
+V37 run `4e55b236-4cfc-4477-9d01-51d0961da245` completed 48 trials in 215 requests. Judge calibration passed 32/32 and 47/48 trials passed. One answer falsely said the team reference profile included five squad members when the tool result listed two. A deterministic correction for that claim was changed while the run was active, so V37 did not use one frozen code version and cannot be accepted. There were no network failures or budget denials.
+
+## V38 replacement held-out candidate
+
+V38 is the next independent 16-case pack with source identities new to V1–V37. It includes a possessive-name query, cross-turn fact checks, and deterministic validation of provider-supplied team dates and reference counts. Candidate rankings use an independent calculation from the fixed feature map and Reep identity links. Preview reports 16/16 evidence bundles ready and estimates 753 requests for the full run. The 900-request ceiling is authorized; V38 has not started.
 
 ## V19 held-out result
 

@@ -1,0 +1,282 @@
+{
+  "caseId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1",
+        "value": "Bundesliga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1",
+        "value": 1
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Jamie Leweling",
+        "status": "resolved",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1"
+      },
+      {
+        "lookupName": "Albert Grønbæk",
+        "status": "resolved",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Jamie Leweling",
+        "status": "resolved"
+      },
+      {
+        "mention": "Albert Grønbæk",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "Bundesliga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Jamie Leweling",
+        "status": "resolved",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1"
+      },
+      {
+        "mention": "Albert Grønbæk",
+        "status": "resolved",
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92103754"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9718",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27139574"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12880",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "92103754",
+        "value": 148
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "92103754",
+        "value": 152
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "27139574",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "27139574",
+        "value": 140
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9718",
+        "value": 232
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9718",
+        "value": 0.2896653711795807
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12880",
+        "value": 350
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12880",
+        "value": 0.06882294081151485
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpe444ded95a1507",
+        "canonicalIdentityId": "rpe444ded95a1507",
+        "mention": "Jamie Leweling",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92103754"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9718",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp3ca3df7c99bec0",
+        "canonicalIdentityId": "rp3ca3df7c99bec0",
+        "mention": "Albert Grønbæk",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "27139574"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12880",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "92103754"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9718",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "27139574"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12880",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "92103754"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9718",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "27139574"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12880",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-compare-jamie-leweling-albert-gronbaek-bundesliga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-compare-jamie-leweling-albert-gronbaek-bundesliga-turn-1",
+      "userMessage": "Compare Jamie Leweling and Albert Grønbæk using 2026/27 Bundesliga data."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

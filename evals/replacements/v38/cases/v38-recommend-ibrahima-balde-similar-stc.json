@@ -1,0 +1,168 @@
+{
+  "caseId": "v38-recommend-ibrahima-balde-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v38-recommend-ibrahima-balde-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v38-recommend-ibrahima-balde-similar-stc-turn-1",
+        "value": "73201857"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v38-recommend-ibrahima-balde-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ibrahima Baldé",
+        "status": "resolved",
+        "turnId": "v38-recommend-ibrahima-balde-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ibrahima Baldé",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "73201857"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000114325"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "80031675"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19356259"
+          }
+        ],
+        "turnId": "v38-recommend-ibrahima-balde-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "73201857",
+        "value": 110
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "73201857",
+        "value": 128
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp9b4ceea737ab48",
+        "canonicalIdentityId": "rp9b4ceea737ab48",
+        "mention": "Ibrahima Baldé",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "73201857"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "73201857"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000114325"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "80031675"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "19356259"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "73201857"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000114325"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "80031675"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "19356259"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-recommend-ibrahima-balde-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-recommend-ibrahima-balde-similar-stc-turn-1",
+      "userMessage": "Based on Ibrahima Baldé's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

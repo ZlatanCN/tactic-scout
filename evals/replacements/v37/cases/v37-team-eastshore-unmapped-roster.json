@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v37-team-eastshore-unmapped-roster",
-  "priorTuningExposure": "Authored for independent V37 from a new synthetic team roster after V36 was exposed; no V37 model request has started.",
+  "priorTuningExposure": "Exposed by V37 run 4e55b236-4cfc-4477-9d01-51d0961da245: 215 requests; 47/48 trials passed, calibration passed 32/32. One semantic finding reported a false squad reference count. The deterministic correction was edited while this run was active, so the run did not use a single frozen source revision. No network failures or budget denials occurred. Do not use V37 for acceptance.",
   "evidenceBundleId": "replacement-v37-team-synthetic",
   "evidenceBundleSha256": "316ba6bad617e9adf1f163c477bd1b9cc35cc627707b8ab5d7bdf43521a2afdc",
   "turns": [

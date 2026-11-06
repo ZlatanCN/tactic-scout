@@ -1,0 +1,273 @@
+{
+  "caseId": "v38-compare-knauff-nuamah-cross-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Ansgar Knauff",
+        "status": "resolved",
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1"
+      },
+      {
+        "lookupName": "Ernest Nuamah",
+        "status": "resolved",
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Ansgar Knauff",
+        "status": "resolved"
+      },
+      {
+        "mention": "Ernest Nuamah",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Ansgar Knauff",
+        "status": "resolved",
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1"
+      },
+      {
+        "mention": "Ernest Nuamah",
+        "status": "resolved",
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91203087"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8989",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000156783"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12060",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "91203087",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "91203087",
+        "value": 145
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "2000156783",
+        "value": 132
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "2000156783",
+        "value": 150
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8989",
+        "value": 133
+      },
+      {
+        "competition": "Bundesliga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8989",
+        "value": 0.4905225932598114
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12060",
+        "value": 388
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "12060",
+        "value": 2.358074940741062
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpeeca178938c106",
+        "canonicalIdentityId": "rpeeca178938c106",
+        "mention": "Ansgar Knauff",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91203087"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8989",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rp61b426b08eb45f",
+        "canonicalIdentityId": "rp61b426b08eb45f",
+        "mention": "Ernest Nuamah",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "2000156783"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12060",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "91203087"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8989",
+        "competition": "Bundesliga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000156783"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "12060",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "91203087"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8989",
+            "competition": "Bundesliga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000156783"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "12060",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v38-real-data",
+  "evidenceBundleSha256": "ec35db1b8cb5ad495be131d93a82f3ad75f7eabb902b2df6ed323e7f8ebc4617",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V37 from fixed local snapshots after V36 was exposed; no V37 model request has started.",
+  "scenarioFamily": "replacement-v38-compare-knauff-nuamah-cross-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v38-compare-knauff-nuamah-cross-scope-turn-1",
+      "userMessage": "Compare Ansgar Knauff and Ernest Nuamah using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}
