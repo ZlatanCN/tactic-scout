@@ -38,6 +38,43 @@ const mockShortModelTimeout = () => {
 };
 
 describe("request understanding extraction", () => {
+  it.each([
+    ["up to three players", 3],
+    ["最多 3 名球员", 3],
+  ])(
+    "deterministically extracts the requested recommendation limit from %s",
+    async (limitPhrase, expectedLimit) => {
+      const model = fakeModel();
+      const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+      structuredOutput.mockReturnValue(
+        RunnableLambda.from(() => ({
+          constraints: [],
+          kind: "player_recommendation",
+          players: [
+            {
+              lookupName: null,
+              mention: "Erling Haaland",
+              recommendationRole: "reference",
+              referenceScope: "explicit",
+            },
+          ],
+          recommendation: { position: "stc" },
+          teams: [],
+        }))
+      );
+
+      const extractor = createRequestUnderstandingExtractor(model);
+
+      const result = await extractor(
+        `Based on Erling Haaland's STC profile, recommend ${limitPhrase}.`,
+        createInitialConversationContext()
+      );
+
+      expect(result.recommendation?.resultLimit).toBe(expectedLimit);
+    }
+  );
+
   it.each(["Janik Haberer's", "Janik Haberer’s"])(
     "removes the possessive suffix from the explicit player name %s",
     (mention) => {

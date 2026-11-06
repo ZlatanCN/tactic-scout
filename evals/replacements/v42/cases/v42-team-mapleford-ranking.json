@@ -5,7 +5,7 @@
   "split": "held_out",
   "origin": "synthetic",
   "scenarioFamily": "replacement-v42-team-mapleford-ranking",
-  "priorTuningExposure": "Authored for independent V42 from a new synthetic team roster after V41 was exposed; no V42 model request has started.",
+  "priorTuningExposure": "Exposed by V42 run ed7b544a-c400-4ddb-8529-197ecf9eba9f: 105 Agent requests; 36/48 trials recorded (1 failed, 35 unassessed); judge calibration had not started. The failed trial omitted resultLimit for an explicit “up to three” request, even though the default candidate pool happened to contain three players. The deterministic request parser now extracts English and Chinese explicit limits. There were no network failures or request denials. Do not use V42 for acceptance.",
   "evidenceBundleId": "replacement-v42-team-synthetic",
   "evidenceBundleSha256": "141f82fc1c06deba6d78ce28ab3e6b86ad4e3ed313d0dfec0aa5b689a6bc8fe7",
   "turns": [

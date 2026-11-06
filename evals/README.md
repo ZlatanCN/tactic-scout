@@ -178,9 +178,13 @@ Run `ec24f5ed-5552-4b48-8f89-691802a4ca52` was stopped after 24/48 trials and 68
 
 Run `ebaaec2f-9fcb-4ce1-8436-b163d5906c6e` completed 48 trials in 219 requests. Judge calibration passed 32/32 (validation 16/16), but 44/48 trials passed. Three Gauthier Hein trials failed required-fact coverage because the prompt asked for appearances while the case contract still expected assists. One Aljoscha Kemlein answer called FM values a fixed-date snapshot and the judge flagged the statement unsupported. There was one recovered network failure and no request denial. V41 is exposed.
 
-## V42 replacement held-out candidate
+## Exposed V42 held-out attempt
 
-V42 will use fresh identities and source IDs compared with V1–V41, fix the Gauthier Hein field mismatch, and calibrate the judge's FM fixed-snapshot rule with a new v9 anchor pack. Recommendation order remains independently calculated from the fixed FM feature map and Reep-linked exclusions. Preview must report 16/16 evidence bundles ready and no explicit league-contract mismatches before dispatch. The 900-request ceiling is authorized; V42 has not started.
+Run `ed7b544a-c400-4ddb-8529-197ecf9eba9f` stopped after 36/48 trials and 105 Agent requests. One recommendation trial omitted an explicit `resultLimit: 3` for “up to three players”; the default candidate pool happened to contain three players. The other 35 trials were unassessed. Calibration and semantic judging had not started. There were no network failures or request denials. V42 is exposed.
+
+## V43 replacement held-out candidate
+
+V43 uses fresh identities/source IDs compared with V1–V42 and tests the deterministic English and Chinese result-limit parser with “up to three players”. Its lookup cases ask for and require the same facts. Preview reports 16/16 evidence bundles ready, no duplicate mentions/source IDs, no league-scope mismatches, and no requested-fact mismatches. It estimates 753 requests; the 900-request ceiling is authorized. V43 has not started.
 
 ## V19 held-out result
 

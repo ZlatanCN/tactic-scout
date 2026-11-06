@@ -267,7 +267,7 @@
   "evidenceBundleId": "replacement-v42-real-data",
   "evidenceBundleSha256": "a650c32753046bc7e464458c45b61816f78dacee9e998fa9cb6d6166b151e084",
   "origin": "real",
-  "priorTuningExposure": "Authored for independent V42 from fixed local snapshots with new identities after V41 was exposed; no V42 model request has started.",
+  "priorTuningExposure": "Exposed by V42 run ed7b544a-c400-4ddb-8529-197ecf9eba9f: 105 Agent requests; 36/48 trials recorded (1 failed, 35 unassessed); judge calibration had not started. The failed trial omitted resultLimit for an explicit “up to three” request, even though the default candidate pool happened to contain three players. The deterministic request parser now extracts English and Chinese explicit limits. There were no network failures or request denials. Do not use V42 for acceptance.",
   "scenarioFamily": "replacement-v42-compare-keinan-stephan-serie-a",
   "split": "held_out",
   "turns": [

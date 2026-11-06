@@ -1,0 +1,273 @@
+{
+  "caseId": "v43-compare-orel-lucas-cross-scope",
+  "category": "boundary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1",
+        "value": 0
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Orel Mangala",
+        "status": "resolved",
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1"
+      },
+      {
+        "lookupName": "Lucas Tousart",
+        "status": "resolved",
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Orel Mangala",
+        "status": "resolved"
+      },
+      {
+        "mention": "Lucas Tousart",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1",
+        "constraints": [
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Orel Mangala",
+        "status": "resolved",
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1"
+      },
+      {
+        "mention": "Lucas Tousart",
+        "status": "resolved",
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "18087973"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6088",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48034210"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3743",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v43-compare-orel-lucas-cross-scope-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "These players do not share an Understat league/season scope; do not provide an overall performance ranking."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "18087973",
+        "value": 129
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "18087973",
+        "value": 134
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "48034210",
+        "value": 130
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "48034210",
+        "value": 139
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6088",
+        "value": 553
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "6088",
+        "value": 0.1447181235998869
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3743",
+        "value": 305
+      },
+      {
+        "competition": "Ligue_1",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "3743",
+        "value": 1.9320851266384125
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp0ea5c48bb25ed7",
+        "canonicalIdentityId": "rp0ea5c48bb25ed7",
+        "mention": "Orel Mangala",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "18087973"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6088",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpe8c38c6b770ea8",
+        "canonicalIdentityId": "rpe8c38c6b770ea8",
+        "mention": "Lucas Tousart",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "48034210"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3743",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "18087973"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "6088",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48034210"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "3743",
+        "competition": "Ligue_1",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "18087973"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "6088",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48034210"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "3743",
+            "competition": "Ligue_1",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v43-real-data",
+  "evidenceBundleSha256": "6efdef29ff1a91bb78d31ef5e9be7387d9deeb637331cfd24585b1da639b0cbb",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V43 from fixed local snapshots with new identities after V42 was exposed; no V43 model request has started.",
+  "scenarioFamily": "replacement-v43-compare-orel-lucas-cross-scope",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v43-compare-orel-lucas-cross-scope-turn-1",
+      "userMessage": "Compare Orel Mangala and Lucas Tousart using their respective 2026/27 league records and FM ability."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

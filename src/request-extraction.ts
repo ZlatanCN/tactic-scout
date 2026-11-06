@@ -85,6 +85,139 @@ type NormalizedExtractedPlayerMention = {
   referenceTargetMention: string | null;
 };
 
+const englishResultLimitWords = new Map([
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+  ["eleven", 11],
+  ["twelve", 12],
+  ["thirteen", 13],
+  ["fourteen", 14],
+  ["fifteen", 15],
+  ["sixteen", 16],
+  ["seventeen", 17],
+  ["eighteen", 18],
+  ["nineteen", 19],
+  ["twenty", 20],
+]);
+
+const chineseResultLimitWords = new Map([
+  ["一", 1],
+  ["二", 2],
+  ["三", 3],
+  ["四", 4],
+  ["五", 5],
+  ["六", 6],
+  ["七", 7],
+  ["八", 8],
+  ["九", 9],
+  ["十", 10],
+  ["十一", 11],
+  ["十二", 12],
+  ["十三", 13],
+  ["十四", 14],
+  ["十五", 15],
+  ["十六", 16],
+  ["十七", 17],
+  ["十八", 18],
+  ["十九", 19],
+  ["二十", 20],
+]);
+
+const resultLimitFromToken = (token: string): number | null => {
+  const numericValue = Number(token);
+
+  const value = Number.isInteger(numericValue)
+    ? numericValue
+    : (englishResultLimitWords.get(token.toLocaleLowerCase()) ??
+      chineseResultLimitWords.get(token));
+
+  return value !== undefined && value >= 1 && value <= 20 ? value : null;
+};
+
+const explicitResultLimitFromText = (message: string): number | null => {
+  const normalizedMessage = message.normalize("NFKC");
+
+  const englishLimit =
+    /\b(?:up to|at most|no more than|maximum(?: of)?|limit(?: to| of)?)\s+(?<value>\d{1,2}|[a-z]+)\b/iu.exec(
+      normalizedMessage
+    )?.groups?.value;
+
+  if (englishLimit !== undefined) {
+    return resultLimitFromToken(englishLimit);
+  }
+
+  const chineseLimit =
+    /(?:最多|不超过|不多于|上限(?:为)?|限制为)\s*(?<value>\d{1,2}|[一二三四五六七八九十]{1,3})\s*[名个位人]?/u.exec(
+      normalizedMessage
+    )?.groups?.value;
+
+  return chineseLimit === undefined ? null : resultLimitFromToken(chineseLimit);
+};
+
+const normalizedRecommendationConstraintName = (name: string): string =>
+  name
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase()
+    .replaceAll(/[\s_-]/gu, "");
+
+const isResultLimitConstraint = (name: string): boolean =>
+  ["limit", "resultlimit", "maximumresults", "结果数", "最多"].includes(
+    normalizedRecommendationConstraintName(name)
+  );
+
+const explicitRecommendationResultLimit = (
+  kind: RequestKind | null,
+  message: string
+): number | null =>
+  kind === "player_recommendation" || kind === "team_recommendation"
+    ? explicitResultLimitFromText(message)
+    : null;
+
+const applyExplicitResultLimit = (
+  constraints: RequestConstraint[],
+  resultLimit: number | null
+): RequestConstraint[] => {
+  if (resultLimit === null) {
+    return constraints;
+  }
+
+  return [
+    ...constraints.filter(({ name }) => !isResultLimitConstraint(name)),
+    { name: "resultLimit", value: String(resultLimit) },
+  ];
+};
+
+const applyExplicitRecommendationValues = (
+  recommendation: RecommendationRequestPatch | undefined,
+  position: string | null,
+  resultLimit: number | null
+): RecommendationRequestPatch | undefined => {
+  if (position === null && resultLimit === null) {
+    return recommendation;
+  }
+
+  const updated: RecommendationRequestPatch = { ...recommendation };
+
+  if (position !== null) {
+    updated.position = position;
+  }
+
+  if (resultLimit !== null) {
+    updated.resultLimit = resultLimit;
+  }
+
+  return updated;
+};
+
 const recommendationExtractionSchema = z.object({
   includePotential: z.boolean().optional(),
   maxAge: z.number().int().min(1).max(120).nullable().optional(),
@@ -489,6 +622,8 @@ const normalizeRequestExtraction = (
     kind = "team_recommendation";
   }
 
+  const explicitResultLimit = explicitRecommendationResultLimit(kind, message);
+
   const normalizedConstraints = result.constraints.flatMap((constraint) => {
     const name = constraint.name.trim();
     const value = constraint.value.trim();
@@ -501,7 +636,7 @@ const normalizeRequestExtraction = (
       ? relativeComparisonSeasonFromText(message)
       : null;
 
-  const constraints =
+  const baseConstraints =
     relativeSeason === null
       ? normalizedConstraints
       : [
@@ -511,15 +646,21 @@ const normalizeRequestExtraction = (
           { name: "season", value: relativeSeason },
         ];
 
+  const constraints = applyExplicitResultLimit(
+    baseConstraints,
+    explicitResultLimit
+  );
+
   const explicitTeamPosition =
     kind === "team_recommendation" || kind === "player_recommendation"
       ? explicitPositionCodeFromText(message)
       : null;
 
-  const recommendation =
-    explicitTeamPosition === null
-      ? result.recommendation
-      : { ...result.recommendation, position: explicitTeamPosition };
+  const recommendation = applyExplicitRecommendationValues(
+    result.recommendation,
+    explicitTeamPosition,
+    explicitResultLimit
+  );
 
   let teams = uniqueText(result.teams);
 

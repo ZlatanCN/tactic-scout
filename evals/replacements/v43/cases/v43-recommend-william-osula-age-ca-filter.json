@@ -1,0 +1,182 @@
+{
+  "caseId": "v43-recommend-william-osula-age-ca-filter",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1",
+        "value": "28128173"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "maxAge",
+        "source": "input",
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1",
+        "value": 20
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "minimumCurrentAbility",
+        "source": "input",
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1",
+        "value": 110
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "William Osula",
+        "status": "resolved",
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "William Osula",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28128173"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000110066"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000218544"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000268942"
+          }
+        ],
+        "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "28128173",
+        "value": 126
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "28128173",
+        "value": 145
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rpf4cefb3fa8152e",
+        "canonicalIdentityId": "rpf4cefb3fa8152e",
+        "mention": "William Osula",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28128173"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "28128173"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000110066"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000218544"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000268942"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "28128173"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000110066"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000218544"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000268942"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v43-real-data",
+  "evidenceBundleSha256": "6efdef29ff1a91bb78d31ef5e9be7387d9deeb637331cfd24585b1da639b0cbb",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V43 from fixed local snapshots with new identities after V42 was exposed; no V43 model request has started.",
+  "scenarioFamily": "replacement-v43-recommend-william-osula-age-ca-filter",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v43-recommend-william-osula-age-ca-filter-turn-1",
+      "userMessage": "Recommend STC players based on William Osula, age 20 or younger, with CA at least 110, up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

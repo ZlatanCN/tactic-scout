@@ -10,7 +10,7 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 
 ## Frozen scope
 
-- Use the next independent pack `evals/replacements/v42/cases` and local evidence in `.data/evals/v42-evidence`. V33–V41 are exposed and must not be reused.
+- Use the next independent pack `evals/replacements/v43/cases` and local evidence in `.data/evals/v43-evidence`. V33–V42 are exposed and must not be reused.
 - FM supports fixed CA, PA, natural positions, and attributes. Understat supports only returned season-scoped performance. Current registration, injuries, availability, transfer status, and other time-sensitive claims require a source covering the requested period.
 - Age is recalculated from birth date as of each case's fixed `ageAsOfDate`, separately from the FM snapshot date.
 - A Reep canonical ID may connect provider source IDs even when display names differ. Names alone never establish identity.
@@ -54,5 +54,7 @@ Complete one independent, frozen held-out evaluation after repairing source-date
 - Runtime identity search now normalizes Unicode diacritics and common one-to-one Latin variants such as `ø`/`o`; canonical Reep IDs remain distinct. A local SQLite regression reproduces the original lookup failure and verifies distinct IDs still require confirmation. The evaluation mention checker uses the same spelling rule.
 - V41 completed 48 trials in 219 requests: 44 passed and 4 failed. Calibration passed 32/32, including validation 16/16. Three Gauthier Hein trials exposed a prompt/expected-fact mismatch (appearances requested, assists expected); one judge trial falsely rejected the fixed-date FM snapshot description because the judge had no application rule for it. One transient network failure recovered; no requests were denied. V41 is exposed.
 - Runtime identity search now folds non-decomposing Latin variants such as `ø`/`o` before local record matching. A SQLite regression reproduces Jorgen/Jørgen resolution and proves distinct Reep IDs remain separate. Evaluation name checks use the same spelling normalization.
-- V42 uses fresh identities/source IDs compared with V1–V41, fixes the Gauthier Hein query/contract mismatch, and adds a judge FM snapshot policy with reserved calibration anchors. Preview must show 16/16 evidence bundles ready and no explicit competition-contract mismatch; estimated request use is expected to remain under the 900 ceiling.
-- Offline validation: 37 Vitest files / 362 tests passed; typecheck and targeted Ultracite passed. The full repository-wide `pnpm check` still scans installed `.agents` skill assets and reports unrelated existing issues.
+- V42 stopped after 36/48 trials and 105 Agent requests when one recommendation request omitted the explicit `resultLimit: 3` for “up to three players”. The other 35 trials were unassessed; judge calibration did not start. No network failures or denials occurred. V42 is exposed.
+- Request extraction now parses explicit English and Chinese result limits deterministically and overrides model extraction. Vitest reproduces `up to three` and `最多 3 名`.
+- V43 uses fresh identities/source IDs compared with V1–V42, includes an accented name lookup, tests explicit result-limit extraction, and uses the v9 FM snapshot judge rule. Its 16/16 evidence bundles are ready; the audit found no duplicate mentions/source IDs, league mismatches, or requested-fact mismatches. The 900-request ceiling is authorized; no V43 request has started.
+- Offline validation: 37 Vitest files / 364 tests passed; typecheck and targeted Ultracite passed. The full repository-wide `pnpm check` still scans installed `.agents` skill assets and reports unrelated existing issues.

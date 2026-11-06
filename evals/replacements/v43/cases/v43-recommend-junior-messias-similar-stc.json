@@ -1,0 +1,168 @@
+{
+  "caseId": "v43-recommend-junior-messias-similar-stc",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "recommend_player_candidates",
+        "path": "position",
+        "source": "input",
+        "turnId": "v43-recommend-junior-messias-similar-stc-turn-1",
+        "value": "stc"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "referenceGroups.0.fmIds.0",
+        "source": "input",
+        "turnId": "v43-recommend-junior-messias-similar-stc-turn-1",
+        "value": "43315178"
+      },
+      {
+        "name": "recommend_player_candidates",
+        "path": "resultLimit",
+        "source": "input",
+        "turnId": "v43-recommend-junior-messias-similar-stc-turn-1",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Junior Messias",
+        "status": "resolved",
+        "turnId": "v43-recommend-junior-messias-similar-stc-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Junior Messias",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43315178"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14078692"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48031424"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000170757"
+          }
+        ],
+        "turnId": "v43-recommend-junior-messias-similar-stc-turn-1"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "43315178",
+        "value": 115
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "43315178",
+        "value": 145
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp7f681e65504cf5",
+        "canonicalIdentityId": "rp7f681e65504cf5",
+        "mention": "Junior Messias",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43315178"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "43315178"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "14078692"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "48031424"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "2000170757"
+      }
+    ],
+    "taskKind": "player_recommendation",
+    "toolActions": [
+      {
+        "name": "recommend_player_candidates",
+        "businessOutcome": "ready",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "43315178"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "14078692"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "48031424"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "2000170757"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v43-real-data",
+  "evidenceBundleSha256": "6efdef29ff1a91bb78d31ef5e9be7387d9deeb637331cfd24585b1da639b0cbb",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V43 from fixed local snapshots with new identities after V42 was exposed; no V43 model request has started.",
+  "scenarioFamily": "replacement-v43-recommend-junior-messias-similar-stc",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v43-recommend-junior-messias-similar-stc-turn-1",
+      "userMessage": "Based on Junior Messias's STC profile, recommend up to three players."
+    }
+  ],
+  "workflow": "player_recommendation",
+  "ageAsOfDate": "2026-11-04"
+}

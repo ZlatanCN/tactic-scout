@@ -1,0 +1,489 @@
+{
+  "caseId": "v43-compare-add-benat-la-liga",
+  "category": "multi_turn",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2",
+        "value": 2026
+      },
+      {
+        "name": "compare_player_records",
+        "path": "competition",
+        "source": "input",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2",
+        "value": "La Liga"
+      },
+      {
+        "name": "compare_player_records",
+        "path": "coverage.commonUnderstatScopeCount",
+        "source": "result",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2",
+        "value": 1
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coversAllParticipants",
+        "source": "result",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2",
+        "value": true
+      },
+      {
+        "name": "compare_player_records",
+        "path": "understatScopeGroups.0.coverage.coveredPlayerCount",
+        "source": "result",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2",
+        "value": 3
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Giorgi Kochorashvili",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Oriol Rey",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1"
+      },
+      {
+        "lookupName": "Aleix Febas",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Giorgi Kochorashvili",
+        "status": "resolved"
+      },
+      {
+        "mention": "Oriol Rey",
+        "status": "resolved"
+      },
+      {
+        "mention": "Aleix Febas",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [
+      {
+        "turnId": "v43-compare-add-benat-la-liga-turn-1",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      },
+      {
+        "turnId": "v43-compare-add-benat-la-liga-turn-2",
+        "constraints": [
+          {
+            "name": "competition",
+            "value": "La Liga"
+          },
+          {
+            "name": "season",
+            "value": "2026/27"
+          }
+        ]
+      }
+    ],
+    "expectedTurnIdentityStatuses": [
+      {
+        "mention": "Giorgi Kochorashvili",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1"
+      },
+      {
+        "mention": "Oriol Rey",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-1"
+      },
+      {
+        "mention": "Giorgi Kochorashvili",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2"
+      },
+      {
+        "mention": "Oriol Rey",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2"
+      },
+      {
+        "mention": "Aleix Febas",
+        "status": "resolved",
+        "turnId": "v43-compare-add-benat-la-liga-turn-2"
+      }
+    ],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "59115661"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67245415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8764",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v43-compare-add-benat-la-liga-turn-1"
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "59115661"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67245415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8764",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67179156"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7842",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v43-compare-add-benat-la-liga-turn-2"
+      }
+    ],
+    "outcomeStatus": "ready",
+    "prohibitedClaims": [
+      "overall_player_ranking",
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [
+      "Ante Budimir has no Understat row in the inherited Bundesliga 2026/27 scope."
+    ],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "59115661",
+        "value": 127
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "59115661",
+        "value": 130
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67245415",
+        "value": 127
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67245415",
+        "value": 134
+      },
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67179156",
+        "value": 136
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67179156",
+        "value": 153
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8425",
+        "value": 267
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8425",
+        "value": 0.14583224058151245
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8764",
+        "value": 609
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "8764",
+        "value": 0.027974944561719894
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7842",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "minutes",
+        "value": 297
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7842",
+        "competition": "La_liga",
+        "season": "2026/27",
+        "field": "expectedGoals",
+        "value": 0.01633840799331665
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp4df6e404a8389f",
+        "canonicalIdentityId": "rp4df6e404a8389f",
+        "mention": "Giorgi Kochorashvili",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "59115661"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpc763b58288f924",
+        "canonicalIdentityId": "rpc763b58288f924",
+        "mention": "Oriol Rey",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67245415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8764",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "candidateId": "reep:rpba85b50c414482",
+        "canonicalIdentityId": "rpba85b50c414482",
+        "mention": "Aleix Febas",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67179156"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7842",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "59115661"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8425",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67245415"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "8764",
+        "competition": "La_liga",
+        "season": "2026/27"
+      },
+      {
+        "provider": "fm",
+        "sourceId": "67179156"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "7842",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_comparison",
+    "toolActions": [
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "59115661"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67245415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8764",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      },
+      {
+        "businessOutcome": "ready",
+        "name": "compare_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "59115661"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8425",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67245415"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "8764",
+            "competition": "La_liga",
+            "season": "2026/27"
+          },
+          {
+            "provider": "fm",
+            "sourceId": "67179156"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "7842",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v43-real-data",
+  "evidenceBundleSha256": "6efdef29ff1a91bb78d31ef5e9be7387d9deeb637331cfd24585b1da639b0cbb",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V43 from fixed local snapshots with new identities after V42 was exposed; no V43 model request has started.",
+  "scenarioFamily": "replacement-v43-compare-add-benat-la-liga",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v43-compare-add-benat-la-liga-turn-1",
+      "userMessage": "Compare Giorgi Kochorashvili and Oriol Rey using 2026/27 La Liga data."
+    },
+    {
+      "clarificationAnswers": [],
+      "turnId": "v43-compare-add-benat-la-liga-turn-2",
+      "userMessage": "Add Aleix Febas to the comparison."
+    }
+  ],
+  "workflow": "player_comparison",
+  "ageAsOfDate": "2026-11-04"
+}

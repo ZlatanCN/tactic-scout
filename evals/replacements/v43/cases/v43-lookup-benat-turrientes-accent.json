@@ -1,0 +1,174 @@
+{
+  "caseId": "v43-lookup-benat-turrientes-accent",
+  "category": "ordinary",
+  "contract": {
+    "expectedActionValues": [
+      {
+        "name": "search_player_records",
+        "path": "seasonStartYear",
+        "source": "input",
+        "turnId": "v43-lookup-benat-turrientes-accent-turn-1",
+        "value": 2026
+      }
+    ],
+    "expectedActiveLookupSourceRecords": [],
+    "expectedActiveResultValues": [],
+    "expectedIdentityLookups": [
+      {
+        "lookupName": "Beñat Turrientes",
+        "status": "resolved",
+        "turnId": "v43-lookup-benat-turrientes-accent-turn-1"
+      }
+    ],
+    "expectedIdentityStatuses": [
+      {
+        "mention": "Beñat Turrientes",
+        "status": "resolved"
+      }
+    ],
+    "expectedTeamRosterCoverage": null,
+    "expectedTurnConstraints": [],
+    "expectedTurnIdentityStatuses": [],
+    "expectedTurnParameters": [],
+    "expectedTurnToolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67276474"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9465",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ],
+        "turnId": "v43-lookup-benat-turrientes-accent-turn-1"
+      }
+    ],
+    "outcomeStatus": "answer_ready",
+    "prohibitedClaims": [
+      "current_registration",
+      "contract",
+      "transfer_fee",
+      "transfer_feasibility"
+    ],
+    "requiredAbstentions": [],
+    "requiredEvidence": [
+      {
+        "field": "currentAbility",
+        "provider": "fm",
+        "sourceId": "67276474",
+        "value": 140
+      },
+      {
+        "field": "potentialAbility",
+        "provider": "fm",
+        "sourceId": "67276474",
+        "value": 152
+      },
+      {
+        "competition": "La_liga",
+        "field": "minutes",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9465",
+        "value": 260
+      },
+      {
+        "competition": "La_liga",
+        "field": "expectedGoals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9465",
+        "value": 0.1278261188417673
+      },
+      {
+        "competition": "La_liga",
+        "field": "goals",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9465",
+        "value": 0
+      },
+      {
+        "competition": "La_liga",
+        "field": "assists",
+        "provider": "understat",
+        "season": "2026/27",
+        "sourceId": "9465",
+        "value": 0
+      }
+    ],
+    "resolvedPlayers": [
+      {
+        "candidateId": "reep:rp69308f17a65537",
+        "canonicalIdentityId": "rp69308f17a65537",
+        "mention": "Beñat Turrientes",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67276474"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9465",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ],
+    "sourceScope": [
+      {
+        "provider": "fm",
+        "sourceId": "67276474"
+      },
+      {
+        "provider": "understat",
+        "sourceId": "9465",
+        "competition": "La_liga",
+        "season": "2026/27"
+      }
+    ],
+    "taskKind": "player_lookup",
+    "toolActions": [
+      {
+        "businessOutcome": "found",
+        "name": "search_player_records",
+        "sourceRecords": [
+          {
+            "provider": "fm",
+            "sourceId": "67276474"
+          },
+          {
+            "provider": "understat",
+            "sourceId": "9465",
+            "competition": "La_liga",
+            "season": "2026/27"
+          }
+        ]
+      }
+    ]
+  },
+  "declaredDataFaults": [],
+  "declaredTurnFaults": [],
+  "evidenceBundleId": "replacement-v43-real-data",
+  "evidenceBundleSha256": "6efdef29ff1a91bb78d31ef5e9be7387d9deeb637331cfd24585b1da639b0cbb",
+  "origin": "real",
+  "priorTuningExposure": "Authored for independent V43 from fixed local snapshots with new identities after V42 was exposed; no V43 model request has started.",
+  "scenarioFamily": "replacement-v43-lookup-benat-turrientes-accent",
+  "split": "held_out",
+  "turns": [
+    {
+      "clarificationAnswers": [],
+      "turnId": "v43-lookup-benat-turrientes-accent-turn-1",
+      "userMessage": "Look up Benat Turrientes's FM profile and 2026/27 La Liga performance."
+    }
+  ],
+  "workflow": "player_lookup",
+  "ageAsOfDate": "2026-11-04"
+}
