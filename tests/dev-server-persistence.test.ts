@@ -24,6 +24,7 @@ import {
   persistedThreadFacts,
   playerReference,
   savedConversationContext,
+  teamRecommendationConditions,
 } from "./fixtures/persistence-state.js";
 
 type FailureRecoveryInput = {
@@ -266,16 +267,20 @@ describe("managed Dev Server persistence", () => {
               rosterIndex: 0,
             },
             request: {
-              constraints: [],
+              constraints: [
+                { name: "maximum_age", value: "34" },
+                { name: "minimum_current_ability", value: "130" },
+                { name: "minimum_potential_ability", value: "150" },
+              ],
               kind: "team_recommendation",
               players: [],
               processedMessageId: "roster-question",
               recommendationAction: "replace",
               teamRecommendation: {
-                includePotential: false,
-                maxAge: null,
-                minimumCurrentAbility: null,
-                minimumPotentialAbility: null,
+                includePotential: true,
+                maxAge: 34,
+                minimumCurrentAbility: 130,
+                minimumPotentialAbility: 150,
                 position: "stc",
                 referenceMode: "squad",
                 resultLimit: 2,
@@ -451,6 +456,7 @@ describe("managed Dev Server persistence", () => {
         identityPending: resumedIdentity.values.pendingClarification,
         identityStatus:
           resumedIdentity.values.request.players?.[0]?.resolution?.status,
+        rosterConditions: teamRecommendationConditions(resumedRoster),
         rosterFmId:
           resumedRoster.values.request.teamRecommendation?.roster?.members[0]
             ?.fmId,
@@ -461,6 +467,21 @@ describe("managed Dev Server persistence", () => {
       }).toStrictEqual({
         identityPending: null,
         identityStatus: "resolved",
+        rosterConditions: {
+          constraints: [
+            { name: "maximum_age", value: "34" },
+            { name: "minimum_current_ability", value: "130" },
+            { name: "minimum_potential_ability", value: "150" },
+          ],
+          filters: {
+            includePotential: true,
+            maxAge: 34,
+            minimumCurrentAbility: 130,
+            minimumPotentialAbility: 150,
+            position: "stc",
+            resultLimit: 2,
+          },
+        },
         rosterFmId: "fm-kane",
         rosterMappingMethod: "user_confirmation",
         rosterPending: null,

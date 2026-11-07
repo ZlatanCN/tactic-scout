@@ -172,6 +172,20 @@ const clarificationDetails = (state: ThreadState) => ({
   question: state.values.pendingClarification?.question ?? null,
 });
 
+const teamRecommendationConditions = (state: ThreadState) => ({
+  constraints: state.values.request.constraints,
+  filters: {
+    includePotential: state.values.request.teamRecommendation?.includePotential,
+    maxAge: state.values.request.teamRecommendation?.maxAge,
+    minimumCurrentAbility:
+      state.values.request.teamRecommendation?.minimumCurrentAbility,
+    minimumPotentialAbility:
+      state.values.request.teamRecommendation?.minimumPotentialAbility,
+    position: state.values.request.teamRecommendation?.position,
+    resultLimit: state.values.request.teamRecommendation?.resultLimit,
+  },
+});
+
 const activeRecommendationFromState = (state: ThreadState) => {
   const { activeRecommendation } = state.values.conversationContext;
 
@@ -215,6 +229,7 @@ export {
   persistedThreadFacts,
   playerReference,
   savedConversationContext,
+  teamRecommendationConditions,
 };
 
 export type { ConversationContext, PlayerReference };

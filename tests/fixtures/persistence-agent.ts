@@ -1,23 +1,13 @@
 import { createAgent } from "../../src/agent.js";
 import { searchPlayerRecords } from "../../src/player-data/search-records.js";
 import type { PlayerSearch } from "../../src/player-data/search-records.js";
-import type {
-  ApiFootballClient,
-  ApiFootballRosterPlayer,
-  ApiFootballTeam,
-} from "../../src/team-data/api-football.js";
+import { createApiFootballClient } from "../../src/team-data/api-football.js";
+import type { ApiFootballClient } from "../../src/team-data/api-football.js";
 import type { RecommendPlayerCandidates } from "../../src/tools/recommend-player-candidates.js";
 import { recommendPlayerCandidates } from "../../src/tools/recommend-player-candidates.js";
 import type { RecommendTeamPlayerCandidates } from "../../src/tools/recommend-team-player-candidates.js";
 import { recommendTeamPlayerCandidates } from "../../src/tools/recommend-team-player-candidates.js";
 import { createTools } from "../../src/tools/search-player-records.js";
-
-const team = { country: "England", id: 541, name: "Test Club" };
-const outageTeamName = "Outage Club";
-
-const roster: ApiFootballRosterPlayer[] = [
-  { id: 10, name: "Harry Kane", position: "Attacker" },
-];
 
 const recordTestEvent = async (name: string) => {
   const endpoint = process.env.PERSISTENCE_TEST_EVENTS_URL;
@@ -61,39 +51,28 @@ const trackedTeamRecommendation: RecommendTeamPlayerCandidates = async (
   return await recommendTeamPlayerCandidates(input, ageAsOfDate);
 };
 
-const searchTeams: ApiFootballClient["searchTeams"] = async (query) => {
-  if (query === outageTeamName) {
-    await recordTestEvent("team-search-failure");
+const providerUrl = process.env.PERSISTENCE_TEST_PROVIDER_URL;
 
-    return {
-      message: "The fixture provider is temporarily unavailable.",
-      reason: "provider",
-      status: "error",
-      statusCode: 503,
-    };
-  }
+if (providerUrl === undefined) {
+  throw new Error("Persistence fixture provider URL is not configured.");
+}
 
-  await recordTestEvent("team-search");
+const teamDirectory: ApiFootballClient = createApiFootballClient({
+  apiKey: process.env.API_FOOTBALL_KEY,
+  fetcher: async (input, init) => {
+    const originalUrl = new URL(input instanceof Request ? input.url : input);
 
-  return { data: [team], status: "ok" };
-};
+    const localUrl = new URL(
+      `/api-football${originalUrl.pathname}${originalUrl.search}`,
+      providerUrl
+    );
 
-const getSquad: ApiFootballClient["getSquad"] = async (teamId) => {
-  await recordTestEvent("team-roster");
-  const selectedTeam: ApiFootballTeam = { ...team, id: teamId };
-
-  return {
-    data: {
-      players: roster,
-      retrievedAt: "2026-11-07T00:00:00.000Z",
-      team: selectedTeam,
-    },
-    status: "ok",
-  };
-};
+    return await fetch(localUrl, init);
+  },
+});
 
 const agent = createAgent({
-  teamDirectory: { getSquad, searchTeams },
+  teamDirectory,
   tools: createTools(
     trackedPlayerSearch,
     trackedRecommendation,

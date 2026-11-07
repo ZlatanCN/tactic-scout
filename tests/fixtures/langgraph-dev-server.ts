@@ -25,6 +25,7 @@ type LocalGateway = {
   close: () => Promise<void>;
   eventUrl: string;
   events: () => string[];
+  providerUrl: string;
   url: string;
 };
 
@@ -74,6 +75,9 @@ const threadStateSchema = z.looseObject({
       .nullable()
       .optional(),
     request: z.looseObject({
+      constraints: z
+        .array(z.object({ name: z.string(), value: z.string() }))
+        .optional(),
       kind: z.string(),
       players: z
         .array(
@@ -93,6 +97,12 @@ const threadStateSchema = z.looseObject({
         .optional(),
       teamRecommendation: z
         .looseObject({
+          includePotential: z.boolean().optional(),
+          maxAge: z.number().nullable().optional(),
+          minimumCurrentAbility: z.number().nullable().optional(),
+          minimumPotentialAbility: z.number().nullable().optional(),
+          position: z.string().nullable().optional(),
+          resultLimit: z.number().nullable().optional(),
           roster: z
             .looseObject({
               members: z.array(
@@ -386,6 +396,63 @@ const currentUserText = (messageText: string): string => {
   }
 };
 
+type FakeProviderResponse = {
+  body: unknown;
+  event: string;
+  statusCode: number;
+};
+
+const fakeProviderResponse = (requestUrl: URL): FakeProviderResponse | null => {
+  if (requestUrl.pathname === "/api-football/teams") {
+    const isOutage =
+      requestUrl.searchParams.get("search") === fixtureOutageTeamName;
+
+    return {
+      body: isOutage
+        ? {
+            errors: { message: "Temporary provider outage." },
+            response: [],
+          }
+        : {
+            errors: [],
+            response: [
+              {
+                team: {
+                  country: "England",
+                  id: 541,
+                  name: fixtureTeamName,
+                },
+              },
+            ],
+          },
+      event: isOutage ? "team-search-failure" : "team-search",
+      statusCode: isOutage ? 503 : 200,
+    };
+  }
+
+  if (requestUrl.pathname === "/api-football/players/squads") {
+    return {
+      body: {
+        errors: [],
+        response: [
+          {
+            players: [{ id: 10, name: fixtureKaneName, position: "Attacker" }],
+            team: {
+              country: "England",
+              id: Number(requestUrl.searchParams.get("team")),
+              name: fixtureTeamName,
+            },
+          },
+        ],
+      },
+      event: "team-roster",
+      statusCode: 200,
+    };
+  }
+
+  return null;
+};
+
 const reservePort = async (): Promise<number> => {
   const server = createServer();
   server.listen(0, "127.0.0.1");
@@ -429,6 +496,7 @@ const startGateway = async (): Promise<LocalGateway> => {
     });
     request.on("end", () => {
       const body = Buffer.concat(chunks).toString("utf-8");
+      const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
 
       if (request.url === "/events") {
         const event = eventSchema.safeParse(JSON.parse(body));
@@ -441,6 +509,18 @@ const startGateway = async (): Promise<LocalGateway> => {
 
         receivedEvents.push(event.data.name);
         response.writeHead(204).end();
+
+        return;
+      }
+
+      const providerResponse = fakeProviderResponse(requestUrl);
+
+      if (providerResponse !== null) {
+        receivedEvents.push(providerResponse.event);
+        response.writeHead(providerResponse.statusCode, {
+          "content-type": "application/json",
+        });
+        response.end(JSON.stringify(providerResponse.body));
 
         return;
       }
@@ -586,6 +666,7 @@ const startGateway = async (): Promise<LocalGateway> => {
     },
     eventUrl: `${baseUrl}/events`,
     events: () => [...receivedEvents],
+    providerUrl: baseUrl,
     url: `${baseUrl}/v1`,
   };
 };
@@ -593,6 +674,7 @@ const startGateway = async (): Promise<LocalGateway> => {
 const createTemporaryProject = async (
   gatewayUrl: string,
   eventUrl: string,
+  providerUrl: string,
   graphImport = "./src/agent.ts:agent"
 ) => {
   const projectPath = await mkdtemp(
@@ -638,7 +720,8 @@ const createTemporaryProject = async (
       "LANGSMITH_TRACING=false",
       "LANGCHAIN_TRACING_V2=false",
       `PERSISTENCE_TEST_EVENTS_URL=${eventUrl}`,
-      "API_FOOTBALL_KEY=",
+      `PERSISTENCE_TEST_PROVIDER_URL=${providerUrl}`,
+      "API_FOOTBALL_KEY=test",
       `TACTISCOUT_FM_PROFILES_PATH=${sourceFixtures.fmDatabasePath}`,
       `TACTISCOUT_UNDERSTAT_DB_PATH=${sourceFixtures.understatDatabasePath}`,
       `TACTISCOUT_REEP_IDENTITY_DB_PATH=${sourceFixtures.reepDatabasePath}`,
@@ -684,7 +767,7 @@ const startServer = async (
       cwd: projectPath,
       env: {
         ...process.env,
-        API_FOOTBALL_KEY: "",
+        API_FOOTBALL_KEY: "test",
         LANGCHAIN_API_KEY: "",
         LANGCHAIN_TRACING_V2: "false",
         LANGSMITH_API_KEY: "",
@@ -843,6 +926,7 @@ const startDevServerSession = async (
     const projectPath = await createTemporaryProject(
       gateway.url,
       gateway.eventUrl,
+      gateway.providerUrl,
       graphImport
     );
 
