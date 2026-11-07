@@ -1,3 +1,5 @@
+import type { AgentStateType } from "../../src/state.js";
+import type { ThreadState } from "./langgraph-dev-server.js";
 import { comparisonResult } from "./workflow-results.js";
 
 type PlayerReference = {
@@ -165,6 +167,37 @@ const savedConversationContext = (
   };
 };
 
-export { playerReference, savedConversationContext };
+const clarificationDetails = (state: ThreadState) => ({
+  hasInterrupt: state.tasks.some((task) => (task.interrupts?.length ?? 0) > 0),
+  question: state.values.pendingClarification?.question ?? null,
+});
+
+const persistedThreadFacts = (state: AgentStateType) => ({
+  conversationContext: {
+    activeComparison: state.conversationContext.activeComparison,
+    activeLookup: state.conversationContext.activeLookup,
+    activeRecommendation: state.conversationContext.activeRecommendation,
+    activeTeamRecommendation:
+      state.conversationContext.activeTeamRecommendation,
+    focusPlayers: state.conversationContext.focusPlayers,
+    playerAliases: state.conversationContext.playerAliases,
+  },
+  faultTolerance: state.faultTolerance,
+  messages: state.messages.map((message) => ({
+    content: message.content,
+    id: message.id,
+    type: message.type,
+  })),
+  outcome: state.outcome,
+  pendingClarification: state.pendingClarification,
+  request: state.request,
+});
+
+export {
+  clarificationDetails,
+  persistedThreadFacts,
+  playerReference,
+  savedConversationContext,
+};
 
 export type { ConversationContext, PlayerReference };

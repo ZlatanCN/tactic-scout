@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -16,7 +16,16 @@ type RunningServer = {
 type LocalGateway = {
   calls: () => string[];
   close: () => Promise<void>;
+  eventUrl: string;
+  events: () => string[];
   url: string;
+};
+
+type DevServerSession = {
+  baseUrl: string;
+  gateway: LocalGateway;
+  close: () => Promise<void>;
+  restart: () => Promise<void>;
 };
 
 const repoRoot = process.cwd();
@@ -29,10 +38,14 @@ const threadStateSchema = z.looseObject({
     .default([]),
   values: z.looseObject({
     conversationContext: z.looseObject({
-      activeComparison: z.object({ resultJson: z.string() }),
-      activeLookup: z.object({ resultJson: z.string() }),
-      activeRecommendation: z.object({ resultJson: z.string() }),
-      activeTeamRecommendation: z.object({ resultJson: z.string() }),
+      activeComparison: z.looseObject({ resultJson: z.string() }).nullable(),
+      activeLookup: z.looseObject({ resultJson: z.string() }).nullable(),
+      activeRecommendation: z
+        .looseObject({ resultJson: z.string() })
+        .nullable(),
+      activeTeamRecommendation: z
+        .looseObject({ resultJson: z.string() })
+        .nullable(),
     }),
     messages: z
       .array(z.object({ content: z.unknown(), type: z.string() }))
@@ -90,6 +103,8 @@ const threadStateSchema = z.looseObject({
   }),
 });
 
+type ThreadState = z.output<typeof threadStateSchema>;
+
 const storeItemSchema = z.object({
   value: z.object({ confirmed: z.boolean(), sourceIds: z.array(z.string()) }),
 });
@@ -112,14 +127,89 @@ const reservePort = async (): Promise<number> => {
 
 const startGateway = async (): Promise<LocalGateway> => {
   const receivedCalls: string[] = [];
+  const receivedEvents: string[] = [];
+  const eventSchema = z.object({ name: z.string() });
+  const chatCompletionId = "chatcmpl-persistence-test";
+  const chatModelName = "persistence-test-model";
 
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
+    const chatRequestSchema = z.looseObject({ stream: z.boolean().optional() });
     request.on("data", (chunk: Buffer) => {
       chunks.push(chunk);
     });
     request.on("end", () => {
-      receivedCalls.push(Buffer.concat(chunks).toString("utf-8"));
+      const body = Buffer.concat(chunks).toString("utf-8");
+
+      if (request.url === "/events") {
+        const event = eventSchema.safeParse(JSON.parse(body));
+
+        if (!event.success) {
+          response.writeHead(400).end();
+
+          return;
+        }
+
+        receivedEvents.push(event.data.name);
+        response.writeHead(204).end();
+
+        return;
+      }
+
+      receivedCalls.push(body);
+
+      const chatRequest = chatRequestSchema.safeParse(JSON.parse(body));
+
+      if (chatRequest.success && chatRequest.data.stream === true) {
+        const chunkMetadata = {
+          created: 0,
+          id: chatCompletionId,
+          model: chatModelName,
+          object: "chat.completion.chunk",
+        };
+
+        response.writeHead(200, {
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+          "content-type": "text/event-stream",
+        });
+        response.write(
+          `data: ${JSON.stringify({
+            ...chunkMetadata,
+            choices: [
+              {
+                delta: {
+                  content: "The saved scouting context is ready.",
+                  role: "assistant",
+                },
+                finish_reason: null,
+                index: 0,
+              },
+            ],
+          })}\n\n`
+        );
+        response.write(
+          `data: ${JSON.stringify({
+            ...chunkMetadata,
+            choices: [{ delta: {}, finish_reason: "stop", index: 0 }],
+          })}\n\n`
+        );
+        response.write(
+          `data: ${JSON.stringify({
+            ...chunkMetadata,
+            choices: [],
+            usage: {
+              completion_tokens: 8,
+              prompt_tokens: 12,
+              total_tokens: 20,
+            },
+          })}\n\n`
+        );
+        response.end("data: [DONE]\n\n");
+
+        return;
+      }
+
       response.writeHead(200, { "content-type": "application/json" });
       response.end(
         JSON.stringify({
@@ -134,8 +224,8 @@ const startGateway = async (): Promise<LocalGateway> => {
             },
           ],
           created: 0,
-          id: "chatcmpl-persistence-test",
-          model: "persistence-test-model",
+          id: chatCompletionId,
+          model: chatModelName,
           object: "chat.completion",
           usage: { completion_tokens: 8, prompt_tokens: 12, total_tokens: 20 },
         })
@@ -152,17 +242,25 @@ const startGateway = async (): Promise<LocalGateway> => {
     throw new Error("Expected a local model gateway port.");
   }
 
+  const baseUrl = `http://127.0.0.1:${address.data.port}`;
+
   return {
-    calls: () => receivedCalls,
+    calls: () => [...receivedCalls],
     close: async () => {
       server.closeAllConnections();
       await server[Symbol.asyncDispose]();
     },
-    url: `http://127.0.0.1:${address.data.port}/v1`,
+    eventUrl: `${baseUrl}/events`,
+    events: () => [...receivedEvents],
+    url: `${baseUrl}/v1`,
   };
 };
 
-const createTemporaryProject = async (gatewayUrl: string) => {
+const createTemporaryProject = async (
+  gatewayUrl: string,
+  eventUrl: string,
+  graphImport = "./src/agent.ts:agent"
+) => {
   const projectPath = await mkdtemp(
     path.join(tmpdir(), "tactiscout-persistence-")
   );
@@ -175,6 +273,11 @@ const createTemporaryProject = async (gatewayUrl: string) => {
     ),
     symlink(path.join(repoRoot, "src"), path.join(projectPath, "src"), "dir"),
     symlink(
+      path.join(repoRoot, "tests"),
+      path.join(projectPath, "tests"),
+      "dir"
+    ),
+    symlink(
       path.join(repoRoot, "package.json"),
       path.join(projectPath, "package.json"),
       "file"
@@ -186,7 +289,7 @@ const createTemporaryProject = async (gatewayUrl: string) => {
     JSON.stringify({
       dependencies: ["."],
       env: ".env",
-      graphs: { agent: "./src/agent.ts:agent" },
+      graphs: { agent: graphImport },
       node_version: "22",
     })
   );
@@ -198,6 +301,7 @@ const createTemporaryProject = async (gatewayUrl: string) => {
       `OPENAI_BASE_URL=${gatewayUrl}`,
       "LANGSMITH_TRACING=false",
       "LANGCHAIN_TRACING_V2=false",
+      `PERSISTENCE_TEST_EVENTS_URL=${eventUrl}`,
       "API_FOOTBALL_KEY=",
       `TACTISCOUT_FM_PROFILES_PATH=${path.join(projectPath, "missing-fm-profiles.json")}`,
       `TACTISCOUT_UNDERSTAT_DB_PATH=${path.join(projectPath, "missing-understat.sqlite")}`,
@@ -393,6 +497,51 @@ const putJson = async (baseUrl: string, pathname: string, body: string) => {
   }
 };
 
+const startDevServerSession = async (
+  graphImport?: string
+): Promise<DevServerSession> => {
+  const gateway = await startGateway();
+  let cleanupPath: string | undefined;
+
+  try {
+    const projectPath = await createTemporaryProject(
+      gateway.url,
+      gateway.eventUrl,
+      graphImport
+    );
+
+    cleanupPath = projectPath;
+    const port = await reservePort();
+    let runningServer = await startServer(projectPath, gateway.url, port);
+
+    const close = async () => {
+      await stopServer(runningServer);
+      await rm(projectPath, { force: true, recursive: true });
+      await gateway.close();
+    };
+
+    const restart = async () => {
+      await stopServer(runningServer);
+      await waitForServerStop(port);
+      runningServer = await startServer(projectPath, gateway.url, port);
+    };
+
+    return {
+      baseUrl: `http://127.0.0.1:${port}`,
+      close,
+      gateway,
+      restart,
+    };
+  } catch (error) {
+    if (cleanupPath !== undefined) {
+      await rm(cleanupPath, { force: true, recursive: true });
+    }
+
+    await gateway.close();
+    throw error;
+  }
+};
+
 const waitResponseSchema = z.unknown();
 
 export {
@@ -404,6 +553,7 @@ export {
   reservePort,
   startGateway,
   startServer,
+  startDevServerSession,
   stopServer,
   storeItemSchema,
   threadStateSchema,
@@ -411,4 +561,6 @@ export {
   waitResponseSchema,
 };
 
-export type { LocalGateway, RunningServer };
+export type { DevServerSession, LocalGateway, RunningServer };
+
+export type { ThreadState };

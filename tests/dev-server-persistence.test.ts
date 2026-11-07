@@ -1,39 +1,116 @@
-import { rm } from "node:fs/promises";
-
 import { describe, expect, it } from "vitest";
 
+import { comparisonResultSchema } from "../src/player-data/compare-records.js";
+import { recommendationResultSchema } from "../src/player-data/recommend-players.js";
+import { AgentState } from "../src/state.js";
+import { teamRecommendationResultSchema } from "../src/team-data/recommendation-result.js";
 import {
   apiThreadSchema,
-  createTemporaryProject,
   postJson,
   putJson,
   requestJson,
-  reservePort,
-  startGateway,
-  startServer,
-  stopServer,
+  startDevServerSession,
   storeItemSchema,
   threadStateSchema,
-  waitForServerStop,
   waitResponseSchema,
 } from "./fixtures/langgraph-dev-server.js";
-import type { RunningServer } from "./fixtures/langgraph-dev-server.js";
+import type {
+  DevServerSession,
+  LocalGateway,
+} from "./fixtures/langgraph-dev-server.js";
 import {
+  clarificationDetails,
+  persistedThreadFacts,
   playerReference,
   savedConversationContext,
 } from "./fixtures/persistence-state.js";
 
+type FailureRecoveryInput = {
+  baseUrl: string;
+  gateway: LocalGateway;
+  runMessage: (content: string) => Promise<void>;
+  session: DevServerSession;
+  threadId: string;
+};
+
+const verifyCompletedFailureWaitsForExplicitRetry = async ({
+  baseUrl,
+  gateway,
+  runMessage,
+  session,
+  threadId,
+}: FailureRecoveryInput) => {
+  const getThreadState = async () =>
+    await requestJson(baseUrl, `/threads/${threadId}/state`, threadStateSchema);
+
+  const priorState = await getThreadState();
+
+  const priorTeamResult =
+    priorState.values.conversationContext.activeTeamRecommendation?.resultJson;
+
+  const failureEvent = "team-search-failure";
+
+  const failureCount = (events: string[]) =>
+    events.filter((event) => event === failureEvent).length;
+
+  const eventsBeforeFailure = gateway.events();
+
+  await runMessage("Recommend a striker for Outage Club");
+  const failedState = await getThreadState();
+  const eventsAfterFailure = gateway.events();
+  await session.restart();
+  const restoredFailure = await getThreadState();
+  const eventsAfterRestart = gateway.events();
+  await postJson(
+    baseUrl,
+    `/threads/${threadId}/runs/wait`,
+    waitResponseSchema,
+    JSON.stringify({ assistant_id: "agent", input: null })
+  );
+  const afterEmptyResume = await getThreadState();
+  const eventsAfterEmptyResume = gateway.events();
+  await runMessage("Retry the Outage Club striker search");
+  const retryState = await getThreadState();
+  const eventsAfterFreshRetry = gateway.events();
+
+  const result = {
+    emptyResumeLeavesFailure: afterEmptyResume.values.outcome?.status,
+    failureOutcome: failedState.values.outcome?.status,
+    freshRetryOutcome: retryState.values.outcome?.status,
+    preservesPriorTeamSnapshot:
+      failedState.values.conversationContext.activeTeamRecommendation
+        ?.resultJson === priorTeamResult &&
+      restoredFailure.values.conversationContext.activeTeamRecommendation
+        ?.resultJson === priorTeamResult,
+    providerCalledDuringFailure:
+      failureCount(eventsAfterFailure) > failureCount(eventsBeforeFailure),
+    providerCalledOnFreshRetry:
+      failureCount(eventsAfterFreshRetry) >
+      failureCount(eventsAfterEmptyResume),
+    providerNotCalledByEmptyResume:
+      failureCount(eventsAfterEmptyResume) === failureCount(eventsAfterRestart),
+    providerNotCalledOnRestart:
+      failureCount(eventsAfterRestart) === failureCount(eventsAfterFailure),
+  };
+
+  expect(result).toStrictEqual({
+    emptyResumeLeavesFailure: "team_provider_error",
+    failureOutcome: "team_provider_error",
+    freshRetryOutcome: "team_provider_error",
+    preservesPriorTeamSnapshot: true,
+    providerCalledDuringFailure: true,
+    providerCalledOnFreshRetry: true,
+    providerNotCalledByEmptyResume: true,
+    providerNotCalledOnRestart: true,
+  });
+};
+
 describe("managed Dev Server persistence", () => {
   it("restores workflow snapshots and a pending clarification after a normal restart", async () => {
-    const gateway = await startGateway();
-    let projectPath: string | null = null;
-    let runningServer: RunningServer | null = null;
+    const session = await startDevServerSession();
+    const { baseUrl, gateway } = session;
 
     try {
-      projectPath = await createTemporaryProject(gateway.url);
-      const port = await reservePort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      runningServer = await startServer(projectPath, gateway.url, port);
       const callsAfterFirstStartup = gateway.calls().length;
 
       const savedThread = await postJson(
@@ -242,11 +319,7 @@ describe("managed Dev Server persistence", () => {
       );
       const callsBeforeRestart = gateway.calls().length;
 
-      await stopServer(runningServer);
-      await waitForServerStop(port);
-      runningServer = null;
-
-      runningServer = await startServer(projectPath, gateway.url, port);
+      await session.restart();
       const callsAtRestart = gateway.calls().length;
 
       const restoredSnapshot = await requestJson(
@@ -314,22 +387,18 @@ describe("managed Dev Server persistence", () => {
       );
 
       expect({
-        identityHasInterrupt: identityInterruptedState.tasks.some(
-          (task) => (task.interrupts?.length ?? 0) > 0
-        ),
-        identityQuestion:
-          identityInterruptedState.values.pendingClarification?.question,
-        rosterHasInterrupt: rosterInterruptedState.tasks.some(
-          (task) => (task.interrupts?.length ?? 0) > 0
-        ),
-        rosterQuestion:
-          rosterInterruptedState.values.pendingClarification?.question,
+        identity: clarificationDetails(identityInterruptedState),
+        roster: clarificationDetails(rosterInterruptedState),
         startupModelCalls: callsAfterFirstStartup,
       }).toStrictEqual({
-        identityHasInterrupt: true,
-        identityQuestion: "Which player do you mean by 凯恩?",
-        rosterHasInterrupt: true,
-        rosterQuestion: "Choose the FM profile for Harry Kane.",
+        identity: {
+          hasInterrupt: true,
+          question: "Which player do you mean by 凯恩?",
+        },
+        roster: {
+          hasInterrupt: true,
+          question: "Choose the FM profile for Harry Kane.",
+        },
         startupModelCalls: 0,
       });
       expect({
@@ -342,16 +411,18 @@ describe("managed Dev Server persistence", () => {
       expect({
         comparison:
           restoredSnapshot.values.conversationContext.activeComparison
-            .resultJson,
+            ?.resultJson ?? "",
         lookup:
-          restoredSnapshot.values.conversationContext.activeLookup.resultJson,
+          restoredSnapshot.values.conversationContext.activeLookup
+            ?.resultJson ?? "",
         outcome: restoredSnapshot.values.outcome,
         recommendation:
           restoredSnapshot.values.conversationContext.activeRecommendation
-            .resultJson,
+            ?.resultJson ?? "",
         savedAnswerUsedSnapshot,
-        team: restoredSnapshot.values.conversationContext
-          .activeTeamRecommendation.resultJson,
+        team:
+          restoredSnapshot.values.conversationContext.activeTeamRecommendation
+            ?.resultJson ?? "",
       }).toStrictEqual({
         comparison: conversationContext.activeComparison.resultJson,
         lookup: conversationContext.activeLookup.resultJson,
@@ -361,22 +432,19 @@ describe("managed Dev Server persistence", () => {
         team: conversationContext.activeTeamRecommendation.resultJson,
       });
       expect({
-        identityHasInterrupt: restoredIdentity.tasks.some(
-          (task) => (task.interrupts?.length ?? 0) > 0
-        ),
-        identityQuestion:
-          restoredIdentity.values.pendingClarification?.question,
+        identity: clarificationDetails(restoredIdentity),
         memory: restoredMemory.value,
-        rosterHasInterrupt: restoredRoster.tasks.some(
-          (task) => (task.interrupts?.length ?? 0) > 0
-        ),
-        rosterQuestion: restoredRoster.values.pendingClarification?.question,
+        roster: clarificationDetails(restoredRoster),
       }).toStrictEqual({
-        identityHasInterrupt: true,
-        identityQuestion: "Which player do you mean by 凯恩?",
+        identity: {
+          hasInterrupt: true,
+          question: "Which player do you mean by 凯恩?",
+        },
         memory: { confirmed: true, sourceIds: ["fm-kane"] },
-        rosterHasInterrupt: true,
-        rosterQuestion: "Choose the FM profile for Harry Kane.",
+        roster: {
+          hasInterrupt: true,
+          question: "Choose the FM profile for Harry Kane.",
+        },
       });
       expect({
         identityPending: resumedIdentity.values.pendingClarification,
@@ -397,15 +465,172 @@ describe("managed Dev Server persistence", () => {
         rosterPending: null,
       });
     } finally {
-      if (runningServer !== null) {
-        await stopServer(runningServer).catch(() => {});
-      }
+      await session.close();
+    }
+  }, 120_000);
 
-      if (projectPath !== null) {
-        await rm(projectPath, { force: true, recursive: true });
-      }
+  it("runs and restores all four business workflows through the managed graph", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/persistence-agent.ts:agent"
+    );
 
-      await gateway.close();
+    const { baseUrl, gateway } = session;
+
+    try {
+      const thread = await postJson(
+        baseUrl,
+        "/threads",
+        apiThreadSchema,
+        JSON.stringify({ metadata: { graph_id: "agent" } })
+      );
+
+      const runMessage = async (content: string): Promise<void> => {
+        await postJson(
+          baseUrl,
+          `/threads/${thread.thread_id}/runs/wait`,
+          waitResponseSchema,
+          JSON.stringify({
+            assistant_id: "agent",
+            input: { messages: [{ content, role: "user" }] },
+          })
+        );
+      };
+
+      const getThreadState = async () =>
+        await requestJson(
+          baseUrl,
+          `/threads/${thread.thread_id}/state`,
+          threadStateSchema
+        );
+
+      await runMessage("Look up Harry Kane");
+      const lookupState = await getThreadState();
+
+      expect({
+        fixtureEvents: gateway.events(),
+        lookupPresent:
+          lookupState.values.conversationContext.activeLookup?.resultJson !==
+          undefined,
+        outcome: lookupState.values.outcome,
+        playerStatus:
+          lookupState.values.request.players?.[0]?.resolution?.status,
+        requestKind: lookupState.values.request.kind,
+      }).toMatchObject({
+        fixtureEvents: ["player-search"],
+        lookupPresent: true,
+        outcome: { kind: "player_lookup", status: "answer_ready" },
+        playerStatus: "resolved",
+        requestKind: "player_lookup",
+      });
+      await runMessage("Compare Harry Kane and Erling Haaland");
+      await runMessage("Find alternatives to Harry Kane");
+      await runMessage("Recommend a striker for Test Club");
+
+      const finishedState = await getThreadState();
+
+      const finishedFacts = persistedThreadFacts(
+        AgentState.parse(finishedState.values)
+      );
+
+      const initialSnapshots = {
+        comparison:
+          finishedState.values.conversationContext.activeComparison
+            ?.resultJson ?? "",
+        lookup:
+          finishedState.values.conversationContext.activeLookup?.resultJson,
+        recommendation:
+          finishedState.values.conversationContext.activeRecommendation
+            ?.resultJson,
+        team: finishedState.values.conversationContext.activeTeamRecommendation
+          ?.resultJson,
+      };
+
+      const fixtureEvents = gateway.events();
+      const modelCallsBeforeRestart = gateway.calls().length;
+
+      await session.restart();
+
+      const restoredState = await getThreadState();
+
+      const restoredFacts = persistedThreadFacts(
+        AgentState.parse(restoredState.values)
+      );
+
+      const restoredSnapshots = {
+        comparison:
+          restoredState.values.conversationContext.activeComparison
+            ?.resultJson ?? "",
+        lookup:
+          restoredState.values.conversationContext.activeLookup?.resultJson,
+        recommendation:
+          restoredState.values.conversationContext.activeRecommendation
+            ?.resultJson,
+        team: restoredState.values.conversationContext.activeTeamRecommendation
+          ?.resultJson,
+      };
+
+      const callsAfterStartup = gateway.calls().length;
+      const eventsAfterStartup = gateway.events();
+
+      await runMessage("Explain the saved team recommendation");
+      const explainedState = await getThreadState();
+      const eventsAfterSavedExplanation = gateway.events();
+
+      await verifyCompletedFailureWaitsForExplicitRetry({
+        baseUrl,
+        gateway,
+        runMessage,
+        session,
+        threadId: thread.thread_id,
+      });
+
+      expect({
+        comparison: comparisonResultSchema.parse(
+          JSON.parse(initialSnapshots.comparison)
+        ).status,
+        lookupPresent: initialSnapshots.lookup !== undefined,
+        recommendation: recommendationResultSchema.parse(
+          JSON.parse(initialSnapshots.recommendation ?? "{}")
+        ).status,
+        team: teamRecommendationResultSchema.parse(
+          JSON.parse(initialSnapshots.team ?? "{}")
+        ).status,
+      }).toStrictEqual({
+        comparison: "ready",
+        lookupPresent: true,
+        recommendation: "ready",
+        team: "ready",
+      });
+      expect({
+        callsAfterStartup,
+        callsBeforeRestart: modelCallsBeforeRestart,
+        eventsAfterStartup,
+        eventsBeforeRestart: fixtureEvents,
+        initialSnapshots,
+        restoredFacts,
+        restoredSnapshots,
+      }).toStrictEqual({
+        callsAfterStartup: modelCallsBeforeRestart,
+        callsBeforeRestart: modelCallsBeforeRestart,
+        eventsAfterStartup: fixtureEvents,
+        eventsBeforeRestart: fixtureEvents,
+        initialSnapshots,
+        restoredFacts: finishedFacts,
+        restoredSnapshots: initialSnapshots,
+      });
+      expect({
+        eventsAfterReuse: eventsAfterSavedExplanation,
+        eventsBeforeReuse: fixtureEvents,
+        outcomeSource: explainedState.values.outcome?.source,
+        outcomeStatus: explainedState.values.outcome?.status,
+      }).toStrictEqual({
+        eventsAfterReuse: fixtureEvents,
+        eventsBeforeReuse: fixtureEvents,
+        outcomeSource: "saved",
+        outcomeStatus: "ready",
+      });
+    } finally {
+      await session.close();
     }
   }, 120_000);
 });
