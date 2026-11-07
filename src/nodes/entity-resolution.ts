@@ -41,6 +41,8 @@ const resolutionOrder = [
   "ambiguous",
 ] as const;
 
+const maxPriorContextAliasReads = 8;
+
 const clarificationPrefixes = [
   "i mean",
   "i meant",
@@ -1106,6 +1108,77 @@ const identityReresolutionRequested = (state: AgentStateType): boolean => {
   );
 };
 
+const requireReresolutionConfirmation = (
+  result: PlayerResolutionState,
+  mention: string
+): PlayerResolutionState => {
+  if (result.status === "resolved") {
+    return {
+      ...result,
+      canonicalIdentityId: null,
+      clarificationMessage: `已重新核实“${mention}”的身份，请确认当前候选。`,
+      mention,
+      selectedCandidateId: null,
+      selectedName: null,
+      status: "needs_confirmation",
+    };
+  }
+
+  if (result.status === "needs_confirmation") {
+    return {
+      ...result,
+      clarificationMessage: `已重新核实“${mention}”的身份，请确认当前候选。${result.clarificationMessage ?? ""}`,
+      mention,
+    };
+  }
+
+  return { ...result, mention };
+};
+
+const reResolvePriorContextReference = async (
+  player: RequestPlayerState,
+  references: ConversationPlayerReference[],
+  context: ConversationContext,
+  lookup: ReferenceIdentityLookup,
+  findMemory: PlayerMemoryLookup
+): Promise<PlayerResolutionState> => {
+  const uniqueReferences = uniqueConversationPlayers(references);
+  const [reference] = uniqueReferences;
+
+  if (reference === undefined || uniqueReferences.length > 1) {
+    return resolveConversationReference(player.mention, references);
+  }
+
+  const aliases = context.playerAliases
+    .filter((item) => item.reference.referenceId === reference.referenceId)
+    .toReversed()
+    .slice(0, maxPriorContextAliasReads);
+
+  const memoryResults = await Promise.all(
+    aliases.map(async (alias) => await findMemory(alias.mention))
+  );
+
+  const rememberedIndex = memoryResults.findIndex(
+    (result) => result.status === "found"
+  );
+
+  const remembered = memoryResults[rememberedIndex];
+
+  const newerMemoryUnavailable = memoryResults
+    .slice(0, rememberedIndex === -1 ? memoryResults.length : rememberedIndex)
+    .some(
+      (result) => result.status === "unavailable" || result.status === "stale"
+    );
+
+  if (remembered?.status === "found" && !newerMemoryUnavailable) {
+    return { ...remembered.resolution, mention: player.mention };
+  }
+
+  const refreshed = await lookup(player.lookupName ?? reference.candidate.name);
+
+  return requireReresolutionConfirmation(refreshed, player.mention);
+};
+
 const resolveRequestPlayer = async (
   player: RequestPlayerState,
   request: RequestState,
@@ -1125,6 +1198,16 @@ const resolveRequestPlayer = async (
       request,
       context
     );
+
+    if (forceReresolution) {
+      return await reResolvePriorContextReference(
+        player,
+        references,
+        context,
+        lookup,
+        findMemory
+      );
+    }
 
     return resolveConversationReference(player.mention, references);
   }

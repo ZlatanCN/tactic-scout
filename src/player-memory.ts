@@ -11,15 +11,14 @@ import {
   readFmProfilesBySourceIds,
   readFmRecommendationReferenceMetadata,
 } from "./player-data/football-manager.js";
-import type {
-  FmReadResult,
-  FmRecommendationReferenceMetadataResult,
-} from "./player-data/football-manager.js";
+import type { FmReadResult } from "./player-data/football-manager.js";
 import { resolveReepSourceIdentities } from "./player-data/reep-registry.js";
 import { normalizeLatinNameSpelling } from "./player-data/shared.js";
 import { readUnderstatBySourceIds } from "./player-data/understat.js";
 
 const playerMemoryNamespace = ["tactiscout", "local-user", "player-memory"];
+const maxPlayerMemoryMatches = 1000;
+const maxPlayerMemoryCandidates = 8;
 
 const memorySourceRecordSchema = z.object({
   canonicalIdentityId: z.string().nullable(),
@@ -130,6 +129,20 @@ type ReepSourceRecord = Extract<
   { status: "ready" }
 >["records"][number];
 
+const fmSourceVersionsFor = (sourceIds: string[]) => {
+  if (sourceIds.length === 0) {
+    return { fmManifestSha256: null, fmSnapshotDate: null };
+  }
+
+  const metadata = readFmRecommendationReferenceMetadata(sourceIds);
+
+  return {
+    fmManifestSha256:
+      metadata.status === "ready" ? metadata.manifestSha256 : null,
+    fmSnapshotDate: metadata.status === "ready" ? metadata.snapshotDate : null,
+  };
+};
+
 const stableHash = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
 
@@ -204,18 +217,10 @@ const sourceVersionsFor = (
     }
   }
 
-  const fmMetadata: FmRecommendationReferenceMetadataResult | null =
-    fmSourceIds.length > 0
-      ? readFmRecommendationReferenceMetadata(fmSourceIds)
-      : null;
-
   const registry = resolveReepSourceIdentities(sourceRecords);
 
   return {
-    fmManifestSha256:
-      fmMetadata?.status === "ready" ? fmMetadata.manifestSha256 : null,
-    fmSnapshotDate:
-      fmMetadata?.status === "ready" ? fmMetadata.snapshotDate : null,
+    ...fmSourceVersionsFor(fmSourceIds),
     identityRegistryRelease:
       registry.status === "ready" ? registry.releaseStamp : null,
     understatScopes,
@@ -638,13 +643,13 @@ const findRememberedPlayerIdentity = async (
   try {
     items = await store.search(playerMemoryNamespace, {
       filter: { kind: "player_identity", normalizedMention },
-      limit: 1000,
+      limit: maxPlayerMemoryMatches,
     });
   } catch {
     return { status: "unavailable" };
   }
 
-  if (items.length === 1000) {
+  if (items.length === maxPlayerMemoryMatches) {
     return { status: "stale" };
   }
 
@@ -699,8 +704,8 @@ const findRememberedPlayerIdentity = async (
 
   const common = {
     candidateCount: uniqueCandidates.length,
-    candidates: uniqueCandidates.slice(0, 8),
-    candidatesTruncated: uniqueCandidates.length > 8,
+    candidates: uniqueCandidates.slice(0, maxPlayerMemoryCandidates),
+    candidatesTruncated: uniqueCandidates.length > maxPlayerMemoryCandidates,
     mention,
   };
 
@@ -798,7 +803,7 @@ const rememberRosterIdentity = async (
     return { status: "unavailable" };
   }
 
-  const fmMetadata = readFmRecommendationReferenceMetadata([confirmation.fmId]);
+  const fmSourceVersions = fmSourceVersionsFor([confirmation.fmId]);
 
   const stableIdentityKey = stableHash(
     JSON.stringify([confirmation.apiFootballPlayerId, confirmation.fmId])
@@ -835,12 +840,7 @@ const rememberRosterIdentity = async (
         rosterPlayerName: confirmation.playerName,
         rosterRetrievedAt: confirmation.rosterRetrievedAt,
         schemaVersion: 1,
-        sourceVersions: {
-          fmManifestSha256:
-            fmMetadata.status === "ready" ? fmMetadata.manifestSha256 : null,
-          fmSnapshotDate:
-            fmMetadata.status === "ready" ? fmMetadata.snapshotDate : null,
-        },
+        sourceVersions: fmSourceVersions,
         stableIdentityKey,
       })
   );
