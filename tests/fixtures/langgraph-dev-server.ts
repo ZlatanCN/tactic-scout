@@ -10,6 +10,8 @@ import { deflateRawSync } from "node:zlib";
 
 import { z } from "zod/v4";
 
+import type { RequestKind } from "../../src/state.js";
+
 const fixtureKaneName = "Harry Kane";
 const fixtureHaalandName = "Erling Haaland";
 const fixtureTeamName = "Test Club";
@@ -188,37 +190,37 @@ const createSourceFixtures = async (projectPath: string) => {
     );
 
     for (const profile of profiles) {
-      const value = profile.ability;
+      const abilityValue = profile.ability;
 
       const compressedProfile = deflateRawSync(
         Buffer.from(
           JSON.stringify({
-            ability_current: value * 10,
-            ability_potential: value * 10 + 15,
+            ability_current: abilityValue * 10,
+            ability_potential: abilityValue * 10 + 15,
             birth_date: profile.birthDate,
             common_name: profile.name,
             full_name: profile.name,
             height_cm: 188,
             name: profile.name,
             natural_positions: "STC",
-            raw_attributes_acceleration: value,
-            raw_attributes_anticipation: value,
-            raw_attributes_composure: value,
-            raw_attributes_decisions: value,
-            raw_attributes_dribbling: value,
-            raw_attributes_finishing: value,
-            raw_attributes_first_touch: value,
-            raw_attributes_heading: value,
-            raw_attributes_jumping_reach: value,
-            raw_attributes_off_the_ball: value,
-            raw_attributes_pace: value,
-            raw_attributes_passing: value,
-            raw_attributes_stamina: value,
-            raw_attributes_strength: value,
-            raw_attributes_teamwork: value,
-            raw_attributes_technique: value,
-            raw_attributes_vision: value,
-            raw_attributes_work_rate: value,
+            raw_attributes_acceleration: abilityValue,
+            raw_attributes_anticipation: abilityValue,
+            raw_attributes_composure: abilityValue,
+            raw_attributes_decisions: abilityValue,
+            raw_attributes_dribbling: abilityValue,
+            raw_attributes_finishing: abilityValue,
+            raw_attributes_first_touch: abilityValue,
+            raw_attributes_heading: abilityValue,
+            raw_attributes_jumping_reach: abilityValue,
+            raw_attributes_off_the_ball: abilityValue,
+            raw_attributes_pace: abilityValue,
+            raw_attributes_passing: abilityValue,
+            raw_attributes_stamina: abilityValue,
+            raw_attributes_strength: abilityValue,
+            raw_attributes_teamwork: abilityValue,
+            raw_attributes_technique: abilityValue,
+            raw_attributes_vision: abilityValue,
+            raw_attributes_work_rate: abilityValue,
             unique_id: profile.fmId,
           })
         )
@@ -291,7 +293,7 @@ type FixtureExtraction = {
   comparisonAction?: "replace" | "add" | "refine";
   constraints: { name: string; value: string }[];
   continuationAction?: "explain" | "refine" | null;
-  kind: string;
+  kind: RequestKind;
   players: {
     lookupName: string | null;
     mention: string;
