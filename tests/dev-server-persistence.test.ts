@@ -23,8 +23,9 @@ import {
   clarificationDetails,
   persistedThreadFacts,
   playerReference,
+  resumedInterruptFacts,
+  savedTeamSnapshotOutcome,
   savedConversationContext,
-  teamRecommendationConditions,
 } from "./fixtures/persistence-state.js";
 
 type FailureRecoveryInput = {
@@ -207,6 +208,25 @@ describe("managed Dev Server persistence", () => {
                   referenceScope: "explicit",
                   referenceTargetMention: null,
                   resolution: playerResolution,
+                },
+                {
+                  attempts: 0,
+                  lookupName: "Erling Haaland",
+                  mention: "Haaland",
+                  recommendationRole: "reference",
+                  referenceScope: "explicit",
+                  referenceTargetMention: null,
+                  resolution: {
+                    candidateCount: 1,
+                    candidates: [haaland.candidate],
+                    candidatesTruncated: false,
+                    canonicalIdentityId: null,
+                    clarificationMessage: null,
+                    mention: "Haaland",
+                    selectedCandidateId: haaland.candidate.candidateId,
+                    selectedName: haaland.candidate.name,
+                    status: "resolved",
+                  },
                 },
               ],
               processedMessageId: "identity-question",
@@ -452,39 +472,51 @@ describe("managed Dev Server persistence", () => {
           question: "Choose the FM profile for Harry Kane.",
         },
       });
-      expect({
-        identityPending: resumedIdentity.values.pendingClarification,
-        identityStatus:
-          resumedIdentity.values.request.players?.[0]?.resolution?.status,
-        rosterConditions: teamRecommendationConditions(resumedRoster),
-        rosterFmId:
-          resumedRoster.values.request.teamRecommendation?.roster?.members[0]
-            ?.fmId,
-        rosterMappingMethod:
-          resumedRoster.values.request.teamRecommendation?.roster?.members[0]
-            ?.mappingMethod,
-        rosterPending: resumedRoster.values.pendingClarification,
-      }).toStrictEqual({
-        identityPending: null,
-        identityStatus: "resolved",
-        rosterConditions: {
-          constraints: [
-            { name: "maximum_age", value: "34" },
-            { name: "minimum_current_ability", value: "130" },
-            { name: "minimum_potential_ability", value: "150" },
-          ],
-          filters: {
-            includePotential: true,
-            maxAge: 34,
-            minimumCurrentAbility: 130,
-            minimumPotentialAbility: 150,
-            position: "stc",
-            resultLimit: 2,
+      expect(
+        resumedInterruptFacts(resumedIdentity, resumedRoster)
+      ).toStrictEqual({
+        identity: {
+          comparisonPlayers: ["Harry Kane", "Erling Haaland"],
+          outcome: {
+            kind: "player_comparison",
+            resultMatchesComparison: true,
+            source: "executed",
+            status: "ready",
+          },
+          pending: null,
+          resolutionStatus: "resolved",
+        },
+        roster: {
+          conditions: {
+            constraints: [
+              { name: "maximum_age", value: "34" },
+              { name: "minimum_current_ability", value: "130" },
+              { name: "minimum_potential_ability", value: "150" },
+            ],
+            filters: {
+              includePotential: true,
+              maxAge: 34,
+              minimumCurrentAbility: 130,
+              minimumPotentialAbility: 150,
+              position: "stc",
+              resultLimit: 2,
+            },
+          },
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          outcome: {
+            kind: "team_recommendation",
+            source: "executed",
+            status: "ready",
+          },
+          pending: null,
+          result: {
+            fmSnapshotDate: "2025-11-23",
+            retrievedAt: "2026-11-06T00:00:00.000Z",
+            status: "ready",
+            team: "Test Club",
           },
         },
-        rosterFmId: "fm-kane",
-        rosterMappingMethod: "user_confirmation",
-        rosterPending: null,
       });
     } finally {
       await session.close();
@@ -675,13 +707,21 @@ describe("managed Dev Server persistence", () => {
       expect({
         eventsAfterReuse: eventsAfterSavedExplanation,
         eventsBeforeReuse: fixtureEvents,
-        outcomeSource: explainedState.values.outcome?.source,
-        outcomeStatus: explainedState.values.outcome?.status,
+        savedSnapshot: savedTeamSnapshotOutcome(
+          initialSnapshots.team,
+          explainedState
+        ),
       }).toStrictEqual({
         eventsAfterReuse: fixtureEvents,
         eventsBeforeReuse: fixtureEvents,
-        outcomeSource: "saved",
-        outcomeStatus: "ready",
+        savedSnapshot: {
+          fmSnapshotDate: "2025-11-23",
+          kind: "team_recommendation",
+          matchesOriginalSnapshot: true,
+          rosterRetrievedAt: "2026-11-07T00:00:00.000Z",
+          source: "saved",
+          status: "ready",
+        },
       });
     } finally {
       await session.close();

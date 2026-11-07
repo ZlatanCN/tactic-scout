@@ -69,6 +69,7 @@ const teamDirectory: ApiFootballClient = createApiFootballClient({
 
     return await fetch(localUrl, init);
   },
+  now: () => new Date("2026-11-07T00:00:00.000Z"),
 });
 
 const agent = createAgent({

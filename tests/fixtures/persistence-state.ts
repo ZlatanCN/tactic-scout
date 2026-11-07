@@ -1,4 +1,6 @@
+import { comparisonResultSchema } from "../../src/player-data/compare-records.js";
 import type { AgentStateType } from "../../src/state.js";
+import { teamRecommendationResultSchema } from "../../src/team-data/recommendation-result.js";
 import type { ThreadState } from "./langgraph-dev-server.js";
 import { comparisonResult } from "./workflow-results.js";
 
@@ -186,6 +188,85 @@ const teamRecommendationConditions = (state: ThreadState) => ({
   },
 });
 
+const resumedIdentityFacts = (state: ThreadState) => {
+  const comparisonJson =
+    state.values.conversationContext.activeComparison?.resultJson ?? "{}";
+
+  const comparison = comparisonResultSchema.parse(JSON.parse(comparisonJson));
+
+  return {
+    comparisonPlayers: comparison.players.map((player) => player.playerName),
+    outcome: {
+      kind: state.values.outcome?.kind,
+      resultMatchesComparison:
+        state.values.outcome?.resultJson === comparisonJson,
+      source: state.values.outcome?.source,
+      status: state.values.outcome?.status,
+    },
+    pending: state.values.pendingClarification,
+    resolutionStatus: state.values.request.players?.[0]?.resolution?.status,
+  };
+};
+
+const resumedRosterFacts = (state: ThreadState) => {
+  const result = teamRecommendationResultSchema.parse(
+    JSON.parse(state.values.outcome?.resultJson ?? "{}")
+  );
+
+  return {
+    conditions: teamRecommendationConditions(state),
+    fmId: state.values.request.teamRecommendation?.roster?.members[0]?.fmId,
+    mappingMethod:
+      state.values.request.teamRecommendation?.roster?.members[0]
+        ?.mappingMethod,
+    outcome: {
+      kind: state.values.outcome?.kind,
+      source: state.values.outcome?.source,
+      status: state.values.outcome?.status,
+    },
+    pending: state.values.pendingClarification,
+    result: {
+      fmSnapshotDate: result.fmSnapshotDate,
+      retrievedAt: result.roster.retrievedAt,
+      status: result.status,
+      team: result.team.name,
+    },
+  };
+};
+
+const resumedInterruptFacts = (
+  identityState: ThreadState,
+  rosterState: ThreadState
+) => ({
+  identity: resumedIdentityFacts(identityState),
+  roster: resumedRosterFacts(rosterState),
+});
+
+const savedTeamSnapshotOutcome = (
+  originalSnapshotJson: string | undefined,
+  state: ThreadState
+) => {
+  const originalSnapshot = teamRecommendationResultSchema.parse(
+    JSON.parse(originalSnapshotJson ?? "{}")
+  );
+
+  const { outcome } = state.values;
+
+  const reusedSnapshot = teamRecommendationResultSchema.parse(
+    JSON.parse(outcome?.resultJson ?? "{}")
+  );
+
+  return {
+    fmSnapshotDate: reusedSnapshot.fmSnapshotDate,
+    kind: outcome?.kind,
+    matchesOriginalSnapshot:
+      JSON.stringify(reusedSnapshot) === JSON.stringify(originalSnapshot),
+    rosterRetrievedAt: reusedSnapshot.roster.retrievedAt,
+    source: outcome?.source,
+    status: outcome?.status,
+  };
+};
+
 const activeRecommendationFromState = (state: ThreadState) => {
   const { activeRecommendation } = state.values.conversationContext;
 
@@ -229,6 +310,8 @@ export {
   persistedThreadFacts,
   playerReference,
   savedConversationContext,
+  resumedInterruptFacts,
+  savedTeamSnapshotOutcome,
   teamRecommendationConditions,
 };
 
