@@ -14,7 +14,6 @@ import type { RequestKind } from "../../src/state.js";
 
 const fixtureKaneName = "Harry Kane";
 const fixtureHaalandName = "Erling Haaland";
-const fixtureMbappeName = "Kylian Mbappé";
 const fixtureTeamName = "Test Club";
 const fixtureOutageTeamName = "Outage Club";
 
@@ -176,12 +175,6 @@ const createSourceFixtures = async (projectPath: string) => {
       fmId: "fm-prospect",
       name: "Fixture Prospect",
     },
-    {
-      ability: 17,
-      birthDate: "1998-12-20",
-      fmId: "fm-mbappe",
-      name: fixtureMbappeName,
-    },
   ];
 
   const fmDatabase = new DatabaseSync(fmDatabasePath);
@@ -213,10 +206,6 @@ const createSourceFixtures = async (projectPath: string) => {
 
     const insertPosition = fmDatabase.prepare(
       "INSERT INTO positions (record_id, position, rating) VALUES (?, ?, ?)"
-    );
-
-    const insertAlias = fmDatabase.prepare(
-      "INSERT INTO aliases (record_id, name) VALUES (?, ?)"
     );
 
     for (const profile of profiles) {
@@ -265,10 +254,6 @@ const createSourceFixtures = async (projectPath: string) => {
         compressedProfile
       );
       insertPosition.run(recordId, "stc", 20);
-
-      if (profile.fmId === "fm-kane" || profile.fmId === "fm-haaland") {
-        insertAlias.run(recordId, "Kane");
-      }
     }
   } finally {
     fmDatabase.close();
@@ -316,31 +301,6 @@ const createSourceFixtures = async (projectPath: string) => {
     understatDatabase.exec(
       "CREATE TABLE source_snapshots (kind TEXT, resource_id TEXT, season_start_year INTEGER, payload_json TEXT)"
     );
-    understatDatabase
-      .prepare(
-        "INSERT INTO source_snapshots (kind, resource_id, season_start_year, payload_json) VALUES ('league', 'Bundesliga', 2025, ?)"
-      )
-      .run(
-        JSON.stringify({
-          players: [
-            {
-              assists: "1",
-              games: "10",
-              goals: "4",
-              id: "understat-mbappe",
-              key_passes: "8",
-              npxG: "3.5",
-              player_name: fixtureMbappeName,
-              position: "F",
-              shots: "22",
-              team_title: "Fixture FC",
-              time: "850",
-              xA: "1.1",
-              xG: "4.2",
-            },
-          ],
-        })
-      );
   } finally {
     understatDatabase.close();
   }
@@ -411,15 +371,6 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
       constraints: [],
       kind: "player_lookup",
       players: [fixturePlayer(fixtureKaneName)],
-      teams: [],
-    },
-  ],
-  [
-    `Look up ${fixtureMbappeName}`,
-    {
-      constraints: [],
-      kind: "player_lookup",
-      players: [fixturePlayer(fixtureMbappeName)],
       teams: [],
     },
   ],
@@ -1050,7 +1001,6 @@ const waitResponseSchema = z.unknown();
 
 export {
   apiThreadSchema,
-  createSourceFixtures,
   createTemporaryProject,
   postJson,
   putJson,

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { BaseStore } from "@langchain/langgraph";
+import type { BaseStore, Item } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import type {
@@ -29,7 +29,6 @@ const memorySourceRecordSchema = z.object({
   provider: z.enum(["fm", "understat"]),
   season: z.string().nullable(),
   sourceId: z.string().min(1),
-  team: z.string().nullable(),
 });
 
 const sourceVersionsSchema = z.object({
@@ -80,6 +79,10 @@ const rosterIdentityMemorySchema = z.object({
 });
 
 type PlayerIdentityMemory = z.output<typeof playerIdentityMemorySchema>;
+
+type RosterIdentityMemory = z.output<typeof rosterIdentityMemorySchema>;
+
+type PlayerMemoryRecord = PlayerIdentityMemory | RosterIdentityMemory;
 
 type MemorySourceRecord = z.output<typeof memorySourceRecordSchema>;
 
@@ -160,7 +163,6 @@ const sourceRecordsForCandidate = (candidate: ReferenceCandidate) => {
       provider: record.provider,
       season: record.season,
       sourceId: record.sourceId,
-      team: record.team,
     });
   }
 
@@ -249,6 +251,37 @@ const sourceRecordKey = (record: {
     record.season,
   ]);
 
+const writeMemoryRecord = async (
+  store: BaseStore,
+  storeKey: string,
+  matchesExisting: (item: Item) => boolean,
+  createRecord: () => PlayerMemoryRecord
+): Promise<PlayerMemoryWriteResult> => {
+  let existing;
+
+  try {
+    existing = await store.get(playerMemoryNamespace, storeKey);
+  } catch {
+    return { status: "unavailable" };
+  }
+
+  if (existing !== null) {
+    return matchesExisting(existing)
+      ? { status: "existing" }
+      : { status: "unavailable" };
+  }
+
+  const record = createRecord();
+
+  try {
+    await store.put(playerMemoryNamespace, storeKey, record, false);
+
+    return { status: "saved" };
+  } catch {
+    return { status: "unavailable" };
+  }
+};
+
 type MemoryCandidateIdentity = {
   canonicalIdentityId: string | null;
   identityBasis: "reep_registry" | "thread_confirmed";
@@ -275,10 +308,7 @@ const candidateFromMemory = (
   identityBasis: identity.identityBasis,
   identityVerified: identity.identityVerified,
   name: memory.displayName,
-  records: records.map((record) => ({
-    ...record,
-    identityVerified: record.identityVerified,
-  })),
+  records: records.map((record) => ({ ...record, team: null })),
 });
 
 const readCurrentFmSourceRecords = (
@@ -355,9 +385,7 @@ const readCurrentUnderstatSourceRecord = (
   }
 
   return {
-    sourceRecords: [
-      { ...memoryRecord, name: record.player, team: record.team },
-    ],
+    sourceRecords: [{ ...memoryRecord, name: record.player }],
     status: "ready",
   };
 };
@@ -720,54 +748,43 @@ const rememberPlayerIdentity = async (
   );
 
   const storeKey = `v1:player-identity:${stableIdentityKey}`;
-  let existing;
 
-  try {
-    existing = await store.get(playerMemoryNamespace, storeKey);
-  } catch {
-    return { status: "unavailable" };
-  }
+  return await writeMemoryRecord(
+    store,
+    storeKey,
+    (item) => {
+      const parsed = playerIdentityMemorySchema.safeParse(item.value);
 
-  if (existing !== null) {
-    const parsed = playerIdentityMemorySchema.safeParse(existing.value);
-
-    return parsed.success && parsed.data.stableIdentityKey === stableIdentityKey
-      ? { status: "existing" }
-      : { status: "unavailable" };
-  }
-
-  const record = playerIdentityMemorySchema.parse({
-    canonicalIdentityId: confirmation.candidate.identityVerified
-      ? confirmation.candidate.canonicalIdentityId
-      : null,
-    confirmationId: stableHash(
-      JSON.stringify([
-        confirmation.originThreadId,
-        confirmation.processedMessageId,
-        confirmation.playerIndex,
+      return (
+        parsed.success && parsed.data.stableIdentityKey === stableIdentityKey
+      );
+    },
+    () =>
+      playerIdentityMemorySchema.parse({
+        canonicalIdentityId: confirmation.candidate.identityVerified
+          ? confirmation.candidate.canonicalIdentityId
+          : null,
+        confirmationId: stableHash(
+          JSON.stringify([
+            confirmation.originThreadId,
+            confirmation.processedMessageId,
+            confirmation.playerIndex,
+            stableIdentityKey,
+          ])
+        ),
+        confirmedAt: new Date().toISOString(),
+        displayName: confirmation.candidate.name,
+        identityVerified: confirmation.candidate.identityVerified,
+        kind: "player_identity",
+        normalizedMention,
+        originThreadId: confirmation.originThreadId,
+        originalMention: confirmation.mention,
+        schemaVersion: 1,
+        sourceRecords,
+        sourceVersions: sourceVersionsFor(sourceRecords),
         stableIdentityKey,
-      ])
-    ),
-    confirmedAt: new Date().toISOString(),
-    displayName: confirmation.candidate.name,
-    identityVerified: confirmation.candidate.identityVerified,
-    kind: "player_identity",
-    normalizedMention,
-    originThreadId: confirmation.originThreadId,
-    originalMention: confirmation.mention,
-    schemaVersion: 1,
-    sourceRecords,
-    sourceVersions: sourceVersionsFor(sourceRecords),
-    stableIdentityKey,
-  });
-
-  try {
-    await store.put(playerMemoryNamespace, storeKey, record, false);
-
-    return { status: "saved" };
-  } catch {
-    return { status: "unavailable" };
-  }
+      })
+  );
 };
 
 const rememberRosterIdentity = async (
@@ -788,56 +805,45 @@ const rememberRosterIdentity = async (
   );
 
   const storeKey = `v1:roster-identity:${stableIdentityKey}`;
-  let existing;
 
-  try {
-    existing = await store.get(playerMemoryNamespace, storeKey);
-  } catch {
-    return { status: "unavailable" };
-  }
+  return await writeMemoryRecord(
+    store,
+    storeKey,
+    (item) => {
+      const parsed = rosterIdentityMemorySchema.safeParse(item.value);
 
-  if (existing !== null) {
-    const parsed = rosterIdentityMemorySchema.safeParse(existing.value);
-
-    return parsed.success && parsed.data.stableIdentityKey === stableIdentityKey
-      ? { status: "existing" }
-      : { status: "unavailable" };
-  }
-
-  const record = rosterIdentityMemorySchema.parse({
-    apiFootballPlayerId: confirmation.apiFootballPlayerId,
-    confirmationId: stableHash(
-      JSON.stringify([
-        confirmation.originThreadId,
-        confirmation.processedMessageId,
-        confirmation.rosterIndex,
-        stableIdentityKey,
-      ])
-    ),
-    confirmedAt: new Date().toISOString(),
-    fmId: confirmation.fmId,
-    fmPlayerName: confirmation.fmPlayerName,
-    kind: "roster_identity",
-    originThreadId: confirmation.originThreadId,
-    rosterPlayerName: confirmation.playerName,
-    rosterRetrievedAt: confirmation.rosterRetrievedAt,
-    schemaVersion: 1,
-    sourceVersions: {
-      fmManifestSha256:
-        fmMetadata.status === "ready" ? fmMetadata.manifestSha256 : null,
-      fmSnapshotDate:
-        fmMetadata.status === "ready" ? fmMetadata.snapshotDate : null,
+      return (
+        parsed.success && parsed.data.stableIdentityKey === stableIdentityKey
+      );
     },
-    stableIdentityKey,
-  });
-
-  try {
-    await store.put(playerMemoryNamespace, storeKey, record, false);
-
-    return { status: "saved" };
-  } catch {
-    return { status: "unavailable" };
-  }
+    () =>
+      rosterIdentityMemorySchema.parse({
+        apiFootballPlayerId: confirmation.apiFootballPlayerId,
+        confirmationId: stableHash(
+          JSON.stringify([
+            confirmation.originThreadId,
+            confirmation.processedMessageId,
+            confirmation.rosterIndex,
+            stableIdentityKey,
+          ])
+        ),
+        confirmedAt: new Date().toISOString(),
+        fmId: confirmation.fmId,
+        fmPlayerName: confirmation.fmPlayerName,
+        kind: "roster_identity",
+        originThreadId: confirmation.originThreadId,
+        rosterPlayerName: confirmation.playerName,
+        rosterRetrievedAt: confirmation.rosterRetrievedAt,
+        schemaVersion: 1,
+        sourceVersions: {
+          fmManifestSha256:
+            fmMetadata.status === "ready" ? fmMetadata.manifestSha256 : null,
+          fmSnapshotDate:
+            fmMetadata.status === "ready" ? fmMetadata.snapshotDate : null,
+        },
+        stableIdentityKey,
+      })
+  );
 };
 
 export {

@@ -13,8 +13,19 @@ import { z } from "zod/v4";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import { resolvePlayerReference } from "../src/player-data/resolve-reference.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
+import { AgentState } from "../src/state.js";
 import type { AgentStateType, ReferenceCandidate } from "../src/state.js";
-import { createSourceFixtures } from "./fixtures/langgraph-dev-server.js";
+import {
+  apiThreadSchema,
+  postJson,
+  requestJson,
+  startDevServerSession,
+  threadStateSchema,
+  waitResponseSchema,
+} from "./fixtures/langgraph-dev-server.js";
+import type { ThreadState } from "./fixtures/langgraph-dev-server.js";
+import { clarificationDetails } from "./fixtures/persistence-state.js";
+import { createPlayerMemorySources } from "./fixtures/player-memory-sources.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 
@@ -52,7 +63,7 @@ const sourceGroupExtractor =
 const withSourceFixtures = async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "tactiscout-memory-"));
   temporaryDirectories.push(directory);
-  const sourcePaths = await createSourceFixtures(directory);
+  const sourcePaths = await createPlayerMemorySources(directory);
 
   vi.stubEnv("OPENAI_BASE_URL", "http://127.0.0.1:1");
   vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", sourcePaths.fmDatabasePath);
@@ -110,6 +121,9 @@ const selectedIdentity = (state: AgentStateType) => {
     status: resolution.status,
   };
 };
+
+const selectedServerIdentity = (state: ThreadState) =>
+  selectedIdentity(AgentState.parse(state.values));
 
 describe("cross-thread player memory", () => {
   afterEach(async () => {
@@ -339,9 +353,9 @@ describe("cross-thread player memory", () => {
           },
         ],
         sourceVersions: {
-          fmManifestSha256: "persistence-test-snapshot",
+          fmManifestSha256: "player-memory-test-snapshot",
           fmSnapshotDate: "2025-11-23",
-          identityRegistryRelease: "persistence-test-release",
+          identityRegistryRelease: "player-memory-test-reep-release",
           understatScopes: [
             {
               competition: "Bundesliga",
@@ -635,4 +649,180 @@ describe("cross-thread player memory", () => {
       status: "needs_confirmation",
     });
   });
+
+  it("reuses a cross-provider confirmation through the managed Store after restart", async () => {
+    await withSourceFixtures();
+
+    const session = await startDevServerSession(
+      "./tests/fixtures/player-memory-agent.ts:agent"
+    );
+
+    const { baseUrl } = session;
+
+    const createThread = async () =>
+      await postJson(
+        baseUrl,
+        "/threads",
+        apiThreadSchema,
+        JSON.stringify({ metadata: { graph_id: "agent" } })
+      );
+
+    const runLookup = async (threadId: string, message: string) =>
+      await postJson(
+        baseUrl,
+        `/threads/${threadId}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          input: { messages: [{ content: message, role: "user" }] },
+        })
+      );
+
+    const getThreadState = async (threadId: string) =>
+      await requestJson(
+        baseUrl,
+        `/threads/${threadId}/state`,
+        threadStateSchema
+      );
+
+    try {
+      const threadA = await createThread();
+      await runLookup(threadA.thread_id, "Look up Kylian Mbappé");
+      const pendingA = await getThreadState(threadA.thread_id);
+
+      const candidates =
+        pendingA.values.request.players?.[0]?.resolution?.candidates ?? [];
+
+      const candidateIdForSource = (
+        provider: "fm" | "understat",
+        sourceId: string
+      ) =>
+        candidates.find((candidate) =>
+          candidate.records.some(
+            (record) =>
+              record.provider === provider && record.sourceId === sourceId
+          )
+        )?.candidateId;
+
+      const fmCandidateId = candidateIdForSource("fm", "fm-mbappe");
+
+      const understatCandidateId = candidateIdForSource(
+        "understat",
+        "understat-mbappe"
+      );
+
+      if (fmCandidateId === undefined || understatCandidateId === undefined) {
+        throw new Error(
+          "The managed Store thread did not return both sources."
+        );
+      }
+
+      await postJson(
+        baseUrl,
+        `/threads/${threadA.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: {
+            resume: {
+              candidateIds: [fmCandidateId, understatCandidateId],
+            },
+          },
+        })
+      );
+
+      const confirmed = await getThreadState(threadA.thread_id);
+      const threadB = await createThread();
+      await runLookup(threadB.thread_id, "Look up Kylian Mbappe");
+      const stateB = await getThreadState(threadB.thread_id);
+      await session.restart();
+      const threadC = await createThread();
+      await runLookup(threadC.thread_id, "Look up Kylian Mbappe");
+      const stateC = await getThreadState(threadC.thread_id);
+
+      expect({
+        confirmed: selectedServerIdentity(confirmed),
+        pending: clarificationDetails(pendingA),
+        threadB: {
+          clarification: clarificationDetails(stateB),
+          identity: selectedServerIdentity(stateB),
+        },
+        threadC: {
+          clarification: clarificationDetails(stateC),
+          identity: selectedServerIdentity(stateC),
+        },
+      }).toStrictEqual({
+        confirmed: {
+          canonicalIdentityId: null,
+          identityBasis: "thread_confirmed",
+          records: [
+            {
+              canonicalIdentityId: "canonical:mbappe",
+              identityVerified: true,
+              provider: "fm",
+              sourceId: "fm-mbappe",
+            },
+            {
+              canonicalIdentityId: null,
+              identityVerified: false,
+              provider: "understat",
+              sourceId: "understat-mbappe",
+            },
+          ],
+          status: "resolved",
+        },
+        pending: {
+          hasInterrupt: true,
+          question:
+            "“Kylian Mbappé”匹配到多个同名候选。请回复候选编号，或补充球队、赛事或赛季；多个编号（例如 1,2）表示你确认这些来源记录属于同一人。",
+        },
+        threadB: {
+          clarification: { hasInterrupt: false, question: null },
+          identity: {
+            canonicalIdentityId: null,
+            identityBasis: "thread_confirmed",
+            records: [
+              {
+                canonicalIdentityId: "canonical:mbappe",
+                identityVerified: true,
+                provider: "fm",
+                sourceId: "fm-mbappe",
+              },
+              {
+                canonicalIdentityId: null,
+                identityVerified: false,
+                provider: "understat",
+                sourceId: "understat-mbappe",
+              },
+            ],
+            status: "resolved",
+          },
+        },
+        threadC: {
+          clarification: { hasInterrupt: false, question: null },
+          identity: {
+            canonicalIdentityId: null,
+            identityBasis: "thread_confirmed",
+            records: [
+              {
+                canonicalIdentityId: "canonical:mbappe",
+                identityVerified: true,
+                provider: "fm",
+                sourceId: "fm-mbappe",
+              },
+              {
+                canonicalIdentityId: null,
+                identityVerified: false,
+                provider: "understat",
+                sourceId: "understat-mbappe",
+              },
+            ],
+            status: "resolved",
+          },
+        },
+      });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
 });
