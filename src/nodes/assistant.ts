@@ -588,9 +588,36 @@ const faultFailureAnswer = (state: AgentStateType): string => {
     : completedResultExplanationFailure;
 };
 
-const createFaultAnswerNode = (): GraphNode<typeof AgentState> => (state) => ({
-  messages: [new AIMessage(faultFailureAnswer(state))],
-});
+const playerMemoryNotice = (state: AgentStateType): string => {
+  const notices: string[] = [];
+
+  const memoryStatus = state.playerMemoryStatus ?? {
+    readFailed: false,
+    writeFailed: false,
+  };
+
+  if (memoryStatus.readFailed) {
+    notices.push(
+      "这次无法读取跨对话的球员身份记忆，我已改用当前资料继续核对。"
+    );
+  }
+
+  if (memoryStatus.writeFailed) {
+    notices.push(
+      "当前对话中的身份确认仍然有效，但未能保存到跨对话记忆；新对话可能需要再次确认。"
+    );
+  }
+
+  return notices.join("\n\n");
+};
+
+const createFaultAnswerNode = (): GraphNode<typeof AgentState> => (state) => {
+  const answer = [faultFailureAnswer(state), playerMemoryNotice(state)]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
+
+  return { messages: [new AIMessage(answer)] };
+};
 
 const createLookupPlayerNode =
   (
@@ -691,6 +718,48 @@ const assistantTextFromContent = (
     : null;
 };
 
+const answerWithPlayerMemoryNotice = (
+  state: AgentStateType,
+  answer: BaseMessage
+): BaseMessage => {
+  const notice = playerMemoryNotice(state);
+
+  if (notice.length === 0) {
+    return answer;
+  }
+
+  const answerText = assistantTextFromContent(answer.content);
+
+  const content = answerText === null ? notice : `${answerText}\n\n${notice}`;
+
+  return new AIMessage({ content, id: answer.id ?? undefined });
+};
+
+const lookupAnswerUpdate = (
+  state: AgentStateType
+): Partial<AgentStateType> | null => {
+  const status = state.outcome?.status;
+
+  if (status !== "answer_ready" && status !== "data_ready") {
+    return null;
+  }
+
+  const notice = playerMemoryNotice(state);
+
+  if (notice.length === 0) {
+    return {};
+  }
+
+  return {
+    messages: [
+      answerWithPlayerMemoryNotice(
+        state,
+        state.messages.at(-1) ?? new AIMessage("")
+      ),
+    ],
+  };
+};
+
 const correctionForOutcomeAnswer = (
   answer: string,
   outcome: AgentStateType["outcome"]
@@ -743,11 +812,42 @@ const createAnswerNode = (
     );
   };
 
+  const answerSavedLookupFollowUp = async (
+    state: AgentStateType,
+    runtime: ModelRuntime
+  ) => {
+    const latestUserMessage = latestHumanMessage(state.messages);
+
+    const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
+
+    const response = await invokeAnswerModel(
+      [
+        new SystemMessage(lookupFollowUpPrompt),
+        new HumanMessage(
+          `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${state.outcome?.resultJson ?? ""}`
+        ),
+      ],
+      runtime
+    );
+
+    const answer =
+      response instanceof BaseMessage ? response : new AIMessage(response);
+
+    return { messages: [answerWithPlayerMemoryNotice(state, answer)] };
+  };
+
   return async (state, runtime) => {
     const { outcome } = state;
 
     if (outcome === null) {
-      return { messages: [new AIMessage(requestBoundaryAnswer(state))] };
+      return {
+        messages: [
+          answerWithPlayerMemoryNotice(
+            state,
+            new AIMessage(requestBoundaryAnswer(state))
+          ),
+        ],
+      };
     }
 
     if (outcome.kind === "player_lookup") {
@@ -755,32 +855,13 @@ const createAnswerNode = (
         outcome.status === "lookup_follow_up" &&
         outcome.resultJson !== null
       ) {
-        const latestUserMessage = latestHumanMessage(state.messages);
-
-        const requestText = latestUserMessage
-          ? messageText(latestUserMessage)
-          : "";
-
-        const response = await invokeAnswerModel(
-          [
-            new SystemMessage(lookupFollowUpPrompt),
-            new HumanMessage(
-              `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${
-                outcome.resultJson
-              }`
-            ),
-          ],
-          runtime
-        );
-
-        return { messages: [response] };
+        return await answerSavedLookupFollowUp(state, runtime);
       }
 
-      if (
-        outcome.status === "answer_ready" ||
-        outcome.status === "data_ready"
-      ) {
-        return {};
+      const readyUpdate = lookupAnswerUpdate(state);
+
+      if (readyUpdate !== null) {
+        return readyUpdate;
       }
 
       const message =
@@ -789,18 +870,29 @@ const createAnswerNode = (
           : (fixedOutcomeAnswer(state) ??
             "当前请求无法完成球员资料查询。请检查已确认的身份和数据源记录。");
 
-      return { messages: [new AIMessage(message)] };
+      return {
+        messages: [answerWithPlayerMemoryNotice(state, new AIMessage(message))],
+      };
     }
 
     const fixedAnswer = fixedOutcomeAnswer(state);
 
     if (fixedAnswer !== null) {
-      return { messages: [new AIMessage(fixedAnswer)] };
+      return {
+        messages: [
+          answerWithPlayerMemoryNotice(state, new AIMessage(fixedAnswer)),
+        ],
+      };
     }
 
     if (outcome.resultJson === null) {
       return {
-        messages: [new AIMessage("本次请求没有生成可供解释的结构化结果。")],
+        messages: [
+          answerWithPlayerMemoryNotice(
+            state,
+            new AIMessage("本次请求没有生成可供解释的结构化结果。")
+          ),
+        ],
       };
     }
 
@@ -828,7 +920,14 @@ const createAnswerNode = (
     const answer =
       response instanceof BaseMessage ? response : new AIMessage(response);
 
-    return { messages: [recommendationAnswerMessage(answer, outcome)] };
+    return {
+      messages: [
+        answerWithPlayerMemoryNotice(
+          state,
+          recommendationAnswerMessage(answer, outcome)
+        ),
+      ],
+    };
   };
 };
 

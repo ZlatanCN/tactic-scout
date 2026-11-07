@@ -19,6 +19,7 @@ import {
 import type {
   DevServerSession,
   LocalGateway,
+  ThreadState,
 } from "./fixtures/langgraph-dev-server.js";
 import {
   activeRecommendationFromState,
@@ -30,6 +31,69 @@ import {
   savedConversationContext,
   workflowSnapshots,
 } from "./fixtures/persistence-state.js";
+
+const resolvedIdentitySelection = (state: ThreadState) => {
+  const resolution = state.values.request.players?.[0]?.resolution;
+
+  const selectedCandidate = resolution?.candidates?.find(
+    (candidate) => candidate.candidateId === resolution.selectedCandidateId
+  );
+
+  return {
+    selectedCandidateId: resolution?.selectedCandidateId ?? null,
+    sourceRecords:
+      selectedCandidate?.records
+        .map(
+          ({ canonicalIdentityId, identityVerified, provider, sourceId }) => ({
+            canonicalIdentityId,
+            identityVerified,
+            provider,
+            sourceId,
+          })
+        )
+        .toSorted(
+          (left, right) =>
+            left.provider.localeCompare(right.provider) ||
+            left.sourceId.localeCompare(right.sourceId)
+        ) ?? [],
+    status: resolution?.status ?? null,
+  };
+};
+
+const resolvedIdentityRecords = (state: ThreadState) => {
+  const selection = resolvedIdentitySelection(state);
+
+  return {
+    sourceRecords: selection.sourceRecords,
+    status: selection.status,
+  };
+};
+
+const createAgentThread = async (baseUrl: string) =>
+  await postJson(
+    baseUrl,
+    "/threads",
+    apiThreadSchema,
+    JSON.stringify({ metadata: { graph_id: "agent" } })
+  );
+
+const getAgentThreadState = async (baseUrl: string, threadId: string) =>
+  await requestJson(baseUrl, `/threads/${threadId}/state`, threadStateSchema);
+
+const runPlayerLookup = async (
+  baseUrl: string,
+  threadId: string,
+  message: string
+) =>
+  await postJson(
+    baseUrl,
+    `/threads/${threadId}/runs/wait`,
+    waitResponseSchema,
+    JSON.stringify({
+      assistant_id: "agent",
+      input: { messages: [{ content: message, role: "user" }] },
+    })
+  );
 
 type FailureRecoveryInput = {
   baseUrl: string;
@@ -128,6 +192,252 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
 };
 
 describe("managed Dev Server persistence", () => {
+  it("reuses an explicitly confirmed Chinese player alias across restart and thread deletion", async () => {
+    const session = await startDevServerSession();
+    const { baseUrl } = session;
+
+    try {
+      const threadA = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, threadA.thread_id, "Look up 凯恩");
+      const pendingA = await getAgentThreadState(baseUrl, threadA.thread_id);
+
+      await postJson(
+        baseUrl,
+        `/threads/${threadA.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: { resume: { candidateId: "reep:canonical:kane" } },
+        })
+      );
+
+      const confirmedA = await getAgentThreadState(baseUrl, threadA.thread_id);
+
+      const deleteResponse = await fetch(
+        `${baseUrl}/threads/${threadA.thread_id}`,
+        { method: "DELETE" }
+      );
+
+      if (!deleteResponse.ok) {
+        throw new Error(
+          `Could not delete the confirmed thread: ${deleteResponse.status}`
+        );
+      }
+
+      const threadB = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, threadB.thread_id, "Look up 凯恩");
+      const stateB = await getAgentThreadState(baseUrl, threadB.thread_id);
+      await session.restart();
+      const threadC = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, threadC.thread_id, "Look up 凯恩");
+      const stateC = await getAgentThreadState(baseUrl, threadC.thread_id);
+
+      expect({
+        confirmedA: clarificationDetails(pendingA),
+        confirmedIdentity: resolvedIdentitySelection(confirmedA),
+        threadB: {
+          clarification: clarificationDetails(stateB),
+          identity: resolvedIdentitySelection(stateB),
+        },
+        threadC: {
+          clarification: clarificationDetails(stateC),
+          identity: resolvedIdentitySelection(stateC),
+        },
+      }).toStrictEqual({
+        confirmedA: {
+          hasInterrupt: true,
+          question:
+            "你写的是“凯恩”。本地资料中找到“Harry Kane”，请确认是否指这位球员。",
+        },
+        confirmedIdentity: {
+          selectedCandidateId: "reep:canonical:kane",
+          sourceRecords: [
+            {
+              canonicalIdentityId: "canonical:kane",
+              identityVerified: true,
+              provider: "fm",
+              sourceId: "fm-kane",
+            },
+          ],
+          status: "resolved",
+        },
+        threadB: {
+          clarification: { hasInterrupt: false, question: null },
+          identity: {
+            selectedCandidateId: "reep:canonical:kane",
+            sourceRecords: [
+              {
+                canonicalIdentityId: "canonical:kane",
+                identityVerified: true,
+                provider: "fm",
+                sourceId: "fm-kane",
+              },
+            ],
+            status: "resolved",
+          },
+        },
+        threadC: {
+          clarification: { hasInterrupt: false, question: null },
+          identity: {
+            selectedCandidateId: "reep:canonical:kane",
+            sourceRecords: [
+              {
+                canonicalIdentityId: "canonical:kane",
+                identityVerified: true,
+                provider: "fm",
+                sourceId: "fm-kane",
+              },
+            ],
+            status: "resolved",
+          },
+        },
+      });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
+  it("reuses an explicitly confirmed FM and Understat source group after restart", async () => {
+    const session = await startDevServerSession();
+    const { baseUrl } = session;
+    const sourceGroupPlayer = "Kylian Mbappé";
+
+    try {
+      const threadA = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        threadA.thread_id,
+        `Look up ${sourceGroupPlayer}`
+      );
+      const pendingA = await getAgentThreadState(baseUrl, threadA.thread_id);
+
+      const candidates =
+        pendingA.values.request.players?.[0]?.resolution?.candidates ?? [];
+
+      if (candidates.length !== 2) {
+        throw new Error(
+          `Expected separate FM and Understat candidates: ${JSON.stringify(candidates)}`
+        );
+      }
+
+      await postJson(
+        baseUrl,
+        `/threads/${threadA.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: {
+            resume: {
+              candidateIds: candidates.map(({ candidateId }) => candidateId),
+            },
+          },
+        })
+      );
+
+      const confirmedA = await getAgentThreadState(baseUrl, threadA.thread_id);
+      const threadB = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        threadB.thread_id,
+        `Look up ${sourceGroupPlayer}`
+      );
+      const stateB = await getAgentThreadState(baseUrl, threadB.thread_id);
+      await session.restart();
+      const threadC = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        threadC.thread_id,
+        `Look up ${sourceGroupPlayer}`
+      );
+      const stateC = await getAgentThreadState(baseUrl, threadC.thread_id);
+
+      const observed = {
+        confirmedA: resolvedIdentityRecords(confirmedA),
+        pendingA: clarificationDetails(pendingA),
+        threadB: {
+          clarification: clarificationDetails(stateB),
+          identity: resolvedIdentityRecords(stateB),
+        },
+        threadC: {
+          clarification: clarificationDetails(stateC),
+          identity: resolvedIdentityRecords(stateC),
+        },
+      };
+
+      const expected = {
+        confirmedA: {
+          sourceRecords: [
+            {
+              canonicalIdentityId: "canonical:mbappe",
+              identityVerified: true,
+              provider: "fm",
+              sourceId: "fm-mbappe",
+            },
+            {
+              canonicalIdentityId: null,
+              identityVerified: false,
+              provider: "understat",
+              sourceId: "understat-mbappe",
+            },
+          ],
+          status: "resolved",
+        },
+        pendingA: {
+          hasInterrupt: true,
+          question: `“${sourceGroupPlayer}”匹配到多个同名候选。请回复候选编号，或补充球队、赛事或赛季；多个编号（例如 1,2）表示你确认这些来源记录属于同一人。`,
+        },
+        threadB: {
+          clarification: { hasInterrupt: false, question: null },
+          identity: {
+            sourceRecords: [
+              {
+                canonicalIdentityId: "canonical:mbappe",
+                identityVerified: true,
+                provider: "fm",
+                sourceId: "fm-mbappe",
+              },
+              {
+                canonicalIdentityId: null,
+                identityVerified: false,
+                provider: "understat",
+                sourceId: "understat-mbappe",
+              },
+            ],
+            status: "resolved",
+          },
+        },
+        threadC: {
+          clarification: { hasInterrupt: false, question: null },
+          identity: {
+            sourceRecords: [
+              {
+                canonicalIdentityId: "canonical:mbappe",
+                identityVerified: true,
+                provider: "fm",
+                sourceId: "fm-mbappe",
+              },
+              {
+                canonicalIdentityId: null,
+                identityVerified: false,
+                provider: "understat",
+                sourceId: "understat-mbappe",
+              },
+            ],
+            status: "resolved",
+          },
+        },
+      };
+
+      if (!isDeepStrictEqual(observed, expected)) {
+        throw new Error(JSON.stringify({ expected, observed }, null, 2));
+      }
+
+      expect(isDeepStrictEqual(observed, expected)).toBeTruthy();
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
   it("restores workflow snapshots and a pending clarification after a normal restart", async () => {
     const session = await startDevServerSession();
     const { baseUrl, gateway } = session;
@@ -254,6 +564,7 @@ describe("managed Dev Server persistence", () => {
           },
         })
       );
+
       await postJson(
         baseUrl,
         `/threads/${identityThread.thread_id}/runs/wait`,
@@ -405,7 +716,7 @@ describe("managed Dev Server persistence", () => {
             call.includes("Harry Kane") && call.includes("Erling Haaland")
         );
 
-      await postJson(
+      const identityResumeRun = await postJson(
         baseUrl,
         `/threads/${identityThread.thread_id}/runs/wait`,
         waitResponseSchema,
@@ -417,6 +728,15 @@ describe("managed Dev Server persistence", () => {
         `/threads/${identityThread.thread_id}/state`,
         threadStateSchema
       );
+
+      if (
+        resumedIdentity.values.request.players?.[0]?.resolution?.status !==
+        "resolved"
+      ) {
+        throw new Error(
+          JSON.stringify({ identityResumeRun, resumedIdentity }, null, 2)
+        );
+      }
 
       await postJson(
         baseUrl,

@@ -18,6 +18,19 @@ type ReepRecordResolution = {
   canonicalIdentityId: string | null;
 };
 
+type ReepSourceIdentity = {
+  provider: CandidateSourceRecord["provider"];
+  sourceId: string;
+};
+
+type ReepSourceIdentityReadResult =
+  | {
+      records: (ReepSourceIdentity & ReepRecordResolution)[];
+      releaseStamp: string;
+      status: "ready";
+    }
+  | { status: "unavailable" };
+
 type ApiFootballFmBridgeResolution = {
   canonicalIdentityId: string | null;
   fmIds: string[];
@@ -192,6 +205,57 @@ const resolveReepRecord = (
     }
 
     throw error;
+  }
+};
+
+const resolveReepSourceIdentities = (
+  sourceRecords: ReepSourceIdentity[]
+): ReepSourceIdentityReadResult => {
+  const databasePath = resolveDataPath(
+    process.env.TACTISCOUT_REEP_IDENTITY_DB_PATH,
+    identityRegistryDefaultPath
+  );
+
+  let database: DatabaseSync | null;
+
+  try {
+    database = openIdentityRegistry(databasePath);
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      return { status: "unavailable" };
+    }
+
+    throw error;
+  }
+
+  if (database === null) {
+    return { status: "unavailable" };
+  }
+
+  try {
+    const releaseStamp = releaseStampRowSchema.parse(
+      database
+        .prepare("SELECT value FROM metadata WHERE key = 'release_stamp'")
+        .get()
+    ).value;
+
+    return {
+      records: sourceRecords.map(({ provider, sourceId }) => ({
+        ...resolveReepRecord(database, provider, sourceId),
+        provider,
+        sourceId,
+      })),
+      releaseStamp,
+      status: "ready",
+    };
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      return { status: "unavailable" };
+    }
+
+    throw error;
+  } finally {
+    database.close();
   }
 };
 
@@ -463,8 +527,14 @@ export {
   openIdentityRegistry,
   resolveApiFootballPlayerFmIds,
   resolveReepRecord,
+  resolveReepSourceIdentities,
   resolveSearchIdentityGroups,
   sourceIdsForCanonicalIdentity,
 };
 
-export type { ReepRecordResolution, SearchIdentityGroup };
+export type {
+  ReepRecordResolution,
+  ReepSourceIdentity,
+  ReepSourceIdentityReadResult,
+  SearchIdentityGroup,
+};

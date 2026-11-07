@@ -1,10 +1,15 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AIMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
-import type { BaseCheckpointSaver, NodeError } from "@langchain/langgraph";
+import type {
+  BaseCheckpointSaver,
+  BaseStore,
+  NodeError,
+} from "@langchain/langgraph";
 import {
   Command,
   END,
+  InMemoryStore,
   isNodeTimeoutError,
   MemorySaver,
   START,
@@ -44,6 +49,11 @@ import { createUnavailableTaskNode } from "./nodes/unavailable-task.js";
 import { createWaitForApiRateLimitNode } from "./nodes/wait-api-rate-limit.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
 import type { ReferenceIdentityLookup } from "./player-data/resolve-reference.js";
+import {
+  findRememberedPlayerIdentity,
+  rememberPlayerIdentity,
+  rememberRosterIdentity,
+} from "./player-memory.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
 import { createRequestUnderstandingExtractor } from "./request-extraction.js";
 import type {
@@ -69,6 +79,7 @@ type CreateAgentOptions = {
   teamDirectory?: Pick<ApiFootballClient, "getSquad" | "searchTeams">;
   teamRosterIdentityLookup?: TeamRosterIdentityLookup;
   checkpointer?: BaseCheckpointSaver;
+  store?: BaseStore | null;
 };
 
 type ErrorHandlerConfig = {
@@ -457,6 +468,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const tools = options.tools ?? createTools();
   const model = options.model ?? configuredModel();
 
+  const store =
+    options.store === undefined ? new InMemoryStore() : options.store;
+
   const lookupTool = tools.find(
     (item) => item.name === "search_player_records"
   );
@@ -487,7 +501,12 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   );
 
   const resolveEntities = createEntityResolutionNode(
-    options.playerIdentityLookup ?? resolvePlayerReference
+    options.playerIdentityLookup ?? resolvePlayerReference,
+    {
+      findIdentity: findRememberedPlayerIdentity,
+      rememberIdentity: rememberPlayerIdentity,
+    },
+    store
   );
 
   const teamDirectory = options.teamDirectory ?? {
@@ -527,7 +546,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       timeout: modelExecutionTimeoutMs,
     })
     .addNode("resolve_entities", resolveEntities)
-    .addNode("clarify", createClarifyNode())
+    .addNode("clarify", createClarifyNode({ rememberRosterIdentity }, store))
     .addNode(
       "lookup_player",
       createLookupPlayerNode(modelWithLookupTool, lookupTool !== undefined),
@@ -674,12 +693,15 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     )
     .addEdge("answer", END);
 
-  return graph.compile({
-    checkpointer: options.checkpointer ?? new MemorySaver(),
-  });
+  const checkpointer = options.checkpointer ?? new MemorySaver();
+
+  const compileOptions =
+    store === null ? { checkpointer } : { checkpointer, store };
+
+  return graph.compile(compileOptions);
 };
 
-const agent = createAgent();
+const agent = createAgent({ store: null });
 
 export { agent, createAgent };
 

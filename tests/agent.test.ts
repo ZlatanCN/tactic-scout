@@ -1,3 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
+
 import {
   AIMessage,
   HumanMessage,
@@ -10,6 +15,7 @@ import { fakeModel } from "@langchain/core/testing";
 import {
   Command,
   END,
+  InMemoryStore,
   MemorySaver,
   START,
   StateGraph,
@@ -42,6 +48,17 @@ vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
 
 vi.stubEnv("OPENAI_BASE_URL", "");
+
+const missingPlayerSourceDatabase = path.join(
+  tmpdir(),
+  `tactiscout-agent-no-source-${randomUUID()}.sqlite`
+);
+
+vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", missingPlayerSourceDatabase);
+
+vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", missingPlayerSourceDatabase);
+
+vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", missingPlayerSourceDatabase);
 
 const { createAgent } = await import("../src/agent.js");
 const { createTools } = await import("../src/tools/search-player-records.js");
@@ -210,6 +227,270 @@ const fmRecord = (name: string, sourceRecordId: string) => ({
 const createSearchTool = (search: PlayerSearch) => createTools(search)[0];
 
 describe("LangGraph player workflows", () => {
+  it("falls back to source resolution and discloses a shared-memory read failure", async () => {
+    const kane = playerCandidate("Harry Kane", "memory-kane");
+    const message = "Look up Harry Kane after a memory outage.";
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(resolvedLookup(kane));
+    const store = new InMemoryStore();
+
+    const storeSearch = vi
+      .spyOn(store, "search")
+      .mockRejectedValue(new Error("fixture Store read failure"));
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      store,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "player-memory-read-failure" } }
+    );
+
+    const answer = z.string().safeParse(result.messages.at(-1)?.content);
+
+    const actual = {
+      candidateId:
+        result.request.players[0]?.resolution?.selectedCandidateId ?? null,
+      identityLookupCalls: identityLookup.mock.calls.length,
+      memoryReadFailed: result.playerMemoryStatus.readFailed,
+      memoryReadNoticeShown:
+        answer.success && answer.data.includes("无法读取跨对话的球员身份记忆"),
+      memorySearchCalls: storeSearch.mock.calls.length,
+    };
+
+    const expected = {
+      candidateId: kane.candidateId,
+      identityLookupCalls: 1,
+      memoryReadFailed: true,
+      memoryReadNoticeShown: true,
+      memorySearchCalls: 1,
+    };
+
+    if (!isDeepStrictEqual(actual, expected)) {
+      throw new Error(JSON.stringify({ actual, expected }, null, 2));
+    }
+
+    expect(actual).toStrictEqual(expected);
+  });
+
+  it("does not share an automatically resolved identity across threads", async () => {
+    const kane = playerCandidate("Harry Kane", "automatic-memory-kane");
+    const message = "Look up Harry Kane after an automatic match.";
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(resolvedLookup(kane));
+    const store = new InMemoryStore();
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      store,
+      tools: [],
+    });
+
+    const threadA = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "automatic-identity-a" } }
+    );
+
+    const threadB = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "automatic-identity-b" } }
+    );
+
+    expect({
+      identityLookupCalls: identityLookup.mock.calls.length,
+      playerA: threadA.request.players[0]?.resolution?.status,
+      playerB: threadB.request.players[0]?.resolution?.status,
+    }).toStrictEqual({
+      identityLookupCalls: 2,
+      playerA: "resolved",
+      playerB: "resolved",
+    });
+  });
+
+  it("keeps default standalone player stores isolated between graph instances", async () => {
+    const kane = playerCandidate("Harry Kane", "isolated-memory-kane");
+    const message = "Confirm Harry Kane in a standalone graph.";
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>((mention) => ({
+      candidateCount: 1,
+      candidates: [kane],
+      candidatesTruncated: false,
+      canonicalIdentityId: null,
+      clarificationMessage: "Select Harry Kane.",
+      mention,
+      selectedCandidateId: null,
+      selectedName: null,
+      status: "needs_confirmation",
+    }));
+
+    const createGraph = () =>
+      createAgent({
+        checkpointer: new MemorySaver(),
+        model: fakeModel(),
+        playerIdentityLookup: identityLookup,
+        requestUnderstandingExtractor: createExtractor({
+          [message]: requestForPlayers("player_lookup", [kane.name]),
+        }),
+        tools: [],
+      });
+
+    const graphA = createGraph();
+    const graphB = createGraph();
+    const threadA = { configurable: { thread_id: "isolated-memory-thread-a" } };
+    const threadB = { configurable: { thread_id: "isolated-memory-thread-b" } };
+
+    const firstInterrupt = await graphA.invoke(
+      { messages: [new HumanMessage(message)] },
+      threadA
+    );
+
+    await graphA.invoke(new Command({ resume: "1" }), threadA);
+
+    const secondInterrupt = await graphB.invoke(
+      { messages: [new HumanMessage(message)] },
+      threadB
+    );
+
+    expect({
+      firstWasPending: Object.hasOwn(firstInterrupt, "__interrupt__"),
+      identityLookupCalls: identityLookup.mock.calls.length,
+      secondWasPending: Object.hasOwn(secondInterrupt, "__interrupt__"),
+    }).toStrictEqual({
+      firstWasPending: true,
+      identityLookupCalls: 2,
+      secondWasPending: true,
+    });
+  });
+
+  it("does not read player memory from another namespace", async () => {
+    const kane = playerCandidate("Harry Kane", "other-namespace-kane");
+    const message = "Look up Harry Kane from a separate memory namespace.";
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(resolvedLookup(kane));
+    const store = new InMemoryStore();
+
+    await store.put(
+      ["tactiscout", "another-user", "player-memory"],
+      "player-alias-test",
+      {
+        kind: "player_identity",
+        normalizedMention: "harrykane",
+      }
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      store,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "player-memory-namespace-boundary" } }
+    );
+
+    expect({
+      identityLookupCalls: identityLookup.mock.calls.length,
+      selectedCandidateId:
+        result.request.players[0]?.resolution?.selectedCandidateId,
+    }).toStrictEqual({
+      identityLookupCalls: 1,
+      selectedCandidateId: kane.candidateId,
+    });
+  });
+
+  it("keeps a thread-local identity confirmation when saving shared memory fails", async () => {
+    const kane = playerCandidate("Harry Kane", "memory-kane-write-failure");
+    const message = "Look up Harry Kane with a memory write failure.";
+
+    const identityLookup: ReferenceIdentityLookup = (mention) => ({
+      candidateCount: 1,
+      candidates: [kane],
+      candidatesTruncated: false,
+      canonicalIdentityId: null,
+      clarificationMessage: "Select Harry Kane.",
+      mention,
+      selectedCandidateId: null,
+      selectedName: null,
+      status: "needs_confirmation",
+    });
+
+    const store = new InMemoryStore();
+
+    const storePut = vi
+      .spyOn(store, "put")
+      .mockRejectedValue(new Error("fixture Store write failure"));
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: identityLookup,
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      store,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "player-memory-write-failure" },
+    };
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const resumed = await graph.invoke(new Command({ resume: "1" }), config);
+    const answer = z.string().safeParse(resumed.messages.at(-1)?.content);
+
+    const actual = {
+      interrupted: Object.hasOwn(interrupted, "__interrupt__"),
+      localAlias: resumed.conversationContext.playerAliases.map((alias) => ({
+        mention: alias.mention,
+        referenceId: alias.reference.referenceId,
+      })),
+      memoryWriteFailed: resumed.playerMemoryStatus.writeFailed,
+      memoryWriteNoticeShown:
+        answer.success && answer.data.includes("未能保存到跨对话记忆"),
+      storeWrites: storePut.mock.calls.length,
+    };
+
+    const expected = {
+      interrupted: true,
+      localAlias: [
+        {
+          mention: "Harry Kane",
+          referenceId: kane.canonicalIdentityId ?? kane.candidateId,
+        },
+      ],
+      memoryWriteFailed: true,
+      memoryWriteNoticeShown: true,
+      storeWrites: 1,
+    };
+
+    if (!isDeepStrictEqual(actual, expected)) {
+      throw new Error(JSON.stringify({ actual, expected }, null, 2));
+    }
+
+    expect(actual).toStrictEqual(expected);
+  });
+
   it("pins an explicit lookup season to the resolved source records", async () => {
     const mbappe = playerCandidate("Kylian Mbappé", "mbappe");
     const message = "Look up Kylian Mbappé's 2024/25 La Liga xG.";

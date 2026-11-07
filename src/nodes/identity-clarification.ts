@@ -1,10 +1,15 @@
-import { interrupt } from "@langchain/langgraph";
-import type { GraphNode } from "@langchain/langgraph";
+import { getStore, interrupt } from "@langchain/langgraph";
+import type { BaseStore, GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { mergeComparisonConstraints } from "../comparison-context.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
+import type {
+  rememberRosterIdentity,
+  RosterIdentityConfirmation,
+} from "../player-memory.js";
 import { resumeWorkflowClarification } from "../request-building.js";
+import { createInitialPlayerMemoryStatus } from "../state.js";
 import type {
   AgentState,
   AgentStateType,
@@ -500,7 +505,7 @@ const clarifyTeamPosition = (
       players: [player],
       teamRecommendation: {
         ...state.request.teamRecommendation,
-        referenceMode: "named",
+        referenceMode: "named" as const,
       },
     },
   };
@@ -714,7 +719,7 @@ const resumeClarification = (
   state: AgentStateType,
   pending: PendingClarification,
   answer: string | null
-) => {
+): Partial<AgentStateType> => {
   if (pending.kind === "identity") {
     return { pendingClarification: { ...pending, answer } };
   }
@@ -765,18 +770,114 @@ const resumeClarification = (
   return clarifyRole(state, pending, answer);
 };
 
-const createClarifyNode = (): GraphNode<typeof AgentState> => (state) => {
-  const pending = state.pendingClarification;
+type PlayerMemoryCapability = {
+  rememberRosterIdentity: typeof rememberRosterIdentity;
+};
 
-  if (pending === null) {
-    return {};
+type RosterConfirmationDetails = Omit<
+  RosterIdentityConfirmation,
+  "originThreadId" | "processedMessageId"
+>;
+
+const rosterConfirmationDetails = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "team_roster_profile" }>,
+  request: AgentStateType["request"] | undefined
+): RosterConfirmationDetails | null => {
+  if (
+    state.request.kind !== "team_recommendation" ||
+    request?.kind !== "team_recommendation"
+  ) {
+    return null;
   }
 
-  return resumeClarification(
-    state,
-    pending,
-    interruptForAnswer(state, pending)
+  const previousRoster = state.request.teamRecommendation.roster;
+  const updatedRoster = request.teamRecommendation.roster;
+  const previousMember = previousRoster?.members[pending.rosterIndex];
+  const updatedMember = updatedRoster?.members[pending.rosterIndex];
+
+  if (
+    previousMember === undefined ||
+    updatedMember?.mappingMethod !== "user_confirmation" ||
+    updatedMember.fmId === null
+  ) {
+    return null;
+  }
+
+  const fmCandidate = pending.candidates.find(
+    (candidate) => candidate.fmId === updatedMember.fmId
   );
+
+  if (fmCandidate === undefined) {
+    return null;
+  }
+
+  return {
+    apiFootballPlayerId: previousMember.apiFootballPlayerId,
+    fmId: updatedMember.fmId,
+    fmPlayerName: fmCandidate.name,
+    playerName: previousMember.name,
+    rosterIndex: pending.rosterIndex,
+    rosterRetrievedAt: previousRoster?.retrievedAt ?? null,
+  };
 };
+
+const createClarifyNode =
+  (
+    memory: PlayerMemoryCapability,
+    configuredStore: BaseStore | null
+  ): GraphNode<typeof AgentState> =>
+  async (state, config) => {
+    const pending = state.pendingClarification;
+
+    if (pending === null) {
+      return {};
+    }
+
+    const previousPlayerMemoryStatus =
+      state.playerMemoryStatus ?? createInitialPlayerMemoryStatus();
+
+    const answer = interruptForAnswer(state, pending);
+    const update = resumeClarification(state, pending, answer);
+
+    if (pending.kind !== "team_roster_profile" || answer === null) {
+      return update;
+    }
+
+    const details = rosterConfirmationDetails(state, pending, update.request);
+
+    if (details === null) {
+      return update;
+    }
+
+    const store = configuredStore ?? getStore(config);
+    const threadId = z.string().safeParse(config.configurable?.thread_id);
+
+    if (store === undefined || !threadId.success) {
+      return {
+        ...update,
+        playerMemoryStatus: {
+          ...previousPlayerMemoryStatus,
+          writeFailed: true,
+        },
+      };
+    }
+
+    const result = await memory.rememberRosterIdentity(store, {
+      ...details,
+      originThreadId: threadId.data,
+      processedMessageId: state.request.processedMessageId,
+    });
+
+    return {
+      ...update,
+      playerMemoryStatus: {
+        ...previousPlayerMemoryStatus,
+        writeFailed:
+          previousPlayerMemoryStatus.writeFailed ||
+          result.status === "unavailable",
+      },
+    };
+  };
 
 export { createClarifyNode };

@@ -1,9 +1,14 @@
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { fakeModel } from "@langchain/core/testing";
-import { Command, MemorySaver } from "@langchain/langgraph";
+import { Command, InMemoryStore, MemorySaver } from "@langchain/langgraph";
+import type { BaseStore } from "@langchain/langgraph";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import { createLocalDataError } from "../src/player-data/shared.js";
@@ -29,11 +34,21 @@ import {
   teamRecommendationResult,
 } from "./fixtures/workflow-results.js";
 
-vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
+const missingPlayerSourceDatabase = path.join(
+  tmpdir(),
+  `tactiscout-team-no-source-${randomUUID()}.sqlite`
+);
 
-vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
+const stubTeamTestEnvironment = () => {
+  vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
+  vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
+  vi.stubEnv("OPENAI_BASE_URL", "");
+  vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", missingPlayerSourceDatabase);
+  vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", missingPlayerSourceDatabase);
+  vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", missingPlayerSourceDatabase);
+};
 
-vi.stubEnv("OPENAI_BASE_URL", "");
+stubTeamTestEnvironment();
 
 const { createAgent } = await import("../src/agent.js");
 
@@ -156,6 +171,7 @@ const createTeamAgent = (options: {
   model?: ReturnType<typeof fakeModel>;
   playerIdentityLookup?: ReferenceIdentityLookup;
   recommend: RecommendTeamPlayerCandidates;
+  store?: BaseStore;
 }) =>
   createAgent({
     checkpointer: new MemorySaver(),
@@ -164,6 +180,7 @@ const createTeamAgent = (options: {
       fakeModel().respond(new AIMessage("Team results are ready.")),
     playerIdentityLookup: options.playerIdentityLookup,
     requestUnderstandingExtractor: options.extractor,
+    store: options.store,
     teamDirectory: options.directory,
     teamRosterIdentityLookup: options.identityLookup ?? bridgeIdentityLookup,
     tools: [createRecommendTeamPlayerCandidatesTool(options.recommend)],
@@ -196,6 +213,7 @@ const shortRateLimitResponse = () =>
 describe("team recommendation graph", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    stubTeamTestEnvironment();
   });
 
   it("resolves a unique team, maps its roster, and commits the ranked result", async () => {
@@ -1033,7 +1051,7 @@ describe("team recommendation graph", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
+  }, 15_000);
 
   it("confirms a translated provider search before accepting the team identity", async () => {
     const message = "为阿森纳找一个中锋";
@@ -1103,6 +1121,8 @@ describe("team recommendation graph", () => {
       teamRecommendationResult("no_candidates", input)
     );
 
+    const store = new InMemoryStore();
+
     const graph = createTeamAgent({
       directory,
       extractor: createExtractor({
@@ -1110,6 +1130,7 @@ describe("team recommendation graph", () => {
       }),
       identityLookup,
       recommend,
+      store,
     });
 
     const config = {
@@ -1133,6 +1154,45 @@ describe("team recommendation graph", () => {
 
     const completed = await graph.invoke(new Command({ resume: "2" }), config);
 
+    const rememberedRosterMappings = await store.search(
+      ["tactiscout", "local-user", "player-memory"],
+      { filter: { kind: "roster_identity" } }
+    );
+
+    const rosterMemorySchema = z.object({
+      apiFootballPlayerId: z.number().int().positive(),
+      confirmationId: z.string().min(1),
+      confirmedAt: z.iso.datetime(),
+      fmId: z.string().min(1),
+      fmPlayerName: z.string().min(1),
+      kind: z.literal("roster_identity"),
+      originThreadId: z.string().min(1),
+      rosterPlayerName: z.string().min(1),
+      rosterRetrievedAt: z.iso.datetime().nullable(),
+      schemaVersion: z.literal(1),
+      sourceVersions: z.object({
+        fmManifestSha256: z.string().nullable(),
+        fmSnapshotDate: z.string().nullable(),
+      }),
+      stableIdentityKey: z.string().min(1),
+    });
+
+    const memoryRecords = rememberedRosterMappings
+      .map((item) => rosterMemorySchema.parse(item.value))
+      .toSorted(
+        (left, right) => left.apiFootballPlayerId - right.apiFootballPlayerId
+      );
+
+    expect(
+      memoryRecords.map(({ apiFootballPlayerId, fmId }) => ({
+        apiFootballPlayerId,
+        fmId,
+      }))
+    ).toStrictEqual([
+      { apiFootballPlayerId: 2001, fmId: "first-2001" },
+      { apiFootballPlayerId: 2002, fmId: "second-2002" },
+    ]);
+
     expect({
       completed: completed.conversationContext.activeTeamRecommendation,
       getSquadCalls: directory.getSquad.mock.calls.map(([teamId]) => [teamId]),
@@ -1142,6 +1202,23 @@ describe("team recommendation graph", () => {
         mappingMethod: member.mappingMethod,
       })),
       recommendCalls: recommend.mock.calls.length,
+      rememberedRosterKeys: rememberedRosterMappings.map((item) =>
+        Object.keys(item.value).toSorted()
+      ),
+      rememberedRosterMappings: memoryRecords.map((record) => ({
+        apiFootballPlayerId: record.apiFootballPlayerId,
+        confirmationIdPresent: record.confirmationId.length > 0,
+        confirmedAtPresent: record.confirmedAt.length > 0,
+        fmId: record.fmId,
+        fmPlayerName: record.fmPlayerName,
+        kind: record.kind,
+        originThreadId: record.originThreadId,
+        rosterPlayerName: record.rosterPlayerName,
+        rosterRetrievedAt: record.rosterRetrievedAt,
+        schemaVersion: record.schemaVersion,
+        sourceVersions: record.sourceVersions,
+        stableIdentityKeyPresent: record.stableIdentityKey.length > 0,
+      })),
       searchCalls: directory.searchTeams.mock.calls.map(([query]) => [query]),
       wasInterrupted: [
         teamInterrupted,
@@ -1160,6 +1237,72 @@ describe("team recommendation graph", () => {
         { fmId: "second-2002", mappingMethod: "user_confirmation" },
       ],
       recommendCalls: 1,
+      rememberedRosterKeys: [
+        [
+          "apiFootballPlayerId",
+          "confirmationId",
+          "confirmedAt",
+          "fmId",
+          "fmPlayerName",
+          "kind",
+          "originThreadId",
+          "rosterPlayerName",
+          "rosterRetrievedAt",
+          "schemaVersion",
+          "sourceVersions",
+          "stableIdentityKey",
+        ],
+        [
+          "apiFootballPlayerId",
+          "confirmationId",
+          "confirmedAt",
+          "fmId",
+          "fmPlayerName",
+          "kind",
+          "originThreadId",
+          "rosterPlayerName",
+          "rosterRetrievedAt",
+          "schemaVersion",
+          "sourceVersions",
+          "stableIdentityKey",
+        ],
+      ],
+      rememberedRosterMappings: [
+        {
+          apiFootballPlayerId: 2001,
+          confirmationIdPresent: true,
+          confirmedAtPresent: true,
+          fmId: "first-2001",
+          fmPlayerName: "First Squad Player First FM Match",
+          kind: "roster_identity",
+          originThreadId: "team-roster-resolution",
+          rosterPlayerName: "First Squad Player",
+          rosterRetrievedAt: "2026-10-26T10:00:00.000Z",
+          schemaVersion: 1,
+          sourceVersions: {
+            fmManifestSha256: null,
+            fmSnapshotDate: null,
+          },
+          stableIdentityKeyPresent: true,
+        },
+        {
+          apiFootballPlayerId: 2002,
+          confirmationIdPresent: true,
+          confirmedAtPresent: true,
+          fmId: "second-2002",
+          fmPlayerName: "Second Squad Player Second FM Match",
+          kind: "roster_identity",
+          originThreadId: "team-roster-resolution",
+          rosterPlayerName: "Second Squad Player",
+          rosterRetrievedAt: "2026-10-26T10:00:00.000Z",
+          schemaVersion: 1,
+          sourceVersions: {
+            fmManifestSha256: null,
+            fmSnapshotDate: null,
+          },
+          stableIdentityKeyPresent: true,
+        },
+      ],
       searchCalls: [["Paris FC"]],
       wasInterrupted: [true, true, true],
     });

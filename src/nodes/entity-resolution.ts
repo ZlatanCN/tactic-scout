@@ -1,11 +1,20 @@
-import type { GraphNode } from "@langchain/langgraph";
+import { getStore } from "@langchain/langgraph";
+import type { GraphNode, BaseStore } from "@langchain/langgraph";
+import { z } from "zod/v4";
 
 import { logLocalDataFailure } from "../fault-tolerance.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type { ReferenceIdentityLookup } from "../player-data/resolve-reference.js";
 import { normalizePlayerName } from "../player-data/shared.js";
+import type {
+  findRememberedPlayerIdentity,
+  rememberPlayerIdentity,
+  PlayerMemoryLookupResult,
+} from "../player-memory.js";
 import {
   isPlayerReferenceMention,
+  latestHumanMessage,
+  messageText,
   normalizeMentionText,
 } from "../player-mentions.js";
 import type {
@@ -21,6 +30,7 @@ import type {
 } from "../state.js";
 import {
   createInitialConversationContext,
+  createInitialPlayerMemoryStatus,
   createInitialRequestState,
 } from "../state.js";
 
@@ -630,13 +640,41 @@ const applyConfirmedCandidateSelection = (
   });
 };
 
+const requireCurrentIdentityConfirmation = (
+  result: PlayerResolutionState,
+  mention: string
+): PlayerResolutionState => {
+  if (result.status === "resolved") {
+    return {
+      ...result,
+      canonicalIdentityId: null,
+      clarificationMessage: `已记住的“${mention}”身份与当前资料不一致，请确认当前候选。`,
+      mention,
+      selectedCandidateId: null,
+      selectedName: null,
+      status: "needs_confirmation",
+    };
+  }
+
+  if (result.status === "needs_confirmation") {
+    return {
+      ...result,
+      clarificationMessage: `已记住的“${mention}”身份需要重新确认。${result.clarificationMessage ?? ""}`,
+      mention,
+    };
+  }
+
+  return { ...result, mention };
+};
+
 const retryIdentityLookup = async (
   request: RequestState,
   index: number,
   player: RequestPlayerState,
   current: PlayerResolutionState,
   answer: string,
-  lookup: ReferenceIdentityLookup
+  lookup: ReferenceIdentityLookup,
+  findMemory: PlayerMemoryLookup
 ): Promise<RequestState> => {
   if (player.attempts >= 1) {
     return request;
@@ -644,10 +682,19 @@ const retryIdentityLookup = async (
 
   const cleanedAnswer = cleanReferenceAnswer(answer);
 
-  const result =
-    cleanedAnswer.length > 0 && !/^\d+$/u.test(cleanedAnswer)
-      ? await lookup(cleanedAnswer)
-      : null;
+  let result: PlayerResolutionState | null = null;
+
+  if (cleanedAnswer.length > 0 && !/^\d+$/u.test(cleanedAnswer)) {
+    const remembered = await findMemory(cleanedAnswer);
+    result =
+      remembered.status === "found"
+        ? remembered.resolution
+        : await lookup(cleanedAnswer);
+
+    if (remembered.status === "stale") {
+      result = requireCurrentIdentityConfirmation(result, cleanedAnswer);
+    }
+  }
 
   if (result?.status === "resolved") {
     return updateRequestPlayer(request, index, {
@@ -681,7 +728,8 @@ const applyPlayerAnswer = (
   request: RequestState,
   index: number,
   answer: string,
-  lookup: ReferenceIdentityLookup
+  lookup: ReferenceIdentityLookup,
+  findMemory: PlayerMemoryLookup
 ): RequestState | Promise<RequestState> => {
   const player = request.players[index];
   const current = player?.resolution;
@@ -710,7 +758,15 @@ const applyPlayerAnswer = (
     );
   }
 
-  return retryIdentityLookup(request, index, player, current, answer, lookup);
+  return retryIdentityLookup(
+    request,
+    index,
+    player,
+    current,
+    answer,
+    lookup,
+    findMemory
+  );
 };
 
 const defaultClarification = (player: RequestPlayerState): string =>
@@ -1029,11 +1085,34 @@ type EntityResolutionOutcome = {
   request: RequestState;
 };
 
+type PlayerMemoryCapability = {
+  findIdentity: typeof findRememberedPlayerIdentity;
+  rememberIdentity: typeof rememberPlayerIdentity;
+};
+
+type PlayerMemoryLookup = (
+  mention: string
+) => Promise<PlayerMemoryLookupResult>;
+
+const identityReresolutionRequested = (state: AgentStateType): boolean => {
+  const latestMessage = latestHumanMessage(state.messages);
+
+  if (latestMessage === undefined) {
+    return false;
+  }
+
+  return /(?:重新(?:解析|确认|核实)(?:一下)?(?:球员)?(?:身份)?|re[- ]?resolve(?: the)? player identity|verify (?:the )?player identity again)/iu.test(
+    messageText(latestMessage)
+  );
+};
+
 const resolveRequestPlayer = async (
   player: RequestPlayerState,
   request: RequestState,
   context: ConversationContext,
-  lookup: ReferenceIdentityLookup
+  lookup: ReferenceIdentityLookup,
+  findMemory: PlayerMemoryLookup,
+  forceReresolution: boolean
 ): Promise<PlayerResolutionState> => {
   const referenceScope =
     player.referenceScope ??
@@ -1050,7 +1129,9 @@ const resolveRequestPlayer = async (
     return resolveConversationReference(player.mention, references);
   }
 
-  const knownAlias = resolveConfirmedPlayerAlias(player.mention, context);
+  const knownAlias = forceReresolution
+    ? null
+    : resolveConfirmedPlayerAlias(player.mention, context);
 
   if (knownAlias !== null) {
     return await refreshKnownAliasForComparison(
@@ -1061,8 +1142,18 @@ const resolveRequestPlayer = async (
     );
   }
 
+  const remembered = await findMemory(player.mention);
+
+  if (remembered.status === "found") {
+    return { ...remembered.resolution, mention: player.mention };
+  }
+
   const lookupName = player.lookupName ?? player.mention;
   const result = await lookup(lookupName);
+
+  if (remembered.status === "stale") {
+    return requireCurrentIdentityConfirmation(result, player.mention);
+  }
 
   const translatedOrExpanded =
     normalizeName(lookupName) !== normalizeName(player.mention);
@@ -1086,6 +1177,8 @@ const resolvePlayersInOrder = async (
   request: RequestState,
   context: ConversationContext,
   lookup: ReferenceIdentityLookup,
+  findMemory: PlayerMemoryLookup,
+  forceReresolution: boolean,
   scopeIndex = 0,
   playerIndex = 0
 ): Promise<EntityResolutionOutcome> => {
@@ -1098,6 +1191,8 @@ const resolvePlayersInOrder = async (
       request,
       context,
       lookup,
+      findMemory,
+      forceReresolution,
       scopeIndex + 1,
       0
     );
@@ -1114,6 +1209,8 @@ const resolvePlayersInOrder = async (
       request,
       context,
       lookup,
+      findMemory,
+      forceReresolution,
       scopeIndex,
       playerIndex + 1
     );
@@ -1127,7 +1224,9 @@ const resolvePlayersInOrder = async (
     player,
     request,
     context,
-    lookup
+    lookup,
+    findMemory,
+    forceReresolution
   );
 
   const updatedRequest = {
@@ -1145,6 +1244,8 @@ const resolvePlayersInOrder = async (
     updatedRequest,
     context,
     lookup,
+    findMemory,
+    forceReresolution,
     scopeIndex,
     playerIndex + 1
   );
@@ -1153,7 +1254,8 @@ const resolvePlayersInOrder = async (
 const resumePendingIdentity = async (
   request: RequestState,
   pending: AgentStateType["pendingClarification"],
-  lookup: ReferenceIdentityLookup
+  lookup: ReferenceIdentityLookup,
+  findMemory: PlayerMemoryLookup
 ): Promise<{
   pendingClarification: AgentStateType["pendingClarification"];
   request: RequestState;
@@ -1167,7 +1269,8 @@ const resumePendingIdentity = async (
     request,
     pending.playerIndex,
     pending.answer,
-    lookup
+    lookup,
+    findMemory
   );
 
   const resumedPlayer = resumedRequest.players[pending.playerIndex];
@@ -1265,10 +1368,85 @@ const identityDataUnavailable = (request: RequestState): boolean =>
     (player) => player.resolution?.status === "data_unavailable"
   );
 
+const rememberConfirmedIdentity = async (
+  state: AgentStateType,
+  request: RequestState,
+  runtime: Parameters<GraphNode<typeof AgentState>>[1],
+  store: ReturnType<typeof getStore>,
+  memory: PlayerMemoryCapability
+): Promise<boolean> => {
+  const pending = state.pendingClarification;
+
+  if (pending?.kind !== "identity" || pending.answer === null) {
+    return false;
+  }
+
+  const player = request.players[pending.playerIndex];
+
+  if (
+    player === undefined ||
+    player.referenceScope !== "explicit" ||
+    isPlayerReferenceMention(player.mention) ||
+    player.resolution?.status !== "resolved"
+  ) {
+    return false;
+  }
+
+  const candidate = selectedReferenceCandidate(player.resolution);
+
+  if (candidate === null || candidate.records.length === 0) {
+    return false;
+  }
+
+  const threadId = z.string().safeParse(runtime.configurable?.thread_id);
+
+  if (store === undefined || !threadId.success) {
+    return true;
+  }
+
+  const result = await memory.rememberIdentity(store, {
+    candidate,
+    mention: player.mention,
+    originThreadId: threadId.data,
+    playerIndex: pending.playerIndex,
+    processedMessageId: request.processedMessageId,
+  });
+
+  return result.status === "unavailable";
+};
+
 const createEntityResolutionNode =
-  (lookup: ReferenceIdentityLookup): GraphNode<typeof AgentState> =>
+  (
+    lookup: ReferenceIdentityLookup,
+    memory: PlayerMemoryCapability,
+    configuredStore: BaseStore | null
+  ): GraphNode<typeof AgentState> =>
   async (state, runtime) => {
     const startedAt = Date.now();
+    const store = configuredStore ?? getStore(runtime);
+
+    const previousPlayerMemoryStatus =
+      state.playerMemoryStatus ?? createInitialPlayerMemoryStatus();
+
+    let memoryReadFailed = false;
+    let memoryWriteFailed = false;
+
+    const findMemory: PlayerMemoryLookup = async (mention) => {
+      if (store === undefined) {
+        memoryReadFailed = true;
+
+        return { status: "unavailable" };
+      }
+
+      const result = await memory.findIdentity(store, mention);
+
+      if (result.status === "unavailable") {
+        memoryReadFailed = true;
+      }
+
+      return result;
+    };
+
     let request = state.request ?? createInitialRequestState();
     request = {
       ...request,
@@ -1285,13 +1463,29 @@ const createEntityResolutionNode =
     const conversationContext =
       state.conversationContext ?? createInitialConversationContext();
 
+    const forceReresolution = identityReresolutionRequested(state);
+
     const resumedIdentity = await resumePendingIdentity(
       request,
       state.pendingClarification,
-      lookup
+      lookup,
+      findMemory
     );
 
     ({ request } = resumedIdentity);
+
+    memoryWriteFailed = await rememberConfirmedIdentity(
+      state,
+      request,
+      runtime,
+      store,
+      memory
+    );
+
+    let playerMemoryStatus = {
+      readFailed: previousPlayerMemoryStatus.readFailed || memoryReadFailed,
+      writeFailed: previousPlayerMemoryStatus.writeFailed || memoryWriteFailed,
+    };
 
     if (resumedIdentity.shouldStop) {
       if (identityDataUnavailable(request)) {
@@ -1309,12 +1503,14 @@ const createEntityResolutionNode =
           ),
           outcome: dataUnavailableOutcome(request),
           pendingClarification: null,
+          playerMemoryStatus,
           request,
         };
       }
 
       return {
         pendingClarification: resumedIdentity.pendingClarification,
+        playerMemoryStatus,
         request,
       };
     }
@@ -1322,10 +1518,16 @@ const createEntityResolutionNode =
     const outcome = await resolvePlayersInOrder(
       request,
       conversationContext,
-      lookup
+      lookup,
+      findMemory,
+      forceReresolution
     );
 
     ({ request } = outcome);
+    playerMemoryStatus = {
+      readFailed: previousPlayerMemoryStatus.readFailed || memoryReadFailed,
+      writeFailed: previousPlayerMemoryStatus.writeFailed || memoryWriteFailed,
+    };
 
     if (outcome.unresolvedPlayerIndex !== null) {
       const player = request.players[outcome.unresolvedPlayerIndex];
@@ -1350,6 +1552,7 @@ const createEntityResolutionNode =
           conversationContext: contextWithConfirmedAliases,
           outcome: dataUnavailableOutcome(request),
           pendingClarification: null,
+          playerMemoryStatus,
           request,
         };
       }
@@ -1362,6 +1565,7 @@ const createEntityResolutionNode =
           playerIndex: outcome.unresolvedPlayerIndex,
           question: identityClarificationQuestion(player),
         },
+        playerMemoryStatus,
         request,
       };
     }
@@ -1370,6 +1574,7 @@ const createEntityResolutionNode =
 
     const update: Partial<AgentStateType> = {
       pendingClarification,
+      playerMemoryStatus,
       request,
     };
 

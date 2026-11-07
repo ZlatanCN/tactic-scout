@@ -200,7 +200,26 @@ const resumedIdentityFacts = (state: ThreadState) => {
   const comparisonJson =
     state.values.conversationContext.activeComparison?.resultJson ?? "{}";
 
-  const comparison = comparisonResultSchema.parse(JSON.parse(comparisonJson));
+  const parsedComparison = comparisonResultSchema.safeParse(
+    JSON.parse(comparisonJson)
+  );
+
+  if (!parsedComparison.success) {
+    throw new Error(
+      JSON.stringify(
+        {
+          comparisonJson,
+          outcome: state.values.outcome,
+          pendingClarification: state.values.pendingClarification,
+          request: state.values.request,
+        },
+        null,
+        2
+      )
+    );
+  }
+
+  const comparison = parsedComparison.data;
 
   return {
     comparisonPlayers: comparison.players.map((player) => player.playerName),
@@ -345,6 +364,7 @@ const persistedThreadFacts = (state: AgentStateType) => ({
   })),
   outcome: state.outcome,
   pendingClarification: state.pendingClarification,
+  playerMemoryStatus: state.playerMemoryStatus,
   request: state.request,
 });
 

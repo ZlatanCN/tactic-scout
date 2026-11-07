@@ -15,6 +15,7 @@ import type { AgentState } from "../state.js";
 import {
   createInitialConversationContext,
   createInitialFaultToleranceState,
+  createInitialPlayerMemoryStatus,
   createInitialRequestState,
 } from "../state.js";
 import {
@@ -88,6 +89,7 @@ const createRequestUnderstandingNode =
         faultTolerance: createInitialFaultToleranceState(),
         outcome: savedResultUnavailable("player_lookup"),
         pendingClarification: null,
+        playerMemoryStatus: createInitialPlayerMemoryStatus(),
         request: built.request,
       };
     }
@@ -137,6 +139,7 @@ const createRequestUnderstandingNode =
             options: choice.options,
             question,
           },
+          playerMemoryStatus: createInitialPlayerMemoryStatus(),
           request: {
             ...createInitialRequestState(),
             processedMessageId: messageId,
@@ -174,6 +177,7 @@ const createRequestUnderstandingNode =
         faultTolerance: createInitialFaultToleranceState(),
         outcome,
         pendingClarification: null,
+        playerMemoryStatus: createInitialPlayerMemoryStatus(),
         request: built.request,
       };
     }
@@ -207,6 +211,7 @@ const createRequestUnderstandingNode =
       faultTolerance: createInitialFaultToleranceState(),
       outcome,
       pendingClarification: null,
+      playerMemoryStatus: createInitialPlayerMemoryStatus(),
       request: built.request,
     };
   };

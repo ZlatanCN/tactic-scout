@@ -420,6 +420,11 @@ const FaultToleranceSchema = z.object({
   lookupToolStartedAt: z.number().nullable(),
 });
 
+const PlayerMemoryStatusSchema = z.object({
+  readFailed: z.boolean(),
+  writeFailed: z.boolean(),
+});
+
 const createInitialFaultToleranceState = () => ({
   apiOperation: null,
   apiRateLimitRetried: false,
@@ -432,6 +437,11 @@ const createInitialFaultToleranceState = () => ({
   lookupToolStartedAt: null,
 });
 
+const createInitialPlayerMemoryStatus = () => ({
+  readFailed: false,
+  writeFailed: false,
+});
+
 const AgentState = MessagesZodState.extend({
   conversationContext: ConversationContextSchema.default(
     createInitialConversationContext
@@ -441,6 +451,9 @@ const AgentState = MessagesZodState.extend({
   ),
   outcome: TurnOutcomeSchema.nullable().default(null),
   pendingClarification: PendingClarificationSchema.nullable().default(null),
+  playerMemoryStatus: PlayerMemoryStatusSchema.default(
+    createInitialPlayerMemoryStatus
+  ),
   request: RequestStateSchema.default(createInitialRequestState),
 });
 
@@ -457,6 +470,8 @@ type AgentStateType = z.infer<typeof AgentState>;
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
 
 type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
+
+type PlayerMemoryStatus = z.infer<typeof PlayerMemoryStatusSchema>;
 
 type ConversationPlayerAlias = z.infer<typeof ConversationPlayerAliasSchema>;
 
@@ -500,6 +515,7 @@ export {
   createInitialRecommendationRequest,
   createInitialConversationContext,
   createInitialFaultToleranceState,
+  createInitialPlayerMemoryStatus,
   createInitialRequestState,
   createInitialTeamRecommendationRequest,
 };
@@ -516,6 +532,7 @@ export type {
   ConversationPlayerAlias,
   ConversationPlayerReference,
   PendingClarification,
+  PlayerMemoryStatus,
   RecommendationPlayerRole,
   RecommendationRequestState,
   RequestConstraint,
