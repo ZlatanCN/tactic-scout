@@ -174,6 +174,14 @@ const clarificationDetails = (state: ThreadState) => ({
   question: state.values.pendingClarification?.question ?? null,
 });
 
+const workflowSnapshots = (state: ThreadState) => ({
+  activeComparison: state.values.conversationContext.activeComparison,
+  activeLookup: state.values.conversationContext.activeLookup,
+  activeRecommendation: state.values.conversationContext.activeRecommendation,
+  activeTeamRecommendation:
+    state.values.conversationContext.activeTeamRecommendation,
+});
+
 const teamRecommendationConditions = (state: ThreadState) => ({
   constraints: state.values.request.constraints,
   filters: {
@@ -349,6 +357,7 @@ export {
   resumedInterruptFacts,
   savedTeamSnapshotOutcome,
   teamRecommendationConditions,
+  workflowSnapshots,
 };
 
 export type { ConversationContext, PlayerReference };

@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { describe, expect, it } from "vitest";
 
 import { comparisonResultSchema } from "../src/player-data/compare-records.js";
@@ -26,6 +28,7 @@ import {
   resumedInterruptFacts,
   savedTeamSnapshotOutcome,
   savedConversationContext,
+  workflowSnapshots,
 } from "./fixtures/persistence-state.js";
 
 type FailureRecoveryInput = {
@@ -47,9 +50,7 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
     await requestJson(baseUrl, `/threads/${threadId}/state`, threadStateSchema);
 
   const priorState = await getThreadState();
-
-  const priorTeamResult =
-    priorState.values.conversationContext.activeTeamRecommendation?.resultJson;
+  const priorSnapshots = workflowSnapshots(priorState);
 
   const failureEvent = "team-search-failure";
 
@@ -80,11 +81,24 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
     emptyResumeLeavesFailure: afterEmptyResume.values.outcome?.status,
     failureOutcome: failedState.values.outcome?.status,
     freshRetryOutcome: retryState.values.outcome?.status,
-    preservesPriorTeamSnapshot:
-      failedState.values.conversationContext.activeTeamRecommendation
-        ?.resultJson === priorTeamResult &&
-      restoredFailure.values.conversationContext.activeTeamRecommendation
-        ?.resultJson === priorTeamResult,
+    preservesPriorSnapshots: {
+      afterEmptyResume: isDeepStrictEqual(
+        priorSnapshots,
+        workflowSnapshots(afterEmptyResume)
+      ),
+      afterFailure: isDeepStrictEqual(
+        priorSnapshots,
+        workflowSnapshots(failedState)
+      ),
+      afterFreshRetry: isDeepStrictEqual(
+        priorSnapshots,
+        workflowSnapshots(retryState)
+      ),
+      afterRestart: isDeepStrictEqual(
+        priorSnapshots,
+        workflowSnapshots(restoredFailure)
+      ),
+    },
     providerCalledDuringFailure:
       failureCount(eventsAfterFailure) > failureCount(eventsBeforeFailure),
     providerCalledOnFreshRetry:
@@ -100,7 +114,12 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
     emptyResumeLeavesFailure: "team_provider_error",
     failureOutcome: "team_provider_error",
     freshRetryOutcome: "team_provider_error",
-    preservesPriorTeamSnapshot: true,
+    preservesPriorSnapshots: {
+      afterEmptyResume: true,
+      afterFailure: true,
+      afterFreshRetry: true,
+      afterRestart: true,
+    },
     providerCalledDuringFailure: true,
     providerCalledOnFreshRetry: true,
     providerNotCalledByEmptyResume: true,
