@@ -19,6 +19,7 @@ import type {
   LocalGateway,
 } from "./fixtures/langgraph-dev-server.js";
 import {
+  activeRecommendationFromState,
   clarificationDetails,
   persistedThreadFacts,
   playerReference,
@@ -503,8 +504,39 @@ describe("managed Dev Server persistence", () => {
           threadStateSchema
         );
 
-      await runMessage("Look up Harry Kane");
-      const lookupState = await getThreadState();
+      const lookupRunResponse = await postJson(
+        baseUrl,
+        `/threads/${thread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          input: {
+            messages: [{ content: "Look up Harry Kane", role: "user" }],
+          },
+        })
+      );
+
+      const lookupStateResponse = await requestJson(
+        baseUrl,
+        `/threads/${thread.thread_id}/state`,
+        waitResponseSchema
+      );
+
+      const parsedLookupState =
+        threadStateSchema.safeParse(lookupStateResponse);
+
+      if (!parsedLookupState.success) {
+        throw new Error(
+          JSON.stringify({
+            issues: parsedLookupState.error.issues,
+            modelRequests: gateway.calls(),
+            run: lookupRunResponse,
+            state: lookupStateResponse,
+          })
+        );
+      }
+
+      const lookupState = parsedLookupState.data;
 
       expect({
         fixtureEvents: gateway.events(),
@@ -527,6 +559,7 @@ describe("managed Dev Server persistence", () => {
       await runMessage("Recommend a striker for Test Club");
 
       const finishedState = await getThreadState();
+      activeRecommendationFromState(finishedState);
 
       const finishedFacts = persistedThreadFacts(
         AgentState.parse(finishedState.values)

@@ -1,12 +1,19 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
+import { deflateRawSync } from "node:zlib";
 
 import { z } from "zod/v4";
+
+const fixtureKaneName = "Harry Kane";
+const fixtureHaalandName = "Erling Haaland";
+const fixtureTeamName = "Test Club";
+const fixtureOutageTeamName = "Outage Club";
 
 type RunningServer = {
   child: ReturnType<typeof spawn>;
@@ -59,7 +66,7 @@ const threadStateSchema = z.looseObject({
       })
       .nullable(),
     pendingClarification: z
-      .object({
+      .looseObject({
         answer: z.string().nullable(),
         kind: z.string(),
         question: z.string(),
@@ -111,6 +118,274 @@ const storeItemSchema = z.object({
 
 const tcpAddressSchema = z.object({ port: z.number().int().positive() });
 
+const createSourceFixtures = async (projectPath: string) => {
+  const fixturePath = path.join(projectPath, "fixtures");
+  const fmDatabasePath = path.join(fixturePath, "fm-profiles.sqlite");
+  const reepDatabasePath = path.join(fixturePath, "reep-identity.sqlite");
+  const understatDatabasePath = path.join(fixturePath, "understat.sqlite");
+  await mkdir(fixturePath, { recursive: true });
+
+  const profiles = [
+    {
+      ability: 14,
+      birthDate: "1993-07-28",
+      fmId: "fm-kane",
+      name: fixtureKaneName,
+    },
+    {
+      ability: 15,
+      birthDate: "2000-07-21",
+      fmId: "fm-haaland",
+      name: fixtureHaalandName,
+    },
+    {
+      ability: 16,
+      birthDate: "2004-01-01",
+      fmId: "fm-prospect",
+      name: "Fixture Prospect",
+    },
+  ];
+
+  const fmDatabase = new DatabaseSync(fmDatabasePath);
+
+  try {
+    fmDatabase.exec(`
+      CREATE TABLE manifest (id INTEGER PRIMARY KEY, payload TEXT NOT NULL);
+      CREATE TABLE players (
+        record_id TEXT PRIMARY KEY,
+        unique_id TEXT,
+        name TEXT,
+        birth_date TEXT,
+        payload BLOB NOT NULL
+      );
+      CREATE TABLE positions (record_id TEXT NOT NULL, position TEXT NOT NULL, rating INTEGER NOT NULL);
+      CREATE TABLE aliases (record_id TEXT NOT NULL, name TEXT);
+    `);
+    fmDatabase.prepare("INSERT INTO manifest (id, payload) VALUES (1, ?)").run(
+      JSON.stringify({
+        gameBuild: "persistence-test-build",
+        inGameDate: "2025-11-23",
+        sha256: "persistence-test-snapshot",
+      })
+    );
+
+    const insertPlayer = fmDatabase.prepare(
+      "INSERT INTO players (record_id, unique_id, name, birth_date, payload) VALUES (?, ?, ?, ?, ?)"
+    );
+
+    const insertPosition = fmDatabase.prepare(
+      "INSERT INTO positions (record_id, position, rating) VALUES (?, ?, ?)"
+    );
+
+    for (const profile of profiles) {
+      const value = profile.ability;
+
+      const compressedProfile = deflateRawSync(
+        Buffer.from(
+          JSON.stringify({
+            ability_current: value * 10,
+            ability_potential: value * 10 + 15,
+            birth_date: profile.birthDate,
+            common_name: profile.name,
+            full_name: profile.name,
+            height_cm: 188,
+            name: profile.name,
+            natural_positions: "STC",
+            raw_attributes_acceleration: value,
+            raw_attributes_anticipation: value,
+            raw_attributes_composure: value,
+            raw_attributes_decisions: value,
+            raw_attributes_dribbling: value,
+            raw_attributes_finishing: value,
+            raw_attributes_first_touch: value,
+            raw_attributes_heading: value,
+            raw_attributes_jumping_reach: value,
+            raw_attributes_off_the_ball: value,
+            raw_attributes_pace: value,
+            raw_attributes_passing: value,
+            raw_attributes_stamina: value,
+            raw_attributes_strength: value,
+            raw_attributes_teamwork: value,
+            raw_attributes_technique: value,
+            raw_attributes_vision: value,
+            raw_attributes_work_rate: value,
+            unique_id: profile.fmId,
+          })
+        )
+      );
+
+      const recordId = `${profile.fmId}-record`;
+      insertPlayer.run(
+        recordId,
+        profile.fmId,
+        profile.name,
+        profile.birthDate,
+        compressedProfile
+      );
+      insertPosition.run(recordId, "stc", 20);
+    }
+  } finally {
+    fmDatabase.close();
+  }
+
+  const reepDatabase = new DatabaseSync(reepDatabasePath);
+
+  try {
+    reepDatabase.exec(`
+      CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE bridges (
+        provider TEXT NOT NULL,
+        namespace TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        canonical_reep_id TEXT,
+        redirect_status TEXT NOT NULL
+      );
+    `);
+    reepDatabase
+      .prepare(
+        "INSERT INTO metadata (key, value) VALUES ('release_stamp', 'persistence-test-release')"
+      )
+      .run();
+
+    const insertBridge = reepDatabase.prepare(
+      "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES (?, 'player', ?, ?, 'resolved')"
+    );
+
+    for (const profile of profiles) {
+      insertBridge.run(
+        "fm",
+        profile.fmId,
+        `canonical:${profile.fmId.slice(3)}`
+      );
+    }
+
+    insertBridge.run("api_football", "10", "canonical:kane");
+  } finally {
+    reepDatabase.close();
+  }
+
+  const understatDatabase = new DatabaseSync(understatDatabasePath);
+
+  try {
+    understatDatabase.exec(
+      "CREATE TABLE source_snapshots (kind TEXT, resource_id TEXT, season_start_year INTEGER, payload_json TEXT)"
+    );
+  } finally {
+    understatDatabase.close();
+  }
+
+  return { fmDatabasePath, reepDatabasePath, understatDatabasePath };
+};
+
+type FixtureExtraction = {
+  comparisonAction?: "replace" | "add" | "refine";
+  constraints: { name: string; value: string }[];
+  continuationAction?: "explain" | "refine" | null;
+  kind: string;
+  players: {
+    lookupName: string | null;
+    mention: string;
+    recommendationRole: "reference";
+    referenceScope: "explicit";
+    referenceTargetMention: null;
+  }[];
+  recommendationAction?: "replace" | "add" | "refine";
+  recommendation?: { position: "stc"; resultLimit: number };
+  teamSearchName?: string;
+  teams: string[];
+};
+
+const fixturePlayer = (
+  mention: string
+): FixtureExtraction["players"][number] => ({
+  lookupName: null,
+  mention,
+  recommendationRole: "reference",
+  referenceScope: "explicit",
+  referenceTargetMention: null,
+});
+
+const fixtureTeamRequest = (
+  teamName: string,
+  continuationAction: FixtureExtraction["continuationAction"] = null
+): FixtureExtraction => ({
+  constraints: [],
+  continuationAction,
+  kind: "team_recommendation",
+  players: [],
+  recommendation: { position: "stc", resultLimit: 2 },
+  recommendationAction: "replace",
+  teamSearchName: teamName,
+  teams: [teamName],
+});
+
+const fixtureExtractions = new Map<string, FixtureExtraction>([
+  [
+    `Look up ${fixtureKaneName}`,
+    {
+      constraints: [],
+      kind: "player_lookup",
+      players: [fixturePlayer(fixtureKaneName)],
+      teams: [],
+    },
+  ],
+  [
+    `Compare ${fixtureKaneName} and ${fixtureHaalandName}`,
+    {
+      comparisonAction: "replace",
+      constraints: [],
+      kind: "player_comparison",
+      players: [
+        fixturePlayer(fixtureKaneName),
+        fixturePlayer(fixtureHaalandName),
+      ],
+      teams: [],
+    },
+  ],
+  [
+    `Find alternatives to ${fixtureKaneName}`,
+    {
+      constraints: [],
+      kind: "player_recommendation",
+      players: [fixturePlayer(fixtureKaneName)],
+      recommendation: { position: "stc", resultLimit: 2 },
+      recommendationAction: "replace",
+      teams: [],
+    },
+  ],
+  [
+    `Recommend a striker for ${fixtureTeamName}`,
+    fixtureTeamRequest(fixtureTeamName),
+  ],
+  [
+    "Explain the saved team recommendation",
+    fixtureTeamRequest(fixtureTeamName, "explain"),
+  ],
+  [
+    `Recommend a striker for ${fixtureOutageTeamName}`,
+    fixtureTeamRequest(fixtureOutageTeamName),
+  ],
+  [
+    `Retry the ${fixtureOutageTeamName} striker search`,
+    fixtureTeamRequest(fixtureOutageTeamName),
+  ],
+]);
+
+const requestExtractionForFixtureText = (message: string) =>
+  fixtureExtractions.get(message) ?? null;
+
+const currentUserText = (messageText: string): string => {
+  try {
+    const prompt = z
+      .looseObject({ currentMessage: z.string() })
+      .safeParse(JSON.parse(messageText));
+
+    return prompt.success ? prompt.data.currentMessage : messageText;
+  } catch {
+    return messageText;
+  }
+};
+
 const reservePort = async (): Promise<number> => {
   const server = createServer();
   server.listen(0, "127.0.0.1");
@@ -128,13 +403,27 @@ const reservePort = async (): Promise<number> => {
 const startGateway = async (): Promise<LocalGateway> => {
   const receivedCalls: string[] = [];
   const receivedEvents: string[] = [];
+  let extractionCallIndex = 0;
   const eventSchema = z.object({ name: z.string() });
+
+  const chatRequestSchema = z.looseObject({
+    messages: z
+      .array(
+        z.looseObject({ content: z.unknown(), role: z.string().optional() })
+      )
+      .optional(),
+    stream: z.boolean().optional(),
+    tool_choice: z.unknown().optional(),
+    tools: z
+      .array(z.looseObject({ function: z.looseObject({ name: z.string() }) }))
+      .optional(),
+  });
+
   const chatCompletionId = "chatcmpl-persistence-test";
   const chatModelName = "persistence-test-model";
 
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
-    const chatRequestSchema = z.looseObject({ stream: z.boolean().optional() });
     request.on("data", (chunk: Buffer) => {
       chunks.push(chunk);
     });
@@ -157,8 +446,29 @@ const startGateway = async (): Promise<LocalGateway> => {
       }
 
       receivedCalls.push(body);
-
       const chatRequest = chatRequestSchema.safeParse(JSON.parse(body));
+
+      const lastUserMessage = chatRequest.success
+        ? chatRequest.data.messages
+            ?.toReversed()
+            .find((message) => message.role === "user")
+        : undefined;
+
+      const userText = z.string().safeParse(lastUserMessage?.content);
+
+      const extractionArguments = userText.success
+        ? requestExtractionForFixtureText(currentUserText(userText.data))
+        : null;
+
+      const extractionTool = chatRequest.success
+        ? chatRequest.data.tools?.[0]?.function.name
+        : undefined;
+
+      const structuredResponse =
+        chatRequest.success &&
+        chatRequest.data.tool_choice !== undefined &&
+        extractionArguments !== null &&
+        extractionTool !== undefined;
 
       if (chatRequest.success && chatRequest.data.stream === true) {
         const chunkMetadata = {
@@ -167,6 +477,9 @@ const startGateway = async (): Promise<LocalGateway> => {
           model: chatModelName,
           object: "chat.completion.chunk",
         };
+
+        const extractionCallId = `call-persistence-request-${extractionCallIndex}`;
+        extractionCallIndex += 1;
 
         response.writeHead(200, {
           "cache-control": "no-cache",
@@ -178,10 +491,25 @@ const startGateway = async (): Promise<LocalGateway> => {
             ...chunkMetadata,
             choices: [
               {
-                delta: {
-                  content: "The saved scouting context is ready.",
-                  role: "assistant",
-                },
+                delta: structuredResponse
+                  ? {
+                      role: "assistant",
+                      tool_calls: [
+                        {
+                          function: {
+                            arguments: JSON.stringify(extractionArguments),
+                            name: extractionTool,
+                          },
+                          id: extractionCallId,
+                          index: 0,
+                          type: "function",
+                        },
+                      ],
+                    }
+                  : {
+                      content: "The saved scouting context is ready.",
+                      role: "assistant",
+                    },
                 finish_reason: null,
                 index: 0,
               },
@@ -191,7 +519,13 @@ const startGateway = async (): Promise<LocalGateway> => {
         response.write(
           `data: ${JSON.stringify({
             ...chunkMetadata,
-            choices: [{ delta: {}, finish_reason: "stop", index: 0 }],
+            choices: [
+              {
+                delta: {},
+                finish_reason: structuredResponse ? "tool_calls" : "stop",
+                index: 0,
+              },
+            ],
           })}\n\n`
         );
         response.write(
@@ -284,6 +618,8 @@ const createTemporaryProject = async (
     ),
   ]);
 
+  const sourceFixtures = await createSourceFixtures(projectPath);
+
   await writeFile(
     path.join(projectPath, "langgraph.json"),
     JSON.stringify({
@@ -303,9 +639,9 @@ const createTemporaryProject = async (
       "LANGCHAIN_TRACING_V2=false",
       `PERSISTENCE_TEST_EVENTS_URL=${eventUrl}`,
       "API_FOOTBALL_KEY=",
-      `TACTISCOUT_FM_PROFILES_PATH=${path.join(projectPath, "missing-fm-profiles.json")}`,
-      `TACTISCOUT_UNDERSTAT_DB_PATH=${path.join(projectPath, "missing-understat.sqlite")}`,
-      `TACTISCOUT_REEP_IDENTITY_DB_PATH=${path.join(projectPath, "missing-reep.sqlite")}`,
+      `TACTISCOUT_FM_PROFILES_PATH=${sourceFixtures.fmDatabasePath}`,
+      `TACTISCOUT_UNDERSTAT_DB_PATH=${sourceFixtures.understatDatabasePath}`,
+      `TACTISCOUT_REEP_IDENTITY_DB_PATH=${sourceFixtures.reepDatabasePath}`,
     ].join("\n")
   );
 

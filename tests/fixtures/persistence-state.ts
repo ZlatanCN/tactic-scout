@@ -172,6 +172,22 @@ const clarificationDetails = (state: ThreadState) => ({
   question: state.values.pendingClarification?.question ?? null,
 });
 
+const activeRecommendationFromState = (state: ThreadState) => {
+  const { activeRecommendation } = state.values.conversationContext;
+
+  if (activeRecommendation === null) {
+    throw new Error(
+      JSON.stringify({
+        outcome: state.values.outcome,
+        pendingClarification: state.values.pendingClarification,
+        request: state.values.request,
+      })
+    );
+  }
+
+  return activeRecommendation;
+};
+
 const persistedThreadFacts = (state: AgentStateType) => ({
   conversationContext: {
     activeComparison: state.conversationContext.activeComparison,
@@ -195,6 +211,7 @@ const persistedThreadFacts = (state: AgentStateType) => ({
 
 export {
   clarificationDetails,
+  activeRecommendationFromState,
   persistedThreadFacts,
   playerReference,
   savedConversationContext,
