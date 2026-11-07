@@ -234,12 +234,48 @@ const resumedRosterFacts = (state: ThreadState) => {
   };
 };
 
+const identityPriorSnapshotsPreserved = (
+  before: ThreadState,
+  after: ThreadState
+) =>
+  before.values.conversationContext.activeLookup?.resultJson ===
+    after.values.conversationContext.activeLookup?.resultJson &&
+  before.values.conversationContext.activeRecommendation?.resultJson ===
+    after.values.conversationContext.activeRecommendation?.resultJson &&
+  before.values.conversationContext.activeTeamRecommendation?.resultJson ===
+    after.values.conversationContext.activeTeamRecommendation?.resultJson;
+
+const rosterPriorSnapshotsPreserved = (
+  before: ThreadState,
+  after: ThreadState
+) =>
+  before.values.conversationContext.activeLookup?.resultJson ===
+    after.values.conversationContext.activeLookup?.resultJson &&
+  before.values.conversationContext.activeComparison?.resultJson ===
+    after.values.conversationContext.activeComparison?.resultJson &&
+  before.values.conversationContext.activeRecommendation?.resultJson ===
+    after.values.conversationContext.activeRecommendation?.resultJson;
+
 const resumedInterruptFacts = (
-  identityState: ThreadState,
-  rosterState: ThreadState
+  identityBefore: ThreadState,
+  identityAfter: ThreadState,
+  rosterBefore: ThreadState,
+  rosterAfter: ThreadState
 ) => ({
-  identity: resumedIdentityFacts(identityState),
-  roster: resumedRosterFacts(rosterState),
+  identity: {
+    ...resumedIdentityFacts(identityAfter),
+    priorSnapshotsPreserved: identityPriorSnapshotsPreserved(
+      identityBefore,
+      identityAfter
+    ),
+  },
+  roster: {
+    ...resumedRosterFacts(rosterAfter),
+    priorSnapshotsPreserved: rosterPriorSnapshotsPreserved(
+      rosterBefore,
+      rosterAfter
+    ),
+  },
 });
 
 const savedTeamSnapshotOutcome = (

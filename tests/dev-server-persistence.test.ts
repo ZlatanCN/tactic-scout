@@ -473,7 +473,12 @@ describe("managed Dev Server persistence", () => {
         },
       });
       expect(
-        resumedInterruptFacts(resumedIdentity, resumedRoster)
+        resumedInterruptFacts(
+          restoredIdentity,
+          resumedIdentity,
+          restoredRoster,
+          resumedRoster
+        )
       ).toStrictEqual({
         identity: {
           comparisonPlayers: ["Harry Kane", "Erling Haaland"],
@@ -484,6 +489,7 @@ describe("managed Dev Server persistence", () => {
             status: "ready",
           },
           pending: null,
+          priorSnapshotsPreserved: true,
           resolutionStatus: "resolved",
         },
         roster: {
@@ -510,6 +516,7 @@ describe("managed Dev Server persistence", () => {
             status: "ready",
           },
           pending: null,
+          priorSnapshotsPreserved: true,
           result: {
             fmSnapshotDate: "2025-11-23",
             retrievedAt: "2026-11-06T00:00:00.000Z",
