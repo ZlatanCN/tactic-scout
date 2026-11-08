@@ -142,6 +142,59 @@ describe("request understanding extraction", () => {
     });
   });
 
+  it("recognizes clear-all as its own explicit player-memory action", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "other",
+        playerMemoryManagement: { action: "clear" },
+        players: [],
+        teams: [],
+      }))
+    );
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "Clear all player memories",
+      createInitialConversationContext()
+    );
+
+    expect(result.playerMemoryManagement).toStrictEqual({
+      action: "clear",
+      apiFootballPlayerId: null,
+      fmId: null,
+      replacementMention: null,
+      targetKind: null,
+      targetMention: null,
+    });
+  });
+
+  it.each([
+    "Do not clear all player memories",
+    "I don't want to clear all player memories",
+    "不要清空全部球员身份记忆",
+    "我不想清空全部球员记忆",
+  ])("rejects a negated clear-all command in %s", async (message) => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "other",
+        playerMemoryManagement: { action: "clear" },
+        players: [],
+        teams: [],
+      }))
+    );
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(message, createInitialConversationContext());
+
+    expect(result.playerMemoryManagement).toBeUndefined();
+  });
+
   it.each(["Janik Haberer's", "Janik Haberer’s"])(
     "removes the possessive suffix from the explicit player name %s",
     (mention) => {

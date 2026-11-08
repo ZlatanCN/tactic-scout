@@ -4,12 +4,15 @@ import type { BaseStore, GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import {
+  clearPlayerMemoryRecords,
   correctPlayerMemoryAlias,
   deletePlayerMemoryTarget,
   findPlayerMemoryForgetOptions,
   listPlayerMemories,
+  preparePlayerMemoryClear,
 } from "../player-memory.js";
 import type {
+  PlayerMemoryClearResult,
   PlayerMemoryDeleteResult,
   PlayerMemoryCorrectionResult,
   PlayerMemoryForgetQuery,
@@ -192,6 +195,72 @@ const failedUpdate = (
   resultJson: string | null = null
 ) => completedUpdate(status, resultJson, message);
 
+const clearMessage = (result: PlayerMemoryClearResult): string => {
+  if (result.status === "cleared") {
+    return `已清空 ${result.deletedCount} 条球员身份记忆（称呼/来源组 ${result.aliasCount} 条，阵容映射 ${result.rosterMappingCount} 条）。`;
+  }
+
+  if (result.status === "partial_failure") {
+    return `清空只完成一部分：已删除 ${result.deletedCount} 条，${result.remainingCount} 条仍保留。`;
+  }
+
+  return `清空失败：${result.remainingCount} 条已批准的记忆仍保留。`;
+};
+
+const clearPlayerMemoryRequest = async (
+  store: BaseStore,
+  request: PlayerMemoryManagementRequest
+) => {
+  if (request.clearAllApproved) {
+    const result = await clearPlayerMemoryRecords(
+      store,
+      request.clearAllConfirmationIds
+    );
+
+    return completedUpdate(
+      result.status,
+      JSON.stringify(result),
+      clearMessage(result)
+    );
+  }
+
+  const scope = await preparePlayerMemoryClear(store);
+
+  if (scope.status !== "ready") {
+    return failedUpdate(
+      "failed",
+      "无法读取当前球员身份记忆，清空范围不可用，没有删除任何记录。"
+    );
+  }
+
+  const totalCount = scope.aliasCount + scope.rosterMappingCount;
+
+  if (totalCount === 0) {
+    const result: PlayerMemoryClearResult = {
+      aliasCount: 0,
+      deletedCount: 0,
+      rosterMappingCount: 0,
+      status: "cleared",
+    };
+
+    return completedUpdate(
+      "cleared",
+      JSON.stringify(result),
+      "当前没有可清空的球员身份记忆。"
+    );
+  }
+
+  return {
+    pendingClarification: {
+      answer: null,
+      clearAllConfirmationIds: scope.confirmationIds,
+      kind: "player_memory_management" as const,
+      options: [],
+      question: `将清空当前本地用户共享记忆：球员称呼/来源组 ${scope.aliasCount} 条，阵容映射 ${scope.rosterMappingCount} 条，共 ${totalCount} 条。不会删除对话线程、checkpoint、源数据或共享 Reep 身份库。请回复“确认”执行，或回复“取消”。`,
+    },
+  };
+};
+
 const sameForgetTarget = (
   left: ResolvedMemoryForgetTarget,
   right: ResolvedMemoryForgetTarget
@@ -362,6 +431,7 @@ const correctPlayerMemoryRequest = async (
     return {
       pendingClarification: {
         answer: null,
+        clearAllConfirmationIds: [],
         kind: "player_memory_management" as const,
         options: aliasResolution.options,
         question: `“${request.targetMention}”匹配到多个已记住的称呼，请选择要纠正的那一个：${numberedOptions}。也可以回复“取消”。`,
@@ -439,6 +509,10 @@ const createManagePlayerMemoryNode =
       return await correctPlayerMemoryRequest(store, state, request, runtime);
     }
 
+    if (request.action === "clear") {
+      return await clearPlayerMemoryRequest(store, request);
+    }
+
     const query = targetQuery(request);
 
     if (
@@ -480,6 +554,7 @@ const createManagePlayerMemoryNode =
       return {
         pendingClarification: {
           answer: null,
+          clearAllConfirmationIds: [],
           kind: "player_memory_management" as const,
           options,
           question: `“${query.targetMention ?? "这个目标"}”对应多条记忆，请选择要忘记的记录：${numberedOptions}。也可以回复“取消”。`,

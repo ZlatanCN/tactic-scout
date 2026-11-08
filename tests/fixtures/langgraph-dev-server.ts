@@ -10,6 +10,7 @@ import { deflateRawSync } from "node:zlib";
 
 import { z } from "zod/v4";
 
+import type { PlayerMemoryManagementExtraction } from "../../src/request-extraction.js";
 import type { RequestKind } from "../../src/state.js";
 
 const fixtureKaneName = "Harry Kane";
@@ -344,14 +345,7 @@ type FixtureExtraction = {
   constraints: { name: string; value: string }[];
   continuationAction?: "explain" | "refine" | null;
   kind: RequestKind;
-  playerMemoryManagement?: {
-    action: "list" | "forget" | "correct";
-    apiFootballPlayerId?: number | null;
-    fmId?: string | null;
-    replacementMention?: string | null;
-    targetKind?: "player_identity" | "roster_identity" | null;
-    targetMention?: string | null;
-  };
+  playerMemoryManagement?: PlayerMemoryManagementExtraction;
   players: {
     lookupName: string | null;
     mention: string;
@@ -473,6 +467,16 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
       constraints: [],
       kind: "other",
       playerMemoryManagement: { action: "list" },
+      players: [],
+      teams: [],
+    },
+  ],
+  [
+    "Clear all player memories",
+    {
+      constraints: [],
+      kind: "other",
+      playerMemoryManagement: { action: "clear" },
       players: [],
       teams: [],
     },

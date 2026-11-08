@@ -240,6 +240,18 @@ const runPlayerLookup = async (
     })
   );
 
+const resumeAgentRun = async (
+  baseUrl: string,
+  threadId: string,
+  answer: string | { candidateId: string }
+) =>
+  await postJson(
+    baseUrl,
+    `/threads/${threadId}/runs/wait`,
+    waitResponseSchema,
+    JSON.stringify({ assistant_id: "agent", command: { resume: answer } })
+  );
+
 type FailureRecoveryInput = {
   baseUrl: string;
   gateway: LocalGateway;
@@ -609,17 +621,6 @@ describe("managed Dev Server persistence", () => {
         })
       );
 
-    const resume = async (
-      threadId: string,
-      answer: string | { candidateId: string }
-    ) =>
-      await postJson(
-        baseUrl,
-        `/threads/${threadId}/runs/wait`,
-        waitResponseSchema,
-        JSON.stringify({ assistant_id: "agent", command: { resume: answer } })
-      );
-
     const readState = async (threadId: string) =>
       await getAgentThreadState(baseUrl, threadId);
 
@@ -629,7 +630,7 @@ describe("managed Dev Server persistence", () => {
       const aliasPending = await readState(aliasThread.thread_id);
       expect(clarificationDetails(aliasPending).hasInterrupt).toBeTruthy();
 
-      await resume(aliasThread.thread_id, {
+      await resumeAgentRun(baseUrl, aliasThread.thread_id, {
         candidateId: "reep:canonical:kane",
       });
 
@@ -638,7 +639,7 @@ describe("managed Dev Server persistence", () => {
         rosterThread.thread_id,
         "Recommend a striker for Roster Memory Club"
       );
-      await resume(rosterThread.thread_id, "1");
+      await resumeAgentRun(baseUrl, rosterThread.thread_id, "1");
       const aliasBeforeForget = await readState(aliasThread.thread_id);
       const rosterAfterConfirmation = await readState(rosterThread.thread_id);
 
@@ -685,9 +686,9 @@ describe("managed Dev Server persistence", () => {
       const ambiguous = await readState(managementThread.thread_id);
       await session.restart();
       const restoredAmbiguity = await readState(managementThread.thread_id);
-      await resume(managementThread.thread_id, "99");
+      await resumeAgentRun(baseUrl, managementThread.thread_id, "99");
       const invalidAnswer = await readState(managementThread.thread_id);
-      await resume(managementThread.thread_id, "取消");
+      await resumeAgentRun(baseUrl, managementThread.thread_id, "取消");
       const cancelled = await readState(managementThread.thread_id);
 
       await runMessage(
@@ -709,7 +710,7 @@ describe("managed Dev Server persistence", () => {
         restoredRosterThread.thread_id
       );
 
-      await resume(restoredRosterThread.thread_id, "1");
+      await resumeAgentRun(baseUrl, restoredRosterThread.thread_id, "1");
 
       const restoredRosterState = await readState(
         restoredRosterThread.thread_id
@@ -734,7 +735,11 @@ describe("managed Dev Server persistence", () => {
         );
       }
 
-      await resume(managementThread.thread_id, rosterForgetOption);
+      await resumeAgentRun(
+        baseUrl,
+        managementThread.thread_id,
+        rosterForgetOption
+      );
 
       const afterResumedRosterForget = await readState(
         managementThread.thread_id
@@ -1276,6 +1281,229 @@ describe("managed Dev Server persistence", () => {
         waitingForAliasTarget: true,
         waitingForReplacement: true,
       });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
+  it("clears both player-memory record kinds only after restarted explicit confirmation", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/persistence-agent.ts:agent"
+    );
+
+    const { baseUrl } = session;
+
+    try {
+      const aliasThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, aliasThread.thread_id, "Look up 凯恩");
+      await resumeAgentRun(baseUrl, aliasThread.thread_id, {
+        candidateId: "reep:canonical:kane",
+      });
+
+      const rosterThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        rosterThread.thread_id,
+        "Recommend a striker for Roster Memory Club"
+      );
+      await resumeAgentRun(baseUrl, rosterThread.thread_id, "1");
+
+      await putJson(
+        baseUrl,
+        "/store/items",
+        JSON.stringify({
+          key: "keep-through-clear",
+          namespace: ["tactiscout", "local-user", "unrelated"],
+          value: { confirmed: true, sourceIds: ["fm-haaland"] },
+        })
+      );
+
+      const clearThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        clearThread.thread_id,
+        "Clear all player memories"
+      );
+      const pending = await getAgentThreadState(baseUrl, clearThread.thread_id);
+      await session.restart();
+
+      const restoredPending = await getAgentThreadState(
+        baseUrl,
+        clearThread.thread_id
+      );
+
+      await resumeAgentRun(baseUrl, clearThread.thread_id, "maybe");
+
+      const invalidAnswer = await getAgentThreadState(
+        baseUrl,
+        clearThread.thread_id
+      );
+
+      await resumeAgentRun(baseUrl, clearThread.thread_id, "取消");
+
+      const cancelled = await getAgentThreadState(
+        baseUrl,
+        clearThread.thread_id
+      );
+
+      const verifyThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        verifyThread.thread_id,
+        "Show remembered player aliases and mappings"
+      );
+
+      const memoriesAfterCancel = await getAgentThreadState(
+        baseUrl,
+        verifyThread.thread_id
+      );
+
+      await runPlayerLookup(
+        baseUrl,
+        clearThread.thread_id,
+        "Clear all player memories"
+      );
+
+      const pendingSecondClear = await getAgentThreadState(
+        baseUrl,
+        clearThread.thread_id
+      );
+
+      await session.restart();
+
+      const restoredSecondClear = await getAgentThreadState(
+        baseUrl,
+        clearThread.thread_id
+      );
+
+      await resumeAgentRun(baseUrl, clearThread.thread_id, "确认");
+      const cleared = await getAgentThreadState(baseUrl, clearThread.thread_id);
+
+      await runPlayerLookup(
+        baseUrl,
+        clearThread.thread_id,
+        "Clear all player memories"
+      );
+
+      const repeatedClear = await getAgentThreadState(
+        baseUrl,
+        clearThread.thread_id
+      );
+
+      const emptyThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        emptyThread.thread_id,
+        "Show remembered player aliases and mappings"
+      );
+
+      const emptyList = await getAgentThreadState(
+        baseUrl,
+        emptyThread.thread_id
+      );
+
+      const freshIdentityThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        freshIdentityThread.thread_id,
+        "Look up 凯恩"
+      );
+
+      const freshIdentity = await getAgentThreadState(
+        baseUrl,
+        freshIdentityThread.thread_id
+      );
+
+      const freshRosterThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        freshRosterThread.thread_id,
+        "Recommend a striker for Roster Memory Club"
+      );
+
+      const freshRoster = await getAgentThreadState(
+        baseUrl,
+        freshRosterThread.thread_id
+      );
+
+      const aliasAfterClear = await getAgentThreadState(
+        baseUrl,
+        aliasThread.thread_id
+      );
+
+      const rosterAfterClear = await getAgentThreadState(
+        baseUrl,
+        rosterThread.thread_id
+      );
+
+      const unrelatedRecord = await requestJson(
+        baseUrl,
+        "/store/items?namespace=tactiscout.local-user.unrelated&key=keep-through-clear",
+        storeItemSchema
+      );
+
+      expect({
+        cancelledOutcome: cancelled.values.outcome?.status,
+        clearScopeAfterRestart: clarificationDetails(restoredPending).question,
+        clearScopeContainsAliasCount:
+          clarificationDetails(pending).question?.includes("称呼/来源组 1 条"),
+        clearedOutcome: cleared.values.outcome?.status,
+        emptyList: latestAssistantText(emptyList),
+        freshIdentityInterrupt:
+          clarificationDetails(freshIdentity).hasInterrupt,
+        freshRosterMappingInterrupt:
+          clarificationDetails(freshRoster).hasInterrupt,
+        invalidAnswerStillPending:
+          clarificationDetails(invalidAnswer).hasInterrupt,
+        memoriesAfterCancel: {
+          containsAlias:
+            latestAssistantText(memoriesAfterCancel).includes("凯恩"),
+          containsRoster:
+            latestAssistantText(memoriesAfterCancel).includes(
+              "API-Football #11"
+            ),
+        },
+        oldAliasStillLocal:
+          resolvedIdentitySelection(aliasAfterClear).selectedCandidateId,
+        oldRosterStillLocal: rosterMemberFactsFromState(rosterAfterClear),
+        pendingAfterInvalidQuestionAsksConfirm:
+          clarificationDetails(invalidAnswer).question?.includes(
+            "回复“确认”执行清空"
+          ),
+        pendingSecondClear:
+          clarificationDetails(pendingSecondClear).hasInterrupt,
+        repeatedClear: {
+          hasInterrupt: clarificationDetails(repeatedClear).hasInterrupt,
+          outcome: repeatedClear.values.outcome?.status,
+        },
+        restoredSecondClear:
+          clarificationDetails(restoredSecondClear).hasInterrupt,
+        unrelatedRecord: unrelatedRecord.value,
+      }).toStrictEqual({
+        cancelledOutcome: "cancelled",
+        clearScopeAfterRestart: clarificationDetails(pending).question,
+        clearScopeContainsAliasCount: true,
+        clearedOutcome: "cleared",
+        emptyList: "当前没有已记住的球员称呼或阵容映射。",
+        freshIdentityInterrupt: true,
+        freshRosterMappingInterrupt: true,
+        invalidAnswerStillPending: true,
+        memoriesAfterCancel: { containsAlias: true, containsRoster: true },
+        oldAliasStillLocal: "reep:canonical:kane",
+        oldRosterStillLocal: {
+          apiFootballPlayerId: 11,
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          mappingStatus: "resolved",
+        },
+        pendingAfterInvalidQuestionAsksConfirm: true,
+        pendingSecondClear: true,
+        repeatedClear: { hasInterrupt: false, outcome: "cleared" },
+        restoredSecondClear: true,
+        unrelatedRecord: { confirmed: true, sourceIds: ["fm-haaland"] },
+      });
+
+      expect(clarificationDetails(pending).question).toContain("阵容映射 1 条");
     } finally {
       await session.close();
     }

@@ -342,7 +342,10 @@ const interruptForAnswer = (
   } else if (pending.kind === "team_roster_profile") {
     kind = "team_roster_profile_confirmation";
   } else if (pending.kind === "player_memory_management") {
-    kind = "player_memory_forget_target_confirmation";
+    kind =
+      state.playerMemoryManagementRequest?.action === "clear"
+        ? "player_memory_clear_confirmation"
+        : "player_memory_forget_target_confirmation";
   } else if (pending.kind === "workflow") {
     kind = "workflow_continuation_selection";
   }
@@ -616,28 +619,80 @@ const isCancellationAnswer = (answer: string): boolean =>
     answer.normalize("NFKC").trim().toLocaleLowerCase()
   );
 
-const clarifyPlayerMemoryForgetTarget = (
+const cancelledPlayerMemoryManagement = (
+  message: string
+): Partial<AgentStateType> => ({
+  messages: [new AIMessage(message)],
+  outcome: {
+    kind: "player_memory_management",
+    resultJson: null,
+    status: "cancelled",
+  },
+  pendingClarification: null,
+  playerMemoryManagementRequest: null,
+});
+
+const clarifyPlayerMemoryClear = (
   state: AgentStateType,
   pending: Extract<PendingClarification, { kind: "player_memory_management" }>,
   answer: string
 ): Partial<AgentStateType> => {
+  const request = state.playerMemoryManagementRequest;
+
+  if (request === null || request.action !== "clear") {
+    return invalidAnswer(pending, "清空请求已变化，请重新发起操作。");
+  }
+
   if (isCancellationAnswer(answer)) {
-    return {
-      messages: [
-        new AIMessage(
-          state.playerMemoryManagementRequest?.action === "correct"
-            ? "已取消称呼纠正，原有球员记忆保持不变。"
-            : "已取消，没有删除任何球员身份记忆。"
-        ),
-      ],
-      outcome: {
-        kind: "player_memory_management",
-        resultJson: null,
-        status: "cancelled",
-      },
-      pendingClarification: null,
-      playerMemoryManagementRequest: null,
-    };
+    return cancelledPlayerMemoryManagement(
+      "已取消清空球员记忆，没有删除任何记录。"
+    );
+  }
+
+  const normalizedAnswer = answer.normalize("NFKC").trim().toLocaleLowerCase();
+
+  const confirmed = [
+    "确认",
+    "确认清空",
+    "是",
+    "同意",
+    "yes",
+    "confirm",
+  ].includes(normalizedAnswer);
+
+  return confirmed
+    ? {
+        outcome: null,
+        pendingClarification: null,
+        playerMemoryManagementRequest: {
+          ...request,
+          clearAllApproved: true,
+          clearAllConfirmationIds: pending.clearAllConfirmationIds,
+        },
+      }
+    : invalidAnswer(
+        pending,
+        "请明确回复“确认”执行清空，或回复“取消”；其他回答不会删除记忆。"
+      );
+};
+
+const clarifyPlayerMemoryManagement = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "player_memory_management" }>,
+  answer: string
+): Partial<AgentStateType> => {
+  const request = state.playerMemoryManagementRequest;
+
+  if (request?.action === "clear") {
+    return clarifyPlayerMemoryClear(state, pending, answer);
+  }
+
+  if (isCancellationAnswer(answer)) {
+    return cancelledPlayerMemoryManagement(
+      request?.action === "correct"
+        ? "已取消称呼纠正，原有球员记忆保持不变。"
+        : "已取消，没有删除任何球员身份记忆。"
+    );
   }
 
   const target = memoryForgetOptionFromAnswer(answer, pending);
@@ -648,8 +703,6 @@ const clarifyPlayerMemoryForgetTarget = (
       `请选择一个有效的记忆目标编号，或回复“取消”：${pending.question}`
     );
   }
-
-  const request = state.playerMemoryManagementRequest;
 
   if (
     request === null ||
@@ -827,16 +880,9 @@ const resumeClarification = (
     answer !== null &&
     isCancellationAnswer(answer)
   ) {
-    return {
-      messages: [new AIMessage("已取消称呼纠正，原有球员记忆保持不变。")],
-      outcome: {
-        kind: "player_memory_management",
-        resultJson: null,
-        status: "cancelled",
-      },
-      pendingClarification: null,
-      playerMemoryManagementRequest: null,
-    };
+    return cancelledPlayerMemoryManagement(
+      "已取消称呼纠正，原有球员记忆保持不变。"
+    );
   }
 
   if (pending.kind === "identity") {
@@ -876,7 +922,7 @@ const resumeClarification = (
   }
 
   if (pending.kind === "player_memory_management") {
-    return clarifyPlayerMemoryForgetTarget(state, pending, answer);
+    return clarifyPlayerMemoryManagement(state, pending, answer);
   }
 
   if (pending.kind === "workflow") {

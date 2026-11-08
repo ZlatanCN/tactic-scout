@@ -54,8 +54,19 @@ type ExtractedRequest = {
   constraints: RequestConstraint[];
 };
 
+const playerMemoryManagementActionSchema = z.enum([
+  "list",
+  "forget",
+  "correct",
+  "clear",
+]);
+
+type PlayerMemoryManagementAction = z.infer<
+  typeof playerMemoryManagementActionSchema
+>;
+
 type PlayerMemoryManagementExtraction = {
-  action: "list" | "forget" | "correct";
+  action: PlayerMemoryManagementAction;
   apiFootballPlayerId?: number | null;
   fmId?: string | null;
   replacementMention?: string | null;
@@ -311,7 +322,7 @@ const requestExtractionSchema = z.object({
     ),
   playerMemoryManagement: z
     .object({
-      action: z.enum(["list", "forget", "correct"]),
+      action: playerMemoryManagementActionSchema,
       apiFootballPlayerId: z.number().int().positive().nullable().optional(),
       fmId: z.string().nullable().optional(),
       replacementMention: z.string().nullable().optional(),
@@ -323,7 +334,7 @@ const requestExtractionSchema = z.object({
     })
     .optional()
     .describe(
-      "仅用户明确要求查看、忘记或纠正跨对话球员身份记忆时填写。forget 可指定球员称呼或 roster_identity 的精确 API-Football/FM ID。correct 必须分别提取原记忆称呼 targetMention 和替换球员 replacementMention，照抄本轮原话；不确定时留空。清空全部不要伪装成单条 forget。"
+      "仅用户明确要求查看、忘记、纠正或清空跨对话球员身份记忆时填写。forget 可指定球员称呼或 roster_identity 的精确 API-Football/FM ID。correct 必须分别提取原记忆称呼 targetMention 和替换球员 replacementMention，照抄本轮原话；不确定时留空。明确要求清空全部时用 action=clear，后续必须通过确认 interrupt 才能删除。"
     ),
   players: z.array(
     z.object({
@@ -645,6 +656,12 @@ const memoryCorrectionContext =
 const memoryClearAll =
   /清空|清除|删除所有|删除全部|forget all|delete all|clear all|forget everything|clear everything/iu;
 
+const memoryClearNegationPatterns = [
+  /\b(?:do not|don't|never|should not|shouldn't|must not)\s+(?:clear|delete|forget)\b/iu,
+  /\b(?:do not|don't)\s+(?:want|need)\s+to\b.{0,16}\b(?:clear|delete|forget)\b/iu,
+  /(?:不要|别|不可|禁止|不想|不用|不需要)\s*(?:清空|清除|删除|忘记)/u,
+] as const;
+
 const aliasMemoryTargetWords =
   /别名|称呼|别称|球员身份|\balias(?:es)?\b|\bnickname\b/iu;
 
@@ -706,6 +723,14 @@ const isExplicitPlayerMemoryManagementCommand = (
   message: string,
   action: PlayerMemoryManagementExtraction["action"]
 ): boolean => {
+  if (action === "clear") {
+    return (
+      memoryClearAll.test(message) &&
+      memoryNouns.test(message) &&
+      !memoryClearNegationPatterns.some((pattern) => pattern.test(message))
+    );
+  }
+
   if (memoryClearAll.test(message)) {
     return false;
   }
@@ -725,6 +750,66 @@ const isExplicitPlayerMemoryManagementCommand = (
   );
 };
 
+const normalizedClearCommand = (): PlayerMemoryManagementExtraction => ({
+  action: "clear",
+  apiFootballPlayerId: null,
+  fmId: null,
+  replacementMention: null,
+  targetKind: null,
+  targetMention: null,
+});
+
+const normalizedCorrectionCommand = (
+  command: NonNullable<RawExtractedRequest["playerMemoryManagement"]>,
+  message: string
+): PlayerMemoryManagementExtraction => ({
+  action: "correct",
+  apiFootballPlayerId: null,
+  fmId: null,
+  replacementMention:
+    command.replacementMention !== undefined &&
+    command.replacementMention !== null &&
+    mentionIsPresentInMessage(message, command.replacementMention)
+      ? command.replacementMention.trim()
+      : null,
+  targetKind:
+    mentionedMemoryTargetKind(message) === "player_identity"
+      ? "player_identity"
+      : null,
+  targetMention:
+    command.targetMention !== undefined &&
+    command.targetMention !== null &&
+    mentionIsPresentInMessage(message, command.targetMention)
+      ? command.targetMention.trim()
+      : null,
+});
+
+const normalizedForgetOrListCommand = (
+  command: NonNullable<RawExtractedRequest["playerMemoryManagement"]>,
+  message: string
+): PlayerMemoryManagementExtraction => ({
+  action: command.action,
+  apiFootballPlayerId:
+    command.apiFootballPlayerId !== undefined &&
+    command.apiFootballPlayerId !== null &&
+    apiFootballIdIsPresentInMessage(message, command.apiFootballPlayerId)
+      ? command.apiFootballPlayerId
+      : null,
+  fmId:
+    command.fmId !== undefined &&
+    command.fmId !== null &&
+    sourceIdIsPresentInMessage(message, command.fmId)
+      ? command.fmId.trim()
+      : null,
+  targetKind: mentionedMemoryTargetKind(message),
+  targetMention:
+    command.targetMention !== undefined &&
+    command.targetMention !== null &&
+    mentionIsPresentInMessage(message, command.targetMention)
+      ? command.targetMention.trim()
+      : null,
+});
+
 const normalizePlayerMemoryManagement = (
   command: RawExtractedRequest["playerMemoryManagement"],
   message: string
@@ -736,52 +821,15 @@ const normalizePlayerMemoryManagement = (
     return undefined;
   }
 
-  if (command.action === "correct") {
-    return {
-      action: "correct",
-      apiFootballPlayerId: null,
-      fmId: null,
-      replacementMention:
-        command.replacementMention !== undefined &&
-        command.replacementMention !== null &&
-        mentionIsPresentInMessage(message, command.replacementMention)
-          ? command.replacementMention.trim()
-          : null,
-      targetKind:
-        mentionedMemoryTargetKind(message) === "player_identity"
-          ? "player_identity"
-          : null,
-      targetMention:
-        command.targetMention !== undefined &&
-        command.targetMention !== null &&
-        mentionIsPresentInMessage(message, command.targetMention)
-          ? command.targetMention.trim()
-          : null,
-    };
+  if (command.action === "clear") {
+    return normalizedClearCommand();
   }
 
-  return {
-    action: command.action,
-    apiFootballPlayerId:
-      command.apiFootballPlayerId !== undefined &&
-      command.apiFootballPlayerId !== null &&
-      apiFootballIdIsPresentInMessage(message, command.apiFootballPlayerId)
-        ? command.apiFootballPlayerId
-        : null,
-    fmId:
-      command.fmId !== undefined &&
-      command.fmId !== null &&
-      sourceIdIsPresentInMessage(message, command.fmId)
-        ? command.fmId.trim()
-        : null,
-    targetKind: mentionedMemoryTargetKind(message),
-    targetMention:
-      command.targetMention !== undefined &&
-      command.targetMention !== null &&
-      mentionIsPresentInMessage(message, command.targetMention)
-        ? command.targetMention.trim()
-        : null,
-  };
+  if (command.action === "correct") {
+    return normalizedCorrectionCommand(command, message);
+  }
+
+  return normalizedForgetOrListCommand(command, message);
 };
 
 const requestWithPlayerMemoryManagement = (

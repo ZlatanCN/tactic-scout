@@ -79,6 +79,8 @@ const memoryManagementRequestUpdate = (
     playerMemoryManagementRequest: {
       action: command.action,
       apiFootballPlayerId: command.apiFootballPlayerId ?? null,
+      clearAllApproved: false,
+      clearAllConfirmationIds: [],
       fmId: command.fmId ?? null,
       replacementMention: command.replacementMention ?? null,
       selectedTarget: null,

@@ -172,6 +172,30 @@ type PlayerMemoryCorrectionResult =
   | { deletedCount: number; failedCount: number; status: "partial_failure" }
   | { status: "failed" | "not_found" };
 
+type PlayerMemoryClearScopeResult =
+  | {
+      aliasCount: number;
+      confirmationIds: string[];
+      rosterMappingCount: number;
+      status: "ready";
+    }
+  | { status: "unavailable" };
+
+type PlayerMemoryClearResult =
+  | {
+      aliasCount: number;
+      deletedCount: number;
+      rosterMappingCount: number;
+      status: "cleared";
+    }
+  | {
+      deletedCount: number;
+      failedCount: number;
+      remainingCount: number;
+      status: "partial_failure";
+    }
+  | { remainingCount: number; status: "failed" };
+
 type StoredPlayerMemoryEntry = {
   key: string;
   record: PlayerMemoryRecord;
@@ -1603,13 +1627,105 @@ const correctPlayerMemoryAlias = async (
     : { deletedCount, failedCount, status: "partial_failure" };
 };
 
+const preparePlayerMemoryClear = async (
+  store: BaseStore
+): Promise<PlayerMemoryClearScopeResult> => {
+  const stored = await readPlayerMemoryEntries(store);
+
+  if (stored.status !== "ready" || stored.truncated) {
+    return { status: "unavailable" };
+  }
+
+  const confirmationIds = new Set<string>();
+  let aliasCount = 0;
+  let rosterMappingCount = 0;
+
+  for (const entry of stored.entries) {
+    confirmationIds.add(entry.record.confirmationId);
+
+    if (entry.record.kind === "player_identity") {
+      aliasCount += 1;
+    } else {
+      rosterMappingCount += 1;
+    }
+  }
+
+  return {
+    aliasCount,
+    confirmationIds: [...confirmationIds].toSorted(),
+    rosterMappingCount,
+    status: "ready",
+  };
+};
+
+const clearPlayerMemoryRecords = async (
+  store: BaseStore,
+  confirmationIds: string[]
+): Promise<PlayerMemoryClearResult> => {
+  const stored = await readPlayerMemoryEntries(store);
+
+  if (stored.status !== "ready" || stored.truncated) {
+    return { remainingCount: confirmationIds.length, status: "failed" };
+  }
+
+  const approvedIds = new Set(confirmationIds);
+
+  const approvedEntries = stored.entries.filter((entry) =>
+    approvedIds.has(entry.record.confirmationId)
+  );
+
+  const unapprovedCount = stored.entries.filter(
+    (entry) => !approvedIds.has(entry.record.confirmationId)
+  ).length;
+
+  const results = await Promise.all(
+    approvedEntries.map(async (entry) => {
+      try {
+        await store.delete(playerMemoryNamespace, entry.key);
+
+        return { deleted: true, kind: entry.record.kind };
+      } catch {
+        return { deleted: false, kind: entry.record.kind };
+      }
+    })
+  );
+
+  const deletedEntries = results.filter(({ deleted }) => deleted);
+  const failedCount = results.length - deletedEntries.length;
+  const remainingCount = failedCount + unapprovedCount;
+
+  if (remainingCount === 0) {
+    return {
+      aliasCount: deletedEntries.filter(
+        ({ kind }) => kind === "player_identity"
+      ).length,
+      deletedCount: deletedEntries.length,
+      rosterMappingCount: deletedEntries.filter(
+        ({ kind }) => kind === "roster_identity"
+      ).length,
+      status: "cleared",
+    };
+  }
+
+  return deletedEntries.length === 0 && unapprovedCount === 0
+    ? { remainingCount, status: "failed" }
+    : {
+        deletedCount: deletedEntries.length,
+        failedCount,
+        remainingCount,
+        status: "partial_failure",
+      };
+};
+
 export {
+  clearPlayerMemoryRecords,
   correctPlayerMemoryAlias,
   deletePlayerMemoryTarget,
   findPlayerMemoryForgetOptions,
   findRememberedRosterIdentity,
   findRememberedPlayerIdentity,
   listPlayerMemories,
+  preparePlayerMemoryClear,
   rememberPlayerIdentity,
   rememberRosterIdentity,
 };
@@ -1619,6 +1735,8 @@ export type {
   PlayerMemoryLookupResult,
   PlayerMemoryDeleteResult,
   PlayerMemoryCorrectionResult,
+  PlayerMemoryClearResult,
+  PlayerMemoryClearScopeResult,
   PlayerMemoryForgetOptionsResult,
   PlayerMemoryForgetQuery,
   PlayerMemoryListResult,

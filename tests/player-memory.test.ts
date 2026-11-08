@@ -70,6 +70,16 @@ const aliasCorrectionMessage =
 const aliasCorrectionExtractor: RequestUnderstandingExtractor = async (
   message
 ) => {
+  if (message === "Clear all player memories") {
+    return await Promise.resolve({
+      constraints: [],
+      kind: "other" as const,
+      playerMemoryManagement: { action: "clear" as const },
+      players: [],
+      teams: [],
+    });
+  }
+
   if (message === "Show remembered player memories") {
     return await Promise.resolve({
       constraints: [],
@@ -110,6 +120,42 @@ const aliasCorrectionExtractor: RequestUnderstandingExtractor = async (
 
   throw new Error(`Unexpected player-memory correction input: ${message}`);
 };
+
+const playerIdentityMemoryFixture = (
+  mention: string,
+  sourceId: string,
+  confirmationId: string,
+  stableIdentityKey: string
+) => ({
+  canonicalIdentityId: null,
+  confirmationId,
+  confirmedAt: "2026-11-08T00:00:00.000Z",
+  displayName: sourceId === "fm-kane" ? "Harry Kane" : "Erling Haaland",
+  identityVerified: false,
+  kind: "player_identity" as const,
+  normalizedMention: mention,
+  originThreadId: "clear-fixture-thread",
+  originalMention: mention,
+  schemaVersion: 1,
+  sourceRecords: [
+    {
+      canonicalIdentityId: null,
+      competition: null,
+      identityVerified: false,
+      name: sourceId === "fm-kane" ? "Harry Kane" : "Erling Haaland",
+      provider: "fm" as const,
+      season: null,
+      sourceId,
+    },
+  ],
+  sourceVersions: {
+    fmManifestSha256: null,
+    fmSnapshotDate: null,
+    identityRegistryRelease: null,
+    understatScopes: [],
+  },
+  stableIdentityKey,
+});
 
 const withSourceFixtures = async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "tactiscout-memory-"));
@@ -1430,6 +1476,288 @@ describe("conversational player-memory management", () => {
     expect(result.outcome).toMatchObject({
       kind: "player_memory_management",
       status: "failed",
+    });
+  });
+
+  it("requires clear-all confirmation and reports Store deletion failure honestly", async () => {
+    await withSourceFixtures();
+    const store = new InMemoryStore();
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: resolvePlayerReference,
+      requestUnderstandingExtractor: aliasCorrectionExtractor,
+      store,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "clear-memory-store-failure" },
+    };
+
+    const pendingIdentity = await graph.invoke(
+      { messages: [new HumanMessage("Look up 凯恩")] },
+      config
+    );
+
+    const candidates =
+      pendingIdentity.request.players[0]?.resolution?.candidates ?? [];
+
+    const kaneCandidate = candidateWithSource(candidates, "fm", "fm-kane");
+
+    await graph.invoke(
+      new Command({ resume: { candidateId: kaneCandidate.candidateId } }),
+      config
+    );
+
+    vi.spyOn(store, "delete").mockRejectedValue(
+      new Error("simulated Store clear failure")
+    );
+
+    const pendingClear = await graph.invoke(
+      { messages: [new HumanMessage("Clear all player memories")] },
+      config
+    );
+
+    const invalidAnswer = await graph.invoke(
+      new Command({ resume: "maybe" }),
+      config
+    );
+
+    const clearFailure = await graph.invoke(
+      new Command({ resume: "确认" }),
+      config
+    );
+
+    const listed = await graph.invoke(
+      { messages: [new HumanMessage("Show remembered player memories")] },
+      config
+    );
+
+    const remainingRecordCount = z
+      .object({ records: z.array(z.looseObject({ kind: z.string() })) })
+      .parse(JSON.parse(z.string().parse(listed.outcome?.resultJson)))
+      .records.length;
+
+    expect({
+      clearFailureStatus: clearFailure.outcome?.status,
+      invalidAnswerInterrupt: Object.hasOwn(invalidAnswer, "__interrupt__"),
+      pendingQuestionIncludesScope:
+        pendingClear.pendingClarification?.question.includes(
+          "称呼/来源组 1 条"
+        ),
+      remainingRecordCount,
+    }).toStrictEqual({
+      clearFailureStatus: "failed",
+      invalidAnswerInterrupt: true,
+      pendingQuestionIncludesScope: true,
+      remainingRecordCount: 1,
+    });
+  });
+
+  it("reports partial clear when only some approved Store deletions succeed", async () => {
+    await withSourceFixtures();
+    const store = new InMemoryStore();
+    const namespace = ["tactiscout", "local-user", "player-memory"];
+
+    await store.put(
+      namespace,
+      "player-memory-fail",
+      playerIdentityMemoryFixture(
+        "凯恩",
+        "fm-kane",
+        "confirmation-kane",
+        "stable-kane"
+      )
+    );
+    await store.put(
+      namespace,
+      "player-memory-delete",
+      playerIdentityMemoryFixture(
+        "哈兰德",
+        "fm-haaland",
+        "confirmation-haaland",
+        "stable-haaland"
+      )
+    );
+
+    const deleteEntry = store.delete.bind(store);
+
+    vi.spyOn(store, "delete").mockImplementation(
+      async (storeNamespace, key) => {
+        if (key === "player-memory-fail") {
+          throw new Error("simulated partial Store deletion failure");
+        }
+
+        await deleteEntry(storeNamespace, key);
+      }
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      requestUnderstandingExtractor: aliasCorrectionExtractor,
+      store,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "clear-memory-partial-failure" },
+    };
+
+    await graph.invoke(
+      { messages: [new HumanMessage("Clear all player memories")] },
+      config
+    );
+
+    const cleared = await graph.invoke(new Command({ resume: "确认" }), config);
+
+    const listed = await graph.invoke(
+      { messages: [new HumanMessage("Show remembered player memories")] },
+      config
+    );
+
+    const remainingMentions = z
+      .object({
+        records: z.array(z.looseObject({ mention: z.string() })),
+      })
+      .parse(JSON.parse(z.string().parse(listed.outcome?.resultJson)))
+      .records.map(({ mention }) => mention);
+
+    const clearResult = z
+      .object({
+        deletedCount: z.number(),
+        failedCount: z.number(),
+        remainingCount: z.number(),
+      })
+      .parse(JSON.parse(z.string().parse(cleared.outcome?.resultJson)));
+
+    expect({
+      clearResult,
+      clearStatus: cleared.outcome?.status,
+      remainingMentions,
+    }).toStrictEqual({
+      clearResult: { deletedCount: 1, failedCount: 1, remainingCount: 1 },
+      clearStatus: "partial_failure",
+      remainingMentions: ["凯恩"],
+    });
+  });
+
+  it("replays the approved clear scope without deleting later memories", async () => {
+    const store = new InMemoryStore();
+    const namespace = ["tactiscout", "local-user", "player-memory"];
+
+    await store.put(
+      namespace,
+      "approved-alias",
+      playerIdentityMemoryFixture(
+        "凯恩",
+        "fm-kane",
+        "approved-confirmation",
+        "approved-stable-key"
+      )
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      requestUnderstandingExtractor: aliasCorrectionExtractor,
+      store,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "clear-memory-approved-replay" },
+    };
+
+    const pending = await graph.invoke(
+      { messages: [new HumanMessage("Clear all player memories")] },
+      config
+    );
+
+    const confirmationIds = z
+      .object({ clearAllConfirmationIds: z.array(z.string()) })
+      .parse(pending.pendingClarification).clearAllConfirmationIds;
+
+    await store.put(
+      namespace,
+      "memory-added-after-approval",
+      playerIdentityMemoryFixture(
+        "哈兰德",
+        "fm-haaland",
+        "unapproved-confirmation",
+        "unapproved-stable-key"
+      )
+    );
+
+    const firstClear = await graph.invoke(
+      new Command({ resume: "确认" }),
+      config
+    );
+
+    await graph.updateState(
+      config,
+      {
+        playerMemoryManagementRequest: {
+          action: "clear",
+          apiFootballPlayerId: null,
+          clearAllApproved: true,
+          clearAllConfirmationIds: confirmationIds,
+          fmId: null,
+          replacementMention: null,
+          selectedTarget: null,
+          targetKind: null,
+          targetMention: null,
+        },
+      },
+      "understand_request"
+    );
+
+    const replayedClear = await graph.invoke(null, config);
+
+    const listed = await graph.invoke(
+      { messages: [new HumanMessage("Show remembered player memories")] },
+      config
+    );
+
+    const clearResultSchema = z.object({
+      deletedCount: z.number(),
+      remainingCount: z.number(),
+      status: z.literal("partial_failure"),
+    });
+
+    const firstClearResult = clearResultSchema.parse(
+      JSON.parse(z.string().parse(firstClear.outcome?.resultJson))
+    );
+
+    const replayResult = clearResultSchema.parse(
+      JSON.parse(z.string().parse(replayedClear.outcome?.resultJson))
+    );
+
+    const remainingMentions = z
+      .object({
+        records: z.array(z.looseObject({ mention: z.string() })),
+      })
+      .parse(JSON.parse(z.string().parse(listed.outcome?.resultJson)))
+      .records.map(({ mention }) => mention);
+
+    expect({
+      firstClear: firstClearResult,
+      remainingMentions,
+      replay: replayResult,
+    }).toStrictEqual({
+      firstClear: {
+        deletedCount: 1,
+        remainingCount: 1,
+        status: "partial_failure",
+      },
+      remainingMentions: ["哈兰德"],
+      replay: {
+        deletedCount: 0,
+        remainingCount: 1,
+        status: "partial_failure",
+      },
     });
   });
 });
