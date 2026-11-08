@@ -306,9 +306,10 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
 ]);
 
 const PlayerMemoryManagementRequestSchema = z.object({
-  action: z.enum(["list", "forget"]),
+  action: z.enum(["list", "forget", "correct"]),
   apiFootballPlayerId: z.number().int().positive().nullable(),
   fmId: z.string().nullable(),
+  replacementMention: z.string().nullable(),
   selectedTarget: PlayerMemoryManagementTargetSchema.nullable(),
   targetKind: z.enum(["player_identity", "roster_identity"]).nullable(),
   targetMention: z.string().nullable(),
@@ -432,6 +433,7 @@ const TurnOutcomeSchema = z.union([
     resultJson: z.string().nullable(),
     status: z.enum([
       "cancelled",
+      "corrected",
       "failed",
       "forgotten",
       "listed",

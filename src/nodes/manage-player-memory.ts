@@ -1,14 +1,17 @@
 import { AIMessage } from "@langchain/core/messages";
 import { getStore } from "@langchain/langgraph";
 import type { BaseStore, GraphNode } from "@langchain/langgraph";
+import { z } from "zod/v4";
 
 import {
+  correctPlayerMemoryAlias,
   deletePlayerMemoryTarget,
   findPlayerMemoryForgetOptions,
   listPlayerMemories,
 } from "../player-memory.js";
 import type {
   PlayerMemoryDeleteResult,
+  PlayerMemoryCorrectionResult,
   PlayerMemoryForgetQuery,
   PlayerMemoryListResult,
   PlayerMemoryListingRecord,
@@ -17,12 +20,29 @@ import type {
   AgentState,
   AgentStateType,
   PlayerMemoryManagementRequest,
+  ReferenceCandidate,
 } from "../state.js";
 
 type ResolvedMemoryForgetTarget = Exclude<
   PlayerMemoryManagementRequest["selectedTarget"],
   null
 >;
+
+type PlayerMemoryForgetOption = Extract<
+  Awaited<ReturnType<typeof findPlayerMemoryForgetOptions>>,
+  { status: "ready" }
+>["options"][number];
+
+type CorrectionAliasResolution =
+  | { alias: string; status: "ready" }
+  | { options: PlayerMemoryForgetOption[]; status: "ambiguous" }
+  | { status: "failed" }
+  | { status: "not_found" };
+
+type CorrectionReplacementResolution =
+  | { candidate: ReferenceCandidate; status: "ready" }
+  | { status: "failed" }
+  | { status: "waiting" };
 
 const validationLabel = (status: string): string => {
   if (status === "current") {
@@ -129,6 +149,26 @@ const deleteMessage = (
   return `无法删除“${label}”对应的记忆；没有报告删除成功。`;
 };
 
+const correctionMessage = (
+  result: PlayerMemoryCorrectionResult,
+  alias: string,
+  replacement: string
+): string => {
+  if (result.status === "corrected") {
+    return `已将已记住的称呼“${alias}”纠正为“${replacement}”。`;
+  }
+
+  if (result.status === "not_found") {
+    return `没有找到已记住的称呼“${alias}”，没有修改任何记忆。`;
+  }
+
+  if (result.status === "partial_failure") {
+    return `纠正“${alias}”时部分完成：新身份已保存，但 ${result.failedCount} 条旧绑定未能移除，旧身份仍可能被使用。`;
+  }
+
+  return `无法完成对“${alias}”的纠正；没有报告旧绑定已被替换。`;
+};
+
 const completedUpdate = (
   status: Extract<
     AgentStateType["outcome"],
@@ -191,6 +231,184 @@ const selectedForgetOption = (
   );
 };
 
+const resolveCorrectionAlias = async (
+  store: BaseStore,
+  request: PlayerMemoryManagementRequest
+): Promise<CorrectionAliasResolution> => {
+  if (
+    request.targetMention === null ||
+    request.selectedTarget?.kind === "roster_identity"
+  ) {
+    return { status: "failed" };
+  }
+
+  const selectedAlias =
+    request.selectedTarget?.kind === "player_identity"
+      ? request.selectedTarget.mention
+      : null;
+
+  const resolution = await findPlayerMemoryForgetOptions(store, {
+    apiFootballPlayerId: null,
+    fmId: null,
+    targetKind: selectedAlias === null ? null : "player_identity",
+    targetMention: selectedAlias ?? request.targetMention,
+  });
+
+  if (resolution.status !== "ready") {
+    return { status: "failed" };
+  }
+
+  const aliases = resolution.options.filter(
+    (option) => option.target.kind === "player_identity"
+  );
+
+  if (aliases.length === 0) {
+    return { status: "not_found" };
+  }
+
+  if (selectedAlias !== null) {
+    const selected = aliases.find(
+      (option) =>
+        option.target.kind === "player_identity" &&
+        option.target.mention === selectedAlias
+    );
+
+    return selected?.target.kind === "player_identity"
+      ? { alias: selected.target.mention, status: "ready" }
+      : { status: "failed" };
+  }
+
+  if (aliases.length > 1) {
+    return { options: aliases, status: "ambiguous" };
+  }
+
+  const [alias] = aliases;
+
+  return alias?.target.kind === "player_identity"
+    ? { alias: alias.target.mention, status: "ready" }
+    : { status: "failed" };
+};
+
+const replacementCandidateForCorrection = (
+  state: AgentStateType,
+  replacementMention: string
+): CorrectionReplacementResolution => {
+  if (state.request.kind !== "player_lookup") {
+    return { status: "failed" };
+  }
+
+  const [replacementPlayer] = state.request.players;
+
+  if (replacementPlayer?.mention !== replacementMention) {
+    return { status: "failed" };
+  }
+
+  const { resolution } = replacementPlayer;
+
+  if (resolution === null && replacementPlayer.attempts === 0) {
+    return { status: "waiting" };
+  }
+
+  if (resolution?.status !== "resolved") {
+    return { status: "failed" };
+  }
+
+  const candidate = resolution.candidates.find(
+    ({ candidateId }) => candidateId === resolution.selectedCandidateId
+  );
+
+  return candidate === undefined
+    ? { status: "failed" }
+    : { candidate, status: "ready" };
+};
+
+const correctPlayerMemoryRequest = async (
+  store: BaseStore,
+  state: AgentStateType,
+  request: PlayerMemoryManagementRequest,
+  runtime: Parameters<GraphNode<typeof AgentState>>[1]
+) => {
+  const replacement = request.replacementMention;
+
+  if (request.targetMention === null || replacement === null) {
+    return failedUpdate(
+      "failed",
+      "请明确写出要纠正的已记住称呼和替换球员名称；当前记忆没有修改。"
+    );
+  }
+
+  const aliasResolution = await resolveCorrectionAlias(store, request);
+
+  if (aliasResolution.status === "failed") {
+    return failedUpdate(
+      "failed",
+      "无法读取或确认旧称呼的记忆，因此没有开始纠正。"
+    );
+  }
+
+  if (aliasResolution.status === "not_found") {
+    return failedUpdate(
+      "not_found",
+      `没有找到已记住的称呼“${request.targetMention}”，没有修改任何记忆。`,
+      JSON.stringify({ alias: request.targetMention })
+    );
+  }
+
+  if (aliasResolution.status === "ambiguous") {
+    const numberedOptions = aliasResolution.options
+      .map((option, index) => `${index + 1}. ${option.label}`)
+      .join("；");
+
+    return {
+      pendingClarification: {
+        answer: null,
+        kind: "player_memory_management" as const,
+        options: aliasResolution.options,
+        question: `“${request.targetMention}”匹配到多个已记住的称呼，请选择要纠正的那一个：${numberedOptions}。也可以回复“取消”。`,
+      },
+    };
+  }
+
+  const replacementResolution = replacementCandidateForCorrection(
+    state,
+    replacement
+  );
+
+  if (replacementResolution.status === "waiting") {
+    return {};
+  }
+
+  if (replacementResolution.status === "failed") {
+    return failedUpdate("failed", "无法确认替换球员身份，旧称呼记忆保持不变。");
+  }
+
+  const { alias } = aliasResolution;
+  const { candidate } = replacementResolution;
+
+  const threadId = z.string().safeParse(runtime.configurable?.thread_id);
+
+  if (!threadId.success) {
+    return failedUpdate(
+      "failed",
+      `无法确定纠正记录的来源 thread，旧称呼记忆保持不变。`
+    );
+  }
+
+  const result = await correctPlayerMemoryAlias(store, {
+    candidate,
+    mention: alias,
+    originThreadId: threadId.data,
+    playerIndex: 0,
+    processedMessageId: state.request.processedMessageId,
+  });
+
+  return completedUpdate(
+    result.status,
+    JSON.stringify({ alias, correction: result, replacement: candidate.name }),
+    correctionMessage(result, alias, candidate.name)
+  );
+};
+
 const createManagePlayerMemoryNode =
   (configuredStore: BaseStore | null): GraphNode<typeof AgentState> =>
   async (state, runtime) => {
@@ -215,6 +433,10 @@ const createManagePlayerMemoryNode =
       return result.status === "ready"
         ? completedUpdate("listed", JSON.stringify(result), listMessage(result))
         : failedUpdate("failed", "无法读取球员身份记忆，列表没有生成。");
+    }
+
+    if (request.action === "correct") {
+      return await correctPlayerMemoryRequest(store, state, request, runtime);
     }
 
     const query = targetQuery(request);

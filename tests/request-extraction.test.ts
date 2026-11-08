@@ -109,6 +109,39 @@ describe("request understanding extraction", () => {
     });
   });
 
+  it("extracts both sides of an explicit remembered-alias correction", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "other",
+        playerMemoryManagement: {
+          action: "correct",
+          replacementMention: "Erling Haaland",
+          targetMention: "凯恩",
+        },
+        players: [],
+        teams: [],
+      }))
+    );
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "Correct the remembered alias 凯恩 to Erling Haaland",
+      createInitialConversationContext()
+    );
+
+    expect(result.playerMemoryManagement).toStrictEqual({
+      action: "correct",
+      apiFootballPlayerId: null,
+      fmId: null,
+      replacementMention: "Erling Haaland",
+      targetKind: "player_identity",
+      targetMention: "凯恩",
+    });
+  });
+
   it.each(["Janik Haberer's", "Janik Haberer’s"])(
     "removes the possessive suffix from the explicit player name %s",
     (mention) => {

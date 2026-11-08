@@ -611,16 +611,25 @@ const memoryForgetOptionFromAnswer = (
   return matches.length === 1 ? (matches[0]?.target ?? null) : null;
 };
 
+const isCancellationAnswer = (answer: string): boolean =>
+  ["取消", "cancel", "no", "否"].includes(
+    answer.normalize("NFKC").trim().toLocaleLowerCase()
+  );
+
 const clarifyPlayerMemoryForgetTarget = (
   state: AgentStateType,
   pending: Extract<PendingClarification, { kind: "player_memory_management" }>,
   answer: string
 ): Partial<AgentStateType> => {
-  const normalized = answer.normalize("NFKC").trim().toLocaleLowerCase();
-
-  if (["取消", "cancel", "no", "否"].includes(normalized)) {
+  if (isCancellationAnswer(answer)) {
     return {
-      messages: [new AIMessage("已取消，没有删除任何球员身份记忆。")],
+      messages: [
+        new AIMessage(
+          state.playerMemoryManagementRequest?.action === "correct"
+            ? "已取消称呼纠正，原有球员记忆保持不变。"
+            : "已取消，没有删除任何球员身份记忆。"
+        ),
+      ],
       outcome: {
         kind: "player_memory_management",
         resultJson: null,
@@ -642,7 +651,10 @@ const clarifyPlayerMemoryForgetTarget = (
 
   const request = state.playerMemoryManagementRequest;
 
-  if (request === null || request.action !== "forget") {
+  if (
+    request === null ||
+    (request.action !== "forget" && request.action !== "correct")
+  ) {
     return invalidAnswer(pending, "记忆管理请求已变化，请重新发起操作。");
   }
 
@@ -809,6 +821,24 @@ const resumeClarification = (
   pending: PendingClarification,
   answer: string | null
 ): Partial<AgentStateType> => {
+  if (
+    pending.kind === "identity" &&
+    state.playerMemoryManagementRequest?.action === "correct" &&
+    answer !== null &&
+    isCancellationAnswer(answer)
+  ) {
+    return {
+      messages: [new AIMessage("已取消称呼纠正，原有球员记忆保持不变。")],
+      outcome: {
+        kind: "player_memory_management",
+        resultJson: null,
+        status: "cancelled",
+      },
+      pendingClarification: null,
+      playerMemoryManagementRequest: null,
+    };
+  }
+
   if (pending.kind === "identity") {
     return { pendingClarification: { ...pending, answer } };
   }

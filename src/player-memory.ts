@@ -167,6 +167,11 @@ type PlayerMemoryDeleteResult =
   | { deletedCount: number; failedCount: number; status: "partial_failure" }
   | { status: "failed" | "not_found" };
 
+type PlayerMemoryCorrectionResult =
+  | { status: "corrected" }
+  | { deletedCount: number; failedCount: number; status: "partial_failure" }
+  | { status: "failed" | "not_found" };
+
 type StoredPlayerMemoryEntry = {
   key: string;
   record: PlayerMemoryRecord;
@@ -1541,7 +1546,65 @@ const deletePlayerMemoryTarget = async (
     : { deletedCount, failedCount, status: "partial_failure" };
 };
 
+const correctPlayerMemoryAlias = async (
+  store: BaseStore,
+  confirmation: PlayerIdentityConfirmation
+): Promise<PlayerMemoryCorrectionResult> => {
+  const stored = await readPlayerMemoryEntries(store);
+
+  if (stored.status !== "ready" || stored.truncated) {
+    return { status: "failed" };
+  }
+
+  const normalizedMention = normalizedMemoryMention(confirmation.mention);
+
+  const previousRecords = stored.entries.filter(
+    (entry) =>
+      entry.record.kind === "player_identity" &&
+      entry.record.normalizedMention === normalizedMention
+  );
+
+  if (previousRecords.length === 0) {
+    return { status: "not_found" };
+  }
+
+  const write = await rememberPlayerIdentity(store, confirmation);
+
+  if (write.status === "unavailable") {
+    return { status: "failed" };
+  }
+
+  const replacementStoreKey = `v1:player-identity:${identityKeyFor(
+    normalizedMention,
+    confirmation.candidate
+  )}`;
+
+  const previousKeys = previousRecords.flatMap(({ key }) =>
+    key === replacementStoreKey ? [] : [key]
+  );
+
+  const deletionResults = await Promise.all(
+    previousKeys.map(async (key) => {
+      try {
+        await store.delete(playerMemoryNamespace, key);
+
+        return true;
+      } catch {
+        return false;
+      }
+    })
+  );
+
+  const deletedCount = deletionResults.filter(Boolean).length;
+  const failedCount = deletionResults.length - deletedCount;
+
+  return failedCount === 0
+    ? { status: "corrected" }
+    : { deletedCount, failedCount, status: "partial_failure" };
+};
+
 export {
+  correctPlayerMemoryAlias,
   deletePlayerMemoryTarget,
   findPlayerMemoryForgetOptions,
   findRememberedRosterIdentity,
@@ -1552,8 +1615,10 @@ export {
 };
 
 export type {
+  PlayerIdentityConfirmation,
   PlayerMemoryLookupResult,
   PlayerMemoryDeleteResult,
+  PlayerMemoryCorrectionResult,
   PlayerMemoryForgetOptionsResult,
   PlayerMemoryForgetQuery,
   PlayerMemoryListResult,

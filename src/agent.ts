@@ -309,8 +309,23 @@ const routeTeamRecommendation = (state: AgentStateType): string => {
   return "recommend_players_for_team";
 };
 
+const routePlayerMemoryCorrection = (state: AgentStateType): string | null => {
+  if (state.playerMemoryManagementRequest?.action !== "correct") {
+    return null;
+  }
+
+  return state.pendingClarification === null
+    ? "manage_player_memory"
+    : "clarify";
+};
+
 const routeResolvedRequest = (state: AgentStateType): string => {
   const { request } = state;
+  const correctionRoute = routePlayerMemoryCorrection(state);
+
+  if (correctionRoute !== null) {
+    return correctionRoute;
+  }
 
   if (
     state.outcome?.kind === "player_lookup" &&
@@ -356,6 +371,25 @@ const routeResolvedRequest = (state: AgentStateType): string => {
   }
 
   return "answer";
+};
+
+const routeAfterManagePlayerMemory = (state: AgentStateType): string => {
+  if (state.pendingClarification !== null) {
+    return "clarify";
+  }
+
+  const request = state.playerMemoryManagementRequest;
+
+  const replacement =
+    state.request.kind === "player_lookup"
+      ? state.request.players[0]
+      : undefined;
+
+  return request?.action === "correct" &&
+    replacement?.resolution === null &&
+    replacement.attempts === 0
+    ? "resolve_entities"
+    : END;
 };
 
 const routeAfterClarification = (state: AgentStateType): string => {
@@ -617,6 +651,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       (state) => routeResolvedRequest(state),
       [
         "clarify",
+        "manage_player_memory",
         "lookup_player",
         "compare_players",
         "recommend_players",
@@ -662,11 +697,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "answer",
       ]
     )
-    .addConditionalEdges(
-      "manage_player_memory",
-      (state) => (state.pendingClarification === null ? END : "clarify"),
-      [END, "clarify"]
-    )
+    .addConditionalEdges("manage_player_memory", routeAfterManagePlayerMemory, [
+      END,
+      "clarify",
+      "resolve_entities",
+    ])
     .addConditionalEdges("lookup_player", routeLookupResponse, [
       "lookup_tools_guard",
       "answer",

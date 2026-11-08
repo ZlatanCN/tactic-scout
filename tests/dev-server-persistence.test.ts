@@ -934,6 +934,353 @@ describe("managed Dev Server persistence", () => {
     }
   }, 180_000);
 
+  it("resolves a corrected alias replacement through a restarted identity confirmation", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/persistence-agent.ts:agent"
+    );
+
+    const { baseUrl } = session;
+
+    try {
+      const correctionThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        correctionThread.thread_id,
+        "Look up 凯恩"
+      );
+      await postJson(
+        baseUrl,
+        `/threads/${correctionThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: { resume: { candidateId: "reep:canonical:kane" } },
+        })
+      );
+
+      const originalThread = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      const secondAliasThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        secondAliasThread.thread_id,
+        "Look up Kane"
+      );
+
+      const secondAliasPending = await getAgentThreadState(
+        baseUrl,
+        secondAliasThread.thread_id
+      );
+
+      await postJson(
+        baseUrl,
+        `/threads/${secondAliasThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: { resume: { candidateId: "reep:canonical:kane" } },
+        })
+      );
+
+      const secondAliasOriginalThread = await getAgentThreadState(
+        baseUrl,
+        secondAliasThread.thread_id
+      );
+
+      await runPlayerLookup(
+        baseUrl,
+        correctionThread.thread_id,
+        "Correct the remembered alias Harry Kane to Replacement Candidate"
+      );
+
+      const pending = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      await session.restart();
+
+      const restoredTargetPending = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      const aliasTargetOption = memoryForgetOptionLabel(
+        restoredTargetPending,
+        "称呼“Kane”"
+      );
+
+      if (aliasTargetOption === undefined) {
+        throw new Error("The resumed correction lost its alias target option.");
+      }
+
+      await postJson(
+        baseUrl,
+        `/threads/${correctionThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({ assistant_id: "agent", command: { resume: "99" } })
+      );
+
+      const invalidTargetAnswer = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      const aliasTargetOptionAfterInvalid = memoryForgetOptionLabel(
+        invalidTargetAnswer,
+        "称呼“Kane”"
+      );
+
+      if (aliasTargetOptionAfterInvalid === undefined) {
+        throw new Error("An invalid target answer discarded the correction.");
+      }
+
+      await postJson(
+        baseUrl,
+        `/threads/${correctionThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: { resume: aliasTargetOptionAfterInvalid },
+        })
+      );
+
+      const pendingReplacement = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      await session.restart();
+
+      const restoredReplacementPending = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      const replacementCandidates =
+        restoredReplacementPending.values.request.players?.[0]?.resolution
+          ?.candidates ?? [];
+
+      const replacementCandidate = replacementCandidates.find(
+        ({ candidateId }) => candidateId === "reep:canonical:replacement-one"
+      );
+
+      if (replacementCandidate === undefined) {
+        throw new Error(
+          `The corrected replacement candidate was not offered: ${JSON.stringify(
+            {
+              outcome: restoredReplacementPending.values.outcome,
+              pending: restoredReplacementPending.values.pendingClarification,
+              request: restoredReplacementPending.values.request,
+            }
+          )}`
+        );
+      }
+
+      await postJson(
+        baseUrl,
+        `/threads/${correctionThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: {
+            resume: { candidateId: replacementCandidate.candidateId },
+          },
+        })
+      );
+
+      const corrected = await getAgentThreadState(
+        baseUrl,
+        correctionThread.thread_id
+      );
+
+      const secondAliasAfterCorrection = await getAgentThreadState(
+        baseUrl,
+        secondAliasThread.thread_id
+      );
+
+      const freshThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, freshThread.thread_id, "Look up Kane");
+
+      const freshResolution = await getAgentThreadState(
+        baseUrl,
+        freshThread.thread_id
+      );
+
+      const freshOriginalAliasThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        freshOriginalAliasThread.thread_id,
+        "Look up 凯恩"
+      );
+
+      const freshOriginalAlias = await getAgentThreadState(
+        baseUrl,
+        freshOriginalAliasThread.thread_id
+      );
+
+      const invalidCorrectionThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        invalidCorrectionThread.thread_id,
+        "Correct the remembered alias Harry Kane to Replacement Candidate"
+      );
+      await postJson(
+        baseUrl,
+        `/threads/${invalidCorrectionThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: { resume: "99" },
+        })
+      );
+
+      const invalidCorrection = await getAgentThreadState(
+        baseUrl,
+        invalidCorrectionThread.thread_id
+      );
+
+      const afterInvalidCorrectionThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        afterInvalidCorrectionThread.thread_id,
+        "Look up Kane"
+      );
+
+      const afterInvalidCorrection = await getAgentThreadState(
+        baseUrl,
+        afterInvalidCorrectionThread.thread_id
+      );
+
+      const cancelledCorrectionThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        cancelledCorrectionThread.thread_id,
+        "Correct the remembered alias Harry Kane to Replacement Candidate"
+      );
+      await postJson(
+        baseUrl,
+        `/threads/${cancelledCorrectionThread.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({
+          assistant_id: "agent",
+          command: { resume: "取消" },
+        })
+      );
+
+      const cancelledCorrection = await getAgentThreadState(
+        baseUrl,
+        cancelledCorrectionThread.thread_id
+      );
+
+      const afterCancelledCorrectionThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        afterCancelledCorrectionThread.thread_id,
+        "Look up Kane"
+      );
+
+      const afterCancelledCorrection = await getAgentThreadState(
+        baseUrl,
+        afterCancelledCorrectionThread.thread_id
+      );
+
+      const originalAlias = AgentState.parse(
+        originalThread.values
+      ).conversationContext.playerAliases.find(
+        ({ mention }) => mention === "凯恩"
+      );
+
+      const correctedAlias = AgentState.parse(
+        corrected.values
+      ).conversationContext.playerAliases.find(
+        ({ mention }) => mention === "凯恩"
+      );
+
+      expect({
+        cancelledCorrectionOutcome: cancelledCorrection.values.outcome?.status,
+        cancelledCorrectionPreservesReplacement: resolvedIdentitySelection(
+          afterCancelledCorrection
+        ).selectedCandidateId,
+        correctedAliasIdentity:
+          correctedAlias?.reference.candidate.canonicalIdentityId,
+        correctedTargetThreadIdentity: AgentState.parse(
+          secondAliasAfterCorrection.values
+        ).conversationContext.playerAliases.find(
+          ({ mention }) => mention === "Kane"
+        )?.reference.candidate.canonicalIdentityId,
+        correctionOutcome: corrected.values.outcome?.status,
+        freshOriginalAliasIdentity:
+          resolvedIdentitySelection(freshOriginalAlias).selectedCandidateId,
+        freshResolution: resolvedIdentitySelection(freshResolution),
+        freshThreadInterrupt:
+          clarificationDetails(freshResolution).hasInterrupt,
+        invalidCorrectionOutcome: invalidCorrection.values.outcome?.status,
+        invalidCorrectionPreservesReplacement: resolvedIdentitySelection(
+          afterInvalidCorrection
+        ).selectedCandidateId,
+        invalidTargetAnswerAsksAgain: clarificationDetails(
+          invalidTargetAnswer
+        ).question?.includes("请选择要纠正的那一个"),
+        invalidTargetAnswerHasInterrupt:
+          clarificationDetails(invalidTargetAnswer).hasInterrupt,
+        originalAliasIdentity:
+          originalAlias?.reference.candidate.canonicalIdentityId,
+        originalTargetThreadIdentity: AgentState.parse(
+          secondAliasOriginalThread.values
+        ).conversationContext.playerAliases.find(
+          ({ mention }) => mention === "Kane"
+        )?.reference.candidate.canonicalIdentityId,
+        restoredReplacementInterrupt: clarificationDetails(
+          restoredReplacementPending
+        ).hasInterrupt,
+        restoredTargetInterrupt: clarificationDetails(restoredTargetPending)
+          .hasInterrupt,
+        secondAliasAsked: clarificationDetails(secondAliasPending).hasInterrupt,
+        waitingForAliasTarget: clarificationDetails(pending).hasInterrupt,
+        waitingForReplacement:
+          clarificationDetails(pendingReplacement).hasInterrupt,
+      }).toStrictEqual({
+        cancelledCorrectionOutcome: "cancelled",
+        cancelledCorrectionPreservesReplacement:
+          "reep:canonical:replacement-one",
+        correctedAliasIdentity: "canonical:kane",
+        correctedTargetThreadIdentity: "canonical:kane",
+        correctionOutcome: "corrected",
+        freshOriginalAliasIdentity: "reep:canonical:kane",
+        freshResolution: {
+          selectedCandidateId: "reep:canonical:replacement-one",
+          sourceRecords: [
+            {
+              canonicalIdentityId: "canonical:replacement-one",
+              identityVerified: true,
+              provider: "fm",
+              sourceId: "fm-replacement-one",
+            },
+          ],
+          status: "resolved",
+        },
+        freshThreadInterrupt: false,
+        invalidCorrectionOutcome: "failed",
+        invalidCorrectionPreservesReplacement: "reep:canonical:replacement-one",
+        invalidTargetAnswerAsksAgain: true,
+        invalidTargetAnswerHasInterrupt: true,
+        originalAliasIdentity: "canonical:kane",
+        originalTargetThreadIdentity: "canonical:kane",
+        restoredReplacementInterrupt: true,
+        restoredTargetInterrupt: true,
+        secondAliasAsked: true,
+        waitingForAliasTarget: true,
+        waitingForReplacement: true,
+      });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
   it("restores workflow snapshots and a pending clarification after a normal restart", async () => {
     const session = await startDevServerSession();
     const { baseUrl, gateway } = session;

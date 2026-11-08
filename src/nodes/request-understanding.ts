@@ -44,6 +44,33 @@ const memoryManagementRequestUpdate = (
     return null;
   }
 
+  let correctionRequest: AgentStateType["request"] | null = null;
+
+  if (command.action === "correct") {
+    const { replacementMention } = command;
+
+    correctionRequest =
+      replacementMention === undefined || replacementMention === null
+        ? { ...createInitialRequestState(), processedMessageId: messageId }
+        : {
+            constraints: [],
+            kind: "player_lookup",
+            players: [
+              {
+                attempts: 0,
+                lookupName: null,
+                mention: replacementMention,
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+                resolution: null,
+              },
+            ],
+            processedMessageId: messageId,
+            teams: [],
+          };
+  }
+
   return {
     conversationContext,
     faultTolerance: createInitialFaultToleranceState(),
@@ -53,15 +80,20 @@ const memoryManagementRequestUpdate = (
       action: command.action,
       apiFootballPlayerId: command.apiFootballPlayerId ?? null,
       fmId: command.fmId ?? null,
+      replacementMention: command.replacementMention ?? null,
       selectedTarget: null,
-      targetKind: command.targetKind ?? null,
+      targetKind:
+        command.action === "correct"
+          ? "player_identity"
+          : (command.targetKind ?? null),
       targetMention: command.targetMention ?? null,
     },
     playerMemoryStatus: createInitialPlayerMemoryStatus(),
-    request: state.request ?? {
-      ...createInitialRequestState(),
-      processedMessageId: messageId,
-    },
+    request: correctionRequest ??
+      state.request ?? {
+        ...createInitialRequestState(),
+        processedMessageId: messageId,
+      },
   };
 };
 

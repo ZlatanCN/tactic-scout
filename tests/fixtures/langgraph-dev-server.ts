@@ -16,6 +16,7 @@ const fixtureKaneName = "Harry Kane";
 const fixtureHaalandName = "Erling Haaland";
 const fixtureTeamName = "Test Club";
 const fixtureOutageTeamName = "Outage Club";
+const fixtureReplacementCandidateName = "Replacement Candidate";
 const fixtureRosterMemoryTeamName = "Roster Memory Club";
 const fixtureRosterMemoryTeamId = 542;
 const fixtureRosterMemoryPlayerId = 11;
@@ -175,18 +176,35 @@ const createSourceFixtures = async (projectPath: string) => {
       birthDate: "1993-07-28",
       fmId: "fm-kane",
       name: fixtureKaneName,
+      positionRating: 20,
     },
     {
       ability: 15,
       birthDate: "2000-07-21",
       fmId: "fm-haaland",
       name: fixtureHaalandName,
+      positionRating: 20,
     },
     {
       ability: 16,
       birthDate: "2004-01-01",
       fmId: "fm-prospect",
       name: "Fixture Prospect",
+      positionRating: 20,
+    },
+    {
+      ability: 10,
+      birthDate: "2003-03-03",
+      fmId: "fm-replacement-one",
+      name: fixtureReplacementCandidateName,
+      positionRating: 10,
+    },
+    {
+      ability: 11,
+      birthDate: "2004-04-04",
+      fmId: "fm-replacement-two",
+      name: fixtureReplacementCandidateName,
+      positionRating: 10,
     },
   ];
 
@@ -266,7 +284,7 @@ const createSourceFixtures = async (projectPath: string) => {
         profile.birthDate,
         compressedProfile
       );
-      insertPosition.run(recordId, "stc", 20);
+      insertPosition.run(recordId, "stc", profile.positionRating);
     }
   } finally {
     fmDatabase.close();
@@ -327,9 +345,10 @@ type FixtureExtraction = {
   continuationAction?: "explain" | "refine" | null;
   kind: RequestKind;
   playerMemoryManagement?: {
-    action: "list" | "forget";
+    action: "list" | "forget" | "correct";
     apiFootballPlayerId?: number | null;
     fmId?: string | null;
+    replacementMention?: string | null;
     targetKind?: "player_identity" | "roster_identity" | null;
     targetMention?: string | null;
   };
@@ -379,6 +398,20 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
       players: [
         {
           ...fixturePlayer("凯恩"),
+          lookupName: fixtureKaneName,
+        },
+      ],
+      teams: [],
+    },
+  ],
+  [
+    "Look up Kane",
+    {
+      constraints: [],
+      kind: "player_lookup",
+      players: [
+        {
+          ...fixturePlayer("Kane"),
           lookupName: fixtureKaneName,
         },
       ],
@@ -479,6 +512,21 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
       playerMemoryManagement: {
         action: "forget",
         targetKind: "roster_identity",
+        targetMention: fixtureKaneName,
+      },
+      players: [],
+      teams: [],
+    },
+  ],
+  [
+    `Correct the remembered alias ${fixtureKaneName} to ${fixtureReplacementCandidateName}`,
+    {
+      constraints: [],
+      kind: "other",
+      playerMemoryManagement: {
+        action: "correct",
+        replacementMention: fixtureReplacementCandidateName,
+        targetKind: "player_identity",
         targetMention: fixtureKaneName,
       },
       players: [],

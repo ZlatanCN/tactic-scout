@@ -1463,7 +1463,11 @@ const rememberConfirmedIdentity = async (
 ): Promise<boolean> => {
   const pending = state.pendingClarification;
 
-  if (pending?.kind !== "identity" || pending.answer === null) {
+  if (
+    state.playerMemoryManagementRequest?.action === "correct" ||
+    pending?.kind !== "identity" ||
+    pending.answer === null
+  ) {
     return false;
   }
 

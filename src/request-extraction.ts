@@ -55,9 +55,10 @@ type ExtractedRequest = {
 };
 
 type PlayerMemoryManagementExtraction = {
-  action: "list" | "forget";
+  action: "list" | "forget" | "correct";
   apiFootballPlayerId?: number | null;
   fmId?: string | null;
+  replacementMention?: string | null;
   targetKind?: "player_identity" | "roster_identity" | null;
   targetMention?: string | null;
 };
@@ -310,9 +311,10 @@ const requestExtractionSchema = z.object({
     ),
   playerMemoryManagement: z
     .object({
-      action: z.enum(["list", "forget"]),
+      action: z.enum(["list", "forget", "correct"]),
       apiFootballPlayerId: z.number().int().positive().nullable().optional(),
       fmId: z.string().nullable().optional(),
+      replacementMention: z.string().nullable().optional(),
       targetKind: z
         .enum(["player_identity", "roster_identity"])
         .nullable()
@@ -321,7 +323,7 @@ const requestExtractionSchema = z.object({
     })
     .optional()
     .describe(
-      "仅用户明确要求查看或忘记跨对话球员身份记忆时填写。forget 可指定球员称呼或 roster_identity 的精确 API-Football/FМ ID；没有明确管理操作时省略。清空全部和纠正记忆由其他请求处理，不要伪装成单条 forget。"
+      "仅用户明确要求查看、忘记或纠正跨对话球员身份记忆时填写。forget 可指定球员称呼或 roster_identity 的精确 API-Football/FM ID。correct 必须分别提取原记忆称呼 targetMention 和替换球员 replacementMention，照抄本轮原话；不确定时留空。清空全部不要伪装成单条 forget。"
     ),
   players: z.array(
     z.object({
@@ -634,6 +636,12 @@ const memoryNouns =
 const memoryForgetVerbs =
   /忘记|遗忘|删除|移除|忘掉|\bforget\b|\bdelete\b|\bremove\b/iu;
 
+const memoryCorrectionVerbs =
+  /纠正|更正|改绑|改成|改为|记错|纠错|\bcorrect\b|\bfix\b|\bchange\b|\breplace\b/iu;
+
+const memoryCorrectionContext =
+  /记住的|已记住|记忆|称呼|别名|\bremembered\b|\bmemory\b|\balias(?:es)?\b|\bnickname\b/iu;
+
 const memoryClearAll =
   /清空|清除|删除所有|删除全部|forget all|delete all|clear all|forget everything|clear everything/iu;
 
@@ -702,9 +710,19 @@ const isExplicitPlayerMemoryManagementCommand = (
     return false;
   }
 
-  return action === "list"
-    ? memoryListVerbs.test(message) && memoryNouns.test(message)
-    : memoryForgetVerbs.test(message);
+  if (action === "list") {
+    return memoryListVerbs.test(message) && memoryNouns.test(message);
+  }
+
+  if (action === "forget") {
+    return memoryForgetVerbs.test(message);
+  }
+
+  return (
+    memoryCorrectionVerbs.test(message) &&
+    memoryCorrectionContext.test(message) &&
+    aliasMemoryTargetWords.test(message)
+  );
 };
 
 const normalizePlayerMemoryManagement = (
@@ -716,6 +734,30 @@ const normalizePlayerMemoryManagement = (
     !isExplicitPlayerMemoryManagementCommand(message, command.action)
   ) {
     return undefined;
+  }
+
+  if (command.action === "correct") {
+    return {
+      action: "correct",
+      apiFootballPlayerId: null,
+      fmId: null,
+      replacementMention:
+        command.replacementMention !== undefined &&
+        command.replacementMention !== null &&
+        mentionIsPresentInMessage(message, command.replacementMention)
+          ? command.replacementMention.trim()
+          : null,
+      targetKind:
+        mentionedMemoryTargetKind(message) === "player_identity"
+          ? "player_identity"
+          : null,
+      targetMention:
+        command.targetMention !== undefined &&
+        command.targetMention !== null &&
+        mentionIsPresentInMessage(message, command.targetMention)
+          ? command.targetMention.trim()
+          : null,
+    };
   }
 
   return {
