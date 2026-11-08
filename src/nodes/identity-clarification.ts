@@ -523,6 +523,20 @@ const clarifyTeamRosterProfile = (
     return invalidAnswer(pending, "球队阵容状态已变化，请重新发起球队推荐。");
   }
 
+  if (pending.candidates.length === 0) {
+    const normalizedAnswer = answer
+      .normalize("NFKC")
+      .trim()
+      .toLocaleLowerCase();
+
+    return /^(?:重试|重新查找|retry|retry lookup)$/u.test(normalizedAnswer)
+      ? { outcome: null, pendingClarification: null, request: state.request }
+      : invalidAnswer(
+          pending,
+          "当前没有可选的 FM 画像。更新或补齐 FM 资料后，请回复“重试”重新查找。"
+        );
+  }
+
   const selectedCandidate = fmCandidateFromAnswer(answer, pending.candidates);
 
   const member =

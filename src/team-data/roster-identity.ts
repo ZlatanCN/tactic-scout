@@ -10,7 +10,7 @@ import type { TeamFmProfileCandidate } from "./contracts.js";
 type TeamRosterIdentityResolution =
   | {
       candidate: TeamFmProfileCandidate;
-      method: "reep_bridge";
+      method: "reep_bridge" | "user_confirmation";
       status: "resolved";
     }
   | {

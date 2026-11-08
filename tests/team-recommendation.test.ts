@@ -1,6 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
@@ -24,9 +26,11 @@ import type {
 } from "../src/team-data/api-football.js";
 import { createApiFootballClient } from "../src/team-data/api-football.js";
 import type { TeamIdentity } from "../src/team-data/contracts.js";
+import { resolveTeamRosterIdentity } from "../src/team-data/roster-identity.js";
 import type { TeamRosterIdentityLookup } from "../src/team-data/roster-identity.js";
 import type { RecommendTeamPlayerCandidates } from "../src/tools/recommend-team-player-candidates.js";
 import { createRecommendTeamPlayerCandidatesTool } from "../src/tools/recommend-team-player-candidates.js";
+import { createPlayerMemorySources } from "./fixtures/player-memory-sources.js";
 import {
   recommendationResult,
   teamPositionUnavailableResult,
@@ -38,6 +42,8 @@ const missingPlayerSourceDatabase = path.join(
   tmpdir(),
   `tactiscout-team-no-source-${randomUUID()}.sqlite`
 );
+
+const playerMemoryTestDirectories: string[] = [];
 
 const stubTeamTestEnvironment = () => {
   vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
@@ -186,6 +192,80 @@ const createTeamAgent = (options: {
     tools: [createRecommendTeamPlayerCandidatesTool(options.recommend)],
   });
 
+const withPlayerMemorySources = async () => {
+  const directory = await mkdtemp(
+    path.join(tmpdir(), "tactiscout-team-memory-")
+  );
+
+  playerMemoryTestDirectories.push(directory);
+  const sources = await createPlayerMemorySources(directory);
+
+  vi.stubEnv("TACTISCOUT_FM_PROFILES_PATH", sources.fmDatabasePath);
+  vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", sources.reepDatabasePath);
+  vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", sources.understatDatabasePath);
+  vi.stubEnv("TACTISCOUT_UNDERSTAT_AI_PROCESSING_ALLOWED", "true");
+
+  return sources;
+};
+
+const rosterMemoryRecord = (
+  apiFootballPlayerId: number,
+  fmId: string,
+  fmPlayerName: string
+) => {
+  const stableIdentityKey = createHash("sha256")
+    .update(JSON.stringify([apiFootballPlayerId, fmId]))
+    .digest("hex");
+
+  return {
+    apiFootballPlayerId,
+    confirmationId: `confirmation-${fmId}`,
+    confirmedAt: "2026-11-07T00:00:00.000Z",
+    fmId,
+    fmPlayerName,
+    kind: "roster_identity" as const,
+    originThreadId: "seeded-roster-confirmation",
+    rosterPlayerName: "Harry Kane",
+    rosterRetrievedAt: "2026-11-06T00:00:00.000Z",
+    schemaVersion: 1 as const,
+    sourceVersions: {
+      fmManifestSha256: "player-memory-test-snapshot",
+      fmSnapshotDate: "2025-11-23",
+    },
+    stableIdentityKey,
+  };
+};
+
+const putRosterMemoryRecord = async (
+  store: InMemoryStore,
+  record: ReturnType<typeof rosterMemoryRecord>
+) => {
+  await store.put(
+    ["tactiscout", "local-user", "player-memory"],
+    `v1:roster-identity:${record.stableIdentityKey}`,
+    record,
+    false
+  );
+};
+
+const addApiFootballBridge = (
+  reepDatabasePath: string,
+  apiFootballPlayerId: number,
+  canonicalIdentityId: string
+) => {
+  const database = new DatabaseSync(reepDatabasePath);
+
+  try {
+    database
+      .prepare(
+        "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES ('api_football', 'player', ?, ?, 'resolved')"
+      )
+      .run(String(apiFootballPlayerId), canonicalIdentityId);
+  } finally {
+    database.close();
+  }
+};
+
 const readRosterMember = (
   result: Awaited<ReturnType<ReturnType<typeof createTeamAgent>["invoke"]>>
 ) => {
@@ -211,9 +291,547 @@ const shortRateLimitResponse = () =>
   );
 
 describe("team recommendation graph", () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllEnvs();
     stubTeamTestEnvironment();
+    await Promise.all(
+      playerMemoryTestDirectories.splice(0).map(async (directory) => {
+        await rm(directory, { force: true, recursive: true });
+      })
+    );
+  });
+
+  it("reuses a confirmed roster mapping in another team request", async () => {
+    await withPlayerMemorySources();
+
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7001;
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const identityLookup = vi.fn<TeamRosterIdentityLookup>(() => ({
+      candidates: [
+        { fmId: "fm-kane", name: "Harry Kane" },
+        { fmId: "fm-haaland", name: "Erling Haaland" },
+      ],
+      status: "needs_confirmation",
+    }));
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const store = new InMemoryStore();
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup,
+      recommend,
+      store,
+    });
+
+    const threadA = {
+      configurable: { thread_id: "confirmed-roster-thread-a" },
+    };
+
+    const threadB = {
+      configurable: { thread_id: "confirmed-roster-thread-b" },
+    };
+
+    const pendingA = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      threadA
+    );
+
+    const completedA = await graph.invoke(
+      new Command({ resume: "1" }),
+      threadA
+    );
+
+    const completedB = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      threadB
+    );
+
+    const [memberA] = readRosterMember(completedA);
+    const [memberB] = readRosterMember(completedB);
+
+    expect({
+      completedBWasInterrupted: Object.hasOwn(completedB, "__interrupt__"),
+      identityLookupCalls: identityLookup.mock.calls.length,
+      mappedPlayers: [memberA, memberB].map((member) => ({
+        apiFootballPlayerId: member?.apiFootballPlayerId,
+        fmId: member?.fmId,
+        mappingMethod: member?.mappingMethod,
+        mappingStatus: member?.mappingStatus,
+      })),
+      rosterFetchTeamIds: directory.getSquad.mock.calls.map(
+        ([teamId]) => teamId
+      ),
+      threadAWasInterrupted: Object.hasOwn(pendingA, "__interrupt__"),
+    }).toStrictEqual({
+      completedBWasInterrupted: false,
+      identityLookupCalls: 1,
+      mappedPlayers: [
+        {
+          apiFootballPlayerId,
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          mappingStatus: "resolved",
+        },
+        {
+          apiFootballPlayerId,
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          mappingStatus: "resolved",
+        },
+      ],
+      rosterFetchTeamIds: [arsenal.id, arsenal.id],
+      threadAWasInterrupted: true,
+    });
+  });
+
+  it("asks before using competing confirmed roster mappings", async () => {
+    await withPlayerMemorySources();
+
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7002;
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const store = new InMemoryStore();
+
+    await Promise.all([
+      putRosterMemoryRecord(
+        store,
+        rosterMemoryRecord(apiFootballPlayerId, "fm-kane", "Harry Kane")
+      ),
+      putRosterMemoryRecord(
+        store,
+        rosterMemoryRecord(apiFootballPlayerId, "fm-haaland", "Erling Haaland")
+      ),
+    ]);
+
+    const identityLookup = vi.fn<TeamRosterIdentityLookup>(() => ({
+      candidate: { fmId: "fm-haaland", name: "Erling Haaland" },
+      method: "reep_bridge",
+      status: "resolved",
+    }));
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup,
+      recommend,
+      store,
+    });
+
+    const interrupted = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "competing-roster-memory" } }
+    );
+
+    const [member] = readRosterMember(interrupted);
+
+    expect({
+      candidates: member?.fmCandidates.map(({ fmId }) => fmId).toSorted(),
+      identityLookupCalls: identityLookup.mock.calls.length,
+      mappingMethod: member?.mappingMethod,
+      mappingStatus: member?.mappingStatus,
+      pendingKind: interrupted.pendingClarification?.kind,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      candidates: ["fm-haaland", "fm-kane"],
+      identityLookupCalls: 1,
+      mappingMethod: null,
+      mappingStatus: "pending",
+      pendingKind: "team_roster_profile",
+      recommendationCalls: 0,
+    });
+  });
+
+  it("asks when a remembered mapping conflicts with the current Reep bridge", async () => {
+    const sources = await withPlayerMemorySources();
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7004;
+    addApiFootballBridge(
+      sources.reepDatabasePath,
+      apiFootballPlayerId,
+      "canonical:haaland"
+    );
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const store = new InMemoryStore();
+    await putRosterMemoryRecord(
+      store,
+      rosterMemoryRecord(apiFootballPlayerId, "fm-kane", "Harry Kane")
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup: resolveTeamRosterIdentity,
+      recommend,
+      store,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "roster-memory-reep-conflict" } }
+    );
+
+    const [member] = readRosterMember(result);
+
+    expect({
+      candidateFmIds: member?.fmCandidates.map(({ fmId }) => fmId).toSorted(),
+      mappingMethod: member?.mappingMethod,
+      mappingStatus: member?.mappingStatus,
+      pendingKind: result.pendingClarification?.kind,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      candidateFmIds: ["fm-haaland", "fm-kane"],
+      mappingMethod: null,
+      mappingStatus: "pending",
+      pendingKind: "team_roster_profile",
+      recommendationCalls: 0,
+    });
+  });
+
+  it("requires current confirmation when a remembered FM source ID is missing", async () => {
+    await withPlayerMemorySources();
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7005;
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const store = new InMemoryStore();
+    await putRosterMemoryRecord(
+      store,
+      rosterMemoryRecord(apiFootballPlayerId, "fm-removed", "Harry Kane")
+    );
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup: resolveTeamRosterIdentity,
+      recommend,
+      store,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "stale-roster-memory" } }
+    );
+
+    const [member] = readRosterMember(result);
+
+    expect({
+      candidateFmIds: member?.fmCandidates.map(({ fmId }) => fmId).toSorted(),
+      fmId: member?.fmId,
+      mappingStatus: member?.mappingStatus,
+      pendingKind: result.pendingClarification?.kind,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      candidateFmIds: ["fm-kane"],
+      fmId: null,
+      mappingStatus: "pending",
+      pendingKind: "team_roster_profile",
+      recommendationCalls: 0,
+    });
+  });
+
+  it("pauses to refresh FM data when a remembered profile and current alternatives are absent", async () => {
+    await withPlayerMemorySources();
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7009;
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const store = new InMemoryStore();
+    await putRosterMemoryRecord(
+      store,
+      rosterMemoryRecord(apiFootballPlayerId, "fm-removed", "Harry Kane")
+    );
+
+    const identityLookup = vi
+      .fn<TeamRosterIdentityLookup>()
+      .mockReturnValueOnce({ status: "no_profile" })
+      .mockReturnValue({
+        candidates: [{ fmId: "fm-kane", name: "Harry Kane" }],
+        status: "needs_confirmation",
+      });
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("ready", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup,
+      recommend,
+      store,
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "missing-roster-profile-refresh" } }
+    );
+
+    const [member] = readRosterMember(result);
+
+    const refreshed = await graph.invoke(new Command({ resume: "重试" }), {
+      configurable: { thread_id: "missing-roster-profile-refresh" },
+    });
+
+    const [refreshedMember] = readRosterMember(refreshed);
+
+    expect(result.pendingClarification?.question).toContain(
+      "更新或补齐当前 FM 资料"
+    );
+
+    expect({
+      candidates: member?.fmCandidates,
+      mappingStatus: member?.mappingStatus,
+      outcome: result.outcome?.status ?? null,
+      pendingKind: result.pendingClarification?.kind,
+      recommendationCalls: recommend.mock.calls.length,
+      refreshedCandidates: refreshedMember?.fmCandidates.map(
+        ({ fmId }) => fmId
+      ),
+      refreshedPendingKind: refreshed.pendingClarification?.kind,
+    }).toMatchObject({
+      candidates: [],
+      mappingStatus: "pending",
+      outcome: null,
+      pendingKind: "team_roster_profile",
+      recommendationCalls: 0,
+      refreshedCandidates: ["fm-kane"],
+      refreshedPendingKind: "team_roster_profile",
+    });
+  });
+
+  it("falls back to roster clarification and reports a Store read failure", async () => {
+    await withPlayerMemorySources();
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7006;
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const store = new InMemoryStore();
+    vi.spyOn(store, "search").mockRejectedValue(new Error("Store unavailable"));
+
+    const identityLookup = vi.fn<TeamRosterIdentityLookup>(() => ({
+      candidates: [{ fmId: "fm-kane", name: "Harry Kane" }],
+      status: "needs_confirmation",
+    }));
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup,
+      recommend,
+      store,
+    });
+
+    const config = {
+      configurable: { thread_id: "roster-memory-read-failure" },
+    };
+
+    const pending = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      config
+    );
+
+    const completed = await graph.invoke(new Command({ resume: "1" }), config);
+    const [member] = readRosterMember(completed);
+
+    expect(completed.messages.at(-1)?.content).toContain(
+      "无法读取跨对话的球员身份记忆"
+    );
+
+    expect({
+      identityLookupCalls: identityLookup.mock.calls.length,
+      mappingMethod: member?.mappingMethod,
+      memoryReadFailed: completed.playerMemoryStatus.readFailed,
+      recommendationCalls: recommend.mock.calls.length,
+      wasInterrupted: Object.hasOwn(pending, "__interrupt__"),
+    }).toStrictEqual({
+      identityLookupCalls: 1,
+      mappingMethod: "user_confirmation",
+      memoryReadFailed: true,
+      recommendationCalls: 1,
+      wasInterrupted: true,
+    });
+  });
+
+  it("completes the team request when saving a confirmed roster mapping fails", async () => {
+    await withPlayerMemorySources();
+    const message = "Recommend a striker for Arsenal.";
+    const apiFootballPlayerId = 7008;
+
+    const directory = createDirectory(
+      [arsenal],
+      [{ id: apiFootballPlayerId, name: "Harry Kane", position: "Attacker" }]
+    );
+
+    const store = new InMemoryStore();
+    vi.spyOn(store, "get").mockRejectedValue(new Error("Store unavailable"));
+
+    const identityLookup = vi.fn<TeamRosterIdentityLookup>(() => ({
+      candidates: [{ fmId: "fm-kane", name: "Harry Kane" }],
+      status: "needs_confirmation",
+    }));
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        [message]: teamRequest("Arsenal", "stc", { position: "stc" }),
+      }),
+      identityLookup,
+      recommend,
+      store,
+    });
+
+    const config = {
+      configurable: { thread_id: "roster-memory-write-failure" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(message)] }, config);
+    const completed = await graph.invoke(new Command({ resume: "1" }), config);
+    const [member] = readRosterMember(completed);
+
+    expect(completed.messages.at(-1)?.content).toContain(
+      "未能保存到跨对话记忆"
+    );
+    expect({
+      mappingMethod: member?.mappingMethod,
+      mappingStatus: member?.mappingStatus,
+      memoryWriteFailed: completed.playerMemoryStatus.writeFailed,
+      recommendationCalls: recommend.mock.calls.length,
+    }).toStrictEqual({
+      mappingMethod: "user_confirmation",
+      mappingStatus: "resolved",
+      memoryWriteFailed: true,
+      recommendationCalls: 1,
+    });
+  });
+
+  it("does not remember a roster mapping selected only by a Reep bridge", async () => {
+    const sources = await withPlayerMemorySources();
+    const apiFootballPlayerId = 7007;
+    addApiFootballBridge(
+      sources.reepDatabasePath,
+      apiFootballPlayerId,
+      "canonical:kane"
+    );
+
+    const directory = createDirectory(
+      [arsenal],
+      [
+        {
+          id: apiFootballPlayerId,
+          name: "Bridged Player",
+          position: "Attacker",
+        },
+      ]
+    );
+
+    const store = new InMemoryStore();
+
+    const recommend = vi.fn<RecommendTeamPlayerCandidates>((input) =>
+      teamRecommendationResult("no_candidates", input)
+    );
+
+    const graph = createTeamAgent({
+      directory,
+      extractor: createExtractor({
+        "Recommend a striker for Arsenal.": teamRequest("Arsenal", "stc", {
+          position: "stc",
+        }),
+      }),
+      identityLookup: resolveTeamRosterIdentity,
+      recommend,
+      store,
+    });
+
+    const result = await graph.invoke(
+      {
+        messages: [new HumanMessage("Recommend a striker for Arsenal.")],
+      },
+      { configurable: { thread_id: "reeped-roster-not-remembered" } }
+    );
+
+    const items = await store.search(
+      ["tactiscout", "local-user", "player-memory"],
+      { filter: { kind: "roster_identity" } }
+    );
+
+    const [member] = readRosterMember(result);
+
+    expect({
+      mappingMethod: member?.mappingMethod,
+      mappingStatus: member?.mappingStatus,
+      rememberedItems: items.length,
+      wasInterrupted: Object.hasOwn(result, "__interrupt__"),
+    }).toStrictEqual({
+      mappingMethod: "reep_bridge",
+      mappingStatus: "resolved",
+      rememberedItems: 0,
+      wasInterrupted: false,
+    });
   });
 
   it("resolves a unique team, maps its roster, and commits the ranked result", async () => {

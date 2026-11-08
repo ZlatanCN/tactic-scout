@@ -73,6 +73,7 @@ const teamDirectory: ApiFootballClient = createApiFootballClient({
 });
 
 const agent = createAgent({
+  store: null,
   teamDirectory,
   tools: createTools(
     trackedPlayerSearch,

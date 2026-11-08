@@ -12,9 +12,16 @@ import {
   readFmRecommendationReferenceMetadata,
 } from "./player-data/football-manager.js";
 import type { FmReadResult } from "./player-data/football-manager.js";
-import { resolveReepSourceIdentities } from "./player-data/reep-registry.js";
-import { normalizeLatinNameSpelling } from "./player-data/shared.js";
+import {
+  resolveApiFootballPlayerFmIds,
+  resolveReepSourceIdentities,
+} from "./player-data/reep-registry.js";
+import {
+  isLocalDataError,
+  normalizeLatinNameSpelling,
+} from "./player-data/shared.js";
 import { readUnderstatBySourceIds } from "./player-data/understat.js";
+import type { TeamFmProfileCandidate } from "./team-data/contracts.js";
 
 const playerMemoryNamespace = ["tactiscout", "local-user", "player-memory"];
 const maxPlayerMemoryMatches = 1000;
@@ -87,6 +94,11 @@ type MemorySourceRecord = z.output<typeof memorySourceRecordSchema>;
 
 type PlayerMemoryLookupResult =
   | { status: "found"; resolution: ReferenceLookupResult }
+  | { status: "missing" | "stale" | "unavailable" };
+
+type RememberedRosterIdentityLookupResult =
+  | { candidate: TeamFmProfileCandidate; status: "found" }
+  | { candidates: TeamFmProfileCandidate[]; status: "conflict" }
   | { status: "missing" | "stale" | "unavailable" };
 
 type PlayerIdentityConfirmation = {
@@ -846,10 +858,210 @@ const rememberRosterIdentity = async (
   );
 };
 
+type RosterIdentityItemsResult =
+  | { items: Item[]; status: "ready" }
+  | { status: "conflict" | "missing" | "unavailable" };
+
+type CurrentRosterProfilesResult =
+  | {
+      candidates: TeamFmProfileCandidate[];
+      missingFmIds: string[];
+      status: "ready";
+    }
+  | { status: "unavailable" };
+
+type ParsedRosterIdentityItemsResult =
+  | { records: RosterIdentityMemory[]; status: "ready" }
+  | { status: "unavailable" };
+
+const searchRosterIdentityItems = async (
+  store: BaseStore,
+  apiFootballPlayerId: number
+): Promise<RosterIdentityItemsResult> => {
+  let items: Item[];
+
+  try {
+    items = await store.search(playerMemoryNamespace, {
+      filter: { apiFootballPlayerId, kind: "roster_identity" },
+      limit: maxPlayerMemoryMatches,
+    });
+  } catch {
+    return { status: "unavailable" };
+  }
+
+  if (items.length === 0) {
+    return { status: "missing" };
+  }
+
+  if (items.length === maxPlayerMemoryMatches) {
+    return { status: "conflict" };
+  }
+
+  return { items, status: "ready" };
+};
+
+const parseRosterIdentityItems = (
+  items: Item[],
+  apiFootballPlayerId: number
+): ParsedRosterIdentityItemsResult => {
+  const records: RosterIdentityMemory[] = [];
+
+  for (const item of items) {
+    const parsed = rosterIdentityMemorySchema.safeParse(item.value);
+
+    if (!parsed.success) {
+      return { status: "unavailable" };
+    }
+
+    const expectedKey = stableHash(
+      JSON.stringify([apiFootballPlayerId, parsed.data.fmId])
+    );
+
+    if (
+      parsed.data.apiFootballPlayerId !== apiFootballPlayerId ||
+      parsed.data.stableIdentityKey !== expectedKey ||
+      item.key !== `v1:roster-identity:${expectedKey}`
+    ) {
+      return { status: "unavailable" };
+    }
+
+    records.push(parsed.data);
+  }
+
+  return { records, status: "ready" as const };
+};
+
+const readCurrentRosterProfiles = (
+  fmIds: string[]
+): CurrentRosterProfilesResult => {
+  const requestedFmIds = new Set(fmIds);
+  const fmRead = readFmProfilesBySourceIds(fmIds);
+
+  if (fmRead.status === "unavailable") {
+    return { status: "unavailable" };
+  }
+
+  const profilesById = new Map<string, TeamFmProfileCandidate>();
+
+  if (fmRead.status === "found") {
+    for (const profile of fmRead.records) {
+      if (
+        requestedFmIds.has(profile.identitySourceId) &&
+        !profilesById.has(profile.identitySourceId)
+      ) {
+        profilesById.set(profile.identitySourceId, {
+          birthDate: profile.birthDate,
+          currentAbility: profile.currentAbility,
+          fmId: profile.identitySourceId,
+          name: profile.player,
+          naturalPositions: profile.naturalPositions,
+          potentialAbility: profile.potentialAbility,
+        });
+      }
+    }
+  }
+
+  const candidates = [...profilesById.values()].toSorted((left, right) =>
+    left.fmId.localeCompare(right.fmId)
+  );
+
+  const missingFmIds = fmIds.filter((fmId) => !profilesById.has(fmId));
+
+  return { candidates, missingFmIds, status: "ready" };
+};
+
+const apiBridgeConflictsWithRosterIdentity = (
+  apiFootballPlayerId: number,
+  fmIds: string[]
+): { conflict: boolean; status: "ready" } | { status: "unavailable" } => {
+  const fmIdsForBridge = new Set<string>();
+
+  let bridge;
+
+  try {
+    bridge = resolveApiFootballPlayerFmIds(String(apiFootballPlayerId));
+  } catch (error) {
+    if (error instanceof Error && isLocalDataError(error)) {
+      return { status: "unavailable" };
+    }
+
+    throw error;
+  }
+
+  for (const fmId of bridge.fmIds) {
+    fmIdsForBridge.add(fmId);
+  }
+
+  return {
+    conflict:
+      bridge.status === "ambiguous" ||
+      (bridge.status === "resolved" &&
+        fmIds.some((fmId) => !fmIdsForBridge.has(fmId))),
+    status: "ready",
+  };
+};
+
+const findRememberedRosterIdentity = async (
+  store: BaseStore,
+  apiFootballPlayerId: number
+): Promise<RememberedRosterIdentityLookupResult> => {
+  const search = await searchRosterIdentityItems(store, apiFootballPlayerId);
+
+  if (search.status !== "ready") {
+    return search.status === "conflict"
+      ? { candidates: [], status: "conflict" }
+      : { status: search.status };
+  }
+
+  const parsed = parseRosterIdentityItems(search.items, apiFootballPlayerId);
+
+  if (parsed.status !== "ready") {
+    return parsed;
+  }
+
+  const fmIds = [
+    ...new Set(parsed.records.map((record) => record.fmId)),
+  ].toSorted();
+
+  const profileRead = readCurrentRosterProfiles(fmIds);
+
+  if (profileRead.status !== "ready") {
+    return profileRead;
+  }
+
+  const bridge = apiBridgeConflictsWithRosterIdentity(
+    apiFootballPlayerId,
+    fmIds
+  );
+
+  if (bridge.status !== "ready") {
+    return bridge;
+  }
+
+  if (
+    fmIds.length > 1 ||
+    profileRead.missingFmIds.length > 0 ||
+    bridge.conflict
+  ) {
+    return { candidates: profileRead.candidates, status: "conflict" };
+  }
+
+  const [candidate] = profileRead.candidates;
+
+  return candidate === undefined
+    ? { status: "stale" }
+    : { candidate, status: "found" };
+};
+
 export {
+  findRememberedRosterIdentity,
   findRememberedPlayerIdentity,
   rememberPlayerIdentity,
   rememberRosterIdentity,
 };
 
-export type { PlayerMemoryLookupResult, RosterIdentityConfirmation };
+export type {
+  PlayerMemoryLookupResult,
+  RememberedRosterIdentityLookupResult,
+  RosterIdentityConfirmation,
+};

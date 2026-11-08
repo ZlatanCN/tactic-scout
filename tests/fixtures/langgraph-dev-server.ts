@@ -16,6 +16,9 @@ const fixtureKaneName = "Harry Kane";
 const fixtureHaalandName = "Erling Haaland";
 const fixtureTeamName = "Test Club";
 const fixtureOutageTeamName = "Outage Club";
+const fixtureRosterMemoryTeamName = "Roster Memory Club";
+const fixtureRosterMemoryTeamId = 542;
+const fixtureRosterMemoryPlayerId = 11;
 
 type RunningServer = {
   child: ReturnType<typeof spawn>;
@@ -128,11 +131,21 @@ const threadStateSchema = z.looseObject({
             .looseObject({
               members: z.array(
                 z.looseObject({
+                  apiFootballPlayerId: z.number().optional(),
                   fmId: z.string().nullable(),
                   mappingMethod: z.string().nullable(),
                   mappingStatus: z.string(),
+                  name: z.string().optional(),
+                  position: z.string().nullable().optional(),
                 })
               ),
+              retrievedAt: z.string().optional(),
+              team: z
+                .looseObject({
+                  id: z.number().optional(),
+                  name: z.string().optional(),
+                })
+                .optional(),
             })
             .nullable(),
         })
@@ -403,6 +416,10 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
     fixtureTeamRequest(fixtureTeamName),
   ],
   [
+    `Recommend a striker for ${fixtureRosterMemoryTeamName}`,
+    fixtureTeamRequest(fixtureRosterMemoryTeamName),
+  ],
+  [
     "Explain the saved team recommendation",
     fixtureTeamRequest(fixtureTeamName, "explain"),
   ],
@@ -437,56 +454,93 @@ type FakeProviderResponse = {
   statusCode: number;
 };
 
-const fakeProviderResponse = (requestUrl: URL): FakeProviderResponse | null => {
-  if (requestUrl.pathname === "/api-football/teams") {
-    const isOutage =
-      requestUrl.searchParams.get("search") === fixtureOutageTeamName;
+const fakeTeamSearchResponse = (requestUrl: URL): FakeProviderResponse => {
+  const search = requestUrl.searchParams.get("search");
+  const isOutage = search === fixtureOutageTeamName;
+  const isRosterMemoryTeam = search === fixtureRosterMemoryTeamName;
 
-    return {
-      body: isOutage
-        ? {
-            errors: { message: "Temporary provider outage." },
-            response: [],
-          }
-        : {
-            errors: [],
-            response: [
-              {
-                team: {
-                  country: "England",
-                  id: 541,
-                  name: fixtureTeamName,
-                },
+  return {
+    body: isOutage
+      ? { errors: { message: "Temporary provider outage." }, response: [] }
+      : {
+          errors: [],
+          response: [
+            {
+              team: {
+                country: "England",
+                id: isRosterMemoryTeam ? fixtureRosterMemoryTeamId : 541,
+                name: isRosterMemoryTeam
+                  ? fixtureRosterMemoryTeamName
+                  : fixtureTeamName,
               },
-            ],
+            },
+          ],
+        },
+    event: isOutage ? "team-search-failure" : "team-search",
+    statusCode: isOutage ? 503 : 200,
+  };
+};
+
+const fakeTeamRosterResponse = (
+  requestUrl: URL,
+  rosterMemoryFetchCount: number
+): FakeProviderResponse => {
+  const teamId = Number(requestUrl.searchParams.get("team"));
+  const isRosterMemoryTeam = teamId === fixtureRosterMemoryTeamId;
+
+  return {
+    body: {
+      errors: [],
+      response: [
+        {
+          players:
+            isRosterMemoryTeam && rosterMemoryFetchCount > 2
+              ? []
+              : [
+                  {
+                    id: isRosterMemoryTeam ? fixtureRosterMemoryPlayerId : 10,
+                    name: fixtureKaneName,
+                    position: "Attacker",
+                  },
+                ],
+          team: {
+            country: "England",
+            id: teamId,
+            name: isRosterMemoryTeam
+              ? fixtureRosterMemoryTeamName
+              : fixtureTeamName,
           },
-      event: isOutage ? "team-search-failure" : "team-search",
-      statusCode: isOutage ? 503 : 200,
-    };
+        },
+      ],
+    },
+    event: "team-roster",
+    statusCode: 200,
+  };
+};
+
+const fakeProviderResponse = (
+  requestUrl: URL,
+  rosterMemoryFetchCount: number
+): FakeProviderResponse | null => {
+  if (requestUrl.pathname === "/api-football/teams") {
+    return fakeTeamSearchResponse(requestUrl);
   }
 
   if (requestUrl.pathname === "/api-football/players/squads") {
-    return {
-      body: {
-        errors: [],
-        response: [
-          {
-            players: [{ id: 10, name: fixtureKaneName, position: "Attacker" }],
-            team: {
-              country: "England",
-              id: Number(requestUrl.searchParams.get("team")),
-              name: fixtureTeamName,
-            },
-          },
-        ],
-      },
-      event: "team-roster",
-      statusCode: 200,
-    };
+    return fakeTeamRosterResponse(requestUrl, rosterMemoryFetchCount);
   }
 
   return null;
 };
+
+const nextRosterMemoryFetchCount = (
+  requestUrl: URL,
+  currentCount: number
+): number =>
+  requestUrl.pathname === "/api-football/players/squads" &&
+  Number(requestUrl.searchParams.get("team")) === fixtureRosterMemoryTeamId
+    ? currentCount + 1
+    : currentCount;
 
 const reservePort = async (): Promise<number> => {
   const server = createServer();
@@ -506,6 +560,7 @@ const startGateway = async (): Promise<LocalGateway> => {
   const receivedCalls: string[] = [];
   const receivedEvents: string[] = [];
   let extractionCallIndex = 0;
+  let rosterMemoryFetchCount = 0;
   const eventSchema = z.object({ name: z.string() });
 
   const chatRequestSchema = z.looseObject({
@@ -548,7 +603,15 @@ const startGateway = async (): Promise<LocalGateway> => {
         return;
       }
 
-      const providerResponse = fakeProviderResponse(requestUrl);
+      rosterMemoryFetchCount = nextRosterMemoryFetchCount(
+        requestUrl,
+        rosterMemoryFetchCount
+      );
+
+      const providerResponse = fakeProviderResponse(
+        requestUrl,
+        rosterMemoryFetchCount
+      );
 
       if (providerResponse !== null) {
         receivedEvents.push(providerResponse.event);

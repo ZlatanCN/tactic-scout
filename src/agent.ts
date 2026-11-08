@@ -50,6 +50,7 @@ import { createWaitForApiRateLimitNode } from "./nodes/wait-api-rate-limit.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
 import type { ReferenceIdentityLookup } from "./player-data/resolve-reference.js";
 import {
+  findRememberedRosterIdentity,
   findRememberedPlayerIdentity,
   rememberPlayerIdentity,
   rememberRosterIdentity,
@@ -518,10 +519,14 @@ const createAgent = (options: CreateAgentOptions = {}) => {
 
   const fetchTeamRoster = createFetchTeamRosterNode(teamDirectory.getSquad);
 
-  const resolveTeamRoster = createResolveTeamRosterNode({
-    resolvePlayer:
-      options.teamRosterIdentityLookup ?? resolveTeamRosterIdentity,
-  });
+  const resolveTeamRoster = createResolveTeamRosterNode(
+    {
+      findRememberedIdentity: findRememberedRosterIdentity,
+      resolvePlayer:
+        options.teamRosterIdentityLookup ?? resolveTeamRosterIdentity,
+    },
+    store
+  );
 
   const comparePlayers = comparisonTool
     ? createComparePlayersNode(comparisonTool)

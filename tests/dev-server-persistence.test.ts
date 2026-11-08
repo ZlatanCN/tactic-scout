@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod/v4";
 
 import { comparisonResultSchema } from "../src/player-data/compare-records.js";
 import { recommendationResultSchema } from "../src/player-data/recommend-players.js";
@@ -70,6 +72,140 @@ const createAgentThread = async (baseUrl: string) =>
 
 const getAgentThreadState = async (baseUrl: string, threadId: string) =>
   await requestJson(baseUrl, `/threads/${threadId}/state`, threadStateSchema);
+
+const rosterMemberFromState = (state: ThreadState) =>
+  state.values.request.teamRecommendation?.roster?.members?.[0];
+
+const rosterMemberFactsFromState = (state: ThreadState) => {
+  const member = rosterMemberFromState(state);
+
+  return {
+    apiFootballPlayerId: member?.apiFootballPlayerId,
+    fmId: member?.fmId,
+    mappingMethod: member?.mappingMethod,
+    mappingStatus: member?.mappingStatus,
+  };
+};
+
+const teamRecommendationResultFromState = (state: ThreadState) => {
+  const resultJson =
+    state.values.conversationContext.activeTeamRecommendation?.resultJson;
+
+  return resultJson === undefined
+    ? null
+    : teamRecommendationResultSchema.parse(JSON.parse(resultJson));
+};
+
+const teamRecommendationDatesFromState = (state: ThreadState) => {
+  const result = teamRecommendationResultFromState(state);
+
+  return result === null
+    ? null
+    : {
+        fmSnapshotDate: result.fmSnapshotDate,
+        retrievedAt: result.roster.retrievedAt,
+      };
+};
+
+const teamRecommendationFactsFromState = (state: ThreadState) => {
+  const result = teamRecommendationResultFromState(state);
+
+  if (result === null || !("recommendation" in result)) {
+    return null;
+  }
+
+  const { recommendation } = result;
+
+  if (!("currentCandidates" in recommendation)) {
+    return null;
+  }
+
+  return {
+    candidateRanks: recommendation.currentCandidates.map(({ fmId, rank }) => ({
+      fmId,
+      rank,
+    })),
+    coverage: {
+      mappedMembers: result.roster.mappedMembers,
+      pendingMembers: result.roster.pendingMembers,
+      reepBridgeMappings: result.roster.reepBridgeMappings,
+      totalMembers: result.roster.totalMembers,
+      userConfirmedMappings: result.roster.userConfirmedMappings,
+    },
+    fmSnapshotDate: result.fmSnapshotDate,
+    rankingBasis: result.rankingBasis,
+    retrievedAt: result.roster.retrievedAt,
+    status: result.status,
+  };
+};
+
+const rosterMemoryStoreItemSchema = z.looseObject({
+  value: z.looseObject({
+    apiFootballPlayerId: z.number(),
+    confirmationId: z.string(),
+    confirmedAt: z.iso.datetime(),
+    fmId: z.string(),
+    fmPlayerName: z.string(),
+    kind: z.literal("roster_identity"),
+    originThreadId: z.string(),
+    rosterPlayerName: z.string(),
+    rosterRetrievedAt: z.iso.datetime().nullable(),
+    schemaVersion: z.literal(1),
+    sourceVersions: z.object({
+      fmManifestSha256: z.string().nullable(),
+      fmSnapshotDate: z.string().nullable(),
+    }),
+    stableIdentityKey: z.string(),
+  }),
+});
+
+const rosterMemoryStoreKey = `v1:roster-identity:${createHash("sha256")
+  .update(JSON.stringify([11, "fm-kane"]))
+  .digest("hex")}`;
+
+const readRosterMemory = async (baseUrl: string) =>
+  await requestJson(
+    baseUrl,
+    `/store/items?namespace=tactiscout.local-user.player-memory&key=${rosterMemoryStoreKey}`,
+    rosterMemoryStoreItemSchema
+  );
+
+type RosterMemoryStoreValue = z.output<
+  typeof rosterMemoryStoreItemSchema
+>["value"];
+
+const rosterMemoryFacts = (value: RosterMemoryStoreValue) => ({
+  apiFootballPlayerId: value.apiFootballPlayerId,
+  confirmationIdPresent: value.confirmationId.length > 0,
+  confirmedAtPresent: value.confirmedAt.length > 0,
+  fmId: value.fmId,
+  fmPlayerName: value.fmPlayerName,
+  kind: value.kind,
+  originThreadId: value.originThreadId,
+  rosterPlayerName: value.rosterPlayerName,
+  rosterRetrievedAt: value.rosterRetrievedAt,
+  schemaVersion: value.schemaVersion,
+  sourceVersions: value.sourceVersions,
+  stableIdentityKeyPresent: value.stableIdentityKey.length > 0,
+});
+
+const expectedRosterRecommendationFacts = {
+  candidateRanks: [
+    { fmId: "fm-haaland", rank: 1 },
+    { fmId: "fm-prospect", rank: 2 },
+  ],
+  coverage: {
+    mappedMembers: 1,
+    pendingMembers: 0,
+    reepBridgeMappings: 0,
+    totalMembers: 1,
+    userConfirmedMappings: 1,
+  },
+  fmSnapshotDate: "2025-11-23",
+  rankingBasis: "equal_weight_mean_of_position_capable_squad_profiles",
+  retrievedAt: "2026-11-07T00:00:00.000Z",
+  status: "ready",
+};
 
 const runPlayerLookup = async (
   baseUrl: string,
@@ -183,6 +319,155 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
 };
 
 describe("managed Dev Server persistence", () => {
+  it("reuses a confirmed roster mapping across threads and restart without restoring absent members", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/persistence-agent.ts:agent"
+    );
+
+    const { baseUrl, gateway } = session;
+    const message = "Recommend a striker for Roster Memory Club";
+    const createThread = async () => await createAgentThread(baseUrl);
+
+    const readState = async (threadId: string) =>
+      await getAgentThreadState(baseUrl, threadId);
+
+    try {
+      const threadA = await createThread();
+      await runPlayerLookup(baseUrl, threadA.thread_id, message);
+      const pendingA = await readState(threadA.thread_id);
+
+      await postJson(
+        baseUrl,
+        `/threads/${threadA.thread_id}/runs/wait`,
+        waitResponseSchema,
+        JSON.stringify({ assistant_id: "agent", command: { resume: "1" } })
+      );
+      const completedA = await readState(threadA.thread_id);
+
+      const mappingBeforeRestart = await readRosterMemory(baseUrl);
+
+      const threadB = await createThread();
+      await runPlayerLookup(baseUrl, threadB.thread_id, message);
+      const completedB = await readState(threadB.thread_id);
+      const eventsBeforeRestart = gateway.events();
+
+      await session.restart();
+
+      const persistedMapping = await readRosterMemory(baseUrl);
+
+      const threadC = await createThread();
+      await runPlayerLookup(baseUrl, threadC.thread_id, message);
+      const completedC = await readState(threadC.thread_id);
+      const eventsAfterRestartedRequest = gateway.events();
+
+      await session.restart();
+
+      const threadD = await createThread();
+      await runPlayerLookup(baseUrl, threadD.thread_id, message);
+      const departedRoster = await readState(threadD.thread_id);
+
+      const rosterResultDates = [completedB, completedC].map(
+        teamRecommendationDatesFromState
+      );
+
+      const recommendationFacts = [completedA, completedB, completedC].map(
+        teamRecommendationFactsFromState
+      );
+
+      expect({
+        completedA: rosterMemberFactsFromState(completedA),
+        completedB: rosterMemberFactsFromState(completedB),
+        completedC: rosterMemberFactsFromState(completedC),
+        completedCClarification: clarificationDetails(completedC),
+        completedCPlayerMemoryStatus: completedC.values.playerMemoryStatus,
+        departedRoster: {
+          memberCount:
+            departedRoster.values.request.teamRecommendation?.roster?.members
+              ?.length ?? 0,
+          outcomeStatus: departedRoster.values.outcome?.status,
+        },
+        events: {
+          afterC: eventsAfterRestartedRequest.filter(
+            (event) => event === "team-roster"
+          ).length,
+          afterD: gateway.events().filter((event) => event === "team-roster")
+            .length,
+          beforeRestart: eventsBeforeRestart.filter(
+            (event) => event === "team-roster"
+          ).length,
+        },
+        interruptions: [pendingA, completedB, completedC].map(
+          (state) => clarificationDetails(state).hasInterrupt
+        ),
+        mappingBeforeRestart: rosterMemoryFacts(mappingBeforeRestart.value),
+        persistedMappingUnchanged: isDeepStrictEqual(
+          mappingBeforeRestart.value,
+          persistedMapping.value
+        ),
+        recommendationFacts,
+      }).toStrictEqual({
+        completedA: {
+          apiFootballPlayerId: 11,
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          mappingStatus: "resolved",
+        },
+        completedB: {
+          apiFootballPlayerId: 11,
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          mappingStatus: "resolved",
+        },
+        completedC: {
+          apiFootballPlayerId: 11,
+          fmId: "fm-kane",
+          mappingMethod: "user_confirmation",
+          mappingStatus: "resolved",
+        },
+        completedCClarification: { hasInterrupt: false, question: null },
+        completedCPlayerMemoryStatus: { readFailed: false, writeFailed: false },
+        departedRoster: { memberCount: 0, outcomeStatus: "team_roster_empty" },
+        events: { afterC: 2, afterD: 3, beforeRestart: 1 },
+        interruptions: [true, false, false],
+        mappingBeforeRestart: {
+          apiFootballPlayerId: 11,
+          confirmationIdPresent: true,
+          confirmedAtPresent: true,
+          fmId: "fm-kane",
+          fmPlayerName: "Harry Kane",
+          kind: "roster_identity",
+          originThreadId: threadA.thread_id,
+          rosterPlayerName: "Harry Kane",
+          rosterRetrievedAt: "2026-11-07T00:00:00.000Z",
+          schemaVersion: 1,
+          sourceVersions: {
+            fmManifestSha256: "persistence-test-snapshot",
+            fmSnapshotDate: "2025-11-23",
+          },
+          stableIdentityKeyPresent: true,
+        },
+        persistedMappingUnchanged: true,
+        recommendationFacts: [
+          expectedRosterRecommendationFacts,
+          expectedRosterRecommendationFacts,
+          expectedRosterRecommendationFacts,
+        ],
+      });
+
+      expect(
+        rosterResultDates.map((dates) => dates?.fmSnapshotDate ?? null)
+      ).toStrictEqual(["2025-11-23", "2025-11-23"]);
+      expect(
+        rosterResultDates.every(
+          (dates) =>
+            dates !== null && Number.isFinite(Date.parse(dates.retrievedAt))
+        )
+      ).toBeTruthy();
+    } finally {
+      await session.close();
+    }
+  }, 120_000);
+
   it("reuses an explicitly confirmed Chinese player alias across restart and thread deletion", async () => {
     const session = await startDevServerSession();
     const { baseUrl } = session;

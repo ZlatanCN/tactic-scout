@@ -1,9 +1,15 @@
-import type { GraphNode } from "@langchain/langgraph";
+import { getStore } from "@langchain/langgraph";
+import type { BaseStore, GraphNode } from "@langchain/langgraph";
 
 import { logLocalDataFailure } from "../fault-tolerance.js";
 import { isLocalDataError } from "../player-data/shared.js";
+import type { findRememberedRosterIdentity } from "../player-memory.js";
 import type { AgentState, RequestState } from "../state.js";
-import type { TeamRosterSnapshot } from "../team-data/contracts.js";
+import { createInitialPlayerMemoryStatus } from "../state.js";
+import type {
+  TeamFmProfileCandidate,
+  TeamRosterSnapshot,
+} from "../team-data/contracts.js";
 import { teamRosterCoverage } from "../team-data/roster-coverage.js";
 import type {
   TeamRosterIdentityLookup,
@@ -11,7 +17,41 @@ import type {
 } from "../team-data/roster-identity.js";
 
 type ResolveTeamRosterOptions = {
+  findRememberedIdentity: typeof findRememberedRosterIdentity;
   resolvePlayer: TeamRosterIdentityLookup;
+};
+
+const mergeRosterCandidates = (
+  rememberedCandidates: TeamFmProfileCandidate[],
+  current: TeamRosterIdentityResolution
+): TeamRosterIdentityResolution => {
+  const candidatesByFmId = new Map<string, TeamFmProfileCandidate>();
+
+  for (const candidate of rememberedCandidates) {
+    candidatesByFmId.set(candidate.fmId, candidate);
+  }
+
+  if (current.status === "resolved") {
+    candidatesByFmId.set(current.candidate.fmId, current.candidate);
+  }
+
+  if (current.status === "needs_confirmation") {
+    for (const candidate of current.candidates) {
+      candidatesByFmId.set(candidate.fmId, candidate);
+    }
+  }
+
+  const candidates = [...candidatesByFmId.values()].toSorted((left, right) =>
+    left.fmId.localeCompare(right.fmId)
+  );
+
+  if (candidates.length > 0) {
+    return { candidates, status: "needs_confirmation" };
+  }
+
+  return current.status === "no_profile"
+    ? { candidates: [], status: "needs_confirmation" }
+    : current;
 };
 
 const applyIdentityResolution = (
@@ -22,7 +62,7 @@ const applyIdentityResolution = (
     return {
       ...member,
       fmId: resolution.candidate.fmId,
-      mappingMethod: "reep_bridge",
+      mappingMethod: resolution.method,
       mappingStatus: "resolved",
     };
   }
@@ -43,8 +83,18 @@ const pendingRosterProfileClarification = (
 ) => {
   const member = roster.members[memberIndex];
 
-  if (member === undefined || member.fmCandidates.length === 0) {
+  if (member === undefined) {
     return null;
+  }
+
+  if (member.fmCandidates.length === 0) {
+    return {
+      answer: null,
+      candidates: [],
+      kind: "team_roster_profile" as const,
+      question: `阵容球员“${member.name}”目前没有可用的 FM 画像。请先更新或补齐当前 FM 资料，然后回复“重试”重新查找。`,
+      rosterIndex: memberIndex,
+    };
   }
 
   const candidates = member.fmCandidates
@@ -58,7 +108,7 @@ const pendingRosterProfileClarification = (
     answer: null,
     candidates: member.fmCandidates,
     kind: "team_roster_profile" as const,
-    question: `阵容球员“${member.name}”没有唯一的 Reep→FM 映射。请确认对应画像：${candidates}`,
+    question: `阵容球员“${member.name}”目前无法安全对应到唯一的 FM 画像。请确认对应画像：${candidates}`,
     rosterIndex: memberIndex,
   };
 };
@@ -72,7 +122,10 @@ const requestWithRoster = (
 });
 
 const createResolveTeamRosterNode =
-  (options: ResolveTeamRosterOptions): GraphNode<typeof AgentState> =>
+  (
+    options: ResolveTeamRosterOptions,
+    configuredStore: BaseStore | null
+  ): GraphNode<typeof AgentState> =>
   async (state, runtime) => {
     const { request } = state;
 
@@ -103,6 +156,60 @@ const createResolveTeamRosterNode =
         member.mappingStatus === "pending" && member.fmCandidates.length === 0
     );
 
+    const store = configuredStore ?? getStore(runtime);
+
+    const previousPlayerMemoryStatus =
+      state.playerMemoryStatus ?? createInitialPlayerMemoryStatus();
+
+    let memoryReadFailed = false;
+
+    const currentPlayerMemoryStatus = () => ({
+      ...previousPlayerMemoryStatus,
+      readFailed: previousPlayerMemoryStatus.readFailed || memoryReadFailed,
+    });
+
+    const resolveMember = async (member: (typeof pendingMembers)[number]) => {
+      if (store === undefined) {
+        memoryReadFailed = true;
+
+        return await options.resolvePlayer(
+          member.apiFootballPlayerId,
+          member.name
+        );
+      }
+
+      const remembered = await options.findRememberedIdentity(
+        store,
+        member.apiFootballPlayerId
+      );
+
+      if (remembered.status === "found") {
+        return {
+          candidate: remembered.candidate,
+          method: "user_confirmation" as const,
+          status: "resolved" as const,
+        };
+      }
+
+      if (remembered.status === "unavailable") {
+        memoryReadFailed = true;
+      }
+
+      if (remembered.status === "conflict") {
+        const current = await options.resolvePlayer(
+          member.apiFootballPlayerId,
+          member.name
+        );
+
+        return mergeRosterCandidates(remembered.candidates, current);
+      }
+
+      return await options.resolvePlayer(
+        member.apiFootballPlayerId,
+        member.name
+      );
+    };
+
     let resolutions: {
       playerId: number;
       resolution: Awaited<ReturnType<TeamRosterIdentityLookup>>;
@@ -114,10 +221,7 @@ const createResolveTeamRosterNode =
       resolutions = await Promise.all(
         pendingMembers.map(async (member) => ({
           playerId: member.apiFootballPlayerId,
-          resolution: await options.resolvePlayer(
-            member.apiFootballPlayerId,
-            member.name
-          ),
+          resolution: await resolveMember(member),
         }))
       );
     } catch (error) {
@@ -138,6 +242,7 @@ const createResolveTeamRosterNode =
           resultJson: null,
           status: "team_identity_error",
         },
+        playerMemoryStatus: currentPlayerMemoryStatus(),
         request: requestWithRoster(request, roster),
       };
     }
@@ -172,6 +277,7 @@ const createResolveTeamRosterNode =
           }),
           status: "team_roster_member_unmapped",
         },
+        playerMemoryStatus: currentPlayerMemoryStatus(),
         request: requestWithRoster(request, resolvedRoster),
       };
     }
@@ -186,11 +292,15 @@ const createResolveTeamRosterNode =
           resolvedRoster,
           confirmationIndex
         ),
+        playerMemoryStatus: currentPlayerMemoryStatus(),
         request: requestWithRoster(request, resolvedRoster),
       };
     }
 
-    return { request: requestWithRoster(request, resolvedRoster) };
+    return {
+      playerMemoryStatus: currentPlayerMemoryStatus(),
+      request: requestWithRoster(request, resolvedRoster),
+    };
   };
 
 export { createResolveTeamRosterNode };
