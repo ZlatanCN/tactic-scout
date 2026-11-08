@@ -1422,9 +1422,12 @@ const recommendationClarificationForRequest = (
   return null;
 };
 
-const outcomeKindForRequest = (
-  request: RequestState
-): Extract<AgentStateType["outcome"], { kind: string }>["kind"] => {
+type ScoutingOutcomeKind = Exclude<
+  NonNullable<AgentStateType["outcome"]>["kind"],
+  "player_memory_management"
+>;
+
+const outcomeKindForRequest = (request: RequestState): ScoutingOutcomeKind => {
   if (request.kind === "player_comparison") {
     return "player_comparison";
   }

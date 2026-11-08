@@ -1,3 +1,4 @@
+import { AIMessage } from "@langchain/core/messages";
 import { getStore, interrupt } from "@langchain/langgraph";
 import type { BaseStore, GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
@@ -14,6 +15,7 @@ import type {
   AgentState,
   AgentStateType,
   PendingClarification,
+  PlayerMemoryManagementTarget,
   RequestPlayerState,
 } from "../state.js";
 import { workflowLabels } from "../workflow-continuation.js";
@@ -104,6 +106,13 @@ const candidatesForClarification = (
       naturalPositions: candidate.naturalPositions ?? null,
       number: index + 1,
       potentialAbility: candidate.potentialAbility ?? null,
+    }));
+  }
+
+  if (pending.kind === "player_memory_management") {
+    return pending.options.map((option, index) => ({
+      label: option.label,
+      number: index + 1,
     }));
   }
 
@@ -332,6 +341,8 @@ const interruptForAnswer = (
     kind = "team_identity_confirmation";
   } else if (pending.kind === "team_roster_profile") {
     kind = "team_roster_profile_confirmation";
+  } else if (pending.kind === "player_memory_management") {
+    kind = "player_memory_forget_target_confirmation";
   } else if (pending.kind === "workflow") {
     kind = "workflow_continuation_selection";
   }
@@ -578,6 +589,70 @@ const clarifyTeamRosterProfile = (
   };
 };
 
+const memoryForgetOptionFromAnswer = (
+  answer: string,
+  pending: Extract<PendingClarification, { kind: "player_memory_management" }>
+): PlayerMemoryManagementTarget | null => {
+  const normalized = answer.trim().toLocaleLowerCase();
+  const number = Number(normalized);
+
+  if (
+    Number.isInteger(number) &&
+    number >= 1 &&
+    number <= pending.options.length
+  ) {
+    return pending.options[number - 1]?.target ?? null;
+  }
+
+  const matches = pending.options.filter(
+    (option) => option.label.toLocaleLowerCase() === normalized
+  );
+
+  return matches.length === 1 ? (matches[0]?.target ?? null) : null;
+};
+
+const clarifyPlayerMemoryForgetTarget = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "player_memory_management" }>,
+  answer: string
+): Partial<AgentStateType> => {
+  const normalized = answer.normalize("NFKC").trim().toLocaleLowerCase();
+
+  if (["取消", "cancel", "no", "否"].includes(normalized)) {
+    return {
+      messages: [new AIMessage("已取消，没有删除任何球员身份记忆。")],
+      outcome: {
+        kind: "player_memory_management",
+        resultJson: null,
+        status: "cancelled",
+      },
+      pendingClarification: null,
+      playerMemoryManagementRequest: null,
+    };
+  }
+
+  const target = memoryForgetOptionFromAnswer(answer, pending);
+
+  if (target === null) {
+    return invalidAnswer(
+      pending,
+      `请选择一个有效的记忆目标编号，或回复“取消”：${pending.question}`
+    );
+  }
+
+  const request = state.playerMemoryManagementRequest;
+
+  if (request === null || request.action !== "forget") {
+    return invalidAnswer(pending, "记忆管理请求已变化，请重新发起操作。");
+  }
+
+  return {
+    outcome: null,
+    pendingClarification: null,
+    playerMemoryManagementRequest: { ...request, selectedTarget: target },
+  };
+};
+
 const clarifyFmProfile = (
   state: AgentStateType,
   pending: Extract<PendingClarification, { kind: "fm_profile" }>,
@@ -768,6 +843,10 @@ const resumeClarification = (
 
   if (pending.kind === "team_roster_profile") {
     return clarifyTeamRosterProfile(state, pending, answer);
+  }
+
+  if (pending.kind === "player_memory_management") {
+    return clarifyPlayerMemoryForgetTarget(state, pending, answer);
   }
 
   if (pending.kind === "workflow") {

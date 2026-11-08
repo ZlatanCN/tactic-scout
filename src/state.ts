@@ -210,6 +210,19 @@ const createInitialRequestState = () => ({
   teams: [],
 });
 
+const PlayerMemoryManagementTargetSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("player_identity"),
+    mention: z.string().min(1),
+  }),
+  z.object({
+    apiFootballPlayerId: z.number().int().positive(),
+    fmId: z.string().min(1),
+    kind: z.literal("roster_identity"),
+    mention: z.string().nullable(),
+  }),
+]);
+
 const PendingClarificationSchema = z.discriminatedUnion("kind", [
   z.object({
     answer: z.string().nullable(),
@@ -279,7 +292,27 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
     ),
     question: z.string(),
   }),
+  z.object({
+    answer: z.string().nullable(),
+    kind: z.literal("player_memory_management"),
+    options: z.array(
+      z.object({
+        label: z.string(),
+        target: PlayerMemoryManagementTargetSchema,
+      })
+    ),
+    question: z.string(),
+  }),
 ]);
+
+const PlayerMemoryManagementRequestSchema = z.object({
+  action: z.enum(["list", "forget"]),
+  apiFootballPlayerId: z.number().int().positive().nullable(),
+  fmId: z.string().nullable(),
+  selectedTarget: PlayerMemoryManagementTargetSchema.nullable(),
+  targetKind: z.enum(["player_identity", "roster_identity"]).nullable(),
+  targetMention: z.string().nullable(),
+});
 
 const TurnOutcomeSchema = z.union([
   z.object({
@@ -394,6 +427,18 @@ const TurnOutcomeSchema = z.union([
       "tool_error",
     ]),
   }),
+  z.object({
+    kind: z.literal("player_memory_management"),
+    resultJson: z.string().nullable(),
+    status: z.enum([
+      "cancelled",
+      "failed",
+      "forgotten",
+      "listed",
+      "not_found",
+      "partial_failure",
+    ]),
+  }),
 ]);
 
 const FaultToleranceSchema = z.object({
@@ -451,6 +496,8 @@ const AgentState = MessagesZodState.extend({
   ),
   outcome: TurnOutcomeSchema.nullable().default(null),
   pendingClarification: PendingClarificationSchema.nullable().default(null),
+  playerMemoryManagementRequest:
+    PlayerMemoryManagementRequestSchema.nullable().default(null),
   playerMemoryStatus: PlayerMemoryStatusSchema.default(
     createInitialPlayerMemoryStatus
   ),
@@ -472,6 +519,14 @@ type ConversationContext = z.infer<typeof ConversationContextSchema>;
 type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
 
 type PlayerMemoryStatus = z.infer<typeof PlayerMemoryStatusSchema>;
+
+type PlayerMemoryManagementRequest = z.infer<
+  typeof PlayerMemoryManagementRequestSchema
+>;
+
+type PlayerMemoryManagementTarget = z.infer<
+  typeof PlayerMemoryManagementTargetSchema
+>;
 
 type ConversationPlayerAlias = z.infer<typeof ConversationPlayerAliasSchema>;
 
@@ -533,6 +588,8 @@ export type {
   ConversationPlayerReference,
   PendingClarification,
   PlayerMemoryStatus,
+  PlayerMemoryManagementRequest,
+  PlayerMemoryManagementTarget,
   RecommendationPlayerRole,
   RecommendationRequestState,
   RequestConstraint,

@@ -75,6 +75,40 @@ describe("request understanding extraction", () => {
     }
   );
 
+  it("does not accept model-inferred memory type or IDs absent from the forget command", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from(() => ({
+        constraints: [],
+        kind: "other",
+        playerMemoryManagement: {
+          action: "forget",
+          apiFootballPlayerId: 11,
+          fmId: "fm-kane",
+          targetKind: "roster_identity",
+          targetMention: "Harry Kane",
+        },
+        players: [],
+        teams: [],
+      }))
+    );
+    const extractor = createRequestUnderstandingExtractor(model);
+
+    const result = await extractor(
+      "Forget Harry Kane",
+      createInitialConversationContext()
+    );
+
+    expect(result.playerMemoryManagement).toStrictEqual({
+      action: "forget",
+      apiFootballPlayerId: null,
+      fmId: null,
+      targetKind: null,
+      targetMention: "Harry Kane",
+    });
+  });
+
   it.each(["Janik Haberer's", "Janik Haberer’s"])(
     "removes the possessive suffix from the explicit player name %s",
     (mention) => {

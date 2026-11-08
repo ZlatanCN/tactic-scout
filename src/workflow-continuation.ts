@@ -65,50 +65,6 @@ const workflowFromRequestKind = (
   return null;
 };
 
-const previousTurnSummary = (state: AgentStateType): PreviousTurnSummary => {
-  const failure = state.faultTolerance?.failure ?? null;
-
-  if (failure?.node === "understand_request") {
-    return {
-      dataCompleted: false,
-      failureStage: "understanding",
-      source: null,
-      workflow: null,
-    };
-  }
-
-  const outcome = state.outcome ?? null;
-
-  const source =
-    outcome !== null && "source" in outcome ? outcome.source : null;
-
-  const dataCompleted = source !== null;
-  let failureStage: PreviousTurnSummary["failureStage"];
-
-  if (failure !== null) {
-    failureStage = failure.node === "answer" ? "answer" : "data";
-  } else if (
-    outcome !== null &&
-    source === null &&
-    outcome.status !== "answer_ready"
-  ) {
-    failureStage = "data";
-  }
-
-  const request = state.request ?? createInitialRequestState();
-
-  const workflow =
-    outcome?.kind ?? (request.kind === "other" ? null : request.kind);
-
-  const summary: PreviousTurnSummary = { dataCompleted, source, workflow };
-
-  if (failureStage !== undefined) {
-    summary.failureStage = failureStage;
-  }
-
-  return summary;
-};
-
 const hasSavedWorkflowResult = (
   context: ConversationContext,
   workflow: WorkflowKind
@@ -129,6 +85,95 @@ const hasSavedWorkflowResult = (
   }
 
   return context.activeTeamRecommendation !== null;
+};
+
+const failureStageForPreviousTurn = (
+  failure: AgentStateType["faultTolerance"]["failure"],
+  outcome: TurnOutcome | null,
+  source: PreviousTurnSummary["source"]
+): PreviousTurnSummary["failureStage"] => {
+  if (failure !== null) {
+    return failure.node === "answer" ? "answer" : "data";
+  }
+
+  if (
+    outcome === null ||
+    outcome.kind === "player_memory_management" ||
+    source !== null ||
+    outcome.status === "answer_ready"
+  ) {
+    return undefined;
+  }
+
+  return "data";
+};
+
+const workflowForPreviousTurn = (
+  request: AgentStateType["request"],
+  outcome: TurnOutcome | null
+): RequestKind | null => {
+  if (outcome !== null && outcome.kind !== "player_memory_management") {
+    return outcome.kind;
+  }
+
+  return request.kind === "other" ? null : request.kind;
+};
+
+const previousTurnDataCompleted = (
+  context: ConversationContext,
+  outcome: TurnOutcome | null,
+  source: PreviousTurnSummary["source"],
+  workflow: RequestKind | null
+): boolean => {
+  if (source !== null) {
+    return true;
+  }
+
+  const savedWorkflow = workflowFromRequestKind(workflow);
+
+  return (
+    outcome?.kind === "player_memory_management" &&
+    savedWorkflow !== null &&
+    hasSavedWorkflowResult(context, savedWorkflow)
+  );
+};
+
+const previousTurnSummary = (state: AgentStateType): PreviousTurnSummary => {
+  const failure = state.faultTolerance?.failure ?? null;
+
+  if (failure?.node === "understand_request") {
+    return {
+      dataCompleted: false,
+      failureStage: "understanding",
+      source: null,
+      workflow: null,
+    };
+  }
+
+  const outcome = state.outcome ?? null;
+
+  const source =
+    outcome !== null && "source" in outcome ? outcome.source : null;
+
+  const request = state.request ?? createInitialRequestState();
+  const workflow = workflowForPreviousTurn(request, outcome);
+
+  const dataCompleted = previousTurnDataCompleted(
+    state.conversationContext,
+    outcome,
+    source,
+    workflow
+  );
+
+  const failureStage = failureStageForPreviousTurn(failure, outcome, source);
+
+  const summary: PreviousTurnSummary = { dataCompleted, source, workflow };
+
+  if (failureStage !== undefined) {
+    summary.failureStage = failureStage;
+  }
+
+  return summary;
 };
 
 const workflowsWithSavedResults = (

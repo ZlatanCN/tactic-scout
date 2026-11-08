@@ -21,6 +21,7 @@ import {
   normalizeLatinNameSpelling,
 } from "./player-data/shared.js";
 import { readUnderstatBySourceIds } from "./player-data/understat.js";
+import type { PlayerMemoryManagementTarget } from "./state.js";
 import type { TeamFmProfileCandidate } from "./team-data/contracts.js";
 
 const playerMemoryNamespace = ["tactiscout", "local-user", "player-memory"];
@@ -101,6 +102,115 @@ type RememberedRosterIdentityLookupResult =
   | { candidates: TeamFmProfileCandidate[]; status: "conflict" }
   | { status: "missing" | "stale" | "unavailable" };
 
+type PlayerMemoryValidationStatus =
+  | "current"
+  | "conflicting"
+  | "needs_confirmation"
+  | "unavailable";
+
+type PlayerMemoryListingRecord =
+  | {
+      canonicalIdentityId: string | null;
+      confirmedAt: string;
+      confirmationId: string;
+      displayName: string;
+      identityVerified: boolean;
+      kind: "player_identity";
+      mention: string;
+      originThreadId: string;
+      sourceRecords: {
+        canonicalIdentityId: string | null;
+        identityVerified: boolean;
+        provider: "fm" | "understat";
+        sourceId: string;
+      }[];
+      validationStatus: PlayerMemoryValidationStatus;
+    }
+  | {
+      apiFootballPlayerId: number;
+      confirmedAt: string;
+      confirmationId: string;
+      fmId: string;
+      fmPlayerName: string;
+      kind: "roster_identity";
+      originThreadId: string;
+      rosterPlayerName: string;
+      validationStatus: PlayerMemoryValidationStatus;
+    };
+
+type PlayerMemoryListResult =
+  | {
+      records: PlayerMemoryListingRecord[];
+      status: "ready";
+      truncated: boolean;
+    }
+  | { status: "unavailable" };
+
+type PlayerMemoryForgetQuery = {
+  apiFootballPlayerId: number | null;
+  fmId: string | null;
+  targetKind: "player_identity" | "roster_identity" | null;
+  targetMention: string | null;
+};
+
+type PlayerMemoryForgetOption = {
+  label: string;
+  target: PlayerMemoryManagementTarget;
+};
+
+type PlayerMemoryForgetOptionsResult =
+  | { options: PlayerMemoryForgetOption[]; status: "ready" }
+  | { status: "unavailable" };
+
+type PlayerMemoryDeleteResult =
+  | { deletedCount: number; status: "forgotten" }
+  | { deletedCount: number; failedCount: number; status: "partial_failure" }
+  | { status: "failed" | "not_found" };
+
+type StoredPlayerMemoryEntry = {
+  key: string;
+  record: PlayerMemoryRecord;
+};
+
+type StoredPlayerMemoryEntriesResult =
+  | { entries: StoredPlayerMemoryEntry[]; status: "ready"; truncated: boolean }
+  | { status: "unavailable" };
+
+const stableHash = (value: string): string =>
+  createHash("sha256").update(value).digest("hex");
+
+const parseStoredPlayerMemoryEntry = (
+  item: Item
+): StoredPlayerMemoryEntry | null => {
+  const playerRecord = playerIdentityMemorySchema.safeParse(item.value);
+
+  if (playerRecord.success) {
+    return { key: item.key, record: playerRecord.data };
+  }
+
+  const rosterRecord = rosterIdentityMemorySchema.safeParse(item.value);
+
+  if (!rosterRecord.success) {
+    return null;
+  }
+
+  const expectedKey = stableHash(
+    JSON.stringify([
+      rosterRecord.data.apiFootballPlayerId,
+      rosterRecord.data.fmId,
+    ])
+  );
+
+  if (
+    rosterRecord.data.stableIdentityKey !== expectedKey ||
+    item.key !== `v1:roster-identity:${expectedKey}`
+  ) {
+    return null;
+  }
+
+  return { key: item.key, record: rosterRecord.data };
+};
+
 type PlayerIdentityConfirmation = {
   candidate: ReferenceCandidate;
   mention: string;
@@ -154,9 +264,6 @@ const fmSourceVersionsFor = (sourceIds: string[]) => {
     fmSnapshotDate: metadata.status === "ready" ? metadata.snapshotDate : null,
   };
 };
-
-const stableHash = (value: string): string =>
-  createHash("sha256").update(value).digest("hex");
 
 const normalizedMemoryMention = (mention: string): string => {
   const normalized = normalizeLatinNameSpelling(mention.normalize("NFKD"))
@@ -1053,15 +1160,404 @@ const findRememberedRosterIdentity = async (
     : { candidate, status: "found" };
 };
 
+const readPlayerMemoryEntries = async (
+  store: BaseStore
+): Promise<StoredPlayerMemoryEntriesResult> => {
+  let items: Item[];
+
+  try {
+    items = await store.search(playerMemoryNamespace, {
+      limit: maxPlayerMemoryMatches,
+    });
+  } catch {
+    return { status: "unavailable" };
+  }
+
+  const entries: StoredPlayerMemoryEntry[] = [];
+
+  for (const item of items) {
+    const entry = parseStoredPlayerMemoryEntry(item);
+
+    if (entry === null) {
+      return { status: "unavailable" };
+    }
+
+    entries.push(entry);
+  }
+
+  return {
+    entries,
+    status: "ready",
+    truncated: items.length === maxPlayerMemoryMatches,
+  };
+};
+
+const playerIdentityValidationStatus = (
+  record: PlayerIdentityMemory,
+  mentionCount: number
+): PlayerMemoryValidationStatus => {
+  if (mentionCount > 1) {
+    return "conflicting";
+  }
+
+  const validation = validatedPlayerRecords(record);
+
+  if (validation.status === "valid") {
+    return "current";
+  }
+
+  return validation.status === "stale" ? "needs_confirmation" : "unavailable";
+};
+
+const rosterValidationByPlayerId = async (
+  store: BaseStore,
+  entries: StoredPlayerMemoryEntry[]
+) => {
+  const apiFootballPlayerIds = [
+    ...new Set(
+      entries.flatMap((entry) =>
+        entry.record.kind === "roster_identity"
+          ? [entry.record.apiFootballPlayerId]
+          : []
+      )
+    ),
+  ];
+
+  const validations = await Promise.all(
+    apiFootballPlayerIds.map(async (apiFootballPlayerId) => ({
+      apiFootballPlayerId,
+      result: await findRememberedRosterIdentity(store, apiFootballPlayerId),
+    }))
+  );
+
+  return new Map(
+    validations.map(({ apiFootballPlayerId, result }) => [
+      apiFootballPlayerId,
+      result,
+    ])
+  );
+};
+
+const rosterIdentityValidationStatus = (
+  record: RosterIdentityMemory,
+  validation: RememberedRosterIdentityLookupResult | undefined
+): PlayerMemoryValidationStatus => {
+  if (validation?.status === "conflict") {
+    return "conflicting";
+  }
+
+  if (validation?.status === "found") {
+    return validation.candidate.fmId === record.fmId
+      ? "current"
+      : "conflicting";
+  }
+
+  if (validation?.status === "stale" || validation?.status === "missing") {
+    return "needs_confirmation";
+  }
+
+  return "unavailable";
+};
+
+const playerMemoryListingRecord = (
+  entry: StoredPlayerMemoryEntry,
+  mentionCounts: Map<string, number>,
+  rosterValidations: Map<number, RememberedRosterIdentityLookupResult>
+): PlayerMemoryListingRecord => {
+  if (entry.record.kind === "player_identity") {
+    return {
+      canonicalIdentityId: entry.record.canonicalIdentityId,
+      confirmationId: entry.record.confirmationId,
+      confirmedAt: entry.record.confirmedAt,
+      displayName: entry.record.displayName,
+      identityVerified: entry.record.identityVerified,
+      kind: "player_identity",
+      mention: entry.record.originalMention,
+      originThreadId: entry.record.originThreadId,
+      sourceRecords: entry.record.sourceRecords.map(
+        ({ canonicalIdentityId, identityVerified, provider, sourceId }) => ({
+          canonicalIdentityId,
+          identityVerified,
+          provider,
+          sourceId,
+        })
+      ),
+      validationStatus: playerIdentityValidationStatus(
+        entry.record,
+        mentionCounts.get(entry.record.normalizedMention) ?? 0
+      ),
+    };
+  }
+
+  return {
+    apiFootballPlayerId: entry.record.apiFootballPlayerId,
+    confirmationId: entry.record.confirmationId,
+    confirmedAt: entry.record.confirmedAt,
+    fmId: entry.record.fmId,
+    fmPlayerName: entry.record.fmPlayerName,
+    kind: "roster_identity",
+    originThreadId: entry.record.originThreadId,
+    rosterPlayerName: entry.record.rosterPlayerName,
+    validationStatus: rosterIdentityValidationStatus(
+      entry.record,
+      rosterValidations.get(entry.record.apiFootballPlayerId)
+    ),
+  };
+};
+
+const comparePlayerMemoryListingRecords = (
+  left: PlayerMemoryListingRecord,
+  right: PlayerMemoryListingRecord
+): number => {
+  const kindOrder = left.kind.localeCompare(right.kind);
+
+  if (kindOrder !== 0) {
+    return kindOrder;
+  }
+
+  if (left.kind === "player_identity" && right.kind === "player_identity") {
+    return left.mention.localeCompare(right.mention);
+  }
+
+  if (left.kind === "roster_identity" && right.kind === "roster_identity") {
+    return (
+      left.apiFootballPlayerId - right.apiFootballPlayerId ||
+      left.fmId.localeCompare(right.fmId)
+    );
+  }
+
+  return 0;
+};
+
+const listPlayerMemories = async (
+  store: BaseStore
+): Promise<PlayerMemoryListResult> => {
+  const stored = await readPlayerMemoryEntries(store);
+
+  if (stored.status !== "ready") {
+    return stored;
+  }
+
+  const mentionCounts = new Map<string, number>();
+
+  for (const entry of stored.entries) {
+    if (entry.record.kind === "player_identity") {
+      const count = mentionCounts.get(entry.record.normalizedMention) ?? 0;
+      mentionCounts.set(entry.record.normalizedMention, count + 1);
+    }
+  }
+
+  const rosterValidations = await rosterValidationByPlayerId(
+    store,
+    stored.entries
+  );
+
+  const records = stored.entries
+    .map((entry) =>
+      playerMemoryListingRecord(entry, mentionCounts, rosterValidations)
+    )
+    .toSorted(comparePlayerMemoryListingRecords);
+
+  return {
+    records,
+    status: "ready",
+    truncated: stored.truncated,
+  };
+};
+
+const playerAliasForgetOption = (
+  entry: StoredPlayerMemoryEntry,
+  query: PlayerMemoryForgetQuery,
+  normalizedTarget: string | null
+): PlayerMemoryForgetOption | null => {
+  if (entry.record.kind !== "player_identity") {
+    return null;
+  }
+
+  if (query.apiFootballPlayerId !== null || query.fmId !== null) {
+    return null;
+  }
+
+  if (query.targetKind === "roster_identity" || normalizedTarget === null) {
+    return null;
+  }
+
+  const matchesAlias = entry.record.normalizedMention === normalizedTarget;
+
+  const matchesDisplayName =
+    query.targetKind === null &&
+    normalizedMemoryMention(entry.record.displayName) === normalizedTarget;
+
+  if (!matchesAlias && !matchesDisplayName) {
+    return null;
+  }
+
+  return {
+    label: `球员称呼“${entry.record.originalMention}” → ${entry.record.displayName}`,
+    target: {
+      kind: "player_identity",
+      mention: entry.record.originalMention,
+    },
+  };
+};
+
+const rosterForgetOption = (
+  entry: StoredPlayerMemoryEntry,
+  query: PlayerMemoryForgetQuery,
+  normalizedTarget: string | null
+): PlayerMemoryForgetOption | null => {
+  if (entry.record.kind !== "roster_identity") {
+    return null;
+  }
+
+  if (query.targetKind === "player_identity") {
+    return null;
+  }
+
+  const { record } = entry;
+
+  const matchesApiId =
+    query.apiFootballPlayerId === null ||
+    query.apiFootballPlayerId === record.apiFootballPlayerId;
+
+  const matchesFmId = query.fmId === null || query.fmId === record.fmId;
+
+  const matchesMention =
+    normalizedTarget === null ||
+    normalizedMemoryMention(record.rosterPlayerName) === normalizedTarget ||
+    normalizedMemoryMention(record.fmPlayerName) === normalizedTarget;
+
+  const hasExplicitTarget =
+    query.apiFootballPlayerId !== null ||
+    query.fmId !== null ||
+    normalizedTarget !== null;
+
+  if (!matchesApiId || !matchesFmId || !matchesMention || !hasExplicitTarget) {
+    return null;
+  }
+
+  return {
+    label: `阵容映射 API-Football #${record.apiFootballPlayerId}（${record.rosterPlayerName}） → FM ${record.fmId}（${record.fmPlayerName}）`,
+    target: {
+      apiFootballPlayerId: record.apiFootballPlayerId,
+      fmId: record.fmId,
+      kind: "roster_identity",
+      mention: record.rosterPlayerName,
+    },
+  };
+};
+
+const forgetTargetKey = (target: PlayerMemoryManagementTarget): string =>
+  target.kind === "player_identity"
+    ? `player_identity:${normalizedMemoryMention(target.mention)}`
+    : `roster_identity:${target.apiFootballPlayerId}:${target.fmId}`;
+
+const findPlayerMemoryForgetOptions = async (
+  store: BaseStore,
+  query: PlayerMemoryForgetQuery
+): Promise<PlayerMemoryForgetOptionsResult> => {
+  const stored = await readPlayerMemoryEntries(store);
+
+  if (stored.status !== "ready" || stored.truncated) {
+    return { status: "unavailable" };
+  }
+
+  const normalizedTarget =
+    query.targetMention === null
+      ? null
+      : normalizedMemoryMention(query.targetMention);
+
+  const optionsByKey = new Map<string, PlayerMemoryForgetOption>();
+
+  for (const entry of stored.entries) {
+    const option =
+      playerAliasForgetOption(entry, query, normalizedTarget) ??
+      rosterForgetOption(entry, query, normalizedTarget);
+
+    if (option !== null) {
+      optionsByKey.set(forgetTargetKey(option.target), option);
+    }
+  }
+
+  return {
+    options: [...optionsByKey.values()].toSorted((left, right) =>
+      left.label.localeCompare(right.label)
+    ),
+    status: "ready",
+  };
+};
+
+const deletePlayerMemoryTarget = async (
+  store: BaseStore,
+  target: PlayerMemoryManagementTarget
+): Promise<PlayerMemoryDeleteResult> => {
+  const stored = await readPlayerMemoryEntries(store);
+
+  if (stored.status !== "ready" || stored.truncated) {
+    return { status: "failed" };
+  }
+
+  const keys = stored.entries.flatMap((entry) => {
+    if (target.kind === "player_identity") {
+      return entry.record.kind === "player_identity" &&
+        entry.record.normalizedMention ===
+          normalizedMemoryMention(target.mention)
+        ? [entry.key]
+        : [];
+    }
+
+    return entry.record.kind === "roster_identity" &&
+      entry.record.apiFootballPlayerId === target.apiFootballPlayerId &&
+      entry.record.fmId === target.fmId
+      ? [entry.key]
+      : [];
+  });
+
+  if (keys.length === 0) {
+    return { status: "not_found" };
+  }
+
+  const results = await Promise.all(
+    keys.map(async (key) => {
+      try {
+        await store.delete(playerMemoryNamespace, key);
+
+        return true;
+      } catch {
+        return false;
+      }
+    })
+  );
+
+  const deletedCount = results.filter(Boolean).length;
+  const failedCount = results.length - deletedCount;
+
+  if (failedCount === 0) {
+    return { deletedCount, status: "forgotten" };
+  }
+
+  return deletedCount === 0
+    ? { status: "failed" }
+    : { deletedCount, failedCount, status: "partial_failure" };
+};
+
 export {
+  deletePlayerMemoryTarget,
+  findPlayerMemoryForgetOptions,
   findRememberedRosterIdentity,
   findRememberedPlayerIdentity,
+  listPlayerMemories,
   rememberPlayerIdentity,
   rememberRosterIdentity,
 };
 
 export type {
   PlayerMemoryLookupResult,
+  PlayerMemoryDeleteResult,
+  PlayerMemoryForgetOptionsResult,
+  PlayerMemoryForgetQuery,
+  PlayerMemoryListResult,
+  PlayerMemoryListingRecord,
   RememberedRosterIdentityLookupResult,
   RosterIdentityConfirmation,
 };

@@ -326,6 +326,13 @@ type FixtureExtraction = {
   constraints: { name: string; value: string }[];
   continuationAction?: "explain" | "refine" | null;
   kind: RequestKind;
+  playerMemoryManagement?: {
+    action: "list" | "forget";
+    apiFootballPlayerId?: number | null;
+    fmId?: string | null;
+    targetKind?: "player_identity" | "roster_identity" | null;
+    targetMention?: string | null;
+  };
   players: {
     lookupName: string | null;
     mention: string;
@@ -422,6 +429,61 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
   [
     "Explain the saved team recommendation",
     fixtureTeamRequest(fixtureTeamName, "explain"),
+  ],
+  [
+    "Explain the saved Roster Memory Club recommendation",
+    fixtureTeamRequest(fixtureRosterMemoryTeamName, "explain"),
+  ],
+  [
+    "Show remembered player aliases and mappings",
+    {
+      constraints: [],
+      kind: "other",
+      playerMemoryManagement: { action: "list" },
+      players: [],
+      teams: [],
+    },
+  ],
+  [
+    "Forget Harry Kane",
+    {
+      constraints: [],
+      kind: "other",
+      playerMemoryManagement: {
+        action: "forget",
+        targetMention: fixtureKaneName,
+      },
+      players: [],
+      teams: [],
+    },
+  ],
+  [
+    "Forget alias 凯恩",
+    {
+      constraints: [],
+      kind: "other",
+      playerMemoryManagement: {
+        action: "forget",
+        targetKind: "player_identity",
+        targetMention: "凯恩",
+      },
+      players: [],
+      teams: [],
+    },
+  ],
+  [
+    "Forget roster mapping Harry Kane",
+    {
+      constraints: [],
+      kind: "other",
+      playerMemoryManagement: {
+        action: "forget",
+        targetKind: "roster_identity",
+        targetMention: fixtureKaneName,
+      },
+      players: [],
+      teams: [],
+    },
   ],
   [
     `Recommend a striker for ${fixtureOutageTeamName}`,

@@ -40,6 +40,7 @@ import { createExecuteLookupToolsNode } from "./nodes/execute-lookup-tools.js";
 import { createFetchTeamRosterNode } from "./nodes/fetch-team-roster.js";
 import { createGuardLookupSearchNode } from "./nodes/guard-lookup-search.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
+import { createManagePlayerMemoryNode } from "./nodes/manage-player-memory.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
 import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
@@ -360,6 +361,14 @@ const routeResolvedRequest = (state: AgentStateType): string => {
 const routeAfterClarification = (state: AgentStateType): string => {
   const { request } = state;
 
+  if (state.playerMemoryManagementRequest) {
+    return "manage_player_memory";
+  }
+
+  if (state.outcome?.kind === "player_memory_management") {
+    return END;
+  }
+
   if (
     identityResolutionExhausted(request) &&
     (request.kind !== "team_recommendation" ||
@@ -404,6 +413,10 @@ const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
     : "fetch_team_roster";
 
 const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
+  if (state.playerMemoryManagementRequest) {
+    return "manage_player_memory";
+  }
+
   if (state.pendingClarification?.kind === "workflow") {
     return "clarify";
   }
@@ -528,6 +541,8 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     store
   );
 
+  const managePlayerMemory = createManagePlayerMemoryNode(store);
+
   const comparePlayers = comparisonTool
     ? createComparePlayersNode(comparisonTool)
     : createUnavailableTaskNode("player_comparison");
@@ -579,6 +594,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       timeout: apiTimeoutMs,
     })
     .addNode("resolve_team_roster", resolveTeamRoster)
+    .addNode("manage_player_memory", managePlayerMemory)
     .addNode("recommend_players_for_team", recommendPlayersForTeam)
     .addNode("wait_api_rate_limit", createWaitForApiRateLimitNode())
     .addNode("answer", createAnswerNode(model), {
@@ -593,6 +609,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addConditionalEdges("understand_request", routeAfterRequestUnderstanding, [
       "clarify",
       "answer",
+      "manage_player_memory",
       "resolve_entities",
     ])
     .addConditionalEdges(
@@ -632,6 +649,8 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       },
       [
         "clarify",
+        "manage_player_memory",
+        END,
         "resolve_entities",
         "lookup_player",
         "compare_players",
@@ -642,6 +661,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "recommend_players_for_team",
         "answer",
       ]
+    )
+    .addConditionalEdges(
+      "manage_player_memory",
+      (state) => (state.pendingClarification === null ? END : "clarify"),
+      [END, "clarify"]
     )
     .addConditionalEdges("lookup_player", routeLookupResponse, [
       "lookup_tools_guard",

@@ -9,6 +9,7 @@ import {
 import { isRequestOutputValidationError } from "./model-requests.js";
 import type { ModelRequestBudget } from "./model-requests.js";
 import { supportedPositionCodes } from "./player-data/position-features.js";
+import { normalizeLatinNameSpelling } from "./player-data/shared.js";
 import {
   findPlayerReferenceMention,
   isPlayerReferenceMention,
@@ -45,11 +46,20 @@ type ExtractedRequest = {
   kind: RequestKind | null;
   continuationAction?: "explain" | "refine" | null;
   players: ExtractedPlayerMention[];
+  playerMemoryManagement?: PlayerMemoryManagementExtraction;
   recommendationAction?: RecommendationAction;
   recommendation?: RecommendationRequestPatch;
   teamSearchName?: string | null;
   teams: string[];
   constraints: RequestConstraint[];
+};
+
+type PlayerMemoryManagementExtraction = {
+  action: "list" | "forget";
+  apiFootballPlayerId?: number | null;
+  fmId?: string | null;
+  targetKind?: "player_identity" | "roster_identity" | null;
+  targetMention?: string | null;
 };
 
 type RecommendationAction = "replace" | "add" | "refine";
@@ -298,6 +308,21 @@ const requestExtractionSchema = z.object({
     .describe(
       "明确说出任务类型时填对应 workflow；只续接之前结果但没说类型时填 null；普通聊天和无关请求填 other。"
     ),
+  playerMemoryManagement: z
+    .object({
+      action: z.enum(["list", "forget"]),
+      apiFootballPlayerId: z.number().int().positive().nullable().optional(),
+      fmId: z.string().nullable().optional(),
+      targetKind: z
+        .enum(["player_identity", "roster_identity"])
+        .nullable()
+        .optional(),
+      targetMention: z.string().nullable().optional(),
+    })
+    .optional()
+    .describe(
+      "仅用户明确要求查看或忘记跨对话球员身份记忆时填写。forget 可指定球员称呼或 roster_identity 的精确 API-Football/FМ ID；没有明确管理操作时省略。清空全部和纠正记忆由其他请求处理，不要伪装成单条 forget。"
+    ),
   players: z.array(
     z.object({
       lookupName: z
@@ -343,6 +368,8 @@ const requestExtractionSchema = z.object({
   teams: z.array(z.string()).describe("照抄用户本轮消息里提到的球队名。"),
 });
 
+type RawExtractedRequest = z.input<typeof requestExtractionSchema>;
+
 const addToComparisonPattern =
   /(?:加入|加上|添加|纳入).{0,12}(?:对比|比较)|\b(?:add|include)\b.{0,80}\b(?:comparison|comparison set)\b/iu;
 
@@ -360,6 +387,7 @@ const savedResultExplanationPattern =
 
 const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定、最近一次成功球员查询和最近一次成功推荐。
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；null：用户只说“年龄改到 22”“解释上次结果”等续接，但没说类型；other：普通聊天或无关请求。
+如果用户明确询问你记住了哪些球员称呼/阵容映射，填写 playerMemoryManagement.action=list。若明确要求忘记一个称呼或一条阵容映射，填写 action=forget，尽量提取精确称呼、API-Football 球员 ID、FM ID 和 targetKind。没有明确查看/忘记操作时省略整个字段；“清空全部”或“纠正/改绑”不要作为 forget 处理。
 continuationAction 为 explain 时只解释已保存结果，不得重跑工具；refine 表示把本轮明确条件补丁应用于选定成功快照。显式提到任务类型时必须填写对应 kind，不能因为其他 workflow 存在而改写用户目标。
 player_lookup 的 Understat 赛季范围由程序从本轮原话解析；不要从上下文或模型知识补一个赛季。球员查询暂不按联赛过滤，competition 只用于球员比较范围。
 team_recommendation 需要一个明确的球队和一个明确的 FM 位置。球队推荐的 recommendation 字段表示位置、年龄、CA、PA、结果数和高潜名单条件。team_recommendation 中，用户直接写出的受支持位置代码（如 stc、dc、dm）必须填入 recommendation.position，不能因为用户也提供了球队而省略。teams 必须保留本轮原话中出现的球队名；即使该球队与上次相同、用户同时细化筛选条件，也必须照抄到 teams。只有本轮没有写出球队名、且可从最近一次成功团队推荐继承时，teams 才留空。若用户使用中文球队名或简称，teamSearchName 可给出 API-Football 常用搜索名称，但这只用于查候选，不能据此自动认定球队。明确写出另一支球队时照抄新球队名称，程序会重置旧球队上下文。
@@ -597,8 +625,133 @@ const comparisonActionFromResult = (
   return "replace";
 };
 
+const memoryListVerbs =
+  /查看|列出|显示|看看|告诉我|\blist\b|\bshow\b|\bview\b|what do you remember/iu;
+
+const memoryNouns =
+  /记住|记忆|已保存|球员身份|球员称呼|阵容映射|remembered|saved|players|aliases|mappings|memories/iu;
+
+const memoryForgetVerbs =
+  /忘记|遗忘|删除|移除|忘掉|\bforget\b|\bdelete\b|\bremove\b/iu;
+
+const memoryClearAll =
+  /清空|清除|删除所有|删除全部|forget all|delete all|clear all|forget everything|clear everything/iu;
+
+const aliasMemoryTargetWords =
+  /别名|称呼|别称|球员身份|\balias(?:es)?\b|\bnickname\b/iu;
+
+const rosterMemoryTargetWords =
+  /阵容映射|阵容身份|\b(?:roster|squad)\s+(?:mapping|identity|link)\b/iu;
+
+const normalizedMemoryCommandText = (value: string): string =>
+  normalizeMentionText(
+    normalizeLatinNameSpelling(value.normalize("NFKD")).normalize("NFKC")
+  );
+
+const mentionedMemoryTargetKind = (
+  message: string
+): PlayerMemoryManagementExtraction["targetKind"] => {
+  const mentionsAlias = aliasMemoryTargetWords.test(message);
+  const mentionsRoster = rosterMemoryTargetWords.test(message);
+
+  if (mentionsAlias === mentionsRoster) {
+    return null;
+  }
+
+  return mentionsAlias ? "player_identity" : "roster_identity";
+};
+
+const mentionIsPresentInMessage = (
+  message: string,
+  mention: string
+): boolean => {
+  const mentionKey = normalizedMemoryCommandText(mention);
+
+  return (
+    mentionKey.length > 0 &&
+    normalizedMemoryCommandText(message).includes(mentionKey)
+  );
+};
+
+const sourceIdIsPresentInMessage = (
+  message: string,
+  sourceId: string
+): boolean =>
+  sourceId.trim().length > 0 &&
+  message.toLocaleLowerCase().includes(sourceId.trim().toLocaleLowerCase());
+
+const apiFootballIdIsPresentInMessage = (
+  message: string,
+  apiFootballPlayerId: number
+): boolean => {
+  const id = String(apiFootballPlayerId);
+
+  const idPattern = new RegExp(
+    `(?<![\\p{L}\\p{N}])${id}(?![\\p{L}\\p{N}])`,
+    "u"
+  );
+
+  return idPattern.test(message);
+};
+
+const isExplicitPlayerMemoryManagementCommand = (
+  message: string,
+  action: PlayerMemoryManagementExtraction["action"]
+): boolean => {
+  if (memoryClearAll.test(message)) {
+    return false;
+  }
+
+  return action === "list"
+    ? memoryListVerbs.test(message) && memoryNouns.test(message)
+    : memoryForgetVerbs.test(message);
+};
+
+const normalizePlayerMemoryManagement = (
+  command: RawExtractedRequest["playerMemoryManagement"],
+  message: string
+): PlayerMemoryManagementExtraction | undefined => {
+  if (
+    command === undefined ||
+    !isExplicitPlayerMemoryManagementCommand(message, command.action)
+  ) {
+    return undefined;
+  }
+
+  return {
+    action: command.action,
+    apiFootballPlayerId:
+      command.apiFootballPlayerId !== undefined &&
+      command.apiFootballPlayerId !== null &&
+      apiFootballIdIsPresentInMessage(message, command.apiFootballPlayerId)
+        ? command.apiFootballPlayerId
+        : null,
+    fmId:
+      command.fmId !== undefined &&
+      command.fmId !== null &&
+      sourceIdIsPresentInMessage(message, command.fmId)
+        ? command.fmId.trim()
+        : null,
+    targetKind: mentionedMemoryTargetKind(message),
+    targetMention:
+      command.targetMention !== undefined &&
+      command.targetMention !== null &&
+      mentionIsPresentInMessage(message, command.targetMention)
+        ? command.targetMention.trim()
+        : null,
+  };
+};
+
+const requestWithPlayerMemoryManagement = (
+  request: ExtractedRequest,
+  command: PlayerMemoryManagementExtraction | undefined
+): ExtractedRequest =>
+  command === undefined
+    ? request
+    : { ...request, playerMemoryManagement: command };
+
 const normalizeRequestExtraction = (
-  result: ExtractedRequest,
+  result: RawExtractedRequest,
   message: string,
   context: ConversationContext
 ): ExtractedRequest => {
@@ -672,7 +825,7 @@ const normalizeRequestExtraction = (
     teams = [teamRecommendation.team];
   }
 
-  return {
+  const normalizedRequest: ExtractedRequest = {
     comparisonAction: comparisonActionFromResult(result, context, message),
     constraints,
     continuationAction: continuationActionFromResult(result, message),
@@ -703,6 +856,11 @@ const normalizeRequestExtraction = (
       : (result.teamSearchName?.trim() ?? null),
     teams,
   };
+
+  return requestWithPlayerMemoryManagement(
+    normalizedRequest,
+    normalizePlayerMemoryManagement(result.playerMemoryManagement, message)
+  );
 };
 
 const recommendationPatchFromRequest = (extracted: ExtractedRequest) => ({
@@ -1211,9 +1369,14 @@ const normalizeExtractedPlayers = (
 export {
   createRequestUnderstandingExtractor,
   explicitUnderstatSeasonStartYearFromText,
+  isExplicitPlayerMemoryManagementCommand,
   normalizeExtractedPlayers,
   recommendationPatchFromRequest,
   uniqueText,
 };
 
-export type { PreviousTurnSummary, RequestUnderstandingExtractor };
+export type {
+  PlayerMemoryManagementExtraction,
+  PreviousTurnSummary,
+  RequestUnderstandingExtractor,
+};
