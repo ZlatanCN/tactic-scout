@@ -12,11 +12,13 @@ import type { BaseStore } from "@langchain/langgraph";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 
+import type { CreateAgentOptions } from "../src/agent.js";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import { createLocalDataError } from "../src/player-data/shared.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
 import {
+  agentStateSchemaVersion,
   createInitialConversationContext,
   createInitialFaultToleranceState,
 } from "../src/state.js";
@@ -56,7 +58,13 @@ const stubTeamTestEnvironment = () => {
 
 stubTeamTestEnvironment();
 
-const { createAgent } = await import("../src/agent.js");
+const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
+
+const createAgent = (options: CreateAgentOptions = {}) =>
+  createAgentWithRuntime({
+    playerReferenceValidator: () => ({ status: "current" }),
+    ...options,
+  });
 
 type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
 
@@ -2520,7 +2528,11 @@ describe("team recommendation graph", () => {
     };
 
     const interrupted = await graph.invoke(
-      { conversationContext, messages: [new HumanMessage(message)] },
+      {
+        conversationContext,
+        messages: [new HumanMessage(message)],
+        stateSchemaVersion: agentStateSchemaVersion,
+      },
       config
     );
 
@@ -2683,6 +2695,7 @@ describe("team recommendation graph", () => {
       {
         conversationContext,
         messages: [new HumanMessage(failedRequestMessage)],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       config
     );
@@ -2699,6 +2712,7 @@ describe("team recommendation graph", () => {
         messages: [new HumanMessage(explicitSavedMessage)],
         outcome: failed.outcome,
         request: failed.request,
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       { configurable: { thread_id: "explicit-saved-after-failed-team" } }
     );
@@ -2817,6 +2831,7 @@ describe("team recommendation graph", () => {
         messages: [new HumanMessage(message)],
         outcome: previousOutcome,
         request: previousRequest("replace"),
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       { configurable: { thread_id: "failed-replacement-no-fallback" } }
     );
@@ -2827,6 +2842,7 @@ describe("team recommendation graph", () => {
         messages: [new HumanMessage(message)],
         outcome: previousOutcome,
         request: previousRequest("refine"),
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       { configurable: { thread_id: "failed-refinement-keeps-baseline" } }
     );
@@ -2924,6 +2940,7 @@ describe("team recommendation graph", () => {
         conversationContext,
         faultTolerance,
         messages: [new HumanMessage(message)],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       config
     );
@@ -3060,7 +3077,11 @@ describe("team recommendation graph", () => {
     });
 
     const result = await graph.invoke(
-      { conversationContext, messages: [new HumanMessage(message)] },
+      {
+        conversationContext,
+        messages: [new HumanMessage(message)],
+        stateSchemaVersion: agentStateSchemaVersion,
+      },
       { configurable: { thread_id: "team-named-reference-player-followup" } }
     );
 

@@ -23,6 +23,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v3";
 
+import type { CreateAgentOptions } from "../src/agent.js";
 import { createAnswerNode } from "../src/nodes/assistant.js";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
@@ -32,6 +33,7 @@ import type { ReferenceCandidate } from "../src/state.js";
 import {
   ActiveRecommendationSchema,
   AgentState,
+  agentStateSchemaVersion,
   createInitialConversationContext,
 } from "../src/state.js";
 import type { RecommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
@@ -60,8 +62,14 @@ vi.stubEnv("TACTISCOUT_UNDERSTAT_DB_PATH", missingPlayerSourceDatabase);
 
 vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", missingPlayerSourceDatabase);
 
-const { createAgent } = await import("../src/agent.js");
+const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
 const { createTools } = await import("../src/tools/search-player-records.js");
+
+const createAgent = (options: CreateAgentOptions = {}) =>
+  createAgentWithRuntime({
+    playerReferenceValidator: () => ({ status: "current" }),
+    ...options,
+  });
 
 type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
 
@@ -3596,6 +3604,7 @@ describe("LangGraph player workflows", () => {
       {
         conversationContext,
         messages: [new HumanMessage(message)],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       { configurable: { thread_id: "alias-recommendation-roles" } }
     );

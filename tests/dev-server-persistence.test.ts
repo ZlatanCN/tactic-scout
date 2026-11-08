@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 
 import { comparisonResultSchema } from "../src/player-data/compare-records.js";
 import { recommendationResultSchema } from "../src/player-data/recommend-players.js";
-import { AgentState } from "../src/state.js";
+import { AgentState, agentStateSchemaVersion } from "../src/state.js";
 import { teamRecommendationResultSchema } from "../src/team-data/recommendation-result.js";
 import {
   apiThreadSchema,
@@ -105,6 +107,171 @@ const rosterMemberFactsFromState = (state: ThreadState) => {
   };
 };
 
+const changeKaneRegistryLink = (databasePath: string) => {
+  const identityRegistry = new DatabaseSync(databasePath);
+
+  try {
+    identityRegistry
+      .prepare(
+        "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES (?, ?, ?, ?, ?)"
+      )
+      .run("api_football", "player", "11", "canonical:kane", "resolved");
+    identityRegistry
+      .prepare(
+        "UPDATE bridges SET canonical_reep_id = ? WHERE provider = ? AND namespace = ? AND external_id = ?"
+      )
+      .run("canonical:haaland", "fm", "player", "fm-kane");
+  } finally {
+    identityRegistry.close();
+  }
+};
+
+const addKaneUnderstatSource = (
+  understatDatabasePath: string,
+  reepDatabasePath: string
+) => {
+  const understatDatabase = new DatabaseSync(understatDatabasePath);
+
+  try {
+    understatDatabase
+      .prepare(
+        "INSERT INTO source_snapshots (kind, resource_id, season_start_year, payload_json) VALUES ('league', 'Bundesliga', 2025, ?)"
+      )
+      .run(
+        JSON.stringify({
+          players: [
+            {
+              assists: "0",
+              games: "1",
+              goals: "0",
+              id: "understat-kane",
+              key_passes: "0",
+              npxG: "0.0",
+              player_name: "Harry Kane",
+              position: "F",
+              shots: "0",
+              team_title: "Bayern Munich",
+              time: "90",
+              xA: "0.0",
+              xG: "0.0",
+            },
+          ],
+        })
+      );
+  } finally {
+    understatDatabase.close();
+  }
+
+  const identityRegistry = new DatabaseSync(reepDatabasePath);
+
+  try {
+    identityRegistry
+      .prepare(
+        "INSERT INTO bridges (provider, namespace, external_id, canonical_reep_id, redirect_status) VALUES (?, ?, ?, ?, ?)"
+      )
+      .run(
+        "understat",
+        "player",
+        "understat-kane",
+        "canonical:kane",
+        "resolved"
+      );
+  } finally {
+    identityRegistry.close();
+  }
+};
+
+const removeKaneUnderstatSource = (understatDatabasePath: string) => {
+  const understatDatabase = new DatabaseSync(understatDatabasePath);
+
+  try {
+    understatDatabase
+      .prepare(
+        "DELETE FROM source_snapshots WHERE kind = 'league' AND resource_id = 'Bundesliga' AND season_start_year = 2025"
+      )
+      .run();
+  } finally {
+    understatDatabase.close();
+  }
+};
+
+const updateFmSnapshot = (databasePath: string) => {
+  const fmDatabase = new DatabaseSync(databasePath);
+
+  try {
+    const manifestRow = z
+      .object({ payload: z.string() })
+      .parse(
+        fmDatabase.prepare("SELECT payload FROM manifest WHERE id = 1").get()
+      );
+
+    const manifest = z
+      .object({
+        gameBuild: z.string(),
+        inGameDate: z.string(),
+        sha256: z.string(),
+      })
+      .parse(JSON.parse(manifestRow.payload));
+
+    fmDatabase.prepare("UPDATE manifest SET payload = ? WHERE id = 1").run(
+      JSON.stringify({
+        ...manifest,
+        inGameDate: "2026-10-31",
+        sha256: "persistence-updated-snapshot",
+      })
+    );
+
+    const profileRow = z
+      .object({ payload: z.instanceof(Uint8Array) })
+      .parse(
+        fmDatabase
+          .prepare("SELECT payload FROM players WHERE unique_id = ?")
+          .get("fm-kane")
+      );
+
+    const profile = z
+      .record(z.string(), z.unknown())
+      .parse(JSON.parse(inflateRawSync(profileRow.payload).toString("utf-8")));
+
+    const updatedProfile = Object.fromEntries(
+      Object.entries(profile).map(([key, value]) => [
+        key,
+        key.startsWith("raw_attributes_") && z.number().safeParse(value).success
+          ? 17
+          : value,
+      ])
+    );
+
+    fmDatabase
+      .prepare("UPDATE players SET payload = ? WHERE unique_id = ?")
+      .run(
+        deflateRawSync(
+          Buffer.from(
+            JSON.stringify({
+              ...updatedProfile,
+              ability_current: 170,
+              ability_potential: 185,
+            })
+          )
+        ),
+        "fm-kane"
+      );
+  } finally {
+    fmDatabase.close();
+  }
+};
+
+const rosterMemoryIsShownAsConflicting = (message: string): boolean =>
+  message.includes("API-Football #11") &&
+  message.includes("存在冲突，需要重新确认");
+
+const providerAndModelCallCountsAreUnchanged = (
+  providerBefore: number,
+  providerAfter: number,
+  modelBefore: number,
+  modelAfter: number
+): boolean => providerBefore === providerAfter && modelBefore === modelAfter;
+
 const teamRecommendationResultFromState = (state: ThreadState) => {
   const resultJson =
     state.values.conversationContext.activeTeamRecommendation?.resultJson;
@@ -139,6 +306,17 @@ const teamRecommendationFactsFromState = (state: ThreadState) => {
   }
 
   return {
+    candidateProfiles: recommendation.currentCandidates.map(
+      ({ attributes, currentAbility, fmId, potentialAbility, rank }) => ({
+        currentAbility,
+        finishing:
+          attributes.find(({ attribute }) => attribute === "finishing")
+            ?.candidateValue ?? null,
+        fmId,
+        potentialAbility,
+        rank,
+      })
+    ),
     candidateRanks: recommendation.currentCandidates.map(({ fmId, rank }) => ({
       fmId,
       rank,
@@ -150,8 +328,10 @@ const teamRecommendationFactsFromState = (state: ThreadState) => {
       totalMembers: result.roster.totalMembers,
       userConfirmedMappings: result.roster.userConfirmedMappings,
     },
+    fmManifestSha256: recommendation.manifestSha256,
     fmSnapshotDate: result.fmSnapshotDate,
     rankingBasis: result.rankingBasis,
+    referenceFinishing: recommendation.referenceMeanAttributes.finishing,
     retrievedAt: result.roster.retrievedAt,
     status: result.status,
   };
@@ -208,6 +388,22 @@ const rosterMemoryFacts = (value: RosterMemoryStoreValue) => ({
 });
 
 const expectedRosterRecommendationFacts = {
+  candidateProfiles: [
+    {
+      currentAbility: 150,
+      finishing: 15,
+      fmId: "fm-haaland",
+      potentialAbility: 165,
+      rank: 1,
+    },
+    {
+      currentAbility: 160,
+      finishing: 16,
+      fmId: "fm-prospect",
+      potentialAbility: 175,
+      rank: 2,
+    },
+  ],
   candidateRanks: [
     { fmId: "fm-haaland", rank: 1 },
     { fmId: "fm-prospect", rank: 2 },
@@ -219,8 +415,10 @@ const expectedRosterRecommendationFacts = {
     totalMembers: 1,
     userConfirmedMappings: 1,
   },
+  fmManifestSha256: "persistence-test-snapshot",
   fmSnapshotDate: "2025-11-23",
   rankingBasis: "equal_weight_mean_of_position_capable_squad_profiles",
+  referenceFinishing: 14,
   retrievedAt: "2026-11-07T00:00:00.000Z",
   status: "ready",
 };
@@ -239,6 +437,15 @@ const runPlayerLookup = async (
       input: { messages: [{ content: message, role: "user" }] },
     })
   );
+
+const revalidatePlayerAliasInThread = async (
+  baseUrl: string,
+  threadId: string
+) => {
+  await runPlayerLookup(baseUrl, threadId, "Look up Kane");
+
+  return await getAgentThreadState(baseUrl, threadId);
+};
 
 const resumeAgentRun = async (
   baseUrl: string,
@@ -354,7 +561,7 @@ describe("managed Dev Server persistence", () => {
       "./tests/fixtures/persistence-agent.ts:agent"
     );
 
-    const { baseUrl, gateway } = session;
+    const { baseUrl, gateway, sourceFixturePaths } = session;
     const message = "Recommend a striker for Roster Memory Club";
     const createThread = async () => await createAgentThread(baseUrl);
 
@@ -381,9 +588,11 @@ describe("managed Dev Server persistence", () => {
       const completedB = await readState(threadB.thread_id);
       const eventsBeforeRestart = gateway.events();
 
+      updateFmSnapshot(sourceFixturePaths.fmDatabasePath);
       await session.restart();
 
       const persistedMapping = await readRosterMemory(baseUrl);
+      const restoredThreadB = await readState(threadB.thread_id);
 
       const threadC = await createThread();
       await runPlayerLookup(baseUrl, threadC.thread_id, message);
@@ -435,6 +644,8 @@ describe("managed Dev Server persistence", () => {
           persistedMapping.value
         ),
         recommendationFacts,
+        restoredOldResultDates:
+          teamRecommendationDatesFromState(restoredThreadB),
       }).toStrictEqual({
         completedA: {
           apiFootballPlayerId: 11,
@@ -480,13 +691,42 @@ describe("managed Dev Server persistence", () => {
         recommendationFacts: [
           expectedRosterRecommendationFacts,
           expectedRosterRecommendationFacts,
-          expectedRosterRecommendationFacts,
+          {
+            ...expectedRosterRecommendationFacts,
+            candidateProfiles: [
+              {
+                currentAbility: 160,
+                finishing: 16,
+                fmId: "fm-prospect",
+                potentialAbility: 175,
+                rank: 1,
+              },
+              {
+                currentAbility: 150,
+                finishing: 15,
+                fmId: "fm-haaland",
+                potentialAbility: 165,
+                rank: 2,
+              },
+            ],
+            candidateRanks: [
+              { fmId: "fm-prospect", rank: 1 },
+              { fmId: "fm-haaland", rank: 2 },
+            ],
+            fmManifestSha256: "persistence-updated-snapshot",
+            fmSnapshotDate: "2026-10-31",
+            referenceFinishing: 17,
+          },
         ],
+        restoredOldResultDates: {
+          fmSnapshotDate: "2025-11-23",
+          retrievedAt: "2026-11-07T00:00:00.000Z",
+        },
       });
 
       expect(
         rosterResultDates.map((dates) => dates?.fmSnapshotDate ?? null)
-      ).toStrictEqual(["2025-11-23", "2025-11-23"]);
+      ).toStrictEqual(["2025-11-23", "2026-10-31"]);
       expect(
         rosterResultDates.every(
           (dates) =>
@@ -1509,6 +1749,346 @@ describe("managed Dev Server persistence", () => {
     }
   }, 180_000);
 
+  it("blocks an old pending interrupt after State version mismatch without losing history", async () => {
+    const session = await startDevServerSession();
+    const { baseUrl, gateway } = session;
+
+    try {
+      const thread = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, thread.thread_id, "Look up 凯恩");
+      const pending = await getAgentThreadState(baseUrl, thread.thread_id);
+
+      await postJson(
+        baseUrl,
+        `/threads/${thread.thread_id}/state`,
+        waitResponseSchema,
+        JSON.stringify({ values: { stateSchemaVersion: 0 } })
+      );
+
+      await session.restart();
+      const restored = await getAgentThreadState(baseUrl, thread.thread_id);
+      const modelCallsBeforeResume = gateway.calls().length;
+
+      await resumeAgentRun(baseUrl, thread.thread_id, {
+        candidateId: "reep:canonical:kane",
+      });
+
+      const incompatible = await getAgentThreadState(baseUrl, thread.thread_id);
+      const modelCallsAfterResume = gateway.calls().length;
+
+      const freshThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, freshThread.thread_id, "Look up 凯恩");
+
+      const freshThreadState = await getAgentThreadState(
+        baseUrl,
+        freshThread.thread_id
+      );
+
+      expect({
+        currentVersion: pending.values.stateSchemaVersion,
+        freshThreadNeedsConfirmation:
+          clarificationDetails(freshThreadState).hasInterrupt,
+        incompatibleOutcome: incompatible.values.outcome,
+        modelCallsUnchangedOnResume:
+          modelCallsAfterResume === modelCallsBeforeResume,
+        oldIdentityStillUnresolved:
+          incompatible.values.request.players?.[0]?.resolution?.status,
+        oldVersion: incompatible.values.stateSchemaVersion,
+        originalMessageRetained: incompatible.values.messages.some(
+          ({ content }) => content === "Look up 凯恩"
+        ),
+        restartRestoredPendingQuestion:
+          clarificationDetails(restored).question ===
+          clarificationDetails(pending).question,
+      }).toStrictEqual({
+        currentVersion: 1,
+        freshThreadNeedsConfirmation: true,
+        incompatibleOutcome: {
+          kind: "state_compatibility",
+          resultJson: JSON.stringify({ currentVersion: 1, storedVersion: 0 }),
+          status: "incompatible",
+        },
+        modelCallsUnchangedOnResume: true,
+        oldIdentityStillUnresolved: "needs_confirmation",
+        oldVersion: 0,
+        originalMessageRetained: true,
+        restartRestoredPendingQuestion: true,
+      });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
+  it("revalidates alias and roster memories after the current Reep links change", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/persistence-agent.ts:agent"
+    );
+
+    const { baseUrl, gateway, sourceFixturePaths } = session;
+
+    try {
+      const aliasThread = await createAgentThread(baseUrl);
+
+      await runPlayerLookup(baseUrl, aliasThread.thread_id, "Look up Kane");
+
+      const aliasPending = await getAgentThreadState(
+        baseUrl,
+        aliasThread.thread_id
+      );
+
+      await resumeAgentRun(baseUrl, aliasThread.thread_id, {
+        candidateId: "reep:canonical:kane",
+      });
+
+      const confirmedAlias = await getAgentThreadState(
+        baseUrl,
+        aliasThread.thread_id
+      );
+
+      const rosterThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        rosterThread.thread_id,
+        "Recommend a striker for Roster Memory Club"
+      );
+
+      const rosterPending = await getAgentThreadState(
+        baseUrl,
+        rosterThread.thread_id
+      );
+
+      await resumeAgentRun(baseUrl, rosterThread.thread_id, "1");
+
+      const confirmedRoster = await getAgentThreadState(
+        baseUrl,
+        rosterThread.thread_id
+      );
+
+      changeKaneRegistryLink(sourceFixturePaths.reepDatabasePath);
+
+      const providerCallsBeforeRestart = gateway.events().length;
+      const modelCallsBeforeRestart = gateway.calls().length;
+
+      await session.restart();
+
+      const providerCallsAfterRestart = gateway.events().length;
+      const modelCallsAfterRestart = gateway.calls().length;
+
+      const freshAliasThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        freshAliasThread.thread_id,
+        "Look up Kane"
+      );
+
+      const staleAlias = await getAgentThreadState(
+        baseUrl,
+        freshAliasThread.thread_id
+      );
+
+      const oldThreadRevalidatedAlias = await revalidatePlayerAliasInThread(
+        baseUrl,
+        aliasThread.thread_id
+      );
+
+      const freshRosterThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        freshRosterThread.thread_id,
+        "Recommend a striker for Roster Memory Club"
+      );
+
+      const staleRoster = await getAgentThreadState(
+        baseUrl,
+        freshRosterThread.thread_id
+      );
+
+      const listThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        listThread.thread_id,
+        "Show remembered player aliases and mappings"
+      );
+
+      const listedMemory = await getAgentThreadState(
+        baseUrl,
+        listThread.thread_id
+      );
+
+      const restoredAliasThread = await getAgentThreadState(
+        baseUrl,
+        aliasThread.thread_id
+      );
+
+      const restoredRosterThread = await getAgentThreadState(
+        baseUrl,
+        rosterThread.thread_id
+      );
+
+      expect({
+        aliasAskedAgain: clarificationDetails(staleAlias).hasInterrupt,
+        aliasCanonicalCandidate:
+          staleAlias.values.request.players?.[0]?.resolution?.candidates?.[0]
+            ?.canonicalIdentityId,
+        aliasSelectedCandidate:
+          staleAlias.values.request.players?.[0]?.resolution
+            ?.selectedCandidateId,
+        aliasStoredAsUnverified:
+          latestAssistantText(listedMemory).includes("需要重新确认"),
+        memoriesRetained: latestAssistantText(listedMemory).includes("Kane"),
+        oldAliasReferencePreserved: isDeepStrictEqual(
+          AgentState.parse(
+            confirmedAlias.values
+          ).conversationContext.playerAliases.find(
+            ({ mention }) => mention === "Kane"
+          )?.reference.referenceId,
+          AgentState.parse(
+            restoredAliasThread.values
+          ).conversationContext.playerAliases.find(
+            ({ mention }) => mention === "Kane"
+          )?.reference.referenceId
+        ),
+        oldRosterMappingPreserved: isDeepStrictEqual(
+          rosterMemberFactsFromState(confirmedRoster),
+          rosterMemberFactsFromState(restoredRosterThread)
+        ),
+        oldRosterSnapshotPreserved: isDeepStrictEqual(
+          workflowSnapshots(confirmedRoster),
+          workflowSnapshots(restoredRosterThread)
+        ),
+        oldThreadAsksBeforeNewExecution: clarificationDetails(
+          oldThreadRevalidatedAlias
+        ).hasInterrupt,
+        oldThreadDidNotAutoSelectNewIdentity:
+          oldThreadRevalidatedAlias.values.request.players?.[0]?.resolution
+            ?.selectedCandidateId === null,
+        oldThreadNewIdentityCandidate:
+          oldThreadRevalidatedAlias.values.request.players?.[0]?.resolution
+            ?.candidates?.[0]?.canonicalIdentityId,
+        pendingAliasRestored: clarificationDetails(aliasPending).hasInterrupt,
+        pendingRosterRestored: clarificationDetails(rosterPending).hasInterrupt,
+        rosterAskedAgain: clarificationDetails(staleRoster).hasInterrupt,
+        rosterMappingStatus:
+          rosterMemberFactsFromState(staleRoster).mappingStatus,
+        rosterStillListedAsConflicting: rosterMemoryIsShownAsConflicting(
+          latestAssistantText(listedMemory)
+        ),
+        startMadeNoNewExternalCalls: providerAndModelCallCountsAreUnchanged(
+          providerCallsBeforeRestart,
+          providerCallsAfterRestart,
+          modelCallsBeforeRestart,
+          modelCallsAfterRestart
+        ),
+      }).toStrictEqual({
+        aliasAskedAgain: true,
+        aliasCanonicalCandidate: "canonical:haaland",
+        aliasSelectedCandidate: null,
+        aliasStoredAsUnverified: true,
+        memoriesRetained: true,
+        oldAliasReferencePreserved: true,
+        oldRosterMappingPreserved: true,
+        oldRosterSnapshotPreserved: true,
+        oldThreadAsksBeforeNewExecution: true,
+        oldThreadDidNotAutoSelectNewIdentity: true,
+        oldThreadNewIdentityCandidate: "canonical:haaland",
+        pendingAliasRestored: true,
+        pendingRosterRestored: true,
+        rosterAskedAgain: true,
+        rosterMappingStatus: "pending",
+        rosterStillListedAsConflicting: true,
+        startMadeNoNewExternalCalls: true,
+      });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
+  it("reconfirms a remembered cross-provider identity after restart when one source ID disappears", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/persistence-agent.ts:agent"
+    );
+
+    const { baseUrl, sourceFixturePaths } = session;
+
+    try {
+      addKaneUnderstatSource(
+        sourceFixturePaths.understatDatabasePath,
+        sourceFixturePaths.reepDatabasePath
+      );
+
+      const confirmationThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        confirmationThread.thread_id,
+        "Look up Kane"
+      );
+
+      const pending = await getAgentThreadState(
+        baseUrl,
+        confirmationThread.thread_id
+      );
+
+      await resumeAgentRun(baseUrl, confirmationThread.thread_id, {
+        candidateId: "reep:canonical:kane",
+      });
+
+      const confirmed = await getAgentThreadState(
+        baseUrl,
+        confirmationThread.thread_id
+      );
+
+      removeKaneUnderstatSource(sourceFixturePaths.understatDatabasePath);
+      await session.restart();
+
+      const freshThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(baseUrl, freshThread.thread_id, "Look up Kane");
+
+      const stale = await getAgentThreadState(baseUrl, freshThread.thread_id);
+
+      const listThread = await createAgentThread(baseUrl);
+      await runPlayerLookup(
+        baseUrl,
+        listThread.thread_id,
+        "Show remembered player aliases and mappings"
+      );
+
+      const listed = await getAgentThreadState(baseUrl, listThread.thread_id);
+
+      const currentCandidate =
+        stale.values.request.players?.[0]?.resolution?.candidates?.[0];
+
+      expect({
+        confirmedSourceIds: resolvedIdentitySelection(confirmed)
+          .sourceRecords.map(({ sourceId }) => sourceId)
+          .toSorted(),
+        freshCandidateSourceIds:
+          currentCandidate?.records
+            .map(({ sourceId }) => sourceId)
+            .toSorted() ?? [],
+        freshInterrupt: clarificationDetails(stale).hasInterrupt,
+        freshSelectedCandidateId:
+          stale.values.request.players?.[0]?.resolution?.selectedCandidateId,
+        memoryListsRemovedSource: latestAssistantText(listed).includes(
+          "understat understat-kane"
+        ),
+        memoryMarkedForConfirmation: latestAssistantText(listed).includes(
+          "资料已变化，需要重新确认"
+        ),
+        pendingBeforeConfirmation: clarificationDetails(pending).hasInterrupt,
+      }).toStrictEqual({
+        confirmedSourceIds: ["fm-kane", "understat-kane"],
+        freshCandidateSourceIds: ["fm-kane"],
+        freshInterrupt: true,
+        freshSelectedCandidateId: null,
+        memoryListsRemovedSource: true,
+        memoryMarkedForConfirmation: true,
+        pendingBeforeConfirmation: true,
+      });
+    } finally {
+      await session.close();
+    }
+  }, 180_000);
+
   it("restores workflow snapshots and a pending clarification after a normal restart", async () => {
     const session = await startDevServerSession();
     const { baseUrl, gateway } = session;
@@ -1554,6 +2134,7 @@ describe("managed Dev Server persistence", () => {
               processedMessageId: null,
               teams: [],
             },
+            stateSchemaVersion: agentStateSchemaVersion,
           },
         })
       );
@@ -1632,6 +2213,7 @@ describe("managed Dev Server persistence", () => {
               processedMessageId: "identity-question",
               teams: [],
             },
+            stateSchemaVersion: agentStateSchemaVersion,
           },
         })
       );
@@ -1713,6 +2295,7 @@ describe("managed Dev Server persistence", () => {
               teamRecommendationAction: "replace",
               teams: [team.name],
             },
+            stateSchemaVersion: agentStateSchemaVersion,
           },
         })
       );

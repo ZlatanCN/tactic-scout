@@ -18,6 +18,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Recommendation target position**: The playing position used to compare and filter candidates. An explicitly requested position takes precedence; if references do not share one unambiguous natural position and none is specified, the target must be clarified. Every reference profile must have a rating of at least 15 for the target position.
 
+**FM reference profile choice**: Selection of one FM ability profile for a particular recommendation request. It chooses the task's reference data without asserting a new relationship between player identities.
+
 **Recommendation reference set**: One or more identity-resolved FM profiles whose playing-position attributes define the requested ability profile.
 
 **Position-capable candidate**: An FM profile with a rating of at least 15 for the recommendation target position.
@@ -32,7 +34,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Team-directed recommendation**: Candidates for a scout-selected team and target position, ranked by distance from the team-position reference profile. Every FM profile linked by Reep to a mapped current-roster identity is excluded from the candidate set, not only the particular mapped FM source ID.
 
-**Roster FM profile mapping**: A link from a provider roster player to one exact local FM profile, established by a Reep bridge or explicit user confirmation. Matching names alone do not establish the mapping.
+**Roster FM profile mapping**: A link from a provider roster player to one exact local FM profile, established by a Reep bridge or explicit user confirmation rather than matching names alone. A user-confirmed identity link can be reused across squad snapshots without establishing current team membership.
 
 **Roster mapping coverage**: For a captured squad, the counts of members linked to one usable local FM profile, members with no local profile, and members awaiting confirmation. Reep-bridge and user-confirmed counts identify how profiles were linked. This measures profile mapping, not target-position capability.
 
@@ -44,9 +46,13 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Conversation player focus**: The resolved focal player or players from the latest successful single-player data lookup in one thread. Identity resolution alone does not replace the focus. A later pronoun may refer to this prior-turn focus; an explicit player named as a comparison target in the current turn does not replace it.
 
-**Thread-local player alias**: An exact player mention the user has confirmed in a thread, bound to that resolved player reference. It avoids repeating model-based name expansion and identity confirmation in that thread; it does not modify the shared Reep identity registry.
+**Thread-local player alias**: A player mention already resolved within a thread and bound to its selected player reference. It may originate from automatic canonical resolution or explicit user confirmation, so its presence alone is not proof of user confirmation.
 
 **Thread-confirmed source group**: A set of provider source records the user explicitly confirms as one player in a thread. It keeps each record's provider and Reep-link status; it does not claim that unlinked records share a canonical Reep ID.
+
+**User-confirmed player memory**: A user's explicit confirmation binding a player mention to selected provider source records, reusable across that user's conversation threads. It can retain a confirmed cross-provider source group without asserting a globally verified canonical Reep identity.
+
+**Player-memory correction**: An explicit user instruction replacing an earlier remembered binding for a player mention. An ordinary new confirmation does not imply that previous bindings were mistakes.
 
 **Active lookup**: The exact source-tagged result from the latest successful single-player lookup, associated with its resolved player. A factual follow-up may use that saved result without rerunning name resolution or querying a different identity.
 
@@ -100,5 +106,4 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - Completed outcomes identify whether data was executed this turn or reused from a saved result. Saved-result explanations route directly to the answer node. Historical tool messages do not reconstruct missing context.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
 - Evaluation name matching ignores diacritics and common Latin orthographic variants only. It does not relax the exact identity or source-ID checks. Runtime lookup uses the same spelling normalization to find candidates, while canonical identity grouping still relies on Reep IDs or explicit thread confirmation.
-- Thread checkpointing uses LangGraph's in-memory saver. There is no Store. Restarting the process loses thread state.
 - There is no frontend, RAG pipeline, or application database in this branch.

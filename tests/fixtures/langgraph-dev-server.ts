@@ -39,6 +39,11 @@ type LocalGateway = {
 type DevServerSession = {
   baseUrl: string;
   gateway: LocalGateway;
+  sourceFixturePaths: {
+    fmDatabasePath: string;
+    reepDatabasePath: string;
+    understatDatabasePath: string;
+  };
   close: () => Promise<void>;
   restart: () => Promise<void>;
 };
@@ -153,6 +158,7 @@ const threadStateSchema = z.looseObject({
         })
         .optional(),
     }),
+    stateSchemaVersion: z.number().int().nonnegative().nullable().optional(),
   }),
 });
 
@@ -1142,6 +1148,20 @@ const startDevServerSession = async (
       graphImport
     );
 
+    const sourceFixturePaths = {
+      fmDatabasePath: path.join(projectPath, "fixtures", "fm-profiles.sqlite"),
+      reepDatabasePath: path.join(
+        projectPath,
+        "fixtures",
+        "reep-identity.sqlite"
+      ),
+      understatDatabasePath: path.join(
+        projectPath,
+        "fixtures",
+        "understat.sqlite"
+      ),
+    };
+
     cleanupPath = projectPath;
     const port = await reservePort();
     let runningServer = await startServer(projectPath, gateway.url, port);
@@ -1163,6 +1183,7 @@ const startDevServerSession = async (
       close,
       gateway,
       restart,
+      sourceFixturePaths,
     };
   } catch (error) {
     if (cleanupPath !== undefined) {

@@ -13,7 +13,12 @@ import { z } from "zod/v4";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import { resolvePlayerReference } from "../src/player-data/resolve-reference.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
-import { AgentState, createInitialConversationContext } from "../src/state.js";
+import {
+  agentStateSchemaVersion,
+  AgentState,
+  createInitialConversationContext,
+  createInitialRequestState,
+} from "../src/state.js";
 import type {
   AgentStateType,
   ConversationContext,
@@ -103,6 +108,10 @@ const aliasCorrectionExtractor: RequestUnderstandingExtractor = async (
     });
   }
 
+  if (message === "Look up Harry Kane") {
+    return await Promise.resolve(sourceGroupExtraction("Harry Kane"));
+  }
+
   if (message === aliasCorrectionMessage) {
     return await Promise.resolve({
       constraints: [],
@@ -133,7 +142,7 @@ const playerIdentityMemoryFixture = (
   displayName: sourceId === "fm-kane" ? "Harry Kane" : "Erling Haaland",
   identityVerified: false,
   kind: "player_identity" as const,
-  normalizedMention: mention,
+  normalizedMention: mention.trim().toLocaleLowerCase().replaceAll(/\s/gu, ""),
   originThreadId: "clear-fixture-thread",
   originalMention: mention,
   schemaVersion: 1,
@@ -560,6 +569,7 @@ describe("cross-thread player memory", () => {
           ],
         },
         messages: [new HumanMessage("Look up Kylian Mbappé")],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       config
     );
@@ -597,6 +607,7 @@ describe("cross-thread player memory", () => {
           ],
         },
         messages: [new HumanMessage("重新确认他的身份")],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       { configurable: { thread_id: "reresolve-prior-context-memory-b" } }
     );
@@ -721,6 +732,7 @@ describe("cross-thread player memory", () => {
       {
         conversationContext,
         messages: [new HumanMessage("重新确认他的身份")],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       { configurable: { thread_id: "bounded-prior-context-alias-search" } }
     );
@@ -1176,6 +1188,306 @@ describe("cross-thread player memory", () => {
 });
 
 describe("conversational player-memory management", () => {
+  it("blocks an incompatible checkpoint before request extraction or memory access", async () => {
+    const store = new InMemoryStore();
+    const storeSearch = vi.spyOn(store, "search");
+
+    const extractor = vi.fn<RequestUnderstandingExtractor>(
+      aliasCorrectionExtractor
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      requestUnderstandingExtractor: extractor,
+      store,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      {
+        messages: [new HumanMessage("Look up 凯恩")],
+        request: {
+          ...createInitialRequestState(),
+          processedMessageId: "completed-old-turn",
+        },
+        stateSchemaVersion: 0,
+      },
+      { configurable: { thread_id: "incompatible-state-version" } }
+    );
+
+    expect({
+      extractorCalls: extractor.mock.calls.length,
+      memoryReads: storeSearch.mock.calls.length,
+      notice: result.messages.at(-1)?.content,
+      outcome: result.outcome,
+      requestMessageId: result.request.processedMessageId,
+    }).toStrictEqual({
+      extractorCalls: 0,
+      memoryReads: 0,
+      notice:
+        "这个对话使用的状态版本（0）与当前应用版本 1 不兼容。历史记录仍可查看；请新建 thread 继续。此次请求没有执行，也没有修改球员记忆。",
+      outcome: {
+        kind: "state_compatibility",
+        resultJson: JSON.stringify({ currentVersion: 1, storedVersion: 0 }),
+        status: "incompatible",
+      },
+      requestMessageId: "completed-old-turn",
+    });
+  });
+
+  it("blocks a legacy unversioned State that contains a pending interrupt", async () => {
+    const store = new InMemoryStore();
+
+    const extractor = vi.fn<RequestUnderstandingExtractor>(
+      aliasCorrectionExtractor
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      requestUnderstandingExtractor: extractor,
+      store,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      {
+        messages: [new HumanMessage("1")],
+        pendingClarification: {
+          answer: null,
+          kind: "identity",
+          playerIndex: 0,
+          question: "Which player did you mean?",
+        },
+        stateSchemaVersion: null,
+      },
+      { configurable: { thread_id: "legacy-unversioned-pending-state" } }
+    );
+
+    expect({
+      extractorCalls: extractor.mock.calls.length,
+      outcomeStatus: result.outcome?.status,
+      pendingKind: result.pendingClarification?.kind,
+    }).toStrictEqual({
+      extractorCalls: 0,
+      outcomeStatus: "incompatible",
+      pendingKind: "identity",
+    });
+  });
+
+  it("requires confirmation for an unsupported memory even when the name has one current match", async () => {
+    await withSourceFixtures();
+    const store = new InMemoryStore();
+
+    const unsupportedMemory = {
+      ...playerIdentityMemoryFixture(
+        "Harry Kane",
+        "fm-haaland",
+        "unsupported-confirmation",
+        "unsupported-schema-key"
+      ),
+      schemaVersion: 2,
+    };
+
+    await store.put(
+      ["tactiscout", "local-user", "player-memory"],
+      "unsupported-memory-record",
+      unsupportedMemory
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: resolvePlayerReference,
+      requestUnderstandingExtractor: aliasCorrectionExtractor,
+      store,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Look up Harry Kane")] },
+      { configurable: { thread_id: "unsupported-player-memory-schema" } }
+    );
+
+    const stored = await store.get(
+      ["tactiscout", "local-user", "player-memory"],
+      "unsupported-memory-record"
+    );
+
+    const storedRecord = z
+      .looseObject({
+        confirmationId: z.string(),
+        schemaVersion: z.number(),
+      })
+      .safeParse(stored?.value);
+
+    expect({
+      currentCandidateId:
+        result.request.players[0]?.resolution?.candidates?.[0]?.candidateId,
+      memoryReadFailed: result.playerMemoryStatus.readFailed,
+      needsIdentityConfirmation:
+        result.pendingClarification?.kind === "identity",
+      retainedConfirmationId:
+        storedRecord.success &&
+        storedRecord.data.confirmationId === "unsupported-confirmation",
+      retainedSchemaVersion: storedRecord.success
+        ? storedRecord.data.schemaVersion
+        : null,
+      selectedCandidateId:
+        result.request.players[0]?.resolution?.selectedCandidateId,
+    }).toStrictEqual({
+      currentCandidateId: "reep:canonical:kane",
+      memoryReadFailed: false,
+      needsIdentityConfirmation: true,
+      retainedConfirmationId: true,
+      retainedSchemaVersion: 2,
+      selectedCandidateId: null,
+    });
+  });
+
+  it("requires re-confirmation when a remembered exact source ID is removed", async () => {
+    const sourcePaths = await withSourceFixtures();
+    const store = new InMemoryStore();
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: resolvePlayerReference,
+      requestUnderstandingExtractor: aliasCorrectionExtractor,
+      store,
+      tools: [],
+    });
+
+    const confirmationThread = {
+      configurable: { thread_id: "removed-source-confirmation" },
+    };
+
+    const pending = await graph.invoke(
+      { messages: [new HumanMessage("Look up 凯恩")] },
+      confirmationThread
+    );
+
+    const candidates = pending.request.players[0]?.resolution?.candidates ?? [];
+    const kaneCandidate = candidateWithSource(candidates, "fm", "fm-kane");
+
+    await graph.invoke(
+      new Command({ resume: { candidateId: kaneCandidate.candidateId } }),
+      confirmationThread
+    );
+
+    const fmDatabase = new DatabaseSync(sourcePaths.fmDatabasePath);
+
+    try {
+      fmDatabase
+        .prepare("DELETE FROM players WHERE unique_id = ?")
+        .run("fm-kane");
+    } finally {
+      fmDatabase.close();
+    }
+
+    const fresh = await graph.invoke(
+      { messages: [new HumanMessage("Look up 凯恩")] },
+      { configurable: { thread_id: "removed-source-fresh-thread" } }
+    );
+
+    const storedItems = await store.search([
+      "tactiscout",
+      "local-user",
+      "player-memory",
+    ]);
+
+    const question = fresh.pendingClarification?.question ?? "";
+
+    expect({
+      interrupt: Object.hasOwn(fresh, "__interrupt__"),
+      memoryReadFailed: fresh.playerMemoryStatus.readFailed,
+      questionMentionsRemovedSource: question.includes(
+        "已记住的“凯恩”身份所指来源已不在当前资料中"
+      ),
+      resolutionStatus: fresh.request.players[0]?.resolution?.status,
+      selectedCandidateId:
+        fresh.request.players[0]?.resolution?.selectedCandidateId,
+      storedConfirmationCount: storedItems.length,
+    }).toStrictEqual({
+      interrupt: true,
+      memoryReadFailed: false,
+      questionMentionsRemovedSource: true,
+      resolutionStatus: "needs_confirmation",
+      selectedCandidateId: null,
+      storedConfirmationCount: 1,
+    });
+  });
+
+  it("rejects an identity choice from an interrupt after its Reep link changes", async () => {
+    const sourcePaths = await withSourceFixtures();
+    const store = new InMemoryStore();
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model: fakeModel(),
+      playerIdentityLookup: resolvePlayerReference,
+      requestUnderstandingExtractor: aliasCorrectionExtractor,
+      store,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "pending-identity-reeep-change" },
+    };
+
+    const pending = await graph.invoke(
+      { messages: [new HumanMessage("Look up 凯恩")] },
+      config
+    );
+
+    const candidate = candidateWithSource(
+      pending.request.players[0]?.resolution?.candidates ?? [],
+      "fm",
+      "fm-kane"
+    );
+
+    const registry = new DatabaseSync(sourcePaths.reepDatabasePath);
+
+    try {
+      registry
+        .prepare(
+          "UPDATE bridges SET canonical_reep_id = ? WHERE external_id = ?"
+        )
+        .run("canonical:haaland", "fm-kane");
+    } finally {
+      registry.close();
+    }
+
+    const resumed = await graph.invoke(
+      new Command({ resume: { candidateId: candidate.candidateId } }),
+      config
+    );
+
+    const storedItems = await store.search([
+      "tactiscout",
+      "local-user",
+      "player-memory",
+    ]);
+
+    expect({
+      currentCandidateCanonicalId:
+        resumed.request.players[0]?.resolution?.candidates?.[0]
+          ?.canonicalIdentityId,
+      interrupt: Object.hasOwn(resumed, "__interrupt__"),
+      selectedCandidateId:
+        resumed.request.players[0]?.resolution?.selectedCandidateId,
+      status: resumed.request.players[0]?.resolution?.status,
+      storedMemoryCount: storedItems.length,
+    }).toStrictEqual({
+      currentCandidateCanonicalId: "canonical:haaland",
+      interrupt: true,
+      selectedCandidateId: null,
+      status: "needs_confirmation",
+      storedMemoryCount: 0,
+    });
+  });
+
   it("replaces a corrected alias for new threads while keeping the old thread's local identity", async () => {
     await withSourceFixtures();
     const store = new InMemoryStore();
@@ -1217,6 +1529,7 @@ describe("conversational player-memory management", () => {
           activeLookup: savedLookup,
         },
         messages: [new HumanMessage("Look up 凯恩")],
+        stateSchemaVersion: agentStateSchemaVersion,
       },
       correctionThread
     );

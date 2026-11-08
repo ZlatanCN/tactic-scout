@@ -55,6 +55,7 @@ import {
   findRememberedPlayerIdentity,
   rememberPlayerIdentity,
   rememberRosterIdentity,
+  validatePlayerReference,
 } from "./player-memory.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
 import { createRequestUnderstandingExtractor } from "./request-extraction.js";
@@ -80,6 +81,7 @@ type CreateAgentOptions = {
   playerIdentityLookup?: ReferenceIdentityLookup;
   teamDirectory?: Pick<ApiFootballClient, "getSquad" | "searchTeams">;
   teamRosterIdentityLookup?: TeamRosterIdentityLookup;
+  playerReferenceValidator?: typeof validatePlayerReference;
   checkpointer?: BaseCheckpointSaver;
   store?: BaseStore | null;
 };
@@ -392,8 +394,15 @@ const routeAfterManagePlayerMemory = (state: AgentStateType): string => {
     : END;
 };
 
+const isStateCompatibilityFailure = (state: AgentStateType): boolean =>
+  state.outcome?.kind === "state_compatibility";
+
 const routeAfterClarification = (state: AgentStateType): string => {
   const { request } = state;
+
+  if (isStateCompatibilityFailure(state)) {
+    return END;
+  }
 
   if (state.playerMemoryManagementRequest) {
     return "manage_player_memory";
@@ -447,6 +456,10 @@ const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
     : "fetch_team_roster";
 
 const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
+  if (isStateCompatibilityFailure(state)) {
+    return END;
+  }
+
   if (state.playerMemoryManagementRequest) {
     return "manage_player_memory";
   }
@@ -516,6 +529,9 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const tools = options.tools ?? createTools();
   const model = options.model ?? configuredModel();
 
+  const playerReferenceValidator =
+    options.playerReferenceValidator ?? validatePlayerReference;
+
   const store =
     options.store === undefined ? new InMemoryStore() : options.store;
 
@@ -553,6 +569,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     {
       findIdentity: findRememberedPlayerIdentity,
       rememberIdentity: rememberPlayerIdentity,
+      validateReference: playerReferenceValidator,
     },
     store
   );
@@ -641,6 +658,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("answer_failure", createFaultAnswerNode())
     .addEdge(START, "understand_request")
     .addConditionalEdges("understand_request", routeAfterRequestUnderstanding, [
+      END,
       "clarify",
       "answer",
       "manage_player_memory",
@@ -665,6 +683,10 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addConditionalEdges(
       "clarify",
       (state) => {
+        if (isStateCompatibilityFailure(state)) {
+          return END;
+        }
+
         if (state.pendingClarification?.kind === "identity") {
           return state.pendingClarification.answer === null
             ? "clarify"

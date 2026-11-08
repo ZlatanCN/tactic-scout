@@ -25,6 +25,7 @@ import type { PlayerMemoryManagementTarget } from "./state.js";
 import type { TeamFmProfileCandidate } from "./team-data/contracts.js";
 
 const playerMemoryNamespace = ["tactiscout", "local-user", "player-memory"];
+const playerMemorySchemaVersion = 1;
 const maxPlayerMemoryMatches = 1000;
 const maxPlayerMemoryCandidates = 8;
 
@@ -61,7 +62,7 @@ const playerIdentityMemorySchema = z.object({
   normalizedMention: z.string().min(1),
   originThreadId: z.string().min(1),
   originalMention: z.string().min(1),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(playerMemorySchemaVersion),
   sourceRecords: z.array(memorySourceRecordSchema).min(1),
   sourceVersions: sourceVersionsSchema,
   stableIdentityKey: z.string().min(1),
@@ -77,7 +78,7 @@ const rosterIdentityMemorySchema = z.object({
   originThreadId: z.string().min(1),
   rosterPlayerName: z.string().min(1),
   rosterRetrievedAt: z.iso.datetime().nullable(),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(playerMemorySchemaVersion),
   sourceVersions: z.object({
     fmManifestSha256: z.string().nullable(),
     fmSnapshotDate: z.string().nullable(),
@@ -96,6 +97,10 @@ type MemorySourceRecord = z.output<typeof memorySourceRecordSchema>;
 type PlayerMemoryLookupResult =
   | { status: "found"; resolution: ReferenceLookupResult }
   | { status: "missing" | "stale" | "unavailable" };
+
+type PlayerReferenceValidationResult =
+  | { status: "current" }
+  | { status: "stale" | "unavailable" };
 
 type RememberedRosterIdentityLookupResult =
   | { candidate: TeamFmProfileCandidate; status: "found" }
@@ -743,6 +748,53 @@ const validatedPlayerRecords = (
     : { status: current.status };
 };
 
+const validatePlayerReference = (
+  candidate: ReferenceCandidate
+): PlayerReferenceValidationResult => {
+  const sourceRecords = sourceRecordsForCandidate(candidate);
+
+  if (sourceRecords.length === 0) {
+    return { status: "stale" };
+  }
+
+  const current = readCurrentSourceRecords(sourceRecords);
+
+  if (current.status !== "ready") {
+    return current;
+  }
+
+  const identity = canonicalIdentityFromMemoryRecords(sourceRecords);
+
+  if (identity.status === "conflict") {
+    return { status: "stale" };
+  }
+
+  const normalizedMention = normalizedMemoryMention(candidate.name);
+
+  const validation = validateCanonicalIdentity(
+    playerIdentityMemorySchema.parse({
+      canonicalIdentityId: identity.canonicalIdentityId,
+      confirmationId: "thread-reference-validation",
+      confirmedAt: "2026-11-08T00:00:00.000Z",
+      displayName: candidate.name,
+      identityVerified: identity.identityVerified,
+      kind: "player_identity",
+      normalizedMention,
+      originThreadId: "thread-reference-validation",
+      originalMention: candidate.name,
+      schemaVersion: playerMemorySchemaVersion,
+      sourceRecords,
+      sourceVersions: sourceVersionsFor(sourceRecords),
+      stableIdentityKey: identityKeyFor(normalizedMention, candidate),
+    }),
+    current.sourceRecords
+  );
+
+  return validation.status === "valid"
+    ? { status: "current" }
+    : { status: validation.status };
+};
+
 const groupCurrentMemoryCandidates = (
   candidates: ReferenceCandidate[]
 ): ReferenceCandidate[] => {
@@ -811,7 +863,7 @@ const findRememberedPlayerIdentity = async (
     const record = playerIdentityMemorySchema.safeParse(item.value);
 
     if (!record.success) {
-      return { status: "unavailable" };
+      return { status: "stale" };
     }
 
     remembered.push(record.data);
@@ -932,7 +984,7 @@ const rememberPlayerIdentity = async (
         normalizedMention,
         originThreadId: confirmation.originThreadId,
         originalMention: confirmation.mention,
-        schemaVersion: 1,
+        schemaVersion: playerMemorySchemaVersion,
         sourceRecords,
         sourceVersions: sourceVersionsFor(sourceRecords),
         stableIdentityKey,
@@ -987,7 +1039,7 @@ const rememberRosterIdentity = async (
         originThreadId: confirmation.originThreadId,
         rosterPlayerName: confirmation.playerName,
         rosterRetrievedAt: confirmation.rosterRetrievedAt,
-        schemaVersion: 1,
+        schemaVersion: playerMemorySchemaVersion,
         sourceVersions: fmSourceVersions,
         stableIdentityKey,
       })
@@ -1728,6 +1780,7 @@ export {
   preparePlayerMemoryClear,
   rememberPlayerIdentity,
   rememberRosterIdentity,
+  validatePlayerReference,
 };
 
 export type {
@@ -1741,6 +1794,7 @@ export type {
   PlayerMemoryForgetQuery,
   PlayerMemoryListResult,
   PlayerMemoryListingRecord,
+  PlayerReferenceValidationResult,
   RememberedRosterIdentityLookupResult,
   RosterIdentityConfirmation,
 };

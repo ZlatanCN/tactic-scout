@@ -2,7 +2,7 @@
 
 Status: accepted
 
-The identity-specific routing described here is superseded by ADR-0002. The single assistant/ToolNode loop and in-memory checkpoint decisions remain in effect.
+The identity-specific routing described here is superseded by ADR-0002. The single assistant/ToolNode loop remains accepted. ADR-0011 supersedes this document's in-memory/no-restart persistence clauses for the Dev Server/Studio path; implementation is complete under tickets 01–07.
 
 ## Decision
 
@@ -12,7 +12,7 @@ Requests that name a player as a replacement/comparison reference pass through a
 
 State uses LangGraph's `MessagesZodState` extended with reference-resolution and nullable clarification-answer channels. The prebuilt messages state tags the `messages` schema so LangGraph Chat recognizes it. Clarification resumes through `Command({ resume })`; a normal message input is not an interrupt resume value.
 
-Use `MemorySaver` for thread checkpoints and `InMemoryStore` for the Store. This branch intentionally does not persist either across process restarts.
+The original prototype chose `MemorySaver` for thread checkpoints and `InMemoryStore` for the Store, without application-managed recovery across process restarts. See ADR-0011 for the accepted Dev Server persistence design and in-memory test injection.
 
 Keep the first source tool narrow: it performs bounded name lookup in the existing local Understat and FM SQLite snapshots. It returns each provider's records separately and does not infer identity from matching names.
 
@@ -26,7 +26,7 @@ Keep the first source tool narrow: it performs bounded name lookup in the existi
 
 ## Consequences
 
-- Restarting the process loses thread checkpoints and Store contents.
+- Standalone in-memory prototype execution loses its state on restart. Dev Server persistence ownership and the accepted recovery boundary are documented in ADR-0011.
 - Source snapshots remain local files under `.data/`; they are separate from graph persistence.
 - Source processing is blocked for remote model endpoints unless the relevant source-specific permission flag is enabled.
 - A later persistence or UI decision can be made without changing the source search contract or model/tool loop.

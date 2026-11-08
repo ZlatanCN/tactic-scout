@@ -10,7 +10,10 @@ import type { PlayerSearch } from "../src/player-data/search-records.js";
 import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
 import type { ReferenceCandidate } from "../src/state.js";
-import { ActiveComparisonSchema } from "../src/state.js";
+import {
+  ActiveComparisonSchema,
+  agentStateSchemaVersion,
+} from "../src/state.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
 import { comparisonResult } from "./fixtures/workflow-results.js";
 
@@ -1089,7 +1092,10 @@ describe("comparison workflow state", () => {
     });
 
     const result = await graph.invoke(
-      { messages: historicalMessages },
+      {
+        messages: historicalMessages,
+        stateSchemaVersion: agentStateSchemaVersion,
+      },
       { configurable: { thread_id: "no-history-recovery-thread" } }
     );
 

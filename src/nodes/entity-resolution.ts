@@ -9,6 +9,7 @@ import { normalizePlayerName } from "../player-data/shared.js";
 import type {
   findRememberedPlayerIdentity,
   rememberPlayerIdentity,
+  validatePlayerReference,
   PlayerMemoryLookupResult,
 } from "../player-memory.js";
 import {
@@ -666,7 +667,34 @@ const requireCurrentIdentityConfirmation = (
     };
   }
 
+  if (result.status === "not_found") {
+    return {
+      ...result,
+      canonicalIdentityId: null,
+      clarificationMessage: `已记住的“${mention}”身份所指来源已不在当前资料中。请补充当前可查询的完整姓名或线索重新确认；原记忆已保留。`,
+      mention,
+      selectedCandidateId: null,
+      selectedName: null,
+      status: "needs_confirmation",
+    };
+  }
+
   return { ...result, mention };
+};
+
+const refreshIdentityIfStale = async (
+  player: RequestPlayerState,
+  candidate: ReferenceCandidate,
+  lookup: ReferenceIdentityLookup,
+  validateReference: typeof validatePlayerReference
+): Promise<PlayerResolutionState | null> => {
+  if (validateReference(candidate).status === "current") {
+    return null;
+  }
+
+  const refreshed = await lookup(player.lookupName ?? candidate.name);
+
+  return requireCurrentIdentityConfirmation(refreshed, player.mention);
 };
 
 const retryIdentityLookup = async (
@@ -1090,6 +1118,7 @@ type EntityResolutionOutcome = {
 type PlayerMemoryCapability = {
   findIdentity: typeof findRememberedPlayerIdentity;
   rememberIdentity: typeof rememberPlayerIdentity;
+  validateReference: typeof validatePlayerReference;
 };
 
 type PlayerMemoryLookup = (
@@ -1185,6 +1214,7 @@ const resolveRequestPlayer = async (
   context: ConversationContext,
   lookup: ReferenceIdentityLookup,
   findMemory: PlayerMemoryLookup,
+  validateReference: typeof validatePlayerReference,
   forceReresolution: boolean
 ): Promise<PlayerResolutionState> => {
   const referenceScope =
@@ -1209,6 +1239,22 @@ const resolveRequestPlayer = async (
       );
     }
 
+    const uniqueReferences = uniqueConversationPlayers(references);
+    const [reference] = uniqueReferences;
+
+    if (reference !== undefined && uniqueReferences.length === 1) {
+      const refreshed = await refreshIdentityIfStale(
+        player,
+        reference.candidate,
+        lookup,
+        validateReference
+      );
+
+      if (refreshed !== null) {
+        return refreshed;
+      }
+    }
+
     return resolveConversationReference(player.mention, references);
   }
 
@@ -1217,6 +1263,23 @@ const resolveRequestPlayer = async (
     : resolveConfirmedPlayerAlias(player.mention, context);
 
   if (knownAlias !== null) {
+    const candidate = selectedReferenceCandidate(knownAlias);
+
+    if (candidate === null) {
+      return knownAlias;
+    }
+
+    const refreshed = await refreshIdentityIfStale(
+      player,
+      candidate,
+      lookup,
+      validateReference
+    );
+
+    if (refreshed !== null) {
+      return refreshed;
+    }
+
     return await refreshKnownAliasForComparison(
       player,
       request,
@@ -1261,6 +1324,7 @@ const resolvePlayersInOrder = async (
   context: ConversationContext,
   lookup: ReferenceIdentityLookup,
   findMemory: PlayerMemoryLookup,
+  validateReference: typeof validatePlayerReference,
   forceReresolution: boolean,
   scopeIndex = 0,
   playerIndex = 0
@@ -1275,6 +1339,7 @@ const resolvePlayersInOrder = async (
       context,
       lookup,
       findMemory,
+      validateReference,
       forceReresolution,
       scopeIndex + 1,
       0
@@ -1293,6 +1358,7 @@ const resolvePlayersInOrder = async (
       context,
       lookup,
       findMemory,
+      validateReference,
       forceReresolution,
       scopeIndex,
       playerIndex + 1
@@ -1309,6 +1375,7 @@ const resolvePlayersInOrder = async (
     context,
     lookup,
     findMemory,
+    validateReference,
     forceReresolution
   );
 
@@ -1328,17 +1395,54 @@ const resolvePlayersInOrder = async (
     context,
     lookup,
     findMemory,
+    validateReference,
     forceReresolution,
     scopeIndex,
     playerIndex + 1
   );
 };
 
+const revalidateResumedPlayerAnswer = async (
+  request: RequestState,
+  playerIndex: number,
+  lookup: ReferenceIdentityLookup,
+  validateReference: typeof validatePlayerReference
+): Promise<RequestState> => {
+  const player = request.players[playerIndex];
+
+  if (player?.resolution?.status !== "resolved") {
+    return request;
+  }
+
+  const candidate = selectedReferenceCandidate(player.resolution);
+
+  if (candidate === null) {
+    return request;
+  }
+
+  const refreshed = await refreshIdentityIfStale(
+    player,
+    candidate,
+    lookup,
+    validateReference
+  );
+
+  if (refreshed === null) {
+    return request;
+  }
+
+  return updateRequestPlayer(request, playerIndex, {
+    ...player,
+    resolution: refreshed,
+  });
+};
+
 const resumePendingIdentity = async (
   request: RequestState,
   pending: AgentStateType["pendingClarification"],
   lookup: ReferenceIdentityLookup,
-  findMemory: PlayerMemoryLookup
+  findMemory: PlayerMemoryLookup,
+  validateReference: typeof validatePlayerReference
 ): Promise<{
   pendingClarification: AgentStateType["pendingClarification"];
   request: RequestState;
@@ -1348,12 +1452,19 @@ const resumePendingIdentity = async (
     return { pendingClarification: null, request, shouldStop: false };
   }
 
-  const resumedRequest = await applyPlayerAnswer(
+  let resumedRequest = await applyPlayerAnswer(
     request,
     pending.playerIndex,
     pending.answer,
     lookup,
     findMemory
+  );
+
+  resumedRequest = await revalidateResumedPlayerAnswer(
+    resumedRequest,
+    pending.playerIndex,
+    lookup,
+    validateReference
   );
 
   const resumedPlayer = resumedRequest.players[pending.playerIndex];
@@ -1424,7 +1535,7 @@ const recommendationClarificationForRequest = (
 
 type ScoutingOutcomeKind = Exclude<
   NonNullable<AgentStateType["outcome"]>["kind"],
-  "player_memory_management"
+  "player_memory_management" | "state_compatibility"
 >;
 
 const outcomeKindForRequest = (request: RequestState): ScoutingOutcomeKind => {
@@ -1559,7 +1670,8 @@ const createEntityResolutionNode =
       request,
       state.pendingClarification,
       lookup,
-      findMemory
+      findMemory,
+      memory.validateReference
     );
 
     ({ request } = resumedIdentity);
@@ -1610,6 +1722,7 @@ const createEntityResolutionNode =
       conversationContext,
       lookup,
       findMemory,
+      memory.validateReference,
       forceReresolution
     );
 

@@ -112,7 +112,11 @@ const workflowForPreviousTurn = (
   request: AgentStateType["request"],
   outcome: TurnOutcome | null
 ): RequestKind | null => {
-  if (outcome !== null && outcome.kind !== "player_memory_management") {
+  if (
+    outcome !== null &&
+    outcome.kind !== "player_memory_management" &&
+    outcome.kind !== "state_compatibility"
+  ) {
     return outcome.kind;
   }
 

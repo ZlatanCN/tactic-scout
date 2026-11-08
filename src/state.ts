@@ -294,7 +294,7 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     answer: z.string().nullable(),
-    clearAllConfirmationIds: z.array(z.string()),
+    clearAllConfirmationIds: z.array(z.string()).default([]),
     kind: z.literal("player_memory_management"),
     options: z.array(
       z.object({
@@ -309,16 +309,21 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
 const PlayerMemoryManagementRequestSchema = z.object({
   action: z.enum(["list", "forget", "correct", "clear"]),
   apiFootballPlayerId: z.number().int().positive().nullable(),
-  clearAllApproved: z.boolean(),
-  clearAllConfirmationIds: z.array(z.string()),
+  clearAllApproved: z.boolean().default(false),
+  clearAllConfirmationIds: z.array(z.string()).default([]),
   fmId: z.string().nullable(),
-  replacementMention: z.string().nullable(),
+  replacementMention: z.string().nullable().default(null),
   selectedTarget: PlayerMemoryManagementTargetSchema.nullable(),
   targetKind: z.enum(["player_identity", "roster_identity"]).nullable(),
   targetMention: z.string().nullable(),
 });
 
 const TurnOutcomeSchema = z.union([
+  z.object({
+    kind: z.literal("state_compatibility"),
+    resultJson: z.string().nullable(),
+    status: z.literal("incompatible"),
+  }),
   z.object({
     kind: z.literal("player_lookup"),
     resultJson: z.string(),
@@ -493,6 +498,8 @@ const createInitialPlayerMemoryStatus = () => ({
   writeFailed: false,
 });
 
+const agentStateSchemaVersion = 1;
+
 const AgentState = MessagesZodState.extend({
   conversationContext: ConversationContextSchema.default(
     createInitialConversationContext
@@ -508,6 +515,7 @@ const AgentState = MessagesZodState.extend({
     createInitialPlayerMemoryStatus
   ),
   request: RequestStateSchema.default(createInitialRequestState),
+  stateSchemaVersion: z.number().int().nonnegative().nullable().default(null),
 });
 
 type ActiveComparison = z.infer<typeof ActiveComparisonSchema>;
@@ -570,6 +578,7 @@ export {
   ActiveRecommendationSchema,
   ActiveTeamRecommendationSchema,
   AgentState,
+  agentStateSchemaVersion,
   RecommendationPlayerRoleSchema,
   RecommendationRequestSchema,
   TurnOutcomeSchema,

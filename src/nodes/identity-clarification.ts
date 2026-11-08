@@ -10,6 +10,7 @@ import type {
   RosterIdentityConfirmation,
 } from "../player-memory.js";
 import { resumeWorkflowClarification } from "../request-building.js";
+import { stateCompatibilityUpdate } from "../state-compatibility.js";
 import { createInitialPlayerMemoryStatus } from "../state.js";
 import type {
   AgentState,
@@ -997,6 +998,12 @@ const createClarifyNode =
     configuredStore: BaseStore | null
   ): GraphNode<typeof AgentState> =>
   async (state, config) => {
+    const compatibilityUpdate = stateCompatibilityUpdate(state);
+
+    if (compatibilityUpdate !== null) {
+      return compatibilityUpdate;
+    }
+
     const pending = state.pendingClarification;
 
     if (pending === null) {

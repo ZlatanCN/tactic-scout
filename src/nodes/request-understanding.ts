@@ -12,8 +12,10 @@ import {
 import type { RequestTurnInput } from "../request-building.js";
 import { isExplicitPlayerMemoryManagementCommand } from "../request-extraction.js";
 import type { RequestUnderstandingExtractor } from "../request-extraction.js";
+import { stateCompatibilityUpdate } from "../state-compatibility.js";
 import type { AgentState, AgentStateType } from "../state.js";
 import {
+  agentStateSchemaVersion,
   createInitialConversationContext,
   createInitialFaultToleranceState,
   createInitialPlayerMemoryStatus,
@@ -215,6 +217,12 @@ const createRequestUnderstandingNode =
       return {};
     }
 
+    const compatibilityUpdate = stateCompatibilityUpdate(state);
+
+    if (compatibilityUpdate !== null) {
+      return compatibilityUpdate;
+    }
+
     const messageId = latestUserMessage.id ?? null;
 
     if (messageId !== null && messageId === currentRequest.processedMessageId) {
@@ -250,7 +258,10 @@ const createRequestUnderstandingNode =
       );
 
     if (specialRequestUpdate !== null) {
-      return specialRequestUpdate;
+      return {
+        ...specialRequestUpdate,
+        stateSchemaVersion: agentStateSchemaVersion,
+      };
     }
 
     const extracted =
@@ -265,14 +276,17 @@ const createRequestUnderstandingNode =
         : rawExtracted;
 
     if (extracted.kind === null) {
-      return continuationRequestUpdate(
-        state,
-        contextWithComparison,
-        extracted,
-        previous,
-        messageId,
-        text
-      );
+      return {
+        ...continuationRequestUpdate(
+          state,
+          contextWithComparison,
+          extracted,
+          previous,
+          messageId,
+          text
+        ),
+        stateSchemaVersion: agentStateSchemaVersion,
+      };
     }
 
     const built = requestFromCurrentTurn(
@@ -306,6 +320,7 @@ const createRequestUnderstandingNode =
       pendingClarification: null,
       playerMemoryStatus: createInitialPlayerMemoryStatus(),
       request: built.request,
+      stateSchemaVersion: agentStateSchemaVersion,
     };
   };
 

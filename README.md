@@ -34,7 +34,7 @@ src/
 
 球队阵容在进程内缓存七天。`API_FOOTBALL_KEY` 从本地 `.env` 读取，不要提交密钥；首版仅供本地或私有演示，不公开分发原始 API-Football 阵容数据。
 
-同一 thread 会保存最近一次成功的球员和球队推荐。只改筛选条件时继承成功请求的球队、位置与映射；失败或中断不会覆盖最近成功结果。`MemorySaver` 只在进程内保存 thread checkpoint，重启后状态会丢失。项目没有 Store、前端、RAG 或应用数据库。
+同一 thread 会保存最近一次成功的球员和球队推荐。只改筛选条件时继承成功请求的球队、位置与映射；失败或中断不会覆盖最近成功结果。通过 `pnpm dev` 启动的 Dev Server/Studio 使用 LangGraph 原生 Checkpointer 和 Store，正常停止并重启后可恢复 thread、interrupt 和球员记忆。直接调用 `createAgent()` 则默认使用进程内存储；不保证强杀或断电后恢复。项目没有前端、RAG 或应用数据库。
 
 ## 启动
 
@@ -48,6 +48,8 @@ pnpm dev
 ```
 
 `langgraph.json` 将 `agent` 图暴露给 LangGraph CLI 与 Studio。真实 `.env` 不提交到 Git。
+
+thread 恢复、interrupt 回答、记忆管理以及版本不兼容时的处理见[本地会话恢复说明](docs/local-development.md)。
 
 ## 检查
 

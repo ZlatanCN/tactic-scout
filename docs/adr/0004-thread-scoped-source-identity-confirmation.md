@@ -2,6 +2,8 @@
 
 Status: accepted
 
+ADR-0011 extends explicit confirmations into private user-scoped cross-thread memory (implemented in tickets 01–07). It preserves the canonical identity and shared-registry boundaries below.
+
 ## Context
 
 The identity resolver can return separate candidates for records from different providers when the Reep registry has not linked their source IDs. Selecting a candidate by its display name currently resolves only that provider candidate. A person may have valid records under different names in Football Manager and Understat, while two different people may also share a display name.
@@ -20,4 +22,4 @@ The identity resolver can return separate candidates for records from different 
 - The identity interrupt represents person candidates, which may contain several provider records.
 - A thread-confirmed group may have no canonical Reep ID even when one of its records is linked. It must not be described as globally verified across providers.
 - Duplicate names require a candidate number or additional context instead of first-match selection.
-- In-memory thread confirmation is lost when the process restarts.
+- The original prototype used volatile thread confirmation. ADR-0011 defines normal Dev Server restart recovery and reusable user-confirmed memory; historical thread aliases are not automatically imported.
