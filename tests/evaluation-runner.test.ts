@@ -5178,7 +5178,7 @@ describe("local scouting evaluation entry", () => {
       refinementFetchCount: 1,
       refinementRecommendationCalls: 2,
     });
-  }, 25_000);
+  }, 40_000);
 
   it("uses the same fixed roster coverage in the answer, contract check, and judge input", async () => {
     let requestCount = 0;

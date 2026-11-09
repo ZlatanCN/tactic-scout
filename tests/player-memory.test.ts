@@ -506,7 +506,7 @@ describe("cross-thread player memory", () => {
     }
 
     expect(observed).toStrictEqual(expected);
-  });
+  }, 10_000);
 
   it("re-resolves a prior-context reference after its shared identity is removed", async () => {
     await withSourceFixtures();

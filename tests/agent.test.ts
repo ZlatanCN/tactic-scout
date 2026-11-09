@@ -615,6 +615,11 @@ describe("runtime model input budget", () => {
     ).join(" ");
 
     const model = fakeModel();
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (input) => {
+      await Promise.resolve();
+
+      return Math.ceil(input.length / 4);
+    });
 
     const graph = createAgentWithRuntime({
       checkpointer: new MemorySaver(),

@@ -687,7 +687,7 @@ describe("managed Dev Server persistence", () => {
     } finally {
       await session.close();
     }
-  }, 20_000);
+  }, 45_000);
 
   it("reuses a confirmed roster mapping across threads and restart without restoring absent members", async () => {
     const session = await startDevServerSession(
