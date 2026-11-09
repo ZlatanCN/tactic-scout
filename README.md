@@ -49,6 +49,12 @@ pnpm dev
 
 `langgraph.json` 将 `agent` 图暴露给 LangGraph CLI 与 Studio。真实 `.env` 不提交到 Git。
 
+## 模型上下文预算
+
+请求理解、球员查询工具循环和结果解释都在模型调用前估算完整输入，并为 ChatOpenAI 请求设置有限输出上限。官方 OpenAI 端点上有可信能力资料的模型可直接使用；自定义网关或未知模型必须在 `TACTISCOUT_MODEL_CONTEXT_PROFILE` 提供实际配置。JSON 至少包含匹配当前 `model` 与 `baseURL` 的标识、`maxOutputTokens`，以及 `contextWindowTokens` 或 `maxInputTokens`；官方端点的 `baseURL` 写 `null`。不要猜窗口大小。可选的 `countingMarginTokens`、`softTriggerFraction` 和 `targetFraction` 默认分别按 10% 余量、80% 软阈值和 60% 目标计算。
+
+Tokenizer 使用 LangChain `getNumTokens`。首次计数可能从 `tiktoken.pages.dev` 下载对应的 tokenizer 编码文件。计数余量默认取 64 tokens 与输入窗口 10% 中的较大值。输入超限、无法计数或窗口配置缺失时，图会在发送模型请求前明确停止。当前预算票实现检查和安全停止；自动文字压缩、长输入分块和大证据分批由后续上下文管理票据交付。
+
 thread 恢复、interrupt 回答、记忆管理以及版本不兼容时的处理见[本地会话恢复说明](docs/local-development.md)。
 
 ## 检查
@@ -58,4 +64,4 @@ pnpm test
 pnpm build
 ```
 
-Vitest 使用假模型、模拟 API-Football 响应和固定 FM 数据，不调用真实外部 API 或消耗配额。
+Vitest 使用假模型、模拟 API-Football 响应和固定 FM 数据，不调用真实模型或足球数据 API，也不消耗模型 / 数据配额。首次 tokenizer 计数仍可能下载公开编码文件。

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 
 import {
@@ -20,7 +21,8 @@ import {
   START,
   StateGraph,
 } from "@langchain/langgraph";
-import { describe, expect, it, vi } from "vitest";
+import { ChatOpenAI } from "@langchain/openai";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v3";
 
 import type { CreateAgentOptions } from "../src/agent.js";
@@ -35,10 +37,16 @@ import {
   AgentState,
   agentStateSchemaVersion,
   createInitialConversationContext,
+  createInitialRequestState,
 } from "../src/state.js";
 import type { RecommendPlayerCandidates } from "../src/tools/recommend-player-candidates.js";
 import type { RecommendTeamPlayerCandidatesInput } from "../src/tools/recommend-team-player-candidates.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
+import {
+  testModelContextConfiguration,
+  testModelContextProfile,
+  testModelOutputLimitAdapter,
+} from "./fixtures/model-context.js";
 import {
   recommendationResult,
   recommendationResultData,
@@ -50,6 +58,17 @@ vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
 
 vi.stubEnv("OPENAI_BASE_URL", "");
+
+const testModelContextProfileEnvironment = JSON.stringify({
+  baseURL: null,
+  ...testModelContextProfile,
+  model: "vitest-placeholder",
+});
+
+vi.stubEnv(
+  "TACTISCOUT_MODEL_CONTEXT_PROFILE",
+  testModelContextProfileEnvironment
+);
 
 const missingPlayerSourceDatabase = path.join(
   tmpdir(),
@@ -67,6 +86,8 @@ const { createTools } = await import("../src/tools/search-player-records.js");
 
 const createAgent = (options: CreateAgentOptions = {}) =>
   createAgentWithRuntime({
+    modelContextProfile: testModelContextProfile,
+    modelOutputLimitAdapter: testModelOutputLimitAdapter,
     playerReferenceValidator: () => ({ status: "current" }),
     ...options,
   });
@@ -174,6 +195,499 @@ const requestForPlayers = (
   })),
   teams: [],
   ...extra,
+});
+
+describe("runtime model input budget", () => {
+  afterEach(() => {
+    vi.stubEnv(
+      "TACTISCOUT_MODEL_CONTEXT_PROFILE",
+      testModelContextProfileEnvironment
+    );
+  });
+
+  it("requires a known model window before understanding or reading sources", async () => {
+    vi.stubEnv("TACTISCOUT_MODEL_CONTEXT_PROFILE", "");
+
+    const message = "Look up the requested player.";
+    const model = fakeModel();
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      store: null,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "missing-model-context-profile" } }
+    );
+
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain("上下文预算");
+    expect(model.callCount).toBe(0);
+    expect(result.faultTolerance.failure?.category).toBe("context_limit");
+    expect(result.faultTolerance.failure?.contextIssue).toBe(
+      "profile_required"
+    );
+  });
+
+  it("does not route an incomplete structured request as a completed task", async () => {
+    const model = fakeModel();
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    const modelResponses = vi.fn<
+      () => { parsed: ExtractedRequest; raw: AIMessage }
+    >(() => ({
+      parsed: requestForPlayers("player_lookup", ["Harry Kane"]),
+      raw: new AIMessage({
+        content: "partial structured request",
+        response_metadata: { finish_reason: "length" },
+      }),
+    }));
+
+    structuredOutput.mockReturnValue(RunnableLambda.from(modelResponses));
+
+    const identityLookup = vi.fn<ReferenceIdentityLookup>(
+      resolvedLookup(playerCandidate("Harry Kane", "kane"))
+    );
+
+    const graph = createAgent({ model, playerIdentityLookup: identityLookup });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Look up Harry Kane.")] },
+      { configurable: { thread_id: "truncated-structured-request" } }
+    );
+
+    expect({
+      category: result.faultTolerance.failure?.category,
+      contextIssue: result.faultTolerance.failure?.contextIssue,
+      identityLookupCalls: identityLookup.mock.calls.length,
+      modelResponses: modelResponses.mock.calls.length,
+      node: result.faultTolerance.failure?.node,
+    }).toStrictEqual({
+      category: "context_limit",
+      contextIssue: "response_truncated",
+      identityLookupCalls: 0,
+      modelResponses: 1,
+      node: "understand_request",
+    });
+  });
+
+  it("shows the complete saved result when its explanation cannot fit", async () => {
+    const message = new HumanMessage({
+      content: "Explain the saved comparison.",
+      id: "saved-comparison-explanation",
+    });
+
+    const resultJson = JSON.stringify({
+      records: [{ goals: 12, player: "Fixture Player", source: "Understat" }],
+    });
+
+    const state = AgentState.parse({
+      messages: [message],
+      outcome: {
+        kind: "player_comparison",
+        resultJson,
+        source: "saved",
+        status: "ready",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const model = fakeModel();
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: {
+        countingMarginTokens: 64,
+        maxInputTokens: 128,
+        maxOutputTokens: 32,
+      },
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      tools: [],
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-result-explanation-over-budget" },
+    });
+
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain(resultJson);
+    expect(answer).toContain("模型解释未完成");
+    expect(result.faultTolerance.failure).toMatchObject({
+      category: "context_limit",
+      contextIssue: "base_instructions_exceed_limit",
+      node: "answer",
+    });
+    expect(model.callCount).toBe(0);
+  });
+
+  it("identifies a current user instruction that exceeds the input budget", async () => {
+    const message = Array.from(
+      { length: 30_000 },
+      (_, index) => `ScoutingConstraint${index}`
+    ).join(" ");
+
+    const model = fakeModel();
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: {
+        countingMarginTokens: 64,
+        maxInputTokens: 16_384,
+        maxOutputTokens: 512,
+      },
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      tools: [],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "current-user-input-over-budget" } }
+    );
+
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain("本轮用户指令超过");
+    expect(result.faultTolerance.failure).toMatchObject({
+      category: "context_limit",
+      contextIssue: "user_input_exceeds_limit",
+      node: "understand_request",
+    });
+    expect(model.callCount).toBe(0);
+  }, 15_000);
+
+  it("does not publish a saved-result explanation when the model truncates", async () => {
+    const message = new HumanMessage({
+      content: "Explain the saved comparison.",
+      id: "saved-comparison-truncated-explanation",
+    });
+
+    const resultJson = JSON.stringify({
+      records: [{ goals: 12, player: "Fixture Player", source: "Understat" }],
+    });
+
+    const state = AgentState.parse({
+      messages: [message],
+      outcome: {
+        kind: "player_comparison",
+        resultJson,
+        source: "saved",
+        status: "ready",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const model = fakeModel().respond(
+      new AIMessage({
+        content: "This answer stops halfway.",
+        response_metadata: { finish_reason: "length" },
+      })
+    );
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: testModelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      tools: [],
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-result-truncated-explanation" },
+    });
+
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain(resultJson);
+    expect(answer).toContain("模型解释未完成");
+    expect(answer).not.toContain("This answer stops halfway.");
+    expect(result.faultTolerance.failure).toMatchObject({
+      category: "context_limit",
+      contextIssue: "response_truncated",
+      node: "answer",
+    });
+  });
+
+  it("accepts a complete Responses API result with null incomplete details", async () => {
+    const message = new HumanMessage({
+      content: "Explain the saved lookup.",
+      id: "saved-lookup-completed-response",
+    });
+
+    const state = AgentState.parse({
+      messages: [message],
+      outcome: {
+        kind: "player_lookup",
+        resultJson: JSON.stringify({ player: "Fixture Player" }),
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const model = fakeModel().respond(
+      new AIMessage({
+        content: "The saved player result is complete.",
+        response_metadata: { incomplete_details: null, status: "completed" },
+      })
+    );
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: testModelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      tools: [],
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-lookup-completed-response" },
+    });
+
+    expect({
+      failure: result.faultTolerance.failure,
+      response: result.messages.at(-1)?.content,
+    }).toStrictEqual({
+      failure: null,
+      response: "The saved player result is complete.",
+    });
+  });
+
+  it("renders a committed result after a provider context-overflow response", async () => {
+    const message = new HumanMessage({
+      content: "Explain the saved comparison.",
+      id: "saved-comparison-provider-overflow",
+    });
+
+    const resultJson = JSON.stringify({
+      records: [{ goals: 12, player: "Fixture Player", source: "Understat" }],
+    });
+
+    const state = AgentState.parse({
+      messages: [message],
+      outcome: {
+        kind: "player_comparison",
+        resultJson,
+        source: "saved",
+        status: "ready",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const model = fakeModel().respond(
+      Object.assign(
+        new Error("The request exceeds the maximum context length."),
+        {
+          code: "context_length_exceeded",
+          status: 400,
+        }
+      )
+    );
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: testModelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      tools: [],
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-result-provider-overflow" },
+    });
+
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(answer).toContain(resultJson);
+    expect(answer).toContain("模型解释未完成");
+    expect(result.faultTolerance.failure).toMatchObject({
+      category: "context_limit",
+      contextIssue: "provider_overflow",
+      node: "answer",
+    });
+  });
+
+  it("sends a finite output cap and tool schema on lookup model calls", async () => {
+    const requestSchema = z
+      .object({
+        max_tokens: z.number().int().positive(),
+        tools: z.array(
+          z
+            .object({
+              function: z
+                .object({
+                  name: z.string(),
+                  parameters: z.object({ type: z.string() }).passthrough(),
+                })
+                .passthrough(),
+            })
+            .passthrough()
+        ),
+      })
+      .passthrough();
+
+    const capturedRequests: z.output<typeof requestSchema>[] = [];
+    const kane = playerCandidate("Harry Kane", "kane");
+    const message = "Look up Harry Kane.";
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [], status: "not_found" },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
+        query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const [lookupTool] = createTools(search);
+
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      await delay(0);
+      const requestInit = z.object({ body: z.string() }).parse(init);
+      const request = requestSchema.parse(JSON.parse(requestInit.body));
+      capturedRequests.push(request);
+
+      if (capturedRequests.length === 1) {
+        return Response.json({
+          choices: [
+            {
+              finish_reason: "tool_calls",
+              index: 0,
+              message: {
+                content: null,
+                role: "assistant",
+                tool_calls: [
+                  {
+                    function: {
+                      arguments: JSON.stringify({ sourceRecords: [] }),
+                      name: "search_player_records",
+                    },
+                    id: "lookup-search-call",
+                    type: "function",
+                  },
+                ],
+              },
+            },
+          ],
+          created: 1_700_000_000,
+          id: "chatcmpl-lookup-tool-call",
+          model: "gpt-4o",
+          object: "chat.completion",
+          usage: {
+            completion_tokens: 1,
+            prompt_tokens: 20,
+            total_tokens: 21,
+          },
+        });
+      }
+
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            index: 0,
+            message: {
+              content: "The selected player records were checked.",
+              role: "assistant",
+            },
+          },
+        ],
+        created: 1_700_000_000,
+        id: "chatcmpl-lookup-answer",
+        model: "gpt-4o",
+        object: "chat.completion",
+        usage: { completion_tokens: 5, prompt_tokens: 25, total_tokens: 30 },
+      });
+    });
+
+    const model = new ChatOpenAI({
+      apiKey: "test-key",
+      configuration: { baseURL: "https://gateway.test/v1", fetch: fetcher },
+      maxRetries: 0,
+      model: "gpt-4o",
+      temperature: 0,
+    });
+
+    const graph = createAgentWithRuntime({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: {
+        maxInputTokens: 100_000,
+        maxOutputTokens: 512,
+      },
+      playerIdentityLookup: resolvedLookup(kane),
+      playerReferenceValidator: () => ({ status: "current" }),
+      requestUnderstandingExtractor: createExtractor({
+        [message]: requestForPlayers("player_lookup", [kane.name]),
+      }),
+      tools: [lookupTool],
+    });
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage(message)] },
+      { configurable: { thread_id: "lookup-output-cap-and-schema" } }
+    );
+
+    expect(result.messages.at(-1)?.content).toBe(
+      "The selected player records were checked."
+    );
+
+    expect({
+      failure: result.faultTolerance.failure,
+      fetcherCalls: fetcher.mock.calls.length,
+      maxTokens: capturedRequests.map(({ max_tokens }) => max_tokens),
+      searchCalls: search.mock.calls.length,
+      toolNames: capturedRequests.map(({ tools }) =>
+        (tools ?? []).map((tool) => {
+          const parsed = z
+            .object({
+              function: z.object({ name: z.string() }).passthrough(),
+            })
+            .passthrough()
+            .safeParse(tool);
+
+          return parsed.success ? parsed.data.function.name : "invalid";
+        })
+      ),
+      toolParameterTypes: capturedRequests.map(({ tools }) =>
+        tools.map(({ function: definition }) => definition.parameters.type)
+      ),
+    }).toStrictEqual({
+      failure: null,
+      fetcherCalls: 2,
+      maxTokens: [512, 512],
+      searchCalls: 1,
+      toolNames: [["search_player_records"], ["search_player_records"]],
+      toolParameterTypes: [["object"], ["object"]],
+    });
+  });
 });
 
 const emptySearchResult = (input: PlayerSearchInput): string => {
@@ -1551,7 +2065,8 @@ describe("LangGraph player workflows", () => {
             new AIMessage(
               "当前能力相似名单为空，因此没有可列出的 currentDistance 排名候选。高潜名单包含 Ansu Fati。"
             )
-          )
+          ),
+          testModelContextConfiguration
         )
       )
       .addEdge(START, "answer")
@@ -1623,7 +2138,8 @@ describe("LangGraph player workflows", () => {
             new AIMessage(
               "应用年龄、CA 和 PA 条件后各阶段均为 5 人；应用身份排除规则后为 3 人。"
             )
-          )
+          ),
+          testModelContextConfiguration
         )
       )
       .addEdge(START, "answer")
@@ -1671,7 +2187,8 @@ describe("LangGraph player workflows", () => {
         createAnswerNode(
           fakeModel().respond(
             new AIMessage([{ text: "年龄范围已用于筛选候选。", type: "text" }])
-          )
+          ),
+          testModelContextConfiguration
         )
       )
       .addEdge(START, "answer")
@@ -1729,7 +2246,8 @@ describe("LangGraph player workflows", () => {
             new AIMessage(
               "## Current ability similarity candidates\n\nTest Candidate, CA 140, PA 160."
             )
-          )
+          ),
+          testModelContextConfiguration
         )
       )
       .addEdge(START, "answer")
@@ -1797,7 +2315,8 @@ describe("LangGraph player workflows", () => {
             new AIMessage(
               "应用年龄条件后有 5 个，应用 CA 条件后有 5 个，应用 PA 条件后有 5 个。"
             )
-          )
+          ),
+          testModelContextConfiguration
         )
       )
       .addEdge(START, "answer")
@@ -1874,7 +2393,8 @@ describe("LangGraph player workflows", () => {
                   type: "text",
                 },
               ])
-            )
+            ),
+            testModelContextConfiguration
           )
         )
         .addEdge(START, "answer")
@@ -1960,7 +2480,8 @@ describe("LangGraph player workflows", () => {
         createAnswerNode(
           fakeModel().respond(
             new AIMessage("工具未提供身份排除的具体对象，无法判断排除了谁。")
-          )
+          ),
+          testModelContextConfiguration
         )
       )
       .addEdge(START, "answer")
@@ -3306,7 +3827,10 @@ describe("LangGraph player workflows", () => {
       checkpointer: new MemorySaver(),
       model,
       playerIdentityLookup: identityLookup,
-      requestUnderstandingExtractor: createRequestUnderstandingExtractor(model),
+      requestUnderstandingExtractor: createRequestUnderstandingExtractor(
+        model,
+        testModelContextConfiguration
+      ),
       tools: createTools(emptySearch, recommend),
     });
 

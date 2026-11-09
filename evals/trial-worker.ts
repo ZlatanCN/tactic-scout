@@ -9,6 +9,7 @@ import { Command, MemorySaver } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { createAgent } from "../src/agent.js";
+import { ModelContextProfileSchema } from "../src/model-context.js";
 import { selectedReferenceCandidate } from "../src/player-data/contracts.js";
 import { resolvePlayerReference } from "../src/player-data/resolve-reference.js";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
@@ -732,6 +733,7 @@ const workerResultFromState = (
       outcomeKind: null,
       outcomeStatus: null,
       players: [],
+      renderedEvidence: observer.renderedEvidence,
       requestKind: null,
       teamRosterCoverage: null,
       toolMessages: [],
@@ -774,6 +776,7 @@ const workerResultFromState = (
     outcomeKind: state.outcome?.kind ?? null,
     outcomeStatus: state.outcome?.status ?? null,
     players: observedPlayers(state),
+    renderedEvidence: observer.renderedEvidence,
     requestKind: state.request.kind,
     teamRosterCoverage:
       state.request.kind === "team_recommendation" &&
@@ -787,6 +790,11 @@ const workerResultFromState = (
 
 const runTrialWorker = async (): Promise<void> => {
   const request = workerRequestFromEnvironment();
+
+  const modelContextProfile = ModelContextProfileSchema.parse(
+    JSON.parse(process.env.TACTISCOUT_EVAL_MODEL_CONTEXT_PROFILE ?? "null")
+  );
+
   const observer = createEvaluationObserver(request);
   const teamRuntime = await createEvaluationApiFootballRuntime(request);
 
@@ -818,6 +826,7 @@ const runTrialWorker = async (): Promise<void> => {
 
   const app = createAgent({
     checkpointer: new MemorySaver(),
+    modelContextProfile,
     playerIdentityLookup,
     teamDirectory: observedTeamDirectory(teamRuntime.client, observer),
     teamRosterIdentityLookup: observedTeamRosterLookup(observer),

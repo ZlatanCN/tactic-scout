@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod/v4";
 
+import type { ModelContextProfile } from "../src/model-context.js";
 import type { PreparedEvaluationCase } from "./benchmark.js";
 import type { evaluationCaseSchema } from "./contracts.js";
 import {
@@ -20,6 +21,7 @@ type WorkerTrialResult = z.output<typeof workerTrialResultSchema>;
 type RunIsolatedTrialOptions = {
   apiFootball: PreparedEvaluationCase["apiFootball"];
   databasePaths: NonNullable<PreparedEvaluationCase["databasePaths"]>;
+  modelContextProfile: ModelContextProfile;
   proxyBaseUrl: string;
   runId: string;
   runIndex: number;
@@ -102,6 +104,9 @@ const runIsolatedTrial = async (
     env: {
       ...process.env,
       OPENAI_BASE_URL: options.proxyBaseUrl,
+      TACTISCOUT_EVAL_MODEL_CONTEXT_PROFILE: JSON.stringify(
+        options.modelContextProfile
+      ),
       TACTISCOUT_EVAL_WORKER_REQUEST: requestPath,
       TACTISCOUT_FM_PROFILES_PATH: options.databasePaths.fm,
       TACTISCOUT_REEP_IDENTITY_DB_PATH: options.databasePaths.identity,

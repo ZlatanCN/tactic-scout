@@ -460,6 +460,20 @@ const FaultToleranceSchema = z.object({
   failure: z
     .object({
       category: z.enum(faultCategoryValues),
+      contextIssue: z
+        .enum([
+          "base_instructions_exceed_limit",
+          "input_exceeds_limit",
+          "invalid_profile",
+          "output_limit_adapter_required",
+          "profile_required",
+          "provider_overflow",
+          "response_truncated",
+          "schema_estimate_failed",
+          "token_estimate_failed",
+          "user_input_exceeds_limit",
+        ])
+        .optional(),
       node: z.enum([
         "understand_request",
         "lookup_player",

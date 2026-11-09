@@ -1,0 +1,759 @@
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+import { toJsonSchema } from "@langchain/core/utils/json_schema";
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod/v4";
+
+import type { ModelRequestBudget, ModelRuntime } from "./model-requests.js";
+
+const ModelContextProfileBaseSchema = z.object({
+  contextWindowTokens: z.number().int().positive().optional(),
+  countingMarginTokens: z.number().int().positive().optional(),
+  maxInputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive(),
+  softTriggerFraction: z.number().gt(0).lt(1).default(0.8),
+  targetFraction: z.number().gt(0).lt(1).default(0.6),
+});
+
+const ModelContextProfileSchema = ModelContextProfileBaseSchema.superRefine(
+  (profile, context) => {
+    if (
+      profile.maxInputTokens === undefined &&
+      profile.contextWindowTokens === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A context window or input token limit is required.",
+        path: ["contextWindowTokens"],
+      });
+    }
+
+    if (profile.softTriggerFraction <= profile.targetFraction) {
+      context.addIssue({
+        code: "custom",
+        message: "The soft trigger must be greater than the compaction target.",
+        path: ["softTriggerFraction"],
+      });
+    }
+  }
+);
+
+const EnvironmentModelContextProfileSchema =
+  ModelContextProfileBaseSchema.extend({
+    baseURL: z.string().nullable(),
+    model: z.string().trim().min(1),
+  });
+
+type ModelContextProfile = z.output<typeof ModelContextProfileSchema>;
+
+type ModelContextProfileInput = z.input<typeof ModelContextProfileSchema>;
+
+type ModelOutputLimitAdapter = (
+  model: BaseChatModel,
+  maxOutputTokens: number
+) => BaseChatModel;
+
+type ModelContextConfiguration = {
+  baseURL?: string | null;
+  outputLimitAdapter?: ModelOutputLimitAdapter;
+  profile?: ModelContextProfileInput;
+  serializedProfile?: string;
+};
+
+type ModelContextProfileResolution =
+  | {
+      profile: ModelContextProfile;
+      source: "explicit" | "trusted_model_profile";
+      status: "ready";
+    }
+  | {
+      issue:
+        | "profile_required"
+        | "invalid_profile"
+        | "output_limit_adapter_required";
+      status: "unavailable";
+    };
+
+type ModelContextFailure =
+  | "base_instructions_exceed_limit"
+  | "profile_required"
+  | "invalid_profile"
+  | "output_limit_adapter_required"
+  | "input_exceeds_limit"
+  | "user_input_exceeds_limit"
+  | "token_estimate_failed"
+  | "schema_estimate_failed"
+  | "provider_overflow"
+  | "response_truncated";
+
+type ModelContextRequest = {
+  currentUserInput?: string;
+  messages: BaseMessage[];
+  purpose: "understand_request" | "lookup_player" | "answer";
+  structuredOutputSchemas?: Parameters<typeof toJsonSchema>[0][];
+  tools?: StructuredToolInterface[];
+};
+
+type ModelContextAssessment = {
+  compactionSuggested: boolean;
+  estimatedInputTokens: number;
+  hardInputLimitTokens: number;
+  maxOutputTokens: number;
+  purpose: ModelContextRequest["purpose"];
+  softTriggerTokens: number;
+  tokenCountingMethod: "langchain_model_tokenizer";
+  targetTokens: number;
+};
+
+type PreparedModelRequest = {
+  assessment: ModelContextAssessment;
+  model: BaseChatModel;
+};
+
+type ModelCall<Value> = (
+  model: BaseChatModel,
+  signal?: AbortSignal
+) => Promise<Value>;
+
+const officialOpenAIBaseURL = "https://api.openai.com/v1";
+
+const normalizeBaseURL = (value: string | null): string | null => {
+  if (value === null || value.trim().length === 0) {
+    return null;
+  }
+
+  let normalized: string;
+
+  try {
+    normalized = new URL(value).toString();
+  } catch {
+    normalized = value.trim();
+  }
+
+  while (normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  return normalized;
+};
+
+const modelContextFailure = (error: Error): ModelContextFailure | null => {
+  const parsed = z
+    .object({
+      contextBudgetFailure: z.enum([
+        "base_instructions_exceed_limit",
+        "profile_required",
+        "invalid_profile",
+        "output_limit_adapter_required",
+        "input_exceeds_limit",
+        "user_input_exceeds_limit",
+        "token_estimate_failed",
+        "schema_estimate_failed",
+        "provider_overflow",
+        "response_truncated",
+      ]),
+    })
+    .safeParse(error);
+
+  return parsed.success ? parsed.data.contextBudgetFailure : null;
+};
+
+const modelContextFailureMessage = (issue: ModelContextFailure): string => {
+  if (issue === "profile_required" || issue === "invalid_profile") {
+    return "The configured model context profile is missing or invalid.";
+  }
+
+  if (issue === "output_limit_adapter_required") {
+    return "This model does not have an output token limit adapter.";
+  }
+
+  if (issue === "input_exceeds_limit") {
+    return "The complete model input exceeds the configured input budget.";
+  }
+
+  if (issue === "base_instructions_exceed_limit") {
+    return "The system instructions and schemas exceed the configured input budget.";
+  }
+
+  if (issue === "user_input_exceeds_limit") {
+    return "The current user input exceeds the configured model context budget.";
+  }
+
+  if (issue === "response_truncated") {
+    return "The model response reached its output limit before completion.";
+  }
+
+  if (issue === "provider_overflow") {
+    return "The model provider rejected the input for exceeding its context window.";
+  }
+
+  return "The complete model input could not be counted safely.";
+};
+
+const createModelContextError = (issue: ModelContextFailure): Error =>
+  Object.assign(new Error(modelContextFailureMessage(issue)), {
+    contextBudgetFailure: issue,
+  } as const);
+
+const effectiveBaseURL = (
+  model: BaseChatModel,
+  configuration: ModelContextConfiguration
+): string | null => {
+  let source: string | null;
+
+  if (configuration.baseURL !== undefined) {
+    source = configuration.baseURL;
+  } else if (model instanceof ChatOpenAI) {
+    source = model.clientConfig.baseURL ?? null;
+  } else {
+    source = process.env.OPENAI_BASE_URL?.trim() ?? null;
+  }
+
+  const normalized = normalizeBaseURL(source);
+
+  return normalized === normalizeBaseURL(officialOpenAIBaseURL)
+    ? null
+    : normalized;
+};
+
+const validateModelContextProfile = (
+  value: ModelContextProfileInput | ModelContextProfile,
+  source: Extract<ModelContextProfileResolution, { status: "ready" }>["source"]
+): ModelContextProfileResolution => {
+  const parsed = ModelContextProfileSchema.safeParse(value);
+
+  return parsed.success
+    ? { profile: parsed.data, source, status: "ready" }
+    : { issue: "invalid_profile", status: "unavailable" };
+};
+
+const environmentModelContextProfile = (
+  model: BaseChatModel,
+  baseURL: string | null,
+  serializedProfile: string | undefined
+): ModelContextProfileResolution => {
+  if (serializedProfile !== undefined && serializedProfile.trim().length > 0) {
+    let rawProfile: unknown;
+
+    try {
+      rawProfile = JSON.parse(serializedProfile);
+    } catch {
+      return { issue: "invalid_profile", status: "unavailable" };
+    }
+
+    const configured =
+      EnvironmentModelContextProfileSchema.safeParse(rawProfile);
+
+    if (!configured.success) {
+      return { issue: "invalid_profile", status: "unavailable" };
+    }
+
+    const modelName =
+      model instanceof ChatOpenAI
+        ? model.model
+        : (process.env.OPENAI_MODEL?.trim() ?? model._llmType());
+
+    const normalizedBaseURL = normalizeBaseURL(baseURL);
+    const normalizedProfileBaseURL = normalizeBaseURL(configured.data.baseURL);
+
+    if (
+      configured.data.model !== modelName ||
+      normalizedProfileBaseURL !== normalizedBaseURL
+    ) {
+      return { issue: "invalid_profile", status: "unavailable" };
+    }
+
+    return validateModelContextProfile(configured.data, "explicit");
+  }
+
+  if (baseURL === null && model instanceof ChatOpenAI) {
+    const trustedProfile = z
+      .object({
+        maxInputTokens: z.number().int().positive(),
+        maxOutputTokens: z.number().int().positive(),
+      })
+      .safeParse(model.profile);
+
+    if (trustedProfile.success) {
+      return validateModelContextProfile(
+        trustedProfile.data,
+        "trusted_model_profile"
+      );
+    }
+  }
+
+  return { issue: "profile_required", status: "unavailable" };
+};
+
+const resolveModelContextProfile = (
+  model: BaseChatModel,
+  configuration: ModelContextConfiguration = {}
+): ModelContextProfileResolution => {
+  if (configuration.profile !== undefined) {
+    return validateModelContextProfile(configuration.profile, "explicit");
+  }
+
+  const serializedProfile =
+    configuration.serializedProfile ??
+    process.env.TACTISCOUT_MODEL_CONTEXT_PROFILE;
+
+  return environmentModelContextProfile(
+    model,
+    effectiveBaseURL(model, configuration),
+    serializedProfile
+  );
+};
+
+const serializedMessage = (message: BaseMessage) => {
+  const serialized = {
+    additional_kwargs: message.additional_kwargs,
+    content: message.content,
+    id: message.id,
+    name: message.name,
+    role: message.type,
+  };
+
+  if (message instanceof AIMessage) {
+    return {
+      ...serialized,
+      invalid_tool_calls: message.invalid_tool_calls,
+      tool_calls: message.tool_calls,
+    };
+  }
+
+  if (message instanceof ToolMessage) {
+    return {
+      ...serialized,
+      status: message.status,
+      tool_call_id: message.tool_call_id,
+    };
+  }
+
+  return serialized;
+};
+
+const serializedSchemas = (request: ModelContextRequest) => ({
+  structured_output: request.structuredOutputSchemas?.map((schema) =>
+    toJsonSchema(schema)
+  ),
+  tools: request.tools?.map((tool) => ({
+    description: tool.description,
+    name: tool.name,
+    parameters: toJsonSchema(tool.schema),
+  })),
+});
+
+const assessModelInput = async (
+  model: BaseChatModel,
+  resolution: ModelContextProfileResolution,
+  request: ModelContextRequest
+): Promise<ModelContextAssessment> => {
+  if (resolution.status !== "ready") {
+    throw createModelContextError(resolution.issue);
+  }
+
+  let serialized: string;
+
+  try {
+    serialized = JSON.stringify({
+      messages: request.messages.map(serializedMessage),
+      schemas: serializedSchemas(request),
+    });
+  } catch {
+    throw createModelContextError("schema_estimate_failed");
+  }
+
+  let modelTokenEstimate: number;
+
+  try {
+    modelTokenEstimate = await model.getNumTokens(serialized);
+  } catch {
+    throw createModelContextError("token_estimate_failed");
+  }
+
+  if (!Number.isSafeInteger(modelTokenEstimate) || modelTokenEstimate < 0) {
+    throw createModelContextError("token_estimate_failed");
+  }
+
+  const { profile } = resolution;
+
+  const sharedWindowInputLimit =
+    profile.contextWindowTokens === undefined
+      ? Number.POSITIVE_INFINITY
+      : profile.contextWindowTokens - profile.maxOutputTokens;
+
+  const inputLimitBeforeMargin = Math.min(
+    profile.maxInputTokens ?? Number.POSITIVE_INFINITY,
+    sharedWindowInputLimit
+  );
+
+  const countingMarginTokens =
+    profile.countingMarginTokens ??
+    Math.max(64, Math.ceil(inputLimitBeforeMargin * 0.1));
+
+  const hardInputLimitTokens = inputLimitBeforeMargin - countingMarginTokens;
+
+  if (hardInputLimitTokens <= 0) {
+    throw createModelContextError("invalid_profile");
+  }
+
+  const serializedRequestReserve = (messageCount: number): number =>
+    32 +
+    messageCount * 4 +
+    (request.tools?.length ?? 0) * 16 +
+    (request.structuredOutputSchemas?.length ?? 0) * 16;
+
+  const estimatedInputTokens =
+    modelTokenEstimate + serializedRequestReserve(request.messages.length);
+
+  const softTriggerTokens = Math.floor(
+    hardInputLimitTokens * profile.softTriggerFraction
+  );
+
+  const targetTokens = Math.floor(
+    hardInputLimitTokens * profile.targetFraction
+  );
+
+  if (estimatedInputTokens > hardInputLimitTokens) {
+    const systemMessages = request.messages.filter(
+      ({ type }) => type === "system"
+    );
+
+    const serializedBaseInstructions = JSON.stringify({
+      messages: systemMessages.map(serializedMessage),
+      schemas: serializedSchemas(request),
+    });
+
+    let baseInstructionTokens: number;
+
+    try {
+      baseInstructionTokens = await model.getNumTokens(
+        serializedBaseInstructions
+      );
+    } catch {
+      throw createModelContextError("token_estimate_failed");
+    }
+
+    const baseInstructionEstimate =
+      baseInstructionTokens + serializedRequestReserve(systemMessages.length);
+
+    if (baseInstructionEstimate > hardInputLimitTokens) {
+      throw createModelContextError("base_instructions_exceed_limit");
+    }
+
+    if (request.currentUserInput !== undefined) {
+      let currentUserInputTokens: number;
+
+      try {
+        currentUserInputTokens = await model.getNumTokens(
+          request.currentUserInput
+        );
+      } catch {
+        throw createModelContextError("token_estimate_failed");
+      }
+
+      if (
+        baseInstructionEstimate + currentUserInputTokens + 4 >
+        hardInputLimitTokens
+      ) {
+        throw createModelContextError("user_input_exceeds_limit");
+      }
+    }
+
+    throw createModelContextError("input_exceeds_limit");
+  }
+
+  return {
+    compactionSuggested: estimatedInputTokens > softTriggerTokens,
+    estimatedInputTokens,
+    hardInputLimitTokens,
+    maxOutputTokens: profile.maxOutputTokens,
+    purpose: request.purpose,
+    softTriggerTokens,
+    targetTokens,
+    tokenCountingMethod: "langchain_model_tokenizer",
+  };
+};
+
+const defaultModelOutputLimitAdapter: ModelOutputLimitAdapter = (
+  model,
+  maxOutputTokens
+) => {
+  if (!(model instanceof ChatOpenAI)) {
+    throw createModelContextError("output_limit_adapter_required");
+  }
+
+  const configuredOutputLimit =
+    Number.isSafeInteger(model.maxTokens) &&
+    model.maxTokens !== undefined &&
+    model.maxTokens > 0
+      ? Math.min(model.maxTokens, maxOutputTokens)
+      : maxOutputTokens;
+
+  return new ChatOpenAI({
+    apiKey: model.apiKey,
+    audio: model.audio,
+    configuration: model.clientConfig,
+    frequencyPenalty: model.frequencyPenalty,
+    logitBias: model.logitBias,
+    logprobs: model.logprobs,
+    maxRetries: 0,
+    maxTokens: configuredOutputLimit,
+    modalities: model.modalities,
+    model: model.model,
+    modelKwargs: model.modelKwargs,
+    n: model.n,
+    presencePenalty: model.presencePenalty,
+    promptCacheKey: model.promptCacheKey,
+    promptCacheOptions: model.promptCacheOptions,
+    promptCacheRetention: model.promptCacheRetention,
+    reasoning: model.reasoning,
+    service_tier: model.service_tier,
+    stop: model.stop,
+    stopSequences: model.stopSequences,
+    streamUsage: model.streamUsage,
+    streaming: model.streaming,
+    temperature: model.temperature,
+    timeout: model.timeout,
+    topLogprobs: model.topLogprobs,
+    topP: model.topP,
+    useResponsesApi: model.useResponsesApi,
+    user: model.user,
+    verbosity: model.verbosity,
+  });
+};
+
+const profileWithExistingOutputLimit = (
+  model: BaseChatModel,
+  resolution: ModelContextProfileResolution
+): ModelContextProfileResolution => {
+  if (resolution.status !== "ready" || !(model instanceof ChatOpenAI)) {
+    return resolution;
+  }
+
+  const existingOutputLimit = model.maxTokens;
+
+  if (
+    existingOutputLimit === undefined ||
+    !Number.isSafeInteger(existingOutputLimit) ||
+    existingOutputLimit <= 0
+  ) {
+    return resolution;
+  }
+
+  return {
+    ...resolution,
+    profile: {
+      ...resolution.profile,
+      maxOutputTokens: Math.min(
+        resolution.profile.maxOutputTokens,
+        existingOutputLimit
+      ),
+    },
+  };
+};
+
+const applyModelOutputLimit = (
+  model: BaseChatModel,
+  maxOutputTokens: number,
+  adapter?: ModelOutputLimitAdapter
+): BaseChatModel => {
+  try {
+    return (adapter ?? defaultModelOutputLimitAdapter)(model, maxOutputTokens);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      modelContextFailure(error) === "output_limit_adapter_required"
+    ) {
+      throw error;
+    }
+
+    throw createModelContextError("output_limit_adapter_required");
+  }
+};
+
+const prepareModelRequest = async (
+  model: BaseChatModel,
+  request: ModelContextRequest,
+  configuration: ModelContextConfiguration = {}
+): Promise<PreparedModelRequest> => {
+  const resolution = profileWithExistingOutputLimit(
+    model,
+    resolveModelContextProfile(model, configuration)
+  );
+
+  const assessment = await assessModelInput(model, resolution, request);
+
+  const limitedModel = applyModelOutputLimit(
+    model,
+    assessment.maxOutputTokens,
+    configuration.outputLimitAdapter
+  );
+
+  return { assessment, model: limitedModel };
+};
+
+const modelResponseEnvelopeSchema = z.union([
+  z.instanceof(BaseMessage),
+  z.looseObject({ raw: z.instanceof(BaseMessage) }),
+]);
+
+const modelResponseIsTruncated = (
+  response: z.output<typeof modelResponseEnvelopeSchema>
+): boolean => {
+  const rawMessage = response instanceof BaseMessage ? response : response.raw;
+
+  const metadata = z
+    .looseObject({
+      finishReason: z.string().optional(),
+      finish_reason: z.string().optional(),
+      incomplete_details: z.unknown().optional(),
+      status: z.string().optional(),
+      stop_reason: z.string().optional(),
+    })
+    .safeParse(rawMessage.response_metadata);
+
+  if (!metadata.success) {
+    return false;
+  }
+
+  const finishReason =
+    metadata.data.finish_reason ??
+    metadata.data.finishReason ??
+    metadata.data.stop_reason;
+
+  const truncatedFinishReasons = new Set([
+    "length",
+    "max_tokens",
+    "max_output_tokens",
+    "incomplete",
+  ]);
+
+  const incompleteDetails = metadata.data.incomplete_details;
+
+  return (
+    truncatedFinishReasons.has(finishReason ?? "") ||
+    metadata.data.status === "incomplete" ||
+    (incompleteDetails !== undefined && incompleteDetails !== null)
+  );
+};
+
+const createModelContextLog = (
+  status: "ready" | "blocked",
+  details: {
+    compactionSuggested?: boolean;
+    estimatedInputTokens?: number;
+    hardInputLimitTokens?: number;
+    issue?: ModelContextFailure;
+    maxOutputTokens?: number;
+    purpose: ModelContextRequest["purpose"];
+    softTriggerTokens?: number;
+    tokenCountingMethod?: ModelContextAssessment["tokenCountingMethod"];
+    targetTokens?: number;
+  },
+  runtime?: { executionInfo?: { runId?: string; threadId?: string } }
+): void => {
+  try {
+    console.info(
+      JSON.stringify({
+        ...details,
+        component: "tactiscout",
+        runId: runtime?.executionInfo?.runId ?? "unavailable",
+        status,
+        threadId: runtime?.executionInfo?.threadId ?? "unavailable",
+        type: "model_context_budget",
+      })
+    );
+  } catch {
+    // Context accounting is best-effort and must not replace the model outcome.
+  }
+};
+
+const invokeWithModelContext = async <Value>(
+  model: BaseChatModel,
+  request: ModelContextRequest,
+  configuration: ModelContextConfiguration,
+  runtime: ModelRuntime,
+  invoke: ModelCall<Value>,
+  budget?: ModelRequestBudget,
+  budgetOptions: { allowRateLimitRetry?: boolean } = {}
+): Promise<Value> => {
+  let prepared: PreparedModelRequest;
+
+  try {
+    prepared = await prepareModelRequest(model, request, configuration);
+  } catch (error) {
+    if (error instanceof Error) {
+      const issue = modelContextFailure(error);
+
+      if (issue !== null) {
+        createModelContextLog(
+          "blocked",
+          { issue, purpose: request.purpose },
+          runtime
+        );
+      }
+    }
+
+    throw error;
+  }
+
+  createModelContextLog(
+    "ready",
+    {
+      compactionSuggested: prepared.assessment.compactionSuggested,
+      estimatedInputTokens: prepared.assessment.estimatedInputTokens,
+      hardInputLimitTokens: prepared.assessment.hardInputLimitTokens,
+      maxOutputTokens: prepared.assessment.maxOutputTokens,
+      purpose: prepared.assessment.purpose,
+      softTriggerTokens: prepared.assessment.softTriggerTokens,
+      targetTokens: prepared.assessment.targetTokens,
+      tokenCountingMethod: prepared.assessment.tokenCountingMethod,
+    },
+    runtime
+  );
+
+  const invokePrepared = async (signal?: AbortSignal): Promise<Value> => {
+    const response = await invoke(prepared.model, signal);
+    const responseEnvelope = modelResponseEnvelopeSchema.safeParse(response);
+
+    if (
+      responseEnvelope.success &&
+      modelResponseIsTruncated(responseEnvelope.data)
+    ) {
+      throw createModelContextError("response_truncated");
+    }
+
+    return response;
+  };
+
+  return budget === undefined
+    ? await invokePrepared(runtime.signal)
+    : await budget.invoke(invokePrepared, budgetOptions);
+};
+
+export {
+  EnvironmentModelContextProfileSchema,
+  ModelContextProfileSchema,
+  applyModelOutputLimit,
+  assessModelInput,
+  createModelContextError,
+  createModelContextLog,
+  invokeWithModelContext,
+  modelContextFailure,
+  modelContextFailureMessage,
+  normalizeBaseURL,
+  prepareModelRequest,
+  resolveModelContextProfile,
+};
+
+export type {
+  ModelContextFailure,
+  ModelContextConfiguration,
+  ModelContextProfile,
+  ModelContextProfileInput,
+  ModelContextProfileResolution,
+  ModelContextRequest,
+  ModelOutputLimitAdapter,
+};

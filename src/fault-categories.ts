@@ -8,6 +8,7 @@ const faultCategoryValues = [
   "configuration",
   "invalid_response",
   "attempt_limit",
+  "context_limit",
   "local_data",
 ] as const;
 

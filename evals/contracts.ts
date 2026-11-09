@@ -420,6 +420,16 @@ const deliveredEvidenceSchema = z.object({
   turnId: z.string(),
 });
 
+const renderedEvidenceSchema = z.object({
+  content: z.string(),
+  evidenceId: z.string(),
+  messageIndex: z.number().int().nonnegative(),
+  provider: z.enum(["api_football", "application", "fm", "understat"]),
+  sourceId: z.string().nullable(),
+  trialId: z.string(),
+  turnId: z.string(),
+});
+
 const availableResultKindSchema = z.enum([
   "player_comparison",
   "player_lookup",
@@ -458,6 +468,7 @@ const turnObservationSchema = z.object({
   outcomeKind: z.string().nullable(),
   outcomeStatus: z.string().nullable(),
   players: z.array(observedPlayerSchema),
+  renderedEvidenceIds: z.array(z.string()).optional(),
   requestKind: z.string().nullable(),
   reuse: z
     .object({
@@ -503,6 +514,7 @@ const workerTrialResultSchema = z.object({
   outcomeKind: z.string().nullable(),
   outcomeStatus: z.string().nullable(),
   players: z.array(observedPlayerSchema),
+  renderedEvidence: z.array(renderedEvidenceSchema).optional(),
   requestKind: z.string().nullable(),
   teamRosterCoverage: teamRosterCoverageSchema.nullable(),
   toolMessages: z.array(
@@ -788,6 +800,8 @@ type IdentityLookupEvent = z.output<typeof identityLookupEventSchema>;
 
 type DeliveredEvidence = z.output<typeof deliveredEvidenceSchema>;
 
+type RenderedEvidence = z.output<typeof renderedEvidenceSchema>;
+
 type EvaluationEvidenceBundle = z.output<typeof evaluationEvidenceBundleSchema>;
 
 type ObservedConversationMessage = z.output<
@@ -840,6 +854,7 @@ export type {
   EvaluationReport,
   EvaluationTrialReport,
   JudgeCalibrationReport,
+  RenderedEvidence,
   SemanticErrorCategory,
   EvaluationWorkerRequest,
   WorkerTrialResult,

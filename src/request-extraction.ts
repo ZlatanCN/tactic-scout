@@ -6,6 +6,8 @@ import {
   createExternalFaultError,
   externalFaultFrom,
 } from "./fault-tolerance.js";
+import { invokeWithModelContext } from "./model-context.js";
+import type { ModelContextConfiguration } from "./model-context.js";
 import { isRequestOutputValidationError } from "./model-requests.js";
 import type { ModelRequestBudget } from "./model-requests.js";
 import { supportedPositionCodes } from "./player-data/position-features.js";
@@ -282,6 +284,39 @@ const dataSourceMentionKeys = new Set([
   "understat",
 ]);
 
+const requestPlayerExtractionSchema = z.object({
+  lookupName: z
+    .string()
+    .nullable()
+    .describe(
+      "仅用于本地搜索的可能标准姓名；非 explicit 引用必须为 null，不能据此确认身份。"
+    ),
+  mention: z.string().describe("照抄用户本轮消息里的球员称呼。"),
+  recommendationRole: z
+    .enum(["reference", "exclude", "ambiguous"])
+    .default("reference")
+    .describe(
+      "仅用于球员推荐：reference 是能力画像参考对象；exclude 是用户明确要求排除的人；无法判断才用 ambiguous。球员查询/比较时使用 reference。"
+    ),
+  referenceScope: z
+    .enum(["explicit", "prior_context", "same_turn", "ambiguous"])
+    .describe(
+      "明确姓名为 explicit；代词指向前文焦点为 prior_context；指向本轮某个明确姓名为 same_turn；无法确定时为 ambiguous。"
+    ),
+  referenceTargetMention: z
+    .string()
+    .nullable()
+    .describe("same_turn 时照抄本轮中被代词指向的明确姓名；其他情况为 null。"),
+});
+
+const normalizedRequestPlayerExtractionSchema =
+  requestPlayerExtractionSchema.extend({
+    referenceScope:
+      requestPlayerExtractionSchema.shape.referenceScope.default("explicit"),
+    referenceTargetMention:
+      requestPlayerExtractionSchema.shape.referenceTargetMention.default(null),
+  });
+
 const requestExtractionSchema = z.object({
   comparisonAction: z
     .enum(["replace", "add", "refine"])
@@ -336,34 +371,7 @@ const requestExtractionSchema = z.object({
     .describe(
       "仅用户明确要求查看、忘记、纠正或清空跨对话球员身份记忆时填写。forget 可指定球员称呼或 roster_identity 的精确 API-Football/FM ID。correct 必须分别提取原记忆称呼 targetMention 和替换球员 replacementMention，照抄本轮原话；不确定时留空。明确要求清空全部时用 action=clear，后续必须通过确认 interrupt 才能删除。"
     ),
-  players: z.array(
-    z.object({
-      lookupName: z
-        .string()
-        .nullable()
-        .describe(
-          "仅用于本地搜索的可能标准姓名；非 explicit 引用必须为 null，不能据此确认身份。"
-        ),
-      mention: z.string().describe("照抄用户本轮消息里的球员称呼。"),
-      recommendationRole: z
-        .enum(["reference", "exclude", "ambiguous"])
-        .default("reference")
-        .describe(
-          "仅用于球员推荐：reference 是能力画像参考对象；exclude 是用户明确要求排除的人；无法判断才用 ambiguous。球员查询/比较时使用 reference。"
-        ),
-      referenceScope: z
-        .enum(["explicit", "prior_context", "same_turn", "ambiguous"])
-        .describe(
-          "明确姓名为 explicit；代词指向前文焦点为 prior_context；指向本轮某个明确姓名为 same_turn；无法确定时为 ambiguous。"
-        ),
-      referenceTargetMention: z
-        .string()
-        .nullable()
-        .describe(
-          "same_turn 时照抄本轮中被代词指向的明确姓名；其他情况为 null。"
-        ),
-    })
-  ),
+  players: z.array(requestPlayerExtractionSchema),
   recommendation: recommendationExtractionSchema.optional(),
   recommendationAction: z
     .enum(["replace", "add", "refine"])
@@ -382,6 +390,10 @@ const requestExtractionSchema = z.object({
 });
 
 type RawExtractedRequest = z.input<typeof requestExtractionSchema>;
+
+const structuredRequestResponseSchema = requestExtractionSchema.extend({
+  players: z.array(normalizedRequestPlayerExtractionSchema),
+});
 
 const addToComparisonPattern =
   /(?:加入|加上|添加|纳入).{0,12}(?:对比|比较)|\b(?:add|include)\b.{0,80}\b(?:comparison|comparison set)\b/iu;
@@ -1059,14 +1071,12 @@ const teamCurrentAbilityMinimumFromText = (
   );
 };
 
-const createRequestUnderstandingExtractor = (
-  model: BaseChatModel
-): RequestUnderstandingExtractor => {
-  const structuredModel = model.withStructuredOutput(requestExtractionSchema, {
-    method: "functionCalling",
-  });
-
-  return async (message, context, budget, previousTurn) => {
+const createRequestUnderstandingExtractor =
+  (
+    model: BaseChatModel,
+    modelContextConfiguration: ModelContextConfiguration = {}
+  ): RequestUnderstandingExtractor =>
+  async (message, context, budget, previousTurn) => {
     const teamFilterRefinement = teamCurrentAbilityMinimumFromText(
       message,
       context
@@ -1172,13 +1182,34 @@ const createRequestUnderstandingExtractor = (
         new HumanMessage(JSON.stringify(input)),
       ];
 
-      return budget === undefined
-        ? await structuredModel.invoke(messages)
-        : await budget.invoke(
-            async (signal) =>
-              await structuredModel.invoke(messages, { signal }),
-            { allowRateLimitRetry: feedback === undefined }
-          );
+      const response = await invokeWithModelContext(
+        model,
+        {
+          currentUserInput: message,
+          messages,
+          purpose: "understand_request",
+          structuredOutputSchemas: [requestExtractionSchema],
+        },
+        modelContextConfiguration,
+        {},
+        async (limitedModel, signal) =>
+          await limitedModel
+            .withStructuredOutput(requestExtractionSchema, {
+              includeRaw: true,
+              method: "functionCalling",
+            })
+            .invoke(messages, { signal }),
+        budget,
+        { allowRateLimitRetry: feedback === undefined }
+      );
+
+      const parsedResponse = z
+        .looseObject({ parsed: requestExtractionSchema })
+        .safeParse(response);
+
+      return parsedResponse.success
+        ? parsedResponse.data.parsed
+        : structuredRequestResponseSchema.parse(response);
     };
 
     try {
@@ -1232,7 +1263,6 @@ const createRequestUnderstandingExtractor = (
       }
     }
   };
-};
 
 const uniquePlayers = <T extends { mention: string }>(players: T[]): T[] => {
   const seen = new Set<string>();

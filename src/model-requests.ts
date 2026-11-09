@@ -13,6 +13,7 @@ import {
   waitForRetryDelay,
 } from "./fault-tolerance.js";
 import type { FaultCategory } from "./fault-tolerance.js";
+import { createModelContextError } from "./model-context.js";
 
 const headersSchema = z.union([
   z.instanceof(Headers),
@@ -33,6 +34,41 @@ const modelErrorDetailsSchema = z.looseObject({
     .optional(),
   status: z.number().int().nullable().optional(),
 });
+
+const providerContextOverflowCodes = new Set([
+  "context_length_exceeded",
+  "context_window_exceeded",
+  "input_too_long",
+  "max_context_length_exceeded",
+]);
+
+const isProviderContextOverflow = (error: Error): boolean => {
+  const details = modelErrorDetailsSchema.safeParse(error);
+
+  const providerCodes = details.success
+    ? [details.data.code, details.data.error?.code, details.data.cause?.code]
+    : [];
+
+  if (
+    providerCodes.some(
+      (code) =>
+        code !== undefined &&
+        code !== null &&
+        providerContextOverflowCodes.has(code.toLowerCase())
+    )
+  ) {
+    return true;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return [
+    "context length exceeded",
+    "maximum context length",
+    "maximum context window",
+    "too many tokens for the model",
+  ].some((phrase) => message.includes(phrase));
+};
 
 type ModelFailure = {
   category: FaultCategory;
@@ -279,6 +315,10 @@ const createModelRequestBudget = (
 
       if (!(error instanceof Error)) {
         throw error;
+      }
+
+      if (isProviderContextOverflow(error)) {
+        throw createModelContextError("provider_overflow");
       }
 
       const failure = modelFailureFromError(error);

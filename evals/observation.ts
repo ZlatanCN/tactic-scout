@@ -12,6 +12,7 @@ import type {
   EvaluationWorkerRequest,
   DeliveredEvidence,
   IdentityLookupEvent,
+  RenderedEvidence,
   JsonValue,
   TurnObservation,
   WorkerTrialResult,
@@ -310,6 +311,7 @@ type EvaluationObserver = {
   actionEvents: EvaluationActionEvent[];
   callbacks: CallbackHandlerMethods;
   deliveredEvidence: DeliveredEvidence[];
+  renderedEvidence: RenderedEvidence[];
   allocateActionId: () => string;
   getDriverIssue: () => string | null;
   identityLookupEvents: IdentityLookupEvent[];
@@ -355,8 +357,10 @@ const createEvaluationObserver = (
   const actionEvents: EvaluationActionEvent[] = [];
   const identityLookupEvents: IdentityLookupEvent[] = [];
   const deliveredEvidence: DeliveredEvidence[] = [];
+  const renderedEvidence: RenderedEvidence[] = [];
   const turnObservations: TurnObservation[] = [];
   const deliveredByTurn = new Map<string, Set<string>>();
+  const renderedByTurn = new Map<string, Set<string>>();
   const clarificationKindsByTurn = new Map<string, string[]>();
 
   const clarificationAnswersByTurn = new Map<
@@ -451,6 +455,61 @@ const createEvaluationObserver = (
     }
 
     deliveredByTurn.set(activeTurnId, currentEvidenceIds);
+  };
+
+  const recordRenderedEvidence = (
+    messages: BaseMessage[],
+    turnId: string
+  ): void => {
+    const renderedIds = renderedByTurn.get(turnId) ?? new Set<string>();
+    const prefix = "以下是本次已完成并验证的完整结构化结果与来源：\n\n";
+
+    const resultMessages = messages.flatMap((message, messageIndex) => {
+      if (!(message instanceof AIMessage)) {
+        return [];
+      }
+
+      const answer = contentString(message.content);
+      const prefixIndex = answer.indexOf(prefix);
+
+      if (prefixIndex === -1) {
+        return [];
+      }
+
+      const content = answer.slice(prefixIndex + prefix.length);
+      const parsed = parsedResult(content);
+
+      return parsed === null ? [] : [{ content, messageIndex, parsed }];
+    });
+
+    for (const { content, messageIndex, parsed } of resultMessages) {
+      const records = sourceRecordsFromValue(parsed);
+      const contentHash = createHash("sha256").update(content).digest("hex");
+
+      const sources =
+        records.length === 0
+          ? [{ provider: "application" as const, sourceId: null }]
+          : records;
+
+      for (const source of sources) {
+        const evidenceId = `${request.trialId}:${turnId}:render-${messageIndex}:${source.provider}:${source.sourceId ?? contentHash}`;
+
+        if (!renderedIds.has(evidenceId)) {
+          renderedEvidence.push({
+            content,
+            evidenceId,
+            messageIndex,
+            provider: source.provider,
+            sourceId: source.sourceId,
+            trialId: request.trialId,
+            turnId,
+          });
+          renderedIds.add(evidenceId);
+        }
+      }
+    }
+
+    renderedByTurn.set(turnId, renderedIds);
   };
 
   const observeRequestedToolCalls = (message: AIMessage): void => {
@@ -812,8 +871,14 @@ const createEvaluationObserver = (
       message instanceof AIMessage ? [contentString(message.content)] : []
     );
 
+    recordRenderedEvidence(relevantMessages, turn.turnId);
+
     const deliveredEvidenceIds = [
       ...(deliveredByTurn.get(turn.turnId) ?? new Set()),
+    ];
+
+    const renderedEvidenceIds = [
+      ...(renderedByTurn.get(turn.turnId) ?? new Set()),
     ];
 
     turnObservations.push({
@@ -828,6 +893,7 @@ const createEvaluationObserver = (
       outcomeKind: state.outcome?.kind ?? null,
       outcomeStatus: state.outcome?.status ?? null,
       players,
+      renderedEvidenceIds,
       requestKind: state.request.kind,
       reuse:
         state.outcome?.status === "lookup_follow_up"
@@ -863,6 +929,7 @@ const createEvaluationObserver = (
     recordIdentityLookupFailure,
     recordIdentityLookupResult,
     recordTurn,
+    renderedEvidence,
     setActiveTurn,
     setDriverIssue,
     turnObservations,

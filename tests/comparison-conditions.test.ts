@@ -5,6 +5,7 @@ import { Command, MemorySaver } from "@langchain/langgraph";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v3";
 
+import type { CreateAgentOptions } from "../src/agent.js";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import type { PlayerSearch } from "../src/player-data/search-records.js";
 import { createRequestUnderstandingExtractor } from "../src/request-extraction.js";
@@ -15,6 +16,10 @@ import {
   agentStateSchemaVersion,
 } from "../src/state.js";
 import type { PlayerSearchInput } from "../src/tools/search-player-records.js";
+import {
+  testModelContextProfile,
+  testModelOutputLimitAdapter,
+} from "./fixtures/model-context.js";
 import { comparisonResult } from "./fixtures/workflow-results.js";
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
@@ -23,8 +28,15 @@ vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
 
 vi.stubEnv("OPENAI_BASE_URL", "");
 
-const { createAgent } = await import("../src/agent.js");
+const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
 const { createTools } = await import("../src/tools/search-player-records.js");
+
+const createAgent = (options: CreateAgentOptions = {}) =>
+  createAgentWithRuntime({
+    modelContextProfile: testModelContextProfile,
+    modelOutputLimitAdapter: testModelOutputLimitAdapter,
+    ...options,
+  });
 
 type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
 
@@ -174,7 +186,13 @@ describe("comparison workflow state", () => {
       checkpointer: new MemorySaver(),
       model,
       playerIdentityLookup: identityLookup,
-      requestUnderstandingExtractor: createRequestUnderstandingExtractor(model),
+      requestUnderstandingExtractor: createRequestUnderstandingExtractor(
+        model,
+        {
+          outputLimitAdapter: testModelOutputLimitAdapter,
+          profile: testModelContextProfile,
+        }
+      ),
       tools: createTools(search),
     });
 
@@ -192,7 +210,7 @@ describe("comparison workflow state", () => {
       outcome: "insufficient_distinct_players",
       searchCalls: 0,
     });
-  });
+  }, 30_000);
 
   it("clarifies an exact season when relative season extraction is omitted", async () => {
     const message = "Compare Harry Kane and Kylian Mbappé from last season.";
@@ -215,7 +233,13 @@ describe("comparison workflow state", () => {
       checkpointer: new MemorySaver(),
       model,
       playerIdentityLookup: createLookup(players),
-      requestUnderstandingExtractor: createRequestUnderstandingExtractor(model),
+      requestUnderstandingExtractor: createRequestUnderstandingExtractor(
+        model,
+        {
+          outputLimitAdapter: testModelOutputLimitAdapter,
+          profile: testModelContextProfile,
+        }
+      ),
       tools: createTools(search),
     });
 

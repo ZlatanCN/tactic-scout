@@ -2,8 +2,17 @@ import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
+import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod/v4";
 
+import {
+  ModelContextProfileSchema,
+  resolveModelContextProfile,
+} from "../src/model-context.js";
+import type {
+  ModelContextProfile,
+  ModelContextProfileInput,
+} from "../src/model-context.js";
 import { createModelRequestBudget } from "../src/model-requests.js";
 import { assertModelProcessingAllowed } from "../src/player-data/shared.js";
 import {
@@ -51,6 +60,7 @@ type RunEvaluationOptions = {
   freezeId?: string;
   includeSemanticJudge?: boolean;
   maxModelRequests: number;
+  modelContextProfile?: ModelContextProfileInput;
   mode: EvaluationMode;
   outputDirectory: string;
   signal?: AbortSignal;
@@ -61,6 +71,7 @@ type GatewaySettings = {
   apiKey: string;
   baseUrl: string;
   model: string;
+  modelContextProfile: ModelContextProfile;
   origin: string;
 };
 
@@ -71,6 +82,7 @@ type EvaluationJob = {
 
 type EvaluationRunContext = {
   gateway: Awaited<ReturnType<typeof createEvaluationGatewayProxy>> | null;
+  modelContextProfile: ModelContextProfile;
   options: RunEvaluationOptions;
   persistReport: () => void;
   report: EvaluationReport;
@@ -203,7 +215,9 @@ const freezeIdForCases = (
   return freezeId.length > 0 ? freezeId : null;
 };
 
-const gatewaySettings = (): GatewaySettings => {
+const gatewaySettings = (
+  explicitProfile?: ModelContextProfileInput
+): GatewaySettings => {
   const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
   const model = process.env.OPENAI_MODEL?.trim() ?? "";
   const configuredUrl = process.env.OPENAI_BASE_URL?.trim();
@@ -219,21 +233,59 @@ const gatewaySettings = (): GatewaySettings => {
 
   assertModelProcessingAllowed("both");
 
+  let url: URL;
+
   try {
-    const url = new URL(baseUrl);
-
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      url.username.length > 0 ||
-      url.password.length > 0
-    ) {
-      throw new Error("invalid_gateway_url");
-    }
-
-    return { apiKey, baseUrl, model, origin: url.origin };
+    url = new URL(baseUrl);
   } catch {
     throw new Error("OPENAI_BASE_URL must be a valid HTTP or HTTPS URL.");
   }
+
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.username.length > 0 ||
+    url.password.length > 0
+  ) {
+    throw new Error("OPENAI_BASE_URL must be a valid HTTP or HTTPS URL.");
+  }
+
+  const chatModel = new ChatOpenAI({
+    apiKey,
+    configuration: { baseURL: baseUrl },
+    maxRetries: 0,
+    model,
+    temperature: 0,
+  });
+
+  let profileResolution;
+
+  if (explicitProfile === undefined) {
+    profileResolution = resolveModelContextProfile(chatModel);
+  } else {
+    const parsedProfile = ModelContextProfileSchema.safeParse(explicitProfile);
+
+    profileResolution = parsedProfile.success
+      ? {
+          profile: parsedProfile.data,
+          source: "explicit" as const,
+          status: "ready" as const,
+        }
+      : { issue: "invalid_profile" as const, status: "unavailable" as const };
+  }
+
+  if (profileResolution.status !== "ready") {
+    throw new Error(
+      "Evaluation requires an explicit valid model context profile for this gateway."
+    );
+  }
+
+  return {
+    apiKey,
+    baseUrl,
+    model,
+    modelContextProfile: profileResolution.profile,
+    origin: url.origin,
+  };
 };
 
 const runOneTrial = async (
@@ -282,6 +334,7 @@ const runOneTrial = async (
     apiFootball: prepared.apiFootball,
     caseDefinition: prepared.caseDefinition,
     databasePaths,
+    modelContextProfile: context.modelContextProfile,
     proxyBaseUrl: context.gateway.baseUrlForRole("agent"),
     runId: context.runId,
     runIndex,
@@ -729,7 +782,7 @@ const runEvaluation = async (
     null;
 
   try {
-    const settings = gatewaySettings();
+    const settings = gatewaySettings(options.modelContextProfile);
 
     const preparedCases = prepareEvaluationCases(
       cases,
@@ -765,6 +818,7 @@ const runEvaluation = async (
 
     const context: EvaluationRunContext = {
       gateway,
+      modelContextProfile: settings.modelContextProfile,
       options: { ...options, maxModelRequests },
       persistReport,
       report,

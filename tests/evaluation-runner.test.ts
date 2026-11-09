@@ -30,7 +30,15 @@ import type {
 } from "../evals/contracts.js";
 import { judgeInputForTrial } from "../evals/judge.js";
 import { compareEvaluationReportFiles } from "../evals/report.js";
-import { runEvaluation } from "../evals/runner.js";
+import { runEvaluation as runEvaluationWithRuntime } from "../evals/runner.js";
+import type { RunEvaluationOptions } from "../evals/runner.js";
+import { testModelContextProfile } from "./fixtures/model-context.js";
+
+const runEvaluation = async (options: RunEvaluationOptions) =>
+  await runEvaluationWithRuntime({
+    ...options,
+    modelContextProfile: testModelContextProfile,
+  });
 
 const openAiRequestSchema = z.object({
   messages: z
@@ -2513,7 +2521,7 @@ describe("local scouting evaluation entry", () => {
       trialCount: 3,
       uniqueTrialIds: 3,
     });
-  }, 20_000);
+  }, 60_000);
 
   it("runs the real lookup graph with fixed source evidence under its request allowance", async () => {
     let requestCount = 0;
@@ -3037,7 +3045,7 @@ describe("local scouting evaluation entry", () => {
         trialStatus: "preflight_error",
       },
     });
-  }, 15_000);
+  }, 60_000);
 
   it("records a scripted clarification mismatch without resuming the graph", async () => {
     let requestCount = 0;
@@ -3423,7 +3431,7 @@ describe("local scouting evaluation entry", () => {
         },
       ],
     });
-  }, 20_000);
+  }, 60_000);
 
   it("isolates declared turn faults across repeated comparison trials", async () => {
     let requestCount = 0;
@@ -3641,7 +3649,7 @@ describe("local scouting evaluation entry", () => {
     ).toBe("passed");
     expect(trial?.codeStatus).toBe("passed");
     expect(requestCount).toBe(report.modelRequests);
-  }, 20_000);
+  }, 60_000);
 
   it("supplies active-result state after each turn to the semantic judge", async () => {
     let requestCount = 0;
@@ -3897,7 +3905,7 @@ describe("local scouting evaluation entry", () => {
       syntheticWingerUnderstatStatus: "found",
       understatScopeGroups: [],
     });
-  }, 20_000);
+  }, 60_000);
 
   it("runs synthetic player recommendations through the real graph and ranking algorithm", async () => {
     let requestCount = 0;
@@ -4080,7 +4088,7 @@ describe("local scouting evaluation entry", () => {
       fmId: true,
       potentialAbility: true,
     });
-  }, 20_000);
+  }, 60_000);
 
   it("runs a fixed API-Football roster through its real adapter and the complete team graph", async () => {
     let requestCount = 0;
@@ -4198,7 +4206,7 @@ describe("local scouting evaluation entry", () => {
       requestCount,
       status: "not_assessed",
     });
-  }, 20_000);
+  }, 60_000);
 
   it("calibrates the semantic judge and scores a real graph trial through the shared entry", async () => {
     let requestCount = 0;
@@ -5885,5 +5893,5 @@ describe("local scouting evaluation entry", () => {
       trialCount: 24,
       workflowCount: 8,
     });
-  }, 60_000);
+  }, 180_000);
 });

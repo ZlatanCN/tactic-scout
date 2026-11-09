@@ -28,6 +28,12 @@ import {
   modelExecutionTimeoutMs,
   apiTimeoutMs,
 } from "./fault-tolerance.js";
+import { modelContextFailure } from "./model-context.js";
+import type {
+  ModelContextConfiguration,
+  ModelContextProfileInput,
+  ModelOutputLimitAdapter,
+} from "./model-context.js";
 import {
   createAnswerNode,
   createFaultAnswerNode,
@@ -76,6 +82,8 @@ import { createTools } from "./tools/search-player-records.js";
 
 type CreateAgentOptions = {
   model?: BaseChatModel;
+  modelContextProfile?: ModelContextProfileInput;
+  modelOutputLimitAdapter?: ModelOutputLimitAdapter;
   tools?: StructuredToolInterface[];
   requestUnderstandingExtractor?: RequestUnderstandingExtractor;
   playerIdentityLookup?: ReferenceIdentityLookup;
@@ -135,6 +143,7 @@ const logTerminalFailure = (
   const threadId = config?.configurable?.thread_id;
   const parsedThreadId = z.string().safeParse(threadId);
   const fault = externalFaultFrom(error.error);
+  const contextIssue = modelContextFailure(error.error);
   const timeout = isNodeTimeoutError(error.error) ? error.error : null;
 
   const attempt =
@@ -144,7 +153,8 @@ const logTerminalFailure = (
 
   logFaultEvent({
     attempt,
-    category: faultCategory(error.error),
+    category:
+      contextIssue === null ? faultCategory(error.error) : "context_limit",
     durationMs: fault?.durationMs ?? timeout?.elapsed,
     event: "exhausted",
     node,
@@ -160,16 +170,31 @@ const faultToleranceAfterNodeFailure = (
   config: ErrorHandlerConfig | undefined
 ): FaultToleranceState => {
   const fault = externalFaultFrom(error.error);
+  const contextIssue = modelContextFailure(error.error);
 
-  if (fault === null && !isNodeTimeoutError(error.error)) {
+  if (
+    fault === null &&
+    contextIssue === null &&
+    !isNodeTimeoutError(error.error)
+  ) {
     throw error.error;
   }
 
   logTerminalFailure(node, state, error, config);
 
+  const failure: NonNullable<FaultToleranceState["failure"]> = {
+    category:
+      contextIssue === null ? faultCategory(error.error) : "context_limit",
+    node,
+  };
+
+  if (contextIssue !== null) {
+    failure.contextIssue = contextIssue;
+  }
+
   return {
     ...(state.faultTolerance ?? createInitialFaultToleranceState()),
-    failure: { category: faultCategory(error.error), node },
+    failure,
   };
 };
 
@@ -529,6 +554,17 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const tools = options.tools ?? createTools();
   const model = options.model ?? configuredModel();
 
+  const modelContextConfiguration: ModelContextConfiguration = {};
+
+  if (options.modelContextProfile !== undefined) {
+    modelContextConfiguration.profile = options.modelContextProfile;
+  }
+
+  if (options.modelOutputLimitAdapter !== undefined) {
+    modelContextConfiguration.outputLimitAdapter =
+      options.modelOutputLimitAdapter;
+  }
+
   const playerReferenceValidator =
     options.playerReferenceValidator ?? validatePlayerReference;
 
@@ -561,7 +597,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
 
   const understandRequest = createRequestUnderstandingNode(
     options.requestUnderstandingExtractor ??
-      createRequestUnderstandingExtractor(model)
+      createRequestUnderstandingExtractor(model, modelContextConfiguration)
   );
 
   const resolveEntities = createEntityResolutionNode(
@@ -620,7 +656,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("clarify", createClarifyNode({ rememberRosterIdentity }, store))
     .addNode(
       "lookup_player",
-      createLookupPlayerNode(modelWithLookupTool, lookupTool !== undefined),
+      createLookupPlayerNode(model, lookupTool, modelContextConfiguration),
       {
         errorHandler: modelFailureHandler("lookup_player"),
         retryPolicy: createNodeRetryPolicy("lookup_player", {
@@ -648,7 +684,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("manage_player_memory", managePlayerMemory)
     .addNode("recommend_players_for_team", recommendPlayersForTeam)
     .addNode("wait_api_rate_limit", createWaitForApiRateLimitNode())
-    .addNode("answer", createAnswerNode(model), {
+    .addNode("answer", createAnswerNode(model, modelContextConfiguration), {
       errorHandler: modelFailureHandler("answer"),
       retryPolicy: createNodeRetryPolicy("answer", {
         retryNodeTimeout: false,

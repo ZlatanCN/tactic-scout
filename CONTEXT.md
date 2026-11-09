@@ -42,6 +42,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Structured request**: A bounded extraction of the user's task kind, all named players and teams, and explicitly stated constraints. For comparison, season and competition are data scopes; metric names such as FM ability and xG describe what to compare, not hard filters. It routes work; it does not invent a plan or evidence.
 
+**Compacted scouting instruction**: An auxiliary task-and-constraint representation of an oversized user instruction, with references to its original text. It preserves the scouting requirements for continued processing without confirming player identities or replacing the original instruction.
+
 **Canonical player identity**: A Reep ID linked to one or more provider-specific player IDs. Search results may be grouped across providers only when the identity registry resolves both provider IDs to the same canonical Reep ID. Matching names alone never establish identity.
 
 **Conversation player focus**: The resolved focal player or players from the latest successful single-player data lookup in one thread. Identity resolution alone does not replace the focus. A later pronoun may refer to this prior-turn focus; an explicit player named as a comparison target in the current turn does not replace it.
@@ -63,6 +65,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 **Active team recommendation**: The selected API-Football team, mapped roster snapshot, target position, effective filters, named reference if used, and completed result from the latest successful team recommendation in a thread. Filter refinements inherit this context; selecting another team starts a fresh team request, and failed or interrupted attempts do not replace it.
 
 **Saved-result reuse**: A request to explain a completed result reads the validated result attached to its active workflow snapshot and marks the outcome as saved. It does not repeat identity resolution, provider reads, or ranking.
+
+**Scouting evidence projection**: A source-tagged selection of records and fields from a complete validated workflow result, with explicit coverage for an explanation. A field omitted from the projection is not a missing source value, and the projection does not replace the complete result.
 
 **Workflow continuation**: A follow-up without an explicit target continues the last compatible successful workflow when that is unambiguous. If multiple active snapshots can accept the current change, the agent asks which one; the pending clarification retains the current-turn patch until the user chooses.
 
@@ -104,6 +108,7 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 - One typed pending clarification resumes identity, FM profile, position, age, role, season, or workflow-selection questions within the same request. Workflow selection retains the current-turn patch until a target is chosen. Request state does not duplicate that lifecycle with status flags or an active player index.
 - Each active workflow snapshot stores a complete validated result. The snapshot and its completed outcome are committed together before answer generation; valid empty results count as completed, malformed results surface as contract errors, and failed or interrupted work does not replace a snapshot.
 - Completed outcomes identify whether data was executed this turn or reused from a saved result. Saved-result explanations route directly to the answer node. Historical tool messages do not reconstruct missing context.
+- ADR-0012 is being implemented incrementally. Ticket 01 budgets every current model input, applies a finite output limit, and retains original messages and complete validated results; later compaction and evidence projections remain auxiliary representations and do not change identity-confirmation authority or snapshot ownership.
 - Tool results expose canonical identity groups from the Reep registry while keeping provider data and metrics separate. Unlinked records remain separate.
 - Evaluation name matching ignores diacritics and common Latin orthographic variants only. It does not relax the exact identity or source-ID checks. Runtime lookup uses the same spelling normalization to find candidates, while canonical identity grouping still relies on Reep IDs or explicit thread confirmation.
 - There is no frontend, RAG pipeline, or application database in this branch.

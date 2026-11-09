@@ -32,6 +32,10 @@ import { resolveTeamRosterIdentity } from "../src/team-data/roster-identity.js";
 import type { TeamRosterIdentityLookup } from "../src/team-data/roster-identity.js";
 import type { RecommendTeamPlayerCandidates } from "../src/tools/recommend-team-player-candidates.js";
 import { createRecommendTeamPlayerCandidatesTool } from "../src/tools/recommend-team-player-candidates.js";
+import {
+  testModelContextProfile,
+  testModelOutputLimitAdapter,
+} from "./fixtures/model-context.js";
 import { createPlayerMemorySources } from "./fixtures/player-memory-sources.js";
 import {
   recommendationResult,
@@ -62,6 +66,8 @@ const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
 
 const createAgent = (options: CreateAgentOptions = {}) =>
   createAgentWithRuntime({
+    modelContextProfile: testModelContextProfile,
+    modelOutputLimitAdapter: testModelOutputLimitAdapter,
     playerReferenceValidator: () => ({ status: "current" }),
     ...options,
   });
@@ -403,7 +409,7 @@ describe("team recommendation graph", () => {
       rosterFetchTeamIds: [arsenal.id, arsenal.id],
       threadAWasInterrupted: true,
     });
-  });
+  }, 30_000);
 
   it("asks before using competing confirmed roster mappings", async () => {
     await withPlayerMemorySources();

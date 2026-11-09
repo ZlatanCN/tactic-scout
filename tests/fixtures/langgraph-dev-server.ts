@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import type { ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -21,6 +22,8 @@ const fixtureReplacementCandidateName = "Replacement Candidate";
 const fixtureRosterMemoryTeamName = "Roster Memory Club";
 const fixtureRosterMemoryTeamId = 542;
 const fixtureRosterMemoryPlayerId = 11;
+const persistenceTestModelName = "persistence-test-model";
+const savedScoutingContextAnswer = "The saved scouting context is ready.";
 
 type RunningServer = {
   child: ReturnType<typeof spawn>;
@@ -662,6 +665,63 @@ const nextRosterMemoryFetchCount = (
     ? currentCount + 1
     : currentCount;
 
+type StructuredFixtureResponse = {
+  callId: string | null;
+  extractionArguments: ReturnType<typeof requestExtractionForFixtureText>;
+  extractionTool: string | undefined;
+  structured: boolean;
+};
+
+const sendNonStreamingCompletion = (
+  response: ServerResponse,
+  chatCompletionId: string,
+  chatModelName: string,
+  fixtureResponse: StructuredFixtureResponse
+): void => {
+  const message = fixtureResponse.structured
+    ? {
+        content: null,
+        role: "assistant",
+        tool_calls: [
+          {
+            function: {
+              arguments: JSON.stringify(fixtureResponse.extractionArguments),
+              name: fixtureResponse.extractionTool ?? "extract",
+            },
+            id: fixtureResponse.callId ?? "call-persistence-request",
+            type: "function",
+          },
+        ],
+      }
+    : {
+        content: savedScoutingContextAnswer,
+        role: "assistant",
+      };
+
+  response.writeHead(200, { "content-type": "application/json" });
+  response.end(
+    JSON.stringify({
+      choices: [
+        {
+          finish_reason: fixtureResponse.structured ? "tool_calls" : "stop",
+          index: 0,
+          message,
+        },
+      ],
+      created: 0,
+      id: chatCompletionId,
+      model: chatModelName,
+      object: "chat.completion",
+      usage: { completion_tokens: 8, prompt_tokens: 12, total_tokens: 20 },
+    })
+  );
+};
+
+const structuredResponseIsAvailable = (
+  extractionArguments: ReturnType<typeof requestExtractionForFixtureText>,
+  extractionTool: string | undefined
+): boolean => extractionArguments !== null && extractionTool === "extract";
+
 const reservePort = async (): Promise<number> => {
   const server = createServer();
   server.listen(0, "127.0.0.1");
@@ -697,7 +757,7 @@ const startGateway = async (): Promise<LocalGateway> => {
   });
 
   const chatCompletionId = "chatcmpl-persistence-test";
-  const chatModelName = "persistence-test-model";
+  const chatModelName = persistenceTestModelName;
 
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -762,11 +822,18 @@ const startGateway = async (): Promise<LocalGateway> => {
         ? chatRequest.data.tools?.[0]?.function.name
         : undefined;
 
-      const structuredResponse =
-        chatRequest.success &&
-        chatRequest.data.tool_choice !== undefined &&
-        extractionArguments !== null &&
-        extractionTool !== undefined;
+      const structuredResponse = structuredResponseIsAvailable(
+        extractionArguments,
+        extractionTool
+      );
+
+      const extractionCallId = structuredResponse
+        ? `call-persistence-request-${extractionCallIndex}`
+        : null;
+
+      if (structuredResponse) {
+        extractionCallIndex += 1;
+      }
 
       if (chatRequest.success && chatRequest.data.stream === true) {
         const chunkMetadata = {
@@ -775,9 +842,6 @@ const startGateway = async (): Promise<LocalGateway> => {
           model: chatModelName,
           object: "chat.completion.chunk",
         };
-
-        const extractionCallId = `call-persistence-request-${extractionCallIndex}`;
-        extractionCallIndex += 1;
 
         response.writeHead(200, {
           "cache-control": "no-cache",
@@ -805,7 +869,7 @@ const startGateway = async (): Promise<LocalGateway> => {
                       ],
                     }
                   : {
-                      content: "The saved scouting context is ready.",
+                      content: savedScoutingContextAnswer,
                       role: "assistant",
                     },
                 finish_reason: null,
@@ -842,26 +906,12 @@ const startGateway = async (): Promise<LocalGateway> => {
         return;
       }
 
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(
-        JSON.stringify({
-          choices: [
-            {
-              finish_reason: "stop",
-              index: 0,
-              message: {
-                content: "The saved scouting context is ready.",
-                role: "assistant",
-              },
-            },
-          ],
-          created: 0,
-          id: chatCompletionId,
-          model: chatModelName,
-          object: "chat.completion",
-          usage: { completion_tokens: 8, prompt_tokens: 12, total_tokens: 20 },
-        })
-      );
+      sendNonStreamingCompletion(response, chatCompletionId, chatModelName, {
+        callId: extractionCallId,
+        extractionArguments,
+        extractionTool,
+        structured: structuredResponse,
+      });
     });
   });
 
@@ -992,7 +1042,15 @@ const startServer = async (
         LANGSMITH_TRACING: "false",
         OPENAI_API_KEY: "persistence-test-key",
         OPENAI_BASE_URL: gatewayUrl,
-        OPENAI_MODEL: "persistence-test-model",
+        OPENAI_MODEL: persistenceTestModelName,
+        TACTISCOUT_MODEL_CONTEXT_PROFILE: JSON.stringify({
+          baseURL: gatewayUrl,
+          contextWindowTokens: 100_000,
+          countingMarginTokens: 64,
+          maxInputTokens: 100_000,
+          maxOutputTokens: 2048,
+          model: persistenceTestModelName,
+        }),
       },
       stdio: ["ignore", "pipe", "pipe"],
     }
@@ -1106,7 +1164,17 @@ const requestJson = async <Response>(
     );
   }
 
-  return schema.parse(body.length > 0 ? JSON.parse(body) : null);
+  const parsedBody = schema.safeParse(
+    body.length > 0 ? JSON.parse(body) : null
+  );
+
+  if (!parsedBody.success) {
+    throw new Error(
+      `Response shape invalid for ${pathname}: ${parsedBody.error.message}`
+    );
+  }
+
+  return parsedBody.data;
 };
 
 const postJson = async <Response>(
@@ -1168,7 +1236,13 @@ const startDevServerSession = async (
 
     const close = async () => {
       await stopServer(runningServer);
-      await rm(projectPath, { force: true, recursive: true });
+      await waitForServerStop(port);
+      await rm(projectPath, {
+        force: true,
+        maxRetries: 5,
+        recursive: true,
+        retryDelay: 100,
+      });
       await gateway.close();
     };
 
@@ -1187,7 +1261,12 @@ const startDevServerSession = async (
     };
   } catch (error) {
     if (cleanupPath !== undefined) {
-      await rm(cleanupPath, { force: true, recursive: true });
+      await rm(cleanupPath, {
+        force: true,
+        maxRetries: 5,
+        recursive: true,
+        retryDelay: 100,
+      });
     }
 
     await gateway.close();

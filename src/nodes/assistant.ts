@@ -1,16 +1,19 @@
 import { randomUUID } from "node:crypto";
 
-import type { LanguageModelLike } from "@langchain/core/language_models/base";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import {
   AIMessage,
   BaseMessage,
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { correctComparisonAnswer } from "../comparison-answer.js";
+import { invokeWithModelContext } from "../model-context.js";
+import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import type { ModelRuntime } from "../model-requests.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
@@ -447,6 +450,83 @@ const withPreservedResultNotice = (
 const completedResultExplanationFailure =
   "数据查询或计算已经完成，但模型暂时无法生成解释。已完成的结构化结果仍保留，可以继续追问。";
 
+const contextBudgetIssueAnswer = (
+  state: AgentStateType,
+  issue: NonNullable<
+    AgentStateType["faultTolerance"]["failure"]
+  >["contextIssue"]
+): string | null => {
+  if (
+    issue === "profile_required" ||
+    issue === "invalid_profile" ||
+    issue === "output_limit_adapter_required"
+  ) {
+    return "无法安全准备模型上下文预算，请为当前模型和端点配置有效的输入窗口与输出上限。本次未继续调用模型。";
+  }
+
+  if (issue === "base_instructions_exceed_limit") {
+    return "系统指令或工具 schema 本身超过模型上下文预算，本次没有调用模型。请检查当前模型和预算配置。";
+  }
+
+  if (issue === "user_input_exceeds_limit") {
+    return "本轮用户指令超过模型可用上下文预算，尚未执行查询或推荐。请缩短指令或拆成更小的问题。";
+  }
+
+  if (issue === "input_exceeds_limit" || issue === "provider_overflow") {
+    return withPreservedResultNotice(
+      state,
+      "本轮模型输入超过可用上下文预算，当前任务未能继续。"
+    );
+  }
+
+  if (issue === "response_truncated") {
+    return withPreservedResultNotice(
+      state,
+      "模型输出达到长度上限，未将不完整内容作为最终答案。"
+    );
+  }
+
+  return null;
+};
+
+const completedResultAfterContextFailure = (
+  state: AgentStateType
+): string | null => {
+  const { failure } = state.faultTolerance;
+  const { outcome } = state;
+
+  if (failure?.node !== "answer" && failure?.node !== "lookup_player") {
+    return null;
+  }
+
+  if (
+    outcome === null ||
+    !("source" in outcome) ||
+    outcome.resultJson === null
+  ) {
+    return null;
+  }
+
+  return outcome.resultJson;
+};
+
+const contextLimitFailureAnswer = (state: AgentStateType): string => {
+  const { failure } = state.faultTolerance;
+  const completedResult = completedResultAfterContextFailure(state);
+
+  if (completedResult !== null) {
+    return `上下文预算不足，模型解释未完成。以下是本次已完成并验证的完整结构化结果与来源：\n\n${completedResult}`;
+  }
+
+  return (
+    contextBudgetIssueAnswer(state, failure?.contextIssue) ??
+    withPreservedResultNotice(
+      state,
+      "无法安全估算本轮模型输入，当前任务未能继续。"
+    )
+  );
+};
+
 const teamFailureAnswer = (state: AgentStateType): string | null => {
   const { outcome } = state;
 
@@ -537,6 +617,10 @@ const faultFailureAnswer = (state: AgentStateType): string => {
     return "我没能可靠理解这条新请求，因此没有执行任何球员或球队操作。请换个说法重试。";
   }
 
+  if (failure.category === "context_limit") {
+    return contextLimitFailureAnswer(state);
+  }
+
   if (failure.node === "answer" && state.outcome !== null) {
     return completedResultExplanationFailure;
   }
@@ -621,11 +705,12 @@ const createFaultAnswerNode = (): GraphNode<typeof AgentState> => (state) => {
 
 const createLookupPlayerNode =
   (
-    modelWithTools: LanguageModelLike,
-    hasSearchTool = true
+    model: BaseChatModel,
+    lookupTool: StructuredToolInterface | undefined,
+    modelContextConfiguration: ModelContextConfiguration = {}
   ): GraphNode<typeof AgentState> =>
   async (state, runtime) => {
-    if (!hasSearchTool) {
+    if (lookupTool === undefined) {
       return {
         outcome: {
           kind: "player_lookup",
@@ -662,13 +747,27 @@ const createLookupPlayerNode =
     }
 
     const budget = createModelRequestBudget(runtime, "lookup_player");
+    const requestMessages = [new SystemMessage(lookupPrompt), ...messages];
 
-    const response = await budget.invoke(
-      async (signal) =>
-        await modelWithTools.invoke(
-          [new SystemMessage(lookupPrompt), ...messages],
-          { signal }
-        )
+    const response = await invokeWithModelContext(
+      model,
+      {
+        messages: requestMessages,
+        purpose: "lookup_player",
+        tools: [lookupTool],
+      },
+      modelContextConfiguration,
+      runtime,
+      async (limitedModel, signal) => {
+        const modelWithTools = limitedModel.bindTools?.([lookupTool]);
+
+        if (modelWithTools === undefined) {
+          throw new Error("配置的聊天模型不支持工具调用。");
+        }
+
+        return await modelWithTools.invoke(requestMessages, { signal });
+      },
+      budget
     );
 
     const modelMessage =
@@ -799,7 +898,8 @@ const recommendationAnswerMessage = (
 };
 
 const createAnswerNode = (
-  model: LanguageModelLike
+  model: BaseChatModel,
+  modelContextConfiguration: ModelContextConfiguration = {}
 ): GraphNode<typeof AgentState> => {
   const invokeAnswerModel = async (
     messages: BaseMessage[],
@@ -807,8 +907,14 @@ const createAnswerNode = (
   ) => {
     const budget = createModelRequestBudget(runtime, "answer");
 
-    return await budget.invoke(
-      async (signal) => await model.invoke(messages, { signal })
+    return await invokeWithModelContext(
+      model,
+      { messages, purpose: "answer" },
+      modelContextConfiguration,
+      runtime,
+      async (limitedModel, signal) =>
+        await limitedModel.invoke(messages, { signal }),
+      budget
     );
   };
 

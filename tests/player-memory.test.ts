@@ -10,6 +10,7 @@ import { Command, InMemoryStore, MemorySaver } from "@langchain/langgraph";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 
+import type { CreateAgentOptions } from "../src/agent.js";
 import type { ReferenceIdentityLookup } from "../src/player-data/resolve-reference.js";
 import { resolvePlayerReference } from "../src/player-data/resolve-reference.js";
 import type { RequestUnderstandingExtractor } from "../src/request-extraction.js";
@@ -33,6 +34,10 @@ import {
   waitResponseSchema,
 } from "./fixtures/langgraph-dev-server.js";
 import type { ThreadState } from "./fixtures/langgraph-dev-server.js";
+import {
+  testModelContextProfile,
+  testModelOutputLimitAdapter,
+} from "./fixtures/model-context.js";
 import { clarificationDetails } from "./fixtures/persistence-state.js";
 import { createPlayerMemorySources } from "./fixtures/player-memory-sources.js";
 
@@ -42,7 +47,14 @@ vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
 
 vi.stubEnv("OPENAI_BASE_URL", "");
 
-const { createAgent } = await import("../src/agent.js");
+const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
+
+const createAgent = (options: CreateAgentOptions = {}) =>
+  createAgentWithRuntime({
+    modelContextProfile: testModelContextProfile,
+    modelOutputLimitAdapter: testModelOutputLimitAdapter,
+    ...options,
+  });
 
 const temporaryDirectories: string[] = [];
 
