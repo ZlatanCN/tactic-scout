@@ -74,6 +74,11 @@ describe("request understanding extraction", () => {
     "deterministically extracts the requested recommendation limit from %s",
     async (limitPhrase, expectedLimit) => {
       const model = fakeModel();
+      vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+        await Promise.resolve();
+
+        return Math.ceil(text.length / 4);
+      });
       const structuredOutput = vi.spyOn(model, "withStructuredOutput");
 
       structuredOutput.mockReturnValue(

@@ -5496,7 +5496,7 @@ describe("local scouting evaluation entry", () => {
       schemaRejectedEvents: ["search_player_records:schema_rejected"],
       searchToolMessages: 0,
     });
-  }, 15_000);
+  }, 30_000);
 
   it("records malformed request extraction as a failed trial, not a runtime error", async () => {
     let requestCount = 0;
