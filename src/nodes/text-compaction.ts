@@ -397,13 +397,36 @@ const activeContextHashFor = (
   );
 };
 
+const compactionMatchesIdentity = (
+  compaction: ContextProcessingCompaction,
+  input: CompactionIdentity
+): boolean => {
+  if (compaction.requestId !== input.requestId) {
+    return false;
+  }
+
+  if (compaction.sourceMessageId !== input.sourceMessageId) {
+    return false;
+  }
+
+  if (compaction.sourceHash !== input.sourceHash) {
+    return false;
+  }
+
+  if (compaction.activeContextHash !== input.activeContextHash) {
+    return false;
+  }
+
+  if (compaction.modelConfigurationHash !== input.modelConfigurationHash) {
+    return false;
+  }
+
+  return compaction.formatVersion === compactedScoutingInstructionFormatVersion;
+};
+
 const validCachedCompaction = (
   compaction: ContextProcessingCompaction | null,
-  requestId: string,
-  sourceMessageId: string,
-  sourceHash: string,
-  activeContextHash: string,
-  modelHash: string
+  input: CompactionIdentity
 ): compaction is ContextProcessingCompaction & { instruction: string } => {
   if (compaction === null || compaction.status !== "ready") {
     return false;
@@ -411,17 +434,7 @@ const validCachedCompaction = (
 
   if (
     compaction.instruction === null ||
-    compaction.requestId !== requestId ||
-    compaction.sourceMessageId !== sourceMessageId ||
-    compaction.sourceHash !== sourceHash
-  ) {
-    return false;
-  }
-
-  if (
-    compaction.activeContextHash !== activeContextHash ||
-    compaction.modelConfigurationHash !== modelHash ||
-    compaction.formatVersion !== compactedScoutingInstructionFormatVersion
+    !compactionMatchesIdentity(compaction, input)
   ) {
     return false;
   }
@@ -639,31 +652,10 @@ const unknownReservationDecision = (
 const previousCompactionMatches = (
   previousCompaction: ContextProcessingCompaction | null,
   input: CompactionIdentity
-): boolean => {
-  if (previousCompaction === null) {
-    return false;
-  }
-
-  if (
-    previousCompaction.requestId !== input.requestId ||
-    previousCompaction.sourceHash !== input.sourceHash ||
-    previousCompaction.sourceMessageId !== input.sourceMessageId
-  ) {
-    return false;
-  }
-
-  if (
-    previousCompaction.activeContextHash !== input.activeContextHash ||
-    previousCompaction.modelConfigurationHash !==
-      input.modelConfigurationHash ||
-    previousCompaction.formatVersion !==
-      compactedScoutingInstructionFormatVersion
-  ) {
-    return false;
-  }
-
-  return previousCompaction.status !== "reserved";
-};
+): boolean =>
+  previousCompaction !== null &&
+  compactionMatchesIdentity(previousCompaction, input) &&
+  previousCompaction.status !== "reserved";
 
 const existingCompactionDecision = (
   state: AgentStateType,
@@ -683,16 +675,7 @@ const existingCompactionDecision = (
   const effectiveAllowance =
     allowance ?? allowanceFor(input.requestId, allowanceConfiguration);
 
-  if (
-    validCachedCompaction(
-      previousCompaction,
-      input.requestId,
-      input.sourceMessageId,
-      input.sourceHash,
-      input.activeContextHash,
-      input.modelConfigurationHash
-    )
-  ) {
+  if (validCachedCompaction(previousCompaction, input)) {
     return {
       kind: "handled",
       update: {
