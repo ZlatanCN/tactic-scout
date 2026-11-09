@@ -48,6 +48,10 @@ import {
   testModelOutputLimitAdapter,
 } from "./fixtures/model-context.js";
 import {
+  playerReference,
+  savedConversationContext,
+} from "./fixtures/persistence-state.js";
+import {
   recommendationResult,
   recommendationResultData,
   teamRecommendationResult,
@@ -137,6 +141,11 @@ const playerCandidate = (name: string, id: string): ReferenceCandidate => ({
   ],
 });
 
+const conversationReferenceFromCandidate = (candidate: ReferenceCandidate) => ({
+  candidate,
+  referenceId: candidate.canonicalIdentityId ?? candidate.candidateId,
+});
+
 const resolvedLookup =
   (candidate: ReferenceCandidate): ReferenceIdentityLookup =>
   (mention) => ({
@@ -204,6 +213,275 @@ describe("runtime model input budget", () => {
       testModelContextProfileEnvironment
     );
   });
+
+  it("selects current aliases while preserving ambiguous identity and focus context", async () => {
+    const focus = playerReference("focused", "Focused Player");
+
+    const comparisonOther = playerReference(
+      "comparison-other",
+      "Comparison Other"
+    );
+
+    const aliasCandidateA = playerCandidate("Scout Candidate A", "scout-a");
+    const aliasCandidateB = playerCandidate("Scout Candidate B", "scout-b");
+    const legacy = playerCandidate("Legacy Player", "legacy");
+
+    const currentAliases = [
+      {
+        mention: "Scout",
+        reference: conversationReferenceFromCandidate(aliasCandidateA),
+      },
+      {
+        mention: "Scout",
+        reference: conversationReferenceFromCandidate(aliasCandidateB),
+      },
+    ];
+
+    const savedContext = savedConversationContext(focus, comparisonOther);
+
+    const irrelevantAliases = Array.from({ length: 300 }, (_, index) => ({
+      mention: `Legacy alias ${index}`,
+      reference: conversationReferenceFromCandidate(legacy),
+    }));
+
+    const originalAliases = [
+      ...irrelevantAliases,
+      { mention: focus.candidate.name, reference: focus },
+      { mention: comparisonOther.candidate.name, reference: comparisonOther },
+      ...currentAliases,
+    ];
+
+    const oldMessage = new HumanMessage({
+      content: "NEVER_SEND this persisted earlier conversation.",
+      id: "long-context-old-message",
+    });
+
+    const currentMessage = new HumanMessage({
+      content: "Add Scout to the current comparison.",
+      id: "long-context-current-message",
+    });
+
+    const conversationContext = {
+      ...savedContext,
+      activeComparison: {
+        ...savedContext.activeComparison,
+        constraints: [{ name: "season", value: "2025/26" }],
+      },
+      playerAliases: originalAliases,
+    };
+
+    const state = AgentState.parse({
+      conversationContext,
+      messages: [oldMessage, currentMessage],
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const capturedPayloads: unknown[] = [];
+    const model = fakeModel();
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
+    });
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from((messages: BaseMessage[]) => {
+        const [, payloadMessage] = messages;
+
+        if (payloadMessage === undefined) {
+          throw new Error("Request understanding did not send its payload.");
+        }
+
+        capturedPayloads.push(
+          JSON.parse(z.string().parse(payloadMessage.content))
+        );
+
+        return {
+          parsed: {
+            comparisonAction: "add",
+            constraints: [],
+            kind: "player_comparison",
+            players: [
+              {
+                lookupName: null,
+                mention: "Scout",
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+              },
+            ],
+            teams: [],
+          },
+          raw: new AIMessage({
+            content: "structured request",
+            response_metadata: { finish_reason: "stop" },
+          }),
+        };
+      })
+    );
+
+    const store = new InMemoryStore();
+    const memoryNamespace = ["tactiscout", "local-user", "player-memory"];
+
+    await store.put(memoryNamespace, "preserve-this-record", {
+      kind: "fixture_sentinel",
+      value: "unchanged",
+    });
+
+    const memoryBefore = await store.search(memoryNamespace, {});
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: {
+        maxInputTokens: 4096,
+        maxOutputTokens: 512,
+      },
+      store,
+      tools: [],
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "bounded-request-understanding-context" },
+    });
+
+    expect(capturedPayloads).toHaveLength(1);
+
+    const payload = z
+      .record(z.string(), z.unknown())
+      .parse(capturedPayloads[0]);
+
+    const aliasesInPayload = z
+      .array(
+        z.object({
+          mention: z.string(),
+          name: z.string(),
+          referenceId: z.string(),
+        })
+      )
+      .parse(payload.confirmedPlayerAliases);
+
+    const focusPlayersInPayload = z
+      .array(z.object({ name: z.string(), referenceId: z.string() }))
+      .parse(payload.focusPlayers);
+
+    const comparisonInPayload = z
+      .object({
+        constraints: z.array(z.object({ name: z.string(), value: z.string() })),
+        players: z.array(
+          z.object({ name: z.string(), referenceId: z.string() })
+        ),
+      })
+      .parse(payload.activeComparison);
+
+    const lookupInPayload = z
+      .object({ playerName: z.string() })
+      .parse(payload.activeLookup);
+
+    const recommendationInPayload = z
+      .object({ referencePlayers: z.array(z.object({ name: z.string() })) })
+      .parse(payload.activeRecommendation);
+
+    const teamRecommendationInPayload = z
+      .object({ team: z.object({ name: z.string() }) })
+      .parse(payload.activeTeamRecommendation);
+
+    const memoryAfter = await store.search(memoryNamespace, {});
+
+    const snapshotsBefore = {
+      activeComparison: conversationContext.activeComparison,
+      activeLookup: conversationContext.activeLookup,
+      activeRecommendation: conversationContext.activeRecommendation,
+      activeTeamRecommendation: conversationContext.activeTeamRecommendation,
+    };
+
+    const snapshotsAfter = {
+      activeComparison: result.conversationContext.activeComparison,
+      activeLookup: result.conversationContext.activeLookup,
+      activeRecommendation: result.conversationContext.activeRecommendation,
+      activeTeamRecommendation:
+        result.conversationContext.activeTeamRecommendation,
+    };
+
+    const originalUnrelatedAndCurrentAliases = originalAliases
+      .flatMap(({ mention, reference }) =>
+        mention.startsWith("Legacy alias ") || mention === "Scout"
+          ? [`${mention}:${reference.referenceId}`]
+          : []
+      )
+      .toSorted();
+
+    const resultingUnrelatedAndCurrentAliases =
+      result.conversationContext.playerAliases
+        .flatMap(({ mention, reference }) =>
+          mention.startsWith("Legacy alias ") || mention === "Scout"
+            ? [`${mention}:${reference.referenceId}`]
+            : []
+        )
+        .toSorted();
+
+    expect({
+      activeComparison: comparisonInPayload,
+      aliases: aliasesInPayload.map(({ mention, name, referenceId }) => ({
+        mention,
+        name,
+        referenceId,
+      })),
+      aliasesUnchanged: isDeepStrictEqual(
+        resultingUnrelatedAndCurrentAliases,
+        originalUnrelatedAndCurrentAliases
+      ),
+      allSnapshotsWerePassed: [
+        lookupInPayload.playerName,
+        recommendationInPayload.referencePlayers[0]?.name,
+        teamRecommendationInPayload.team.name,
+      ],
+      focusPlayers: focusPlayersInPayload,
+      historyWasSent: JSON.stringify(payload).includes("NEVER_SEND"),
+      interruptAsked: Object.hasOwn(result, "__interrupt__"),
+      pendingKind: result.pendingClarification?.kind,
+      resolvedCandidates: result.request.players
+        .find(({ mention }) => mention === "Scout")
+        ?.resolution?.candidates.map(({ name }) => name),
+      snapshotsUnchanged: isDeepStrictEqual(snapshotsAfter, snapshotsBefore),
+      storeUnchanged: memoryAfter,
+      storedAliases: result.conversationContext.playerAliases.length,
+    }).toStrictEqual({
+      activeComparison: {
+        constraints: [{ name: "season", value: "2025/26" }],
+        players: [
+          { name: "Focused Player", referenceId: "thread:focused" },
+          {
+            name: "Comparison Other",
+            referenceId: "thread:comparison-other",
+          },
+        ],
+      },
+      aliases: [
+        {
+          mention: "Scout",
+          name: "Scout Candidate A",
+          referenceId: "canonical-scout-a",
+        },
+        {
+          mention: "Scout",
+          name: "Scout Candidate B",
+          referenceId: "canonical-scout-b",
+        },
+      ],
+      aliasesUnchanged: true,
+      allSnapshotsWerePassed: ["Focused Player", "Focused Player", "Test Club"],
+      focusPlayers: [{ name: "Focused Player", referenceId: "thread:focused" }],
+      historyWasSent: false,
+      interruptAsked: true,
+      pendingKind: "identity",
+      resolvedCandidates: ["Scout Candidate A", "Scout Candidate B"],
+      snapshotsUnchanged: true,
+      storeUnchanged: memoryBefore,
+      storedAliases: 304,
+    });
+  }, 30_000);
 
   it("requires a known model window before understanding or reading sources", async () => {
     vi.stubEnv("TACTISCOUT_MODEL_CONTEXT_PROFILE", "");

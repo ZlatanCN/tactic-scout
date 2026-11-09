@@ -13,6 +13,7 @@ import type { ModelRequestBudget } from "./model-requests.js";
 import { supportedPositionCodes } from "./player-data/position-features.js";
 import { normalizeLatinNameSpelling } from "./player-data/shared.js";
 import {
+  findConfirmedPlayerAliasesInMessage,
   findPlayerReferenceMention,
   isPlayerReferenceMention,
   normalizeMentionText,
@@ -100,6 +101,111 @@ type PreviousTurnSummary = {
   source: "executed" | "saved" | null;
   workflow: RequestKind | null;
 };
+
+const buildRequestUnderstandingContextInput = (
+  message: string,
+  context: ConversationContext,
+  previousTurn: PreviousTurnSummary | undefined
+) => {
+  const mentionedAliases = new Set(
+    findConfirmedPlayerAliasesInMessage(message, context).map(
+      normalizeMentionText
+    )
+  );
+
+  return {
+    activeComparison: {
+      constraints: context.activeComparison.constraints,
+      players: context.activeComparison.players.map(
+        ({ referenceId, candidate }) => ({
+          canonicalIdentityId: candidate.canonicalIdentityId,
+          name: candidate.name,
+          referenceId,
+        })
+      ),
+    },
+    activeLookup:
+      context.activeLookup === null
+        ? null
+        : {
+            playerName: context.activeLookup.player.candidate.name,
+            referenceId: context.activeLookup.player.referenceId,
+          },
+    activeRecommendation:
+      context.activeRecommendation === null
+        ? null
+        : {
+            excludePlayers: context.activeRecommendation.excludePlayers.map(
+              ({ referenceId, candidate }) => ({
+                name: candidate.name,
+                referenceId,
+              })
+            ),
+            filters: {
+              includePotential: context.activeRecommendation.includePotential,
+              maxAge: context.activeRecommendation.maxAge,
+              minimumCurrentAbility:
+                context.activeRecommendation.minimumCurrentAbility,
+              minimumPotentialAbility:
+                context.activeRecommendation.minimumPotentialAbility,
+              position: context.activeRecommendation.position,
+              resultLimit: context.activeRecommendation.resultLimit,
+            },
+            referencePlayers: context.activeRecommendation.referencePlayers.map(
+              ({ referenceId, candidate }) => ({
+                name: candidate.name,
+                referenceId,
+              })
+            ),
+          },
+    activeTeamRecommendation:
+      context.activeTeamRecommendation === null
+        ? null
+        : {
+            filters: {
+              includePotential:
+                context.activeTeamRecommendation.includePotential,
+              maxAge: context.activeTeamRecommendation.maxAge,
+              minimumCurrentAbility:
+                context.activeTeamRecommendation.minimumCurrentAbility,
+              minimumPotentialAbility:
+                context.activeTeamRecommendation.minimumPotentialAbility,
+              position: context.activeTeamRecommendation.position,
+              resultLimit: context.activeTeamRecommendation.resultLimit,
+            },
+            team: {
+              country: context.activeTeamRecommendation.team.country,
+              id: context.activeTeamRecommendation.team.id,
+              name: context.activeTeamRecommendation.team.name,
+            },
+          },
+    confirmedPlayerAliases: context.playerAliases.flatMap(
+      ({ mention, reference }) =>
+        mentionedAliases.has(normalizeMentionText(mention))
+          ? [
+              {
+                canonicalIdentityId: reference.candidate.canonicalIdentityId,
+                mention,
+                name: reference.candidate.name,
+                referenceId: reference.referenceId,
+              },
+            ]
+          : []
+    ),
+    currentMessage: message,
+    focusPlayers: context.focusPlayers.map(({ referenceId, candidate }) => ({
+      canonicalIdentityId: candidate.canonicalIdentityId,
+      identityVerified: candidate.identityVerified,
+      name: candidate.name,
+      referenceId,
+    })),
+    previousTurn: previousTurn ?? null,
+  };
+};
+
+type RequestUnderstandingContextInput = ReturnType<
+  typeof buildRequestUnderstandingContextInput
+>;
 
 type NormalizedExtractedPlayerMention = {
   mention: string;
@@ -410,7 +516,7 @@ const relativeComparisonSeasonPattern =
 const savedResultExplanationPattern =
   /(?:上次|之前|刚才).{0,12}(?:解释|说明|结果|推荐|比较)|\b(?:explain|describe)\b.{0,20}\b(?:previous|last|saved)\b/iu;
 
-const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、中文称呼绑定、最近一次成功球员查询和最近一次成功推荐。
+const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、本轮消息中出现的已绑定称呼、最近一次成功球员查询和各类已完成工作流摘要。
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；null：用户只说“年龄改到 22”“解释上次结果”等续接，但没说类型；other：普通聊天或无关请求。
 如果用户明确询问你记住了哪些球员称呼/阵容映射，填写 playerMemoryManagement.action=list。若明确要求忘记一个称呼或一条阵容映射，填写 action=forget，尽量提取精确称呼、API-Football 球员 ID、FM ID 和 targetKind。没有明确查看/忘记操作时省略整个字段；“清空全部”或“纠正/改绑”不要作为 forget 处理。
 continuationAction 为 explain 时只解释已保存结果，不得重跑工具；refine 表示把本轮明确条件补丁应用于选定成功快照。显式提到任务类型时必须填写对应 kind，不能因为其他 workflow 存在而改写用户目标。
@@ -1086,90 +1192,11 @@ const createRequestUnderstandingExtractor =
       return teamFilterRefinement;
     }
 
-    const contextInput = {
-      activeComparison: {
-        constraints: context.activeComparison.constraints,
-        players: context.activeComparison.players.map(
-          ({ referenceId, candidate }) => ({
-            canonicalIdentityId: candidate.canonicalIdentityId,
-            name: candidate.name,
-            referenceId,
-          })
-        ),
-      },
-      activeLookup:
-        context.activeLookup === null
-          ? null
-          : {
-              playerName: context.activeLookup.player.candidate.name,
-              referenceId: context.activeLookup.player.referenceId,
-            },
-      activeRecommendation:
-        context.activeRecommendation === null
-          ? null
-          : {
-              excludePlayers: context.activeRecommendation.excludePlayers.map(
-                ({ referenceId, candidate }) => ({
-                  name: candidate.name,
-                  referenceId,
-                })
-              ),
-              filters: {
-                includePotential: context.activeRecommendation.includePotential,
-                maxAge: context.activeRecommendation.maxAge,
-                minimumCurrentAbility:
-                  context.activeRecommendation.minimumCurrentAbility,
-                minimumPotentialAbility:
-                  context.activeRecommendation.minimumPotentialAbility,
-                position: context.activeRecommendation.position,
-                resultLimit: context.activeRecommendation.resultLimit,
-              },
-              referencePlayers:
-                context.activeRecommendation.referencePlayers.map(
-                  ({ referenceId, candidate }) => ({
-                    name: candidate.name,
-                    referenceId,
-                  })
-                ),
-            },
-      activeTeamRecommendation:
-        context.activeTeamRecommendation === null
-          ? null
-          : {
-              filters: {
-                includePotential:
-                  context.activeTeamRecommendation.includePotential,
-                maxAge: context.activeTeamRecommendation.maxAge,
-                minimumCurrentAbility:
-                  context.activeTeamRecommendation.minimumCurrentAbility,
-                minimumPotentialAbility:
-                  context.activeTeamRecommendation.minimumPotentialAbility,
-                position: context.activeTeamRecommendation.position,
-                resultLimit: context.activeTeamRecommendation.resultLimit,
-              },
-              team: {
-                country: context.activeTeamRecommendation.team.country,
-                id: context.activeTeamRecommendation.team.id,
-                name: context.activeTeamRecommendation.team.name,
-              },
-            },
-      confirmedPlayerAliases: context.playerAliases.map(
-        ({ mention, reference }) => ({
-          canonicalIdentityId: reference.candidate.canonicalIdentityId,
-          mention,
-          name: reference.candidate.name,
-          referenceId: reference.referenceId,
-        })
-      ),
-      currentMessage: message,
-      focusPlayers: context.focusPlayers.map(({ referenceId, candidate }) => ({
-        canonicalIdentityId: candidate.canonicalIdentityId,
-        identityVerified: candidate.identityVerified,
-        name: candidate.name,
-        referenceId,
-      })),
-      previousTurn: previousTurn ?? null,
-    };
+    const contextInput = buildRequestUnderstandingContextInput(
+      message,
+      context,
+      previousTurn
+    );
 
     const invokeStructuredOutput = async (feedback?: string) => {
       const input =
@@ -1487,6 +1514,7 @@ const normalizeExtractedPlayers = (
 };
 
 export {
+  buildRequestUnderstandingContextInput,
   createRequestUnderstandingExtractor,
   explicitUnderstatSeasonStartYearFromText,
   isExplicitPlayerMemoryManagementCommand,
@@ -1498,5 +1526,6 @@ export {
 export type {
   PlayerMemoryManagementExtraction,
   PreviousTurnSummary,
+  RequestUnderstandingContextInput,
   RequestUnderstandingExtractor,
 };
