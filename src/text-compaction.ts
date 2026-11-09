@@ -35,7 +35,10 @@ import {
   normalizeMentionText,
 } from "./player-mentions.js";
 import type { AgentState, AgentStateType } from "./state.js";
-import { createInitialConversationContext } from "./state.js";
+import {
+  createInitialConversationContext,
+  createInitialFaultToleranceState,
+} from "./state.js";
 import { previousTurnSummary } from "./workflow-continuation.js";
 
 const compactedScoutingInstructionFormatVersion = 1;
@@ -1253,7 +1256,7 @@ const compactionStopAnswer = (
   stopReason: ContextProcessingCompaction["stopReason"] | undefined
 ): string => {
   if (status === "needs_chunking") {
-    return "这条球探指令超过单次自动处理的长度，原文已保留。请拆分或缩短请求后再继续。";
+    return "本轮用户指令超过单次自动处理的长度，原文已保留。请拆分或缩短请求后再继续。";
   }
 
   if (status === "allowance_exhausted") {
@@ -1275,8 +1278,22 @@ const createTextCompactionAnswerNode =
   (): GraphNode<typeof AgentState> => (state) => {
     const { stopReason, status } = state.contextProcessing.compaction ?? {};
     const answer = compactionStopAnswer(status, stopReason);
+    const initialFaultTolerance = createInitialFaultToleranceState();
+
+    const faultTolerance =
+      status === "needs_chunking"
+        ? {
+            ...initialFaultTolerance,
+            failure: {
+              category: "context_limit" as const,
+              contextIssue: "user_input_exceeds_limit" as const,
+              node: "understand_request" as const,
+            },
+          }
+        : initialFaultTolerance;
 
     return {
+      faultTolerance,
       messages: [new AIMessage(answer)],
       outcome: null,
       pendingClarification: null,
