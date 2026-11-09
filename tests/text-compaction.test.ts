@@ -5,11 +5,18 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
 import { MemorySaver } from "@langchain/langgraph";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod/v4";
 
-import { AgentState } from "../src/state.js";
-import type { ContextProcessingState } from "../src/state.js";
+import { AgentState, createInitialConversationContext } from "../src/state.js";
 import { testModelOutputLimitAdapter } from "./fixtures/model-context.js";
+
+type AgentStateType = ReturnType<typeof AgentState.parse>;
+
+type ContextProcessingState = AgentStateType["contextProcessing"];
+
+type ReferenceCandidate =
+  AgentStateType["conversationContext"]["playerAliases"][number]["reference"]["candidate"];
 
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 
@@ -44,7 +51,32 @@ const mockDeterministicTokenCount = (model: ReturnType<typeof fakeModel>) =>
     return Math.ceil(serializedInput.length / 4);
   });
 
+const knownKaneCandidate = {
+  candidateId: "reep:kane",
+  canonicalIdentityId: "canonical-kane",
+  exactNameMatch: true,
+  identityBasis: "reep_registry",
+  identityVerified: true,
+  name: "Harry Kane",
+  records: [
+    {
+      canonicalIdentityId: "canonical-kane",
+      competition: null,
+      identityVerified: true,
+      name: "Harry Kane",
+      provider: "fm",
+      season: null,
+      sourceId: "kane-fm",
+      team: null,
+    },
+  ],
+} satisfies ReferenceCandidate;
+
 describe("automatic text compaction", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("compacts an oversized request once, preserves its source, and continues the graph", async () => {
     const model = fakeModel();
     const filler = "Background note with no scouting constraint. ".repeat(600);
@@ -75,6 +107,12 @@ describe("automatic text compaction", () => {
 
     const modelPayloads: unknown[] = [];
     mockDeterministicTokenCount(model);
+    let fakeNow = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => {
+      fakeNow += 10;
+
+      return fakeNow;
+    });
 
     const checkpointer = new MemorySaver();
 
@@ -164,6 +202,8 @@ describe("automatic text compaction", () => {
       originalTextAbsentFromBusinessRequest:
         !lastSerializedInput.includes(filler),
       outcome: result.outcome?.status,
+      preflightTimeCharged:
+        (checkpoint.allowance?.consumedActiveTimeMs ?? 0) > 0,
       requestKind: result.request.kind,
       requestPlayer: result.request.players[0]?.mention,
     }).toStrictEqual({
@@ -173,6 +213,7 @@ describe("automatic text compaction", () => {
       originalMessage: original,
       originalTextAbsentFromBusinessRequest: true,
       outcome: "identity_data_unavailable",
+      preflightTimeCharged: true,
       requestKind: "player_lookup",
       requestPlayer: "Harry Kane",
     });
@@ -198,6 +239,134 @@ describe("automatic text compaction", () => {
       maxActiveTimeMs: 120_000,
       maxAdditionalCalls: 6,
       reservation: null,
+    });
+  });
+
+  it("resumes an unprocessed request from its cached compaction checkpoint", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const original = `Look up Harry Kane. ${filler}`;
+    const instruction = "Look up Harry Kane.";
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [{ kind: "participant", text: "Harry Kane" }],
+            constraints: [],
+            instruction,
+            kind: "player_lookup",
+            players: [
+              {
+                lookupName: null,
+                mention: "Harry Kane",
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+              },
+            ],
+            references: [
+              { anchorIndex: 0, ...anchorAt(original, "Harry Kane") },
+            ],
+            teams: [],
+          },
+          raw: new AIMessage("structured response"),
+        };
+      })
+    );
+
+    const checkpointer = new MemorySaver();
+
+    const options = {
+      checkpointer,
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention: string) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable" as const,
+      }),
+      store: null,
+      tools: [],
+    };
+
+    const graph = createAgent(options);
+
+    const graphConfig = {
+      configurable: { thread_id: "resume-cached-compaction" },
+    };
+
+    await graph.invoke({ messages: [new HumanMessage(original)] }, graphConfig);
+
+    const graphConfigSchema = z.looseObject({
+      configurable: z.looseObject({
+        checkpoint_id: z.string().optional(),
+        thread_id: z.string(),
+      }),
+    });
+
+    let cachedCheckpointConfig: z.output<typeof graphConfigSchema> | null =
+      null;
+
+    for await (const snapshot of graph.getStateHistory(graphConfig)) {
+      const checkpointState = AgentState.parse(snapshot.values);
+
+      const hasPendingRequest =
+        checkpointState.request.processedMessageId === null;
+
+      const hasCompaction =
+        checkpointState.contextProcessing.compaction?.status === "ready";
+
+      if (
+        snapshot.next.includes("understand_request") &&
+        hasCompaction &&
+        hasPendingRequest
+      ) {
+        cachedCheckpointConfig = graphConfigSchema.parse(snapshot.config);
+        break;
+      }
+    }
+
+    if (cachedCheckpointConfig === null) {
+      throw new Error("No unprocessed cached compaction checkpoint was found.");
+    }
+
+    const resumedGraph = createAgent(options);
+
+    const resumed = AgentState.parse(
+      await resumedGraph.invoke({ messages: [] }, cachedCheckpointConfig)
+    );
+
+    const resumedModelInput = JSON.stringify(modelPayloads.at(-1));
+
+    expect({
+      allowanceCalls:
+        resumed.contextProcessing.allowance?.consumedAdditionalCalls,
+      compactedInstructionInModelInput:
+        resumedModelInput.includes("compactedScoutingInstruction") &&
+        resumedModelInput.includes(instruction),
+      modelCallCount: modelPayloads.length,
+      originalTextInModelInput: resumedModelInput.includes(filler),
+      requestKind: resumed.request.kind,
+      requestPlayer: resumed.request.players[0]?.mention,
+    }).toStrictEqual({
+      allowanceCalls: 1,
+      compactedInstructionInModelInput: true,
+      modelCallCount: 3,
+      originalTextInModelInput: false,
+      requestKind: "player_lookup",
+      requestPlayer: "Harry Kane",
     });
   });
 
@@ -264,12 +433,14 @@ describe("automatic text compaction", () => {
 
     expect({
       compaction: result.contextProcessing.compaction,
+      consumedActiveTimeMs: allowance.consumedActiveTimeMs,
       consumedAdditionalCalls: allowance.consumedAdditionalCalls,
       modelInputCount: modelPayloads.length,
       outcome: result.outcome?.status,
       requestKind: result.request.kind,
     }).toStrictEqual({
       compaction: null,
+      consumedActiveTimeMs: 0,
       consumedAdditionalCalls: 0,
       modelInputCount: 1,
       outcome: "identity_data_unavailable",
@@ -354,6 +525,260 @@ describe("automatic text compaction", () => {
     expect(allowance.consumedAdditionalCalls).toBe(1);
     expect(allowance.reservation).toBeNull();
     expect(lastAssistantMessage).toContain("无法安全压缩");
+  });
+
+  it("requires a current-turn confirmed alias to appear in the compacted instruction", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const original = `Look up Kane. ${filler}`;
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [{ kind: "other", text: "Look" }],
+            instruction: "Look up the previously confirmed player.",
+            references: [{ anchorIndex: 0, ...anchorAt(original, "Look") }],
+          },
+          raw: new AIMessage("structured response"),
+        };
+      })
+    );
+
+    const conversationContext: AgentStateType["conversationContext"] = {
+      ...createInitialConversationContext(),
+      playerAliases: [
+        {
+          mention: "Kane",
+          reference: { candidate: knownKaneCandidate, referenceId: "kane-ref" },
+        },
+      ],
+    };
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          conversationContext,
+          messages: [new HumanMessage(original)],
+        },
+        { configurable: { thread_id: "required-current-alias-anchor" } }
+      )
+    );
+
+    expect({
+      compactionStatus: result.contextProcessing.compaction?.status,
+      modelCalls: modelPayloads.length,
+      requestKind: result.request.kind,
+    }).toStrictEqual({
+      compactionStatus: "failed",
+      modelCalls: 1,
+      requestKind: "other",
+    });
+    expect(result.messages.at(-1)?.content).toContain("无法安全压缩");
+  });
+
+  it("charges preflight time and stops before the auxiliary call when it exhausts the grant", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const original = `Look up Harry Kane. ${filler}`;
+    const modelPayloads: unknown[] = [];
+    let fakeNow = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => {
+      fakeNow += 10;
+
+      return fakeNow;
+    });
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return { parsed: {}, raw: new AIMessage("unused") };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      contextProcessingAllowance: {
+        maxActiveTimeMs: 5,
+        maxAdditionalCalls: 6,
+      },
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        { messages: [new HumanMessage(original)] },
+        { configurable: { thread_id: "preflight-allowance-exhaustion" } }
+      )
+    );
+
+    const { allowance } = result.contextProcessing;
+
+    if (allowance === null) {
+      throw new Error("The compaction allowance was not initialized.");
+    }
+
+    expect({
+      activeTimeMs: allowance.consumedActiveTimeMs,
+      additionalCalls: allowance.consumedAdditionalCalls,
+      compactionStatus: result.contextProcessing.compaction?.status,
+      modelCalls: modelPayloads.length,
+      reservation: allowance.reservation,
+    }).toStrictEqual({
+      activeTimeMs: 5,
+      additionalCalls: 0,
+      compactionStatus: "allowance_exhausted",
+      modelCalls: 0,
+      reservation: null,
+    });
+  });
+
+  it("settles an unknown reserved compaction from checkpoint without retrying it", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const original = `Look up Harry Kane. ${filler}`;
+    const instruction = "Look up Harry Kane.";
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [{ kind: "participant", text: "Harry Kane" }],
+            constraints: [],
+            instruction,
+            kind: "player_lookup",
+            players: [
+              {
+                lookupName: null,
+                mention: "Harry Kane",
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+              },
+            ],
+            references: [
+              { anchorIndex: 0, ...anchorAt(original, "Harry Kane") },
+            ],
+            teams: [],
+          },
+          raw: new AIMessage("structured response"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      store: null,
+      tools: [],
+    });
+
+    const graphConfig = {
+      configurable: { thread_id: "unknown-compaction-reservation" },
+    };
+
+    const completed = AgentState.parse(
+      await graph.invoke(
+        { messages: [new HumanMessage(original)] },
+        graphConfig
+      )
+    );
+
+    const priorAllowance = completed.contextProcessing.allowance;
+    const priorCompaction = completed.contextProcessing.compaction;
+
+    if (priorAllowance === null || priorCompaction === null) {
+      throw new Error("The completed compaction checkpoint is missing.");
+    }
+
+    const reservationTimeMs = 5000;
+    await graph.updateState(graphConfig, {
+      contextProcessing: {
+        allowance: {
+          ...priorAllowance,
+          reservation: {
+            maxActiveTimeMs: reservationTimeMs,
+            operation: "compact_text",
+            operationId: "simulated-inflight-compaction",
+            sourceHash: priorCompaction.sourceHash,
+            sourceMessageId: priorCompaction.sourceMessageId,
+          },
+        },
+        compaction: {
+          ...priorCompaction,
+          anchors: [],
+          instruction: null,
+          instructionHash: null,
+          outputTokenEstimate: null,
+          references: [],
+          status: "reserved",
+          stopReason: null,
+        },
+      },
+    });
+    const modelCallsBeforeRecovery = modelPayloads.length;
+
+    const recovered = AgentState.parse(
+      await graph.invoke({ messages: [] }, graphConfig)
+    );
+
+    const recoveredAllowance = recovered.contextProcessing.allowance;
+
+    if (recoveredAllowance === null) {
+      throw new Error("The recovered context allowance is missing.");
+    }
+
+    expect({
+      activeTimeMs: recoveredAllowance.consumedActiveTimeMs,
+      additionalCalls: recoveredAllowance.consumedAdditionalCalls,
+      compactionStatus: recovered.contextProcessing.compaction?.status,
+      modelCalls: modelPayloads.length,
+      reservation: recoveredAllowance.reservation,
+      stopReason: recovered.contextProcessing.compaction?.stopReason,
+    }).toStrictEqual({
+      activeTimeMs: priorAllowance.consumedActiveTimeMs + reservationTimeMs,
+      additionalCalls: priorAllowance.consumedAdditionalCalls + 1,
+      compactionStatus: "unknown",
+      modelCalls: modelCallsBeforeRecovery,
+      reservation: null,
+      stopReason: "reservation_unknown",
+    });
+    expect(recovered.messages.at(-1)?.content).toContain("无法确认");
   });
 
   it("leaves oversized text pending for bounded chunk processing", async () => {

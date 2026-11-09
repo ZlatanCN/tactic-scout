@@ -28,7 +28,12 @@ import type {
 } from "./model-context.js";
 import type { ModelRuntime } from "./model-requests.js";
 import { supportedPositionCodes } from "./player-data/position-features.js";
-import { latestHumanMessage, messageText } from "./player-mentions.js";
+import {
+  findConfirmedPlayerAliasesInMessage,
+  latestHumanMessage,
+  messageText,
+  normalizeMentionText,
+} from "./player-mentions.js";
 import type { AgentState, AgentStateType } from "./state.js";
 import { createInitialConversationContext } from "./state.js";
 import { previousTurnSummary } from "./workflow-continuation.js";
@@ -125,6 +130,9 @@ type TextCompactionNodeConfiguration = {
 
 const textHash = (text: string): string =>
   createHash("sha256").update(text).digest("hex");
+
+const elapsedMsSince = (startedAt: number): number =>
+  Math.max(0, Date.now() - startedAt);
 
 const modelConfigurationHash = (
   model: BaseChatModel,
@@ -232,6 +240,8 @@ type RequiredSourceReference = {
   text: string;
 };
 
+type CompactionOutput = z.output<typeof textCompactionResponseSchema>;
+
 const requiredSourceReferences = (
   source: string
 ): RequiredSourceReference[] => {
@@ -266,43 +276,34 @@ const requiredSourceReferences = (
   return requiredReferences;
 };
 
-const parseCompactionOutput = (
-  response: z.output<typeof textCompactionResponseSchema>,
+const compactionAnchorsMatchSource = (
+  response: CompactionOutput,
   source: string
-): ParsedCompactionOutput => {
-  const { ambiguities, anchors, instruction, references } = response;
-
-  if (ambiguities.length > 0) {
-    return { status: "ambiguous" };
-  }
-
-  if (anchors.length === 0) {
-    return { status: "invalid" };
-  }
-
+): boolean => {
+  const { anchors, instruction, references } = response;
   const referencedAnchors = new Set<number>();
 
   for (const reference of references) {
     const anchor = anchors[reference.anchorIndex];
 
     if (anchor === undefined) {
-      return { status: "invalid" };
+      return false;
     }
 
     if (reference.start >= reference.end) {
-      return { status: "invalid" };
+      return false;
     }
 
     if (reference.end > source.length) {
-      return { status: "invalid" };
+      return false;
     }
 
     if (source.slice(reference.start, reference.end) !== reference.text) {
-      return { status: "invalid" };
+      return false;
     }
 
     if (reference.text !== anchor.text) {
-      return { status: "invalid" };
+      return false;
     }
 
     referencedAnchors.add(reference.anchorIndex);
@@ -312,9 +313,19 @@ const parseCompactionOutput = (
     const instructionIndex = instruction.indexOf(anchor.text);
 
     if (instructionIndex === -1 || !referencedAnchors.has(index)) {
-      return { status: "invalid" };
+      return false;
     }
   }
+
+  return true;
+};
+
+const requiredCompactionReferencesArePresent = (
+  response: CompactionOutput,
+  source: string,
+  requiredAliases: string[]
+): boolean => {
+  const { references } = response;
 
   const referenceKeys = new Set(
     references.map(({ end, start, text }) => `${start}:${end}:${text}`)
@@ -324,9 +335,43 @@ const parseCompactionOutput = (
     const referenceKey = `${requiredReference.start}:${requiredReference.end}:${requiredReference.text}`;
 
     if (!referenceKeys.has(referenceKey)) {
-      return { status: "invalid" };
+      return false;
     }
   }
+
+  const referencedAnchorTexts = new Set(
+    references.map(({ text }) => normalizeMentionText(text))
+  );
+
+  for (const alias of requiredAliases) {
+    const normalizedAlias = normalizeMentionText(alias);
+
+    if (!referencedAnchorTexts.has(normalizedAlias)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const parseCompactionOutput = (
+  response: CompactionOutput,
+  source: string,
+  requiredAliases: string[]
+): ParsedCompactionOutput => {
+  if (response.ambiguities.length > 0) {
+    return { status: "ambiguous" };
+  }
+
+  if (
+    response.anchors.length === 0 ||
+    !compactionAnchorsMatchSource(response, source) ||
+    !requiredCompactionReferencesArePresent(response, source, requiredAliases)
+  ) {
+    return { status: "invalid" };
+  }
+
+  const { anchors, instruction, references } = response;
 
   return { anchors, instruction, references, status: "ready" };
 };
@@ -470,6 +515,42 @@ const inputBudgetStatus = async (
       ? "oversized"
       : "unavailable";
   }
+};
+
+const allowanceAfterPreflight = (
+  allowance: ContextProcessingAllowance,
+  durationMs: number
+): ContextProcessingAllowance => ({
+  ...allowance,
+  consumedActiveTimeMs: Math.min(
+    allowance.maxActiveTimeMs,
+    allowance.consumedActiveTimeMs + durationMs
+  ),
+});
+
+const preflightAllowanceExhausted = (
+  input: CompactionPreflightInput,
+  startedAt: number,
+  sourceTokenEstimate: number | null
+): Partial<AgentStateType> | null => {
+  const allowance = allowanceAfterPreflight(
+    input.allowance,
+    elapsedMsSince(startedAt)
+  );
+
+  if (allowance.consumedActiveTimeMs < allowance.maxActiveTimeMs) {
+    return null;
+  }
+
+  const compaction = compactionRecord({
+    ...input,
+    progressEnd: input.sourceText.length,
+    sourceTokenEstimate,
+    status: "allowance_exhausted",
+    stopReason: "allowance_exhausted",
+  });
+
+  return { contextProcessing: { allowance, compaction } };
 };
 
 const unknownReservationDecision = (
@@ -619,6 +700,8 @@ const existingCompactionDecision = (
 const reserveTextCompaction = async (
   input: CompactionPreflightInput
 ): Promise<Partial<AgentStateType>> => {
+  const preflightStartedAt = Date.now();
+
   const taskBudget = await inputBudgetStatus(
     input.taskModel,
     input.taskRequest,
@@ -631,6 +714,16 @@ const reserveTextCompaction = async (
     };
   }
 
+  const taskBudgetPreflightExhausted = preflightAllowanceExhausted(
+    input,
+    preflightStartedAt,
+    null
+  );
+
+  if (taskBudgetPreflightExhausted !== null) {
+    return taskBudgetPreflightExhausted;
+  }
+
   let sourceTokenEstimate: number;
 
   try {
@@ -638,6 +731,11 @@ const reserveTextCompaction = async (
       input.sourceText
     );
   } catch {
+    const allowance = allowanceAfterPreflight(
+      input.allowance,
+      elapsedMsSince(preflightStartedAt)
+    );
+
     const compaction = compactionRecord({
       ...input,
       progressEnd: input.sourceText.length,
@@ -646,7 +744,17 @@ const reserveTextCompaction = async (
       stopReason: "auxiliary_profile_invalid",
     });
 
-    return { contextProcessing: { allowance: input.allowance, compaction } };
+    return { contextProcessing: { allowance, compaction } };
+  }
+
+  const sourceEstimatePreflightExhausted = preflightAllowanceExhausted(
+    input,
+    preflightStartedAt,
+    sourceTokenEstimate
+  );
+
+  if (sourceEstimatePreflightExhausted !== null) {
+    return sourceEstimatePreflightExhausted;
   }
 
   const auxiliary = auxiliaryRequest(
@@ -664,6 +772,11 @@ const reserveTextCompaction = async (
   if (auxiliaryBudget !== "fits") {
     const canChunk = auxiliaryBudget === "oversized";
 
+    const allowance = allowanceAfterPreflight(
+      input.allowance,
+      elapsedMsSince(preflightStartedAt)
+    );
+
     const compaction = compactionRecord({
       ...input,
       progressEnd: input.sourceText.length,
@@ -674,17 +787,22 @@ const reserveTextCompaction = async (
         : "auxiliary_profile_invalid",
     });
 
-    return { contextProcessing: { allowance: input.allowance, compaction } };
+    return { contextProcessing: { allowance, compaction } };
   }
+
+  const preflightAllowance = allowanceAfterPreflight(
+    input.allowance,
+    elapsedMsSince(preflightStartedAt)
+  );
 
   const reservationMs = Math.min(
     modelRequestTimeoutMs,
-    input.allowance.maxActiveTimeMs - input.allowance.consumedActiveTimeMs
+    preflightAllowance.maxActiveTimeMs - preflightAllowance.consumedActiveTimeMs
   );
 
   const allowanceExhausted =
-    input.allowance.consumedAdditionalCalls >=
-      input.allowance.maxAdditionalCalls || reservationMs <= 0;
+    preflightAllowance.consumedAdditionalCalls >=
+      preflightAllowance.maxAdditionalCalls || reservationMs <= 0;
 
   if (allowanceExhausted) {
     const compaction = compactionRecord({
@@ -695,15 +813,15 @@ const reserveTextCompaction = async (
       stopReason: "allowance_exhausted",
     });
 
-    return { contextProcessing: { allowance: input.allowance, compaction } };
+    return { contextProcessing: { allowance: preflightAllowance, compaction } };
   }
 
   const operationId = textHash(
     `${input.requestId}:${input.sourceHash}:${input.activeContextHash}:${input.modelConfigurationHash}`
   );
 
-  const allowance: ContextProcessingAllowance = {
-    ...input.allowance,
+  const reservedAllowance: ContextProcessingAllowance = {
+    ...preflightAllowance,
     reservation: {
       maxActiveTimeMs: reservationMs,
       operation: "compact_text",
@@ -721,7 +839,7 @@ const reserveTextCompaction = async (
     stopReason: null,
   });
 
-  return { contextProcessing: { allowance, compaction } };
+  return { contextProcessing: { allowance: reservedAllowance, compaction } };
 };
 
 const prepareTextCompactionNode =
@@ -743,9 +861,16 @@ const prepareTextCompactionNode =
         state.conversationContext ?? createInitialConversationContext(),
     };
 
+    const reservation =
+      normalizedState.contextProcessing.allowance?.reservation;
+
+    const hasPendingReservation =
+      reservation !== null && reservation !== undefined;
+
     if (
       currentMessage.id !== undefined &&
-      normalizedState.request?.processedMessageId === currentMessage.id
+      normalizedState.request?.processedMessageId === currentMessage.id &&
+      !hasPendingReservation
     ) {
       return {};
     }
@@ -964,7 +1089,8 @@ const compactedRecordFromResponse = (
 const invokeTextCompaction = async (
   configuration: TextCompactionNodeConfiguration,
   runtime: ModelRuntime,
-  input: ReservedTextCompaction
+  input: ReservedTextCompaction,
+  requiredAliases: string[]
 ): Promise<TextCompactionCall> => {
   const model = configuration.compactionModel ?? configuration.model;
 
@@ -1003,15 +1129,16 @@ const invokeTextCompaction = async (
           .invoke(request.messages, { signal: callSignal })
     );
 
-    const durationMs = Math.min(
-      reservationMs,
-      Math.max(0, Date.now() - startedAt)
-    );
+    const durationMs = Math.min(reservationMs, elapsedMsSince(startedAt));
 
     const envelope = textCompactionEnvelopeSchema.safeParse(response);
 
     const compacted = envelope.success
-      ? parseCompactionOutput(envelope.data.parsed, input.source)
+      ? parseCompactionOutput(
+          envelope.data.parsed,
+          input.source,
+          requiredAliases
+        )
       : { status: "invalid" as const };
 
     const instructionTokens =
@@ -1025,10 +1152,7 @@ const invokeTextCompaction = async (
       throw error;
     }
 
-    const durationMs = Math.min(
-      reservationMs,
-      Math.max(0, Date.now() - startedAt)
-    );
+    const durationMs = Math.min(reservationMs, elapsedMsSince(startedAt));
 
     return {
       durationMs,
@@ -1067,7 +1191,20 @@ const runTextCompactionNode =
       );
     }
 
-    const call = await invokeTextCompaction(configuration, runtime, input);
+    const context =
+      state.conversationContext ?? createInitialConversationContext();
+
+    const requiredAliases = findConfirmedPlayerAliasesInMessage(
+      input.source,
+      context
+    );
+
+    const call = await invokeTextCompaction(
+      configuration,
+      runtime,
+      input,
+      requiredAliases
+    );
 
     if (call.kind === "failed") {
       return failedCompactionUpdate(input, call.durationMs, call.stopReason);
