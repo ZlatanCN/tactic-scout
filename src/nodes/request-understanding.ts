@@ -1,6 +1,11 @@
 import type { GraphNode } from "@langchain/langgraph";
 
 import { activeComparisonContext } from "../comparison-context.js";
+import {
+  contextProcessingHash,
+  contextProcessingInputText,
+} from "../context-processing-state.js";
+import type { ContextProcessingCompaction } from "../context-processing-state.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
 import {
@@ -21,7 +26,6 @@ import {
   createInitialPlayerMemoryStatus,
   createInitialRequestState,
 } from "../state.js";
-import { textHash } from "../text-compaction.js";
 import {
   continuationChoice,
   previousTurnSummary,
@@ -201,17 +205,73 @@ const compactionMatchesCurrentMessage = (
   compaction: AgentStateType["contextProcessing"]["compaction"],
   messageId: string | null,
   message: string
-): boolean => {
+): compaction is ContextProcessingCompaction & { instruction: string } => {
   if (compaction === null || compaction.status !== "ready") {
     return false;
   }
 
-  const sourceHashMatches = compaction.sourceHash === textHash(message);
+  const sourceHashMatches =
+    compaction.sourceHash === contextProcessingHash(message);
 
   const sourceIdMatches =
     compaction.sourceMessageId === (messageId ?? compaction.requestId);
 
   return sourceHashMatches && sourceIdMatches;
+};
+
+const requestUnderstandingText = (
+  sourceText: string,
+  compaction: (ContextProcessingCompaction & { instruction: string }) | null,
+  clarificationAnswers: string[]
+): string => {
+  if (compaction === null) {
+    return sourceText;
+  }
+
+  return [...clarificationAnswers.toReversed(), compaction.instruction].join(
+    "\n\n"
+  );
+};
+
+type RequestUnderstandingInput = {
+  compactedInstruction:
+    | (ContextProcessingCompaction & { instruction: string })
+    | null;
+  text: string;
+};
+
+const requestUnderstandingInputFor = (
+  state: AgentStateType,
+  messageId: string | null,
+  originalText: string
+): RequestUnderstandingInput => {
+  const candidateCompaction = state.contextProcessing.compaction;
+
+  const sourceMessageId =
+    messageId ?? candidateCompaction?.sourceMessageId ?? "";
+
+  const sourceText = contextProcessingInputText(
+    originalText,
+    sourceMessageId,
+    state.contextProcessing.clarification
+  );
+
+  const compactedInstruction = compactionMatchesCurrentMessage(
+    candidateCompaction,
+    messageId,
+    sourceText
+  )
+    ? candidateCompaction
+    : null;
+
+  return {
+    compactedInstruction,
+    text: requestUnderstandingText(
+      sourceText,
+      compactedInstruction,
+      state.contextProcessing.clarification?.answers ?? []
+    ),
+  };
 };
 
 const createRequestUnderstandingNode =
@@ -247,25 +307,22 @@ const createRequestUnderstandingNode =
       return {};
     }
 
-    const text = messageText(latestUserMessage);
+    const originalText = messageText(latestUserMessage);
     const budget = createModelRequestBudget(runtime, "understand_request");
     const previous = previousTurnSummary(state);
-    const compactedInstruction = state.contextProcessing.compaction;
 
-    const usableCompaction = compactionMatchesCurrentMessage(
-      compactedInstruction,
+    const { compactedInstruction, text } = requestUnderstandingInputFor(
+      state,
       messageId,
-      text
-    )
-      ? compactedInstruction
-      : null;
+      originalText
+    );
 
     const rawExtracted = await extractRequest(
       text,
       contextWithComparison,
       budget,
       previous,
-      usableCompaction
+      compactedInstruction
     );
 
     const specialRequestUpdate =

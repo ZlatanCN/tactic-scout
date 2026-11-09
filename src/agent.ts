@@ -53,6 +53,17 @@ import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
 import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
 import { createResolveTeamRosterNode } from "./nodes/resolve-team-roster.js";
 import { createResolveTeamNode } from "./nodes/resolve-team.js";
+import {
+  compactionRoute,
+  createTextCompactionAnswerNode,
+  prepareTextCompactionNode,
+  routeAfterTextCompaction,
+  runTextCompactionNode,
+} from "./nodes/text-compaction.js";
+import type {
+  TextCompactionAllowanceConfiguration,
+  TextCompactionModelInputBuilder,
+} from "./nodes/text-compaction.js";
 import { createUnavailableTaskNode } from "./nodes/unavailable-task.js";
 import { createWaitForApiRateLimitNode } from "./nodes/wait-api-rate-limit.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
@@ -86,17 +97,6 @@ import {
 import type { ApiFootballClient } from "./team-data/api-football.js";
 import { resolveTeamRosterIdentity } from "./team-data/roster-identity.js";
 import type { TeamRosterIdentityLookup } from "./team-data/roster-identity.js";
-import {
-  compactionRoute,
-  createTextCompactionAnswerNode,
-  prepareTextCompactionNode,
-  routeAfterTextCompaction,
-  runTextCompactionNode,
-} from "./text-compaction.js";
-import type {
-  TextCompactionAllowanceConfiguration,
-  TextCompactionModelInputBuilder,
-} from "./text-compaction.js";
 import { createTools } from "./tools/search-player-records.js";
 import { previousTurnSummary } from "./workflow-continuation.js";
 
@@ -529,6 +529,17 @@ const routeAfterClarification = (state: AgentStateType): string => {
     return END;
   }
 
+  const compactionClarification = state.contextProcessing.clarification;
+  const { compaction } = state.contextProcessing;
+
+  if (
+    compactionClarification !== null &&
+    compaction?.status === "needs_clarification" &&
+    compaction.sourceMessageId === compactionClarification.sourceMessageId
+  ) {
+    return "prepare_context_processing";
+  }
+
   if (state.playerMemoryManagementRequest) {
     return "manage_player_memory";
   }
@@ -832,7 +843,14 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       "understand_request",
       "answer_context_processing",
     ])
-    .addEdge("answer_context_processing", END)
+    .addConditionalEdges(
+      "answer_context_processing",
+      (state) =>
+        state.pendingClarification?.kind === "context_processing"
+          ? "clarify"
+          : END,
+      ["clarify", END]
+    )
     .addConditionalEdges("understand_request", routeAfterRequestUnderstanding, [
       END,
       "clarify",
@@ -893,6 +911,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "resolve_team_roster",
         "recommend_players_for_team",
         "answer",
+        "prepare_context_processing",
       ]
     )
     .addConditionalEdges("manage_player_memory", routeAfterManagePlayerMemory, [

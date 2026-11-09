@@ -115,6 +115,11 @@ type ModelContextAssessment = {
   targetTokens: number;
 };
 
+type ModelContextAssessmentResult = {
+  assessment: ModelContextAssessment;
+  failure: ModelContextFailure | null;
+};
+
 type PreparedModelRequest = {
   assessment: ModelContextAssessment;
   model: BaseChatModel;
@@ -357,7 +362,7 @@ const assessModelInput = async (
   model: BaseChatModel,
   resolution: ModelContextProfileResolution,
   request: ModelContextRequest
-): Promise<ModelContextAssessment> => {
+): Promise<ModelContextAssessmentResult> => {
   if (resolution.status !== "ready") {
     throw createModelContextError(resolution.issue);
   }
@@ -424,6 +429,8 @@ const assessModelInput = async (
     hardInputLimitTokens * profile.targetFraction
   );
 
+  let failure: ModelContextFailure | null = null;
+
   if (estimatedInputTokens > hardInputLimitTokens) {
     const systemMessages = request.messages.filter(
       ({ type }) => type === "system"
@@ -448,10 +455,10 @@ const assessModelInput = async (
       baseInstructionTokens + serializedRequestReserve(systemMessages.length);
 
     if (baseInstructionEstimate > hardInputLimitTokens) {
-      throw createModelContextError("base_instructions_exceed_limit");
-    }
-
-    if (request.currentUserInput !== undefined) {
+      failure = "base_instructions_exceed_limit";
+    } else if (request.currentUserInput === undefined) {
+      failure = "input_exceeds_limit";
+    } else {
       let currentUserInputTokens: number;
 
       try {
@@ -462,26 +469,26 @@ const assessModelInput = async (
         throw createModelContextError("token_estimate_failed");
       }
 
-      if (
+      failure =
         baseInstructionEstimate + currentUserInputTokens + 4 >
         hardInputLimitTokens
-      ) {
-        throw createModelContextError("user_input_exceeds_limit");
-      }
+          ? "user_input_exceeds_limit"
+          : "input_exceeds_limit";
     }
-
-    throw createModelContextError("input_exceeds_limit");
   }
 
   return {
-    compactionSuggested: estimatedInputTokens > softTriggerTokens,
-    estimatedInputTokens,
-    hardInputLimitTokens,
-    maxOutputTokens: profile.maxOutputTokens,
-    purpose: request.purpose,
-    softTriggerTokens,
-    targetTokens,
-    tokenCountingMethod: "langchain_model_tokenizer",
+    assessment: {
+      compactionSuggested: estimatedInputTokens > softTriggerTokens,
+      estimatedInputTokens,
+      hardInputLimitTokens,
+      maxOutputTokens: profile.maxOutputTokens,
+      purpose: request.purpose,
+      softTriggerTokens,
+      targetTokens,
+      tokenCountingMethod: "langchain_model_tokenizer",
+    },
+    failure,
   };
 };
 
@@ -582,17 +589,31 @@ const applyModelOutputLimit = (
   }
 };
 
-const prepareModelRequest = async (
+const assessModelRequest = async (
   model: BaseChatModel,
   request: ModelContextRequest,
   configuration: ModelContextConfiguration = {}
-): Promise<PreparedModelRequest> => {
+): Promise<ModelContextAssessmentResult> => {
   const resolution = profileWithExistingOutputLimit(
     model,
     resolveModelContextProfile(model, configuration)
   );
 
-  const assessment = await assessModelInput(model, resolution, request);
+  return await assessModelInput(model, resolution, request);
+};
+
+const prepareModelRequest = async (
+  model: BaseChatModel,
+  request: ModelContextRequest,
+  configuration: ModelContextConfiguration = {}
+): Promise<PreparedModelRequest> => {
+  const result = await assessModelRequest(model, request, configuration);
+
+  if (result.failure !== null) {
+    throw createModelContextError(result.failure);
+  }
+
+  const { assessment } = result;
 
   const limitedModel = applyModelOutputLimit(
     model,
@@ -746,6 +767,7 @@ export {
   EnvironmentModelContextProfileSchema,
   ModelContextProfileSchema,
   applyModelOutputLimit,
+  assessModelRequest,
   assessModelInput,
   createModelContextError,
   createModelContextLog,
@@ -763,6 +785,8 @@ export type {
   ModelContextProfile,
   ModelContextProfileInput,
   ModelContextProfileResolution,
+  ModelContextAssessment,
+  ModelContextAssessmentResult,
   ModelContextPurpose,
   ModelContextRequest,
   ModelOutputLimitAdapter,

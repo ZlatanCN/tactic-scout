@@ -254,6 +254,13 @@ const PendingClarificationSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     answer: z.string().nullable(),
+    kind: z.literal("context_processing"),
+    question: z.string(),
+    sourceHash: z.string().min(1),
+    sourceMessageId: z.string().min(1),
+  }),
+  z.object({
+    answer: z.string().nullable(),
     kind: z.literal("recommendation_role"),
     playerIndex: z.number().int().nonnegative(),
     question: z.string(),

@@ -4,11 +4,13 @@ import type { BaseStore, GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { mergeComparisonConstraints } from "../comparison-context.js";
+import { contextProcessingHash } from "../context-processing-state.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import type {
   rememberRosterIdentity,
   RosterIdentityConfirmation,
 } from "../player-memory.js";
+import { latestHumanMessage, messageText } from "../player-mentions.js";
 import { resumeWorkflowClarification } from "../request-building.js";
 import { stateCompatibilityUpdate } from "../state-compatibility.js";
 import { createInitialPlayerMemoryStatus } from "../state.js";
@@ -870,6 +872,89 @@ const clarifyRole = (
   };
 };
 
+const clarificationSourceForContextProcessing = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "context_processing" }>
+) => {
+  const { compaction } = state.contextProcessing;
+
+  if (compaction === null) {
+    return null;
+  }
+
+  if (compaction.status !== "needs_clarification") {
+    return null;
+  }
+
+  if (compaction.stopReason !== "ambiguous_conditions") {
+    return null;
+  }
+
+  if (compaction.sourceMessageId !== pending.sourceMessageId) {
+    return null;
+  }
+
+  if (compaction.sourceHash !== pending.sourceHash) {
+    return null;
+  }
+
+  const sourceMessage = latestHumanMessage(state.messages);
+
+  if (sourceMessage === undefined) {
+    return null;
+  }
+
+  const sourceMessageId = sourceMessage.id ?? compaction.sourceMessageId;
+
+  return sourceMessageId === pending.sourceMessageId
+    ? { sourceMessage, sourceMessageId }
+    : null;
+};
+
+const resumeContextProcessingClarification = (
+  state: AgentStateType,
+  pending: Extract<PendingClarification, { kind: "context_processing" }>,
+  answer: string | null
+): Partial<AgentStateType> => {
+  if (answer === null) {
+    return { pendingClarification: { ...pending, answer: null } };
+  }
+
+  const source = clarificationSourceForContextProcessing(state, pending);
+
+  if (source === null) {
+    return invalidAnswer(
+      pending,
+      "这条压缩请求已失效，请重新发送原始球探指令和需要澄清的条件。"
+    );
+  }
+
+  const baseSourceHash = contextProcessingHash(
+    messageText(source.sourceMessage)
+  );
+
+  const previous = state.contextProcessing.clarification;
+
+  const answers =
+    previous?.sourceMessageId === source.sourceMessageId &&
+    previous.sourceHash === baseSourceHash
+      ? [...previous.answers, answer]
+      : [answer];
+
+  return {
+    contextProcessing: {
+      ...state.contextProcessing,
+      clarification: {
+        answers,
+        sourceHash: baseSourceHash,
+        sourceMessageId: source.sourceMessageId,
+      },
+    },
+    outcome: null,
+    pendingClarification: null,
+  };
+};
+
 const resumeClarification = (
   state: AgentStateType,
   pending: PendingClarification,
@@ -888,6 +973,10 @@ const resumeClarification = (
 
   if (pending.kind === "identity") {
     return { pendingClarification: { ...pending, answer } };
+  }
+
+  if (pending.kind === "context_processing") {
+    return resumeContextProcessingClarification(state, pending, answer);
   }
 
   if (answer === null) {

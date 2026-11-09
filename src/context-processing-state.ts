@@ -1,19 +1,23 @@
+import { createHash } from "node:crypto";
+
 import { z } from "zod/v3";
 
+const contextProcessingAnchorKinds = [
+  "participant",
+  "reference",
+  "exclusion",
+  "team",
+  "condition",
+  "date",
+  "season",
+  "competition",
+  "position",
+  "number",
+  "other",
+] as const;
+
 const ContextProcessingAnchorSchema = z.object({
-  kind: z.enum([
-    "participant",
-    "reference",
-    "exclusion",
-    "team",
-    "condition",
-    "date",
-    "season",
-    "competition",
-    "position",
-    "number",
-    "other",
-  ]),
+  kind: z.enum(contextProcessingAnchorKinds),
   text: z.string().min(1),
 });
 
@@ -43,6 +47,7 @@ const ContextProcessingAllowanceSchema = z.object({
 
 const ContextProcessingCompactionSchema = z.object({
   activeContextHash: z.string().min(1),
+  ambiguities: z.array(z.string()).default([]),
   anchors: z.array(ContextProcessingAnchorSchema),
   formatVersion: z.number().int().positive(),
   instruction: z.string().nullable(),
@@ -55,6 +60,7 @@ const ContextProcessingCompactionSchema = z.object({
   }),
   references: z.array(ContextProcessingReferenceSchema),
   requestId: z.string().min(1),
+  sourceClarificationAnswers: z.array(z.string()).default([]),
   sourceHash: z.string().min(1),
   sourceMessageId: z.string().min(1),
   sourceTokenEstimate: z.number().int().nonnegative().nullable(),
@@ -74,16 +80,26 @@ const ContextProcessingCompactionSchema = z.object({
       "allowance_exhausted",
       "ambiguous_conditions",
       "invalid_response",
+      "necessary_context_exceeds_limit",
       "no_reduction",
       "provider_failure",
       "reservation_unknown",
       "source_reference_invalid",
+      "token_estimate_failed",
     ])
     .nullable(),
+  targetTokenEstimate: z.number().int().nonnegative().nullable().default(null),
+});
+
+const ContextProcessingClarificationSchema = z.object({
+  answers: z.array(z.string()),
+  sourceHash: z.string().min(1),
+  sourceMessageId: z.string().min(1),
 });
 
 const ContextProcessingSchema = z.object({
   allowance: ContextProcessingAllowanceSchema.nullable(),
+  clarification: ContextProcessingClarificationSchema.nullable().default(null),
   compaction: ContextProcessingCompactionSchema.nullable(),
 });
 
@@ -105,20 +121,56 @@ type ContextProcessingCompaction = z.infer<
   typeof ContextProcessingCompactionSchema
 >;
 
+type ContextProcessingClarification = z.infer<
+  typeof ContextProcessingClarificationSchema
+>;
+
 type ContextProcessing = z.infer<typeof ContextProcessingSchema>;
+
+const contextProcessingHash = (value: string): string =>
+  createHash("sha256").update(value).digest("hex");
 
 const createInitialContextProcessing = (): ContextProcessing => ({
   allowance: null,
+  clarification: null,
   compaction: null,
 });
 
-export { ContextProcessingSchema, createInitialContextProcessing };
+const contextProcessingInputText = (
+  sourceText: string,
+  sourceMessageId: string,
+  clarification: ContextProcessingClarification | null
+): string => {
+  if (
+    clarification === null ||
+    clarification.sourceMessageId !== sourceMessageId ||
+    clarification.sourceHash !== contextProcessingHash(sourceText) ||
+    clarification.answers.length === 0
+  ) {
+    return sourceText;
+  }
+
+  const answers = clarification.answers.map(
+    (answer) => `User clarification: ${answer}`
+  );
+
+  return [sourceText, ...answers].join("\n\n");
+};
+
+export {
+  ContextProcessingSchema,
+  contextProcessingAnchorKinds,
+  contextProcessingHash,
+  contextProcessingInputText,
+  createInitialContextProcessing,
+};
 
 export type {
   ContextProcessing,
   ContextProcessingAllowance,
   ContextProcessingAnchor,
   ContextProcessingCompaction,
+  ContextProcessingClarification,
   ContextProcessingReference,
   ContextProcessingReservation,
 };

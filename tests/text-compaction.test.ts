@@ -4,11 +4,18 @@ import { setImmediate as yieldNow } from "node:timers/promises";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
 import { fakeModel } from "@langchain/core/testing";
-import { MemorySaver } from "@langchain/langgraph";
+import { Command, MemorySaver } from "@langchain/langgraph";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 
-import { AgentState, createInitialConversationContext } from "../src/state.js";
+import { activeComparisonContext } from "../src/comparison-context.js";
+import { assessModelRequest } from "../src/model-context.js";
+import { prepareRequestUnderstandingModelRequest } from "../src/request-extraction.js";
+import {
+  AgentState,
+  agentStateSchemaVersion,
+  createInitialConversationContext,
+} from "../src/state.js";
 import { testModelOutputLimitAdapter } from "./fixtures/model-context.js";
 
 type AgentStateType = ReturnType<typeof AgentState.parse>;
@@ -242,6 +249,191 @@ describe("automatic text compaction", () => {
     });
   });
 
+  it("clarifies an ambiguous compaction and resumes the original request", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const original = `Compare Harry Kane in Bundesliga for 2024/25 or 2025/26, excluding Erling Haaland. ${filler}`;
+    const clarification = "Use 2025/26.";
+    const combinedSource = `${original}\n\nUser clarification: ${clarification}`;
+
+    const instruction =
+      "Compare Harry Kane in Bundesliga for 2024/25 and 2025/26, excluding Erling Haaland. User clarification: Use 2025/26.";
+
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        if (modelPayloads.length === 1) {
+          return {
+            parsed: {
+              ambiguities: ["请确认使用 2024/25 还是 2025/26。"],
+              anchors: [],
+              instruction: "Look up Harry Kane.",
+              references: [],
+            },
+            raw: new AIMessage("ambiguous compaction"),
+          };
+        }
+
+        if (modelPayloads.length === 2) {
+          const seasonLastStart = combinedSource.lastIndexOf("2025/26");
+
+          return {
+            parsed: {
+              ambiguities: [],
+              anchors: [
+                { kind: "participant", text: "Harry Kane" },
+                { kind: "competition", text: "Bundesliga" },
+                { kind: "season", text: "2024/25" },
+                { kind: "season", text: "2025/26" },
+                { kind: "exclusion", text: "excluding Erling Haaland" },
+              ],
+              instruction,
+              references: [
+                { ...anchorAt(combinedSource, "Harry Kane"), anchorIndex: 0 },
+                { ...anchorAt(combinedSource, "Bundesliga"), anchorIndex: 1 },
+                { ...anchorAt(combinedSource, "2024/25"), anchorIndex: 2 },
+                { ...anchorAt(combinedSource, "2025/26"), anchorIndex: 3 },
+                {
+                  ...anchorAt(combinedSource, "excluding Erling Haaland"),
+                  anchorIndex: 4,
+                },
+                {
+                  anchorIndex: 3,
+                  end: seasonLastStart + "2025/26".length,
+                  start: seasonLastStart,
+                  text: "2025/26",
+                },
+              ],
+            },
+            raw: new AIMessage("clarified compaction"),
+          };
+        }
+
+        return {
+          parsed: {
+            constraints: [
+              { name: "season", value: "2024/25" },
+              { name: "season", value: "2025/26" },
+              { name: "competition", value: "Bundesliga" },
+            ],
+            kind: "player_lookup",
+            players: [
+              {
+                lookupName: null,
+                mention: "Harry Kane",
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+              },
+            ],
+            teams: [],
+          },
+          raw: new AIMessage("understood clarified request"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      store: null,
+      tools: [],
+    });
+
+    const graphConfig = {
+      configurable: { thread_id: "ambiguous-compaction-resume" },
+    };
+
+    const pausedResponse = await graph.invoke(
+      { messages: [new HumanMessage(original)] },
+      graphConfig
+    );
+
+    const paused = AgentState.parse(pausedResponse);
+    const pausedSnapshot = await graph.getState(graphConfig);
+
+    expect({
+      interruptAsked: pausedSnapshot.tasks.some(
+        ({ interrupts }) => interrupts.length > 0
+      ),
+      next: pausedSnapshot.next,
+      pendingKind: paused.pendingClarification?.kind,
+      sourceMessage: paused.messages[0]?.content,
+      taskNames: pausedSnapshot.tasks.map(({ name }) => name),
+    }).toStrictEqual({
+      interruptAsked: true,
+      next: ["clarify"],
+      pendingKind: "context_processing",
+      sourceMessage: original,
+      taskNames: ["clarify"],
+    });
+
+    const resumed = AgentState.parse(
+      await graph.invoke(new Command({ resume: clarification }), graphConfig)
+    );
+
+    expect({
+      clarificationAnswers: resumed.contextProcessing.clarification?.answers,
+      compactedInstruction: resumed.contextProcessing.compaction?.instruction,
+      compactionCalls: modelPayloads.length,
+      compactionSourceHash: resumed.contextProcessing.compaction?.sourceHash,
+      compactionStatus: resumed.contextProcessing.compaction?.status,
+      compactionStopReason: resumed.contextProcessing.compaction?.stopReason,
+      consumedCalls:
+        resumed.contextProcessing.allowance?.consumedAdditionalCalls,
+      expectedSourceHash: createHash("sha256")
+        .update(combinedSource)
+        .digest("hex"),
+      modelSawClarificationInSecondCall: JSON.stringify(
+        modelPayloads[1]
+      ).includes("User clarification: Use 2025/26."),
+      pendingKind: resumed.pendingClarification?.kind ?? null,
+      requestKind: resumed.request.kind,
+      requestPlayer: resumed.request.players[0]?.mention,
+      requestSeasonConstraint: resumed.request.constraints.find(
+        ({ name }) => name === "understatSeasonStartYear"
+      ),
+    }).toStrictEqual({
+      clarificationAnswers: [clarification],
+      compactedInstruction: instruction,
+      compactionCalls: 3,
+      compactionSourceHash: createHash("sha256")
+        .update(combinedSource)
+        .digest("hex"),
+      compactionStatus: "ready",
+      compactionStopReason: null,
+      consumedCalls: 2,
+      expectedSourceHash: createHash("sha256")
+        .update(combinedSource)
+        .digest("hex"),
+      modelSawClarificationInSecondCall: true,
+      pendingKind: null,
+      requestKind: "player_lookup",
+      requestPlayer: "Harry Kane",
+      requestSeasonConstraint: {
+        name: "understatSeasonStartYear",
+        value: "2025",
+      },
+    });
+    expect(resumed.messages[0]?.content).toBe(original);
+  });
+
   it("resumes an unprocessed request from its cached compaction checkpoint", async () => {
     const model = fakeModel();
     const filler = "Background note with no scouting constraint. ".repeat(600);
@@ -370,6 +562,128 @@ describe("automatic text compaction", () => {
     });
   });
 
+  it("rebuilds a cached compaction when its context digest is stale", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const messageId = "stale-context-compaction";
+    const original = `Look up Harry Kane. ${filler}`;
+    const instruction = "Look up Harry Kane.";
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [{ kind: "participant", text: "Harry Kane" }],
+            constraints: [],
+            instruction,
+            kind: "player_lookup",
+            players: [
+              {
+                lookupName: null,
+                mention: "Harry Kane",
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+              },
+            ],
+            references: [
+              { anchorIndex: 0, ...anchorAt(original, "Harry Kane") },
+            ],
+            teams: [],
+          },
+          raw: new AIMessage("structured response"),
+        };
+      })
+    );
+
+    const originalHash = createHash("sha256").update(original).digest("hex");
+    const staleInstruction = "Old stale request.";
+
+    const staleState = AgentState.parse({
+      contextProcessing: {
+        allowance: {
+          consumedActiveTimeMs: 10,
+          consumedAdditionalCalls: 1,
+          maxActiveTimeMs: 120_000,
+          maxAdditionalCalls: 6,
+          requestId: `message:${messageId}`,
+          reservation: null,
+        },
+        clarification: null,
+        compaction: {
+          activeContextHash: "stale-context-digest",
+          ambiguities: [],
+          anchors: [{ kind: "participant", text: "Harry Kane" }],
+          formatVersion: 2,
+          instruction: staleInstruction,
+          instructionHash: createHash("sha256")
+            .update(staleInstruction)
+            .digest("hex"),
+          modelConfigurationHash: "stale-model-digest",
+          outputTokenEstimate: 5,
+          progress: { end: original.length, start: 0 },
+          references: [{ anchorIndex: 0, ...anchorAt(original, "Harry Kane") }],
+          requestId: `message:${messageId}`,
+          sourceHash: originalHash,
+          sourceMessageId: messageId,
+          sourceTokenEstimate: 100,
+          status: "ready",
+          stopReason: null,
+          targetTokenEstimate: 50,
+        },
+      },
+      messages: [new HumanMessage({ content: original, id: messageId })],
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(staleState, {
+        configurable: { thread_id: "stale-context-compaction" },
+      })
+    );
+
+    const businessInput = JSON.stringify(modelPayloads.at(-1));
+
+    expect({
+      compactedInstruction: result.contextProcessing.compaction?.instruction,
+      consumedAdditionalCalls:
+        result.contextProcessing.allowance?.consumedAdditionalCalls,
+      modelCallCount: modelPayloads.length,
+      requestKind: result.request.kind,
+      staleInstructionAbsent: !businessInput.includes(staleInstruction),
+    }).toStrictEqual({
+      compactedInstruction: instruction,
+      consumedAdditionalCalls: 2,
+      modelCallCount: 2,
+      requestKind: "player_lookup",
+      staleInstructionAbsent: true,
+    });
+  });
+
   it("keeps a fitting request on the ordinary one-call path", async () => {
     const model = fakeModel();
     const modelPayloads: unknown[] = [];
@@ -447,6 +761,222 @@ describe("automatic text compaction", () => {
       requestKind: "player_lookup",
     });
     expect(allowance.reservation).toBeNull();
+  });
+
+  it("compacts at the configured soft trigger and passes the target to the compactor", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const original = `Look up Harry Kane for 2025/26, excluding Erling Haaland. ${filler}`;
+
+    const instruction =
+      "Look up Harry Kane for 2025/26, excluding Erling Haaland.";
+
+    const profile = {
+      ...modelContextProfile,
+      maxInputTokens: 10_000,
+    };
+
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+
+    const initialState = AgentState.parse({
+      messages: [new HumanMessage(original)],
+    });
+
+    const taskRequest = prepareRequestUnderstandingModelRequest({
+      context: {
+        ...initialState.conversationContext,
+        activeComparison: activeComparisonContext(
+          initialState.conversationContext
+        ),
+      },
+      message: original,
+    });
+
+    const taskBudget = await assessModelRequest(model, taskRequest, {
+      outputLimitAdapter: testModelOutputLimitAdapter,
+      profile,
+    });
+
+    expect(taskBudget).toMatchObject({
+      assessment: {
+        compactionSuggested: true,
+      },
+      failure: null,
+    });
+
+    const structuredOutput = vi.spyOn(model, "withStructuredOutput");
+    structuredOutput.mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [
+              { kind: "participant", text: "Harry Kane" },
+              { kind: "season", text: "2025/26" },
+              { kind: "exclusion", text: "excluding Erling Haaland" },
+            ],
+            constraints: [],
+            instruction,
+            kind: "player_lookup",
+            players: [
+              {
+                lookupName: null,
+                mention: "Harry Kane",
+                recommendationRole: "reference",
+                referenceScope: "explicit",
+                referenceTargetMention: null,
+              },
+            ],
+            references: [
+              { ...anchorAt(original, "Harry Kane"), anchorIndex: 0 },
+              { ...anchorAt(original, "2025/26"), anchorIndex: 1 },
+              {
+                ...anchorAt(original, "excluding Erling Haaland"),
+                anchorIndex: 2,
+              },
+            ],
+            teams: [],
+          },
+          raw: new AIMessage("structured response"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile: profile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        { messages: [new HumanMessage(original)] },
+        { configurable: { thread_id: "soft-trigger-compaction" } }
+      )
+    );
+
+    expect({
+      compactionCalls: modelPayloads.length - 1,
+      compactionSuggested: taskBudget.assessment.compactionSuggested,
+      compactionTargetIsPositive:
+        (result.contextProcessing.compaction?.targetTokenEstimate ?? 0) > 0,
+      targetPassedToCompactor: JSON.stringify(modelPayloads[0]).includes(
+        "targetTokens"
+      ),
+      userTextAbsentFromBusinessRequest: !JSON.stringify(
+        modelPayloads.at(-1)
+      ).includes(filler),
+    }).toStrictEqual({
+      compactionCalls: 1,
+      compactionSuggested: true,
+      compactionTargetIsPositive: true,
+      targetPassedToCompactor: true,
+      userTextAbsentFromBusinessRequest: true,
+    });
+  });
+
+  it("does not compact a short message when necessary structured context is oversized", async () => {
+    const model = fakeModel();
+
+    const focusPlayers = Array.from({ length: 1000 }, (_, index) => {
+      const canonicalIdentityId = `focus-identity-${index}`;
+      const name = `Focus Player ${index}`;
+
+      return {
+        candidate: {
+          ...knownKaneCandidate,
+          candidateId: `focus-candidate-${index}`,
+          canonicalIdentityId,
+          name,
+          records: [
+            {
+              ...knownKaneCandidate.records[0],
+              canonicalIdentityId,
+              name,
+              sourceId: `focus-source-${index}`,
+            },
+          ],
+        },
+        referenceId: `focus-reference-${index}`,
+      };
+    });
+
+    const modelInputs: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelInputs.push(input);
+
+        return {
+          parsed: {},
+          raw: new AIMessage("unused"),
+        };
+      })
+    );
+
+    const conversationContext = {
+      ...createInitialConversationContext(),
+      focusPlayers,
+    };
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          conversationContext,
+          messages: [new HumanMessage("Who was he?")],
+          stateSchemaVersion: agentStateSchemaVersion,
+        },
+        { configurable: { thread_id: "structured-context-over-budget" } }
+      )
+    );
+
+    const contextLimitMessage = z
+      .string()
+      .safeParse(result.messages.at(-1)?.content);
+
+    expect({
+      compactionStatus: result.contextProcessing.compaction?.status,
+      compactionStopReason: result.contextProcessing.compaction?.stopReason,
+      contextIssue: result.faultTolerance.failure?.contextIssue,
+      contextLimitCategory: result.faultTolerance.failure?.category,
+      messageExplainsNecessaryContextOverflow:
+        contextLimitMessage.success &&
+        contextLimitMessage.data.includes("必要结构化上下文超过"),
+      modelInputCount: modelInputs.length,
+    }).toStrictEqual({
+      compactionStatus: "failed",
+      compactionStopReason: "necessary_context_exceeds_limit",
+      contextIssue: "input_exceeds_limit",
+      contextLimitCategory: "context_limit",
+      messageExplainsNecessaryContextOverflow: true,
+      modelInputCount: 0,
+    });
   });
 
   it("rejects a draft that omits supported numeric, exclusion, and position constraints", async () => {
@@ -573,6 +1103,7 @@ describe("automatic text compaction", () => {
         {
           conversationContext,
           messages: [new HumanMessage(original)],
+          stateSchemaVersion: agentStateSchemaVersion,
         },
         { configurable: { thread_id: "required-current-alias-anchor" } }
       )
