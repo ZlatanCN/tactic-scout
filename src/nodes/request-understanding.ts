@@ -21,6 +21,7 @@ import {
   createInitialPlayerMemoryStatus,
   createInitialRequestState,
 } from "../state.js";
+import { textHash } from "../text-compaction.js";
 import {
   continuationChoice,
   previousTurnSummary,
@@ -196,6 +197,23 @@ const continuationRequestUpdate = (
   };
 };
 
+const compactionMatchesCurrentMessage = (
+  compaction: AgentStateType["contextProcessing"]["compaction"],
+  messageId: string | null,
+  message: string
+): boolean => {
+  if (compaction === null || compaction.status !== "ready") {
+    return false;
+  }
+
+  const sourceHashMatches = compaction.sourceHash === textHash(message);
+
+  const sourceIdMatches =
+    compaction.sourceMessageId === (messageId ?? compaction.requestId);
+
+  return sourceHashMatches && sourceIdMatches;
+};
+
 const createRequestUnderstandingNode =
   (
     extractRequest: RequestUnderstandingExtractor
@@ -232,12 +250,22 @@ const createRequestUnderstandingNode =
     const text = messageText(latestUserMessage);
     const budget = createModelRequestBudget(runtime, "understand_request");
     const previous = previousTurnSummary(state);
+    const compactedInstruction = state.contextProcessing.compaction;
+
+    const usableCompaction = compactionMatchesCurrentMessage(
+      compactedInstruction,
+      messageId,
+      text
+    )
+      ? compactedInstruction
+      : null;
 
     const rawExtracted = await extractRequest(
       text,
       contextWithComparison,
       budget,
-      previous
+      previous,
+      usableCompaction
     );
 
     const specialRequestUpdate =

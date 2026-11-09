@@ -1,6 +1,10 @@
 import { MessagesZodState } from "@langchain/langgraph";
 import { z } from "zod/v3";
 
+import {
+  ContextProcessingSchema,
+  createInitialContextProcessing,
+} from "./context-processing-state.js";
 import { faultCategoryValues } from "./fault-categories.js";
 import {
   PlayerResolutionSchema,
@@ -515,6 +519,9 @@ const createInitialPlayerMemoryStatus = () => ({
 const agentStateSchemaVersion = 1;
 
 const AgentState = MessagesZodState.extend({
+  contextProcessing: ContextProcessingSchema.default(
+    createInitialContextProcessing
+  ),
   conversationContext: ConversationContextSchema.default(
     createInitialConversationContext
   ),
@@ -543,6 +550,8 @@ type ActiveTeamRecommendation = z.infer<typeof ActiveTeamRecommendationSchema>;
 type AgentStateType = z.infer<typeof AgentState>;
 
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
+
+type ContextProcessingState = z.infer<typeof ContextProcessingSchema>;
 
 type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
 
@@ -612,6 +621,7 @@ export type {
   AgentStateType,
   ComparisonAction,
   ConversationContext,
+  ContextProcessingState,
   FaultToleranceState,
   ConversationPlayerAlias,
   ConversationPlayerReference,

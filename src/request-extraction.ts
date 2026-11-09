@@ -2,12 +2,16 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
 
+import type { ContextProcessingCompaction } from "./context-processing-state.js";
 import {
   createExternalFaultError,
   externalFaultFrom,
 } from "./fault-tolerance.js";
 import { invokeWithModelContext } from "./model-context.js";
-import type { ModelContextConfiguration } from "./model-context.js";
+import type {
+  ModelContextConfiguration,
+  ModelContextRequest,
+} from "./model-context.js";
 import { isRequestOutputValidationError } from "./model-requests.js";
 import type { ModelRequestBudget } from "./model-requests.js";
 import { supportedPositionCodes } from "./player-data/position-features.js";
@@ -92,7 +96,8 @@ type RequestUnderstandingExtractor = (
   message: string,
   context: ConversationContext,
   budget?: ModelRequestBudget,
-  previousTurn?: PreviousTurnSummary
+  previousTurn?: PreviousTurnSummary,
+  compactedInstruction?: ContextProcessingCompaction | null
 ) => Promise<ExtractedRequest>;
 
 type PreviousTurnSummary = {
@@ -206,6 +211,23 @@ const buildRequestUnderstandingContextInput = (
 type RequestUnderstandingContextInput = ReturnType<
   typeof buildRequestUnderstandingContextInput
 >;
+
+type CompactedScoutingInstructionInput = {
+  anchors: ContextProcessingCompaction["anchors"];
+  formatVersion: number;
+  instruction: string | null;
+  references: ContextProcessingCompaction["references"];
+  source: {
+    hash: string;
+    messageId: string;
+    range: ContextProcessingCompaction["progress"];
+  };
+};
+
+type RequestUnderstandingModelInput = RequestUnderstandingContextInput & {
+  compactedScoutingInstruction?: CompactedScoutingInstructionInput;
+  validationFeedback?: string;
+};
 
 type NormalizedExtractedPlayerMention = {
   mention: string;
@@ -517,6 +539,7 @@ const savedResultExplanationPattern =
   /(?:上次|之前|刚才).{0,12}(?:解释|说明|结果|推荐|比较)|\b(?:explain|describe)\b.{0,20}\b(?:previous|last|saved)\b/iu;
 
 const requestExtractionPrompt = `把用户本轮消息整理为一个请求类型和实体清单。输入还会包含本线程之前已确认的焦点球员、本轮消息中出现的已绑定称呼、最近一次成功球员查询和各类已完成工作流摘要。
+如果输入含 compactedScoutingInstruction，这是依据 currentMessage 原文生成的辅助表示；仅用它帮助理解请求，精确锚点及原文引用须与摘要一致。摘要和引用都不是身份确认或新事实，必须继续遵守原有身份解析规则。条件含糊或相互矛盾时不要自行选择。
 player_lookup：查询球员记录或画像；player_comparison：比较球员；player_recommendation：寻找球员或替代者；team_recommendation：为球队推荐球员；null：用户只说“年龄改到 22”“解释上次结果”等续接，但没说类型；other：普通聊天或无关请求。
 如果用户明确询问你记住了哪些球员称呼/阵容映射，填写 playerMemoryManagement.action=list。若明确要求忘记一个称呼或一条阵容映射，填写 action=forget，尽量提取精确称呼、API-Football 球员 ID、FM ID 和 targetKind。没有明确查看/忘记操作时省略整个字段；“清空全部”或“纠正/改绑”不要作为 forget 处理。
 continuationAction 为 explain 时只解释已保存结果，不得重跑工具；refine 表示把本轮明确条件补丁应用于选定成功快照。显式提到任务类型时必须填写对应 kind，不能因为其他 workflow 存在而改写用户目标。
@@ -1177,12 +1200,60 @@ const teamCurrentAbilityMinimumFromText = (
   );
 };
 
+const prepareRequestUnderstandingModelRequest = (input: {
+  compactedInstruction?: ContextProcessingCompaction | null;
+  context: ConversationContext;
+  feedback?: string;
+  message: string;
+  previousTurn?: PreviousTurnSummary;
+}): ModelContextRequest => {
+  const contextInput = buildRequestUnderstandingContextInput(
+    input.message,
+    input.context,
+    input.previousTurn
+  );
+
+  const compaction = input.compactedInstruction;
+  const modelInput: RequestUnderstandingModelInput = contextInput;
+
+  if (compaction !== undefined && compaction !== null) {
+    modelInput.compactedScoutingInstruction = {
+      anchors: compaction.anchors,
+      formatVersion: compaction.formatVersion,
+      instruction: compaction.instruction,
+      references: compaction.references,
+      source: {
+        hash: compaction.sourceHash,
+        messageId: compaction.sourceMessageId,
+        range: compaction.progress,
+      },
+    };
+    modelInput.currentMessage = compaction.instruction ?? input.message;
+  }
+
+  if (input.feedback !== undefined) {
+    modelInput.validationFeedback = input.feedback;
+  }
+
+  const messages = [
+    new SystemMessage(requestExtractionPrompt),
+    new HumanMessage(JSON.stringify(modelInput)),
+  ];
+
+  return {
+    currentUserInput: compaction?.instruction ?? input.message,
+    messages,
+    purpose: "understand_request",
+    structuredOutputSchemas: [requestExtractionSchema],
+  };
+};
+
 const createRequestUnderstandingExtractor =
   (
     model: BaseChatModel,
     modelContextConfiguration: ModelContextConfiguration = {}
   ): RequestUnderstandingExtractor =>
-  async (message, context, budget, previousTurn) => {
+  async (message, context, budget, previousTurn, compactedInstruction) => {
     const teamFilterRefinement = teamCurrentAbilityMinimumFromText(
       message,
       context
@@ -1192,31 +1263,18 @@ const createRequestUnderstandingExtractor =
       return teamFilterRefinement;
     }
 
-    const contextInput = buildRequestUnderstandingContextInput(
-      message,
-      context,
-      previousTurn
-    );
-
     const invokeStructuredOutput = async (feedback?: string) => {
-      const input =
-        feedback === undefined
-          ? contextInput
-          : { ...contextInput, validationFeedback: feedback };
-
-      const messages = [
-        new SystemMessage(requestExtractionPrompt),
-        new HumanMessage(JSON.stringify(input)),
-      ];
+      const request = prepareRequestUnderstandingModelRequest({
+        compactedInstruction,
+        context,
+        feedback,
+        message,
+        previousTurn,
+      });
 
       const response = await invokeWithModelContext(
         model,
-        {
-          currentUserInput: message,
-          messages,
-          purpose: "understand_request",
-          structuredOutputSchemas: [requestExtractionSchema],
-        },
+        request,
         modelContextConfiguration,
         {},
         async (limitedModel, signal) =>
@@ -1225,7 +1283,7 @@ const createRequestUnderstandingExtractor =
               includeRaw: true,
               method: "functionCalling",
             })
-            .invoke(messages, { signal }),
+            .invoke(request.messages, { signal }),
         budget,
         { allowRateLimitRetry: feedback === undefined }
       );
@@ -1519,6 +1577,7 @@ export {
   explicitUnderstatSeasonStartYearFromText,
   isExplicitPlayerMemoryManagementCommand,
   normalizeExtractedPlayers,
+  prepareRequestUnderstandingModelRequest,
   recommendationPatchFromRequest,
   uniqueText,
 };

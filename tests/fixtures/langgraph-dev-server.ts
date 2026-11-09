@@ -60,6 +60,54 @@ const threadStateSchema = z.looseObject({
     .array(z.looseObject({ interrupts: z.array(z.unknown()).optional() }))
     .default([]),
   values: z.looseObject({
+    contextProcessing: z
+      .object({
+        allowance: z
+          .object({
+            consumedActiveTimeMs: z.number(),
+            consumedAdditionalCalls: z.number(),
+            maxActiveTimeMs: z.number(),
+            maxAdditionalCalls: z.number(),
+            requestId: z.string(),
+            reservation: z
+              .object({
+                maxActiveTimeMs: z.number(),
+                operation: z.literal("compact_text"),
+                operationId: z.string(),
+                sourceHash: z.string(),
+                sourceMessageId: z.string(),
+              })
+              .nullable(),
+          })
+          .nullable(),
+        compaction: z
+          .object({
+            activeContextHash: z.string(),
+            anchors: z.array(z.object({ kind: z.string(), text: z.string() })),
+            formatVersion: z.number(),
+            instruction: z.string().nullable(),
+            instructionHash: z.string().nullable(),
+            modelConfigurationHash: z.string(),
+            outputTokenEstimate: z.number().nullable(),
+            progress: z.object({ end: z.number(), start: z.number() }),
+            references: z.array(
+              z.object({
+                anchorIndex: z.number(),
+                end: z.number(),
+                start: z.number(),
+                text: z.string(),
+              })
+            ),
+            requestId: z.string(),
+            sourceHash: z.string(),
+            sourceMessageId: z.string(),
+            sourceTokenEstimate: z.number().nullable(),
+            status: z.string(),
+            stopReason: z.string().nullable(),
+          })
+          .nullable(),
+      })
+      .optional(),
     conversationContext: z.looseObject({
       activeComparison: z.looseObject({ resultJson: z.string() }).nullable(),
       activeLookup: z.looseObject({ resultJson: z.string() }).nullable(),
@@ -71,7 +119,13 @@ const threadStateSchema = z.looseObject({
         .nullable(),
     }),
     messages: z
-      .array(z.object({ content: z.unknown(), type: z.string() }))
+      .array(
+        z.object({
+          content: z.unknown(),
+          id: z.string().optional(),
+          type: z.string(),
+        })
+      )
       .default([]),
     outcome: z
       .object({
@@ -559,16 +613,81 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
 const requestExtractionForFixtureText = (message: string) =>
   fixtureExtractions.get(message) ?? null;
 
+type CompactionFixtureArguments = {
+  ambiguities: string[];
+  anchors: { kind: "participant"; text: string }[];
+  instruction: string;
+  references: {
+    anchorIndex: number;
+    end: number;
+    start: number;
+    text: string;
+  }[];
+};
+
+type StructuredFixtureArguments =
+  | Exclude<ReturnType<typeof requestExtractionForFixtureText>, null>
+  | CompactionFixtureArguments;
+
+const compactionArgumentsForFixtureText = (
+  message: string
+): CompactionFixtureArguments | null => {
+  const participant = "Harry Kane";
+  const start = message.indexOf(participant);
+
+  if (start === -1) {
+    return null;
+  }
+
+  return {
+    ambiguities: [],
+    anchors: [{ kind: "participant", text: participant }],
+    instruction: `Look up ${participant}`,
+    references: [
+      {
+        anchorIndex: 0,
+        end: start + participant.length,
+        start,
+        text: participant,
+      },
+    ],
+  };
+};
+
+const currentMessageSchema = z.object({ currentMessage: z.string() });
+const auxiliaryMessageSchema = z.object({ message: z.string() });
+
 const currentUserText = (messageText: string): string => {
   try {
-    const prompt = z
-      .looseObject({ currentMessage: z.string() })
-      .safeParse(JSON.parse(messageText));
+    const prompt = currentMessageSchema.safeParse(JSON.parse(messageText));
 
-    return prompt.success ? prompt.data.currentMessage : messageText;
+    if (prompt.success) {
+      return prompt.data.currentMessage;
+    }
+
+    const auxiliaryPrompt = auxiliaryMessageSchema.safeParse(
+      JSON.parse(messageText)
+    );
+
+    return auxiliaryPrompt.success ? auxiliaryPrompt.data.message : messageText;
   } catch {
     return messageText;
   }
+};
+
+const structuredArgumentsForTool = (
+  toolName: string | undefined,
+  message: string
+): StructuredFixtureArguments | null => {
+  if (toolName === "compact_scouting_instruction") {
+    return compactionArgumentsForFixtureText(message);
+  }
+
+  if (toolName === "extract") {
+    return requestExtractionForFixtureText(message);
+  }
+
+  return null;
 };
 
 type FakeProviderResponse = {
@@ -667,7 +786,7 @@ const nextRosterMemoryFetchCount = (
 
 type StructuredFixtureResponse = {
   callId: string | null;
-  extractionArguments: ReturnType<typeof requestExtractionForFixtureText>;
+  extractionArguments: StructuredFixtureArguments | null;
   extractionTool: string | undefined;
   structured: boolean;
 };
@@ -718,9 +837,8 @@ const sendNonStreamingCompletion = (
 };
 
 const structuredResponseIsAvailable = (
-  extractionArguments: ReturnType<typeof requestExtractionForFixtureText>,
-  extractionTool: string | undefined
-): boolean => extractionArguments !== null && extractionTool === "extract";
+  extractionArguments: StructuredFixtureArguments | null
+): boolean => extractionArguments !== null;
 
 const reservePort = async (): Promise<number> => {
   const server = createServer();
@@ -814,24 +932,29 @@ const startGateway = async (): Promise<LocalGateway> => {
 
       const userText = z.string().safeParse(lastUserMessage?.content);
 
-      const extractionArguments = userText.success
-        ? requestExtractionForFixtureText(currentUserText(userText.data))
-        : null;
-
       const extractionTool = chatRequest.success
         ? chatRequest.data.tools?.[0]?.function.name
         : undefined;
 
-      const structuredResponse = structuredResponseIsAvailable(
-        extractionArguments,
-        extractionTool
+      let sourceText = "";
+
+      if (userText.success) {
+        sourceText = currentUserText(userText.data);
+      }
+
+      const extractionArguments = structuredArgumentsForTool(
+        extractionTool,
+        sourceText
       );
+
+      const structuredResponse =
+        structuredResponseIsAvailable(extractionArguments);
 
       const extractionCallId = structuredResponse
         ? `call-persistence-request-${extractionCallIndex}`
         : null;
 
-      if (structuredResponse) {
+      if (structuredResponse && extractionTool === "extract") {
         extractionCallIndex += 1;
       }
 

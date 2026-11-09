@@ -83,6 +83,17 @@ const latestAssistantText = (state: ThreadState) => {
   return z.string().parse(message?.content ?? "");
 };
 
+const textCompactionFacts = (state: ThreadState) => ({
+  allowanceCalls:
+    state.values.contextProcessing?.allowance?.consumedAdditionalCalls,
+  compactionStatus: state.values.contextProcessing?.compaction?.status,
+  instruction: state.values.contextProcessing?.compaction?.instruction,
+  lookupOutcome: state.values.outcome?.status,
+  lookupResultAvailable:
+    state.values.conversationContext.activeLookup?.resultJson.length ?? 0,
+  requestKind: state.values.request.kind,
+});
+
 const memoryForgetOptionLabel = (state: ThreadState, marker: string) => {
   const pending = z
     .object({
@@ -426,7 +437,8 @@ const expectedRosterRecommendationFacts = {
 const runPlayerLookup = async (
   baseUrl: string,
   threadId: string,
-  message: string
+  message: string,
+  messageId?: string
 ) =>
   await postJson(
     baseUrl,
@@ -434,7 +446,15 @@ const runPlayerLookup = async (
     waitResponseSchema,
     JSON.stringify({
       assistant_id: "agent",
-      input: { messages: [{ content: message, role: "user" }] },
+      input: {
+        messages: [
+          {
+            content: message,
+            id: messageId,
+            role: "user",
+          },
+        ],
+      },
     })
   );
 
@@ -556,6 +576,119 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
 };
 
 describe("managed Dev Server persistence", () => {
+  it("reuses a completed text compaction after a native Dev Server restart", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/text-compaction-agent.ts:agent"
+    );
+
+    const { baseUrl, gateway } = session;
+    const thread = await createAgentThread(baseUrl);
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const message = `Look up Harry Kane. ${filler}`;
+
+    try {
+      await runPlayerLookup(baseUrl, thread.thread_id, message);
+
+      const completedBeforeRestart = await getAgentThreadState(
+        baseUrl,
+        thread.thread_id
+      );
+
+      const compactionBeforeRestart =
+        completedBeforeRestart.values.contextProcessing?.compaction;
+
+      const originalMessage = completedBeforeRestart.values.messages
+        .toReversed()
+        .find(({ content, type }) => type === "human" && content === message);
+
+      const messageId = originalMessage?.id;
+
+      if (messageId === undefined) {
+        throw new Error("The completed scouting message has no stable ID.");
+      }
+
+      expect({
+        allowanceCalls:
+          completedBeforeRestart.values.contextProcessing?.allowance
+            ?.consumedAdditionalCalls,
+        compactionStatus: compactionBeforeRestart?.status,
+        instruction: compactionBeforeRestart?.instruction,
+        lookupOutcome: completedBeforeRestart.values.outcome?.status,
+        lookupResultAvailable:
+          textCompactionFacts(completedBeforeRestart).lookupResultAvailable > 0,
+        originalMessagePresent: originalMessage?.content === message,
+      }).toStrictEqual({
+        allowanceCalls: 1,
+        compactionStatus: "ready",
+        instruction: "Look up Harry Kane",
+        lookupOutcome: "answer_ready",
+        lookupResultAvailable: true,
+        originalMessagePresent: true,
+      });
+      expect(
+        gateway
+          .calls()
+          .filter((call) =>
+            call.includes('"name":"compact_scouting_instruction"')
+          )
+      ).toHaveLength(1);
+
+      await session.restart();
+
+      const restartedState = await getAgentThreadState(
+        baseUrl,
+        thread.thread_id
+      );
+
+      expect({
+        allowanceCalls:
+          restartedState.values.contextProcessing?.allowance
+            ?.consumedAdditionalCalls,
+        compaction: restartedState.values.contextProcessing?.compaction,
+        lookupResultJson:
+          restartedState.values.conversationContext.activeLookup?.resultJson,
+      }).toStrictEqual({
+        allowanceCalls: 1,
+        compaction: compactionBeforeRestart,
+        lookupResultJson:
+          completedBeforeRestart.values.conversationContext.activeLookup
+            ?.resultJson,
+      });
+
+      await runPlayerLookup(baseUrl, thread.thread_id, message, messageId);
+
+      const completed = await getAgentThreadState(baseUrl, thread.thread_id);
+
+      const completedCompactionCalls = gateway
+        .calls()
+        .filter((call) =>
+          call.includes('"name":"compact_scouting_instruction"')
+        );
+
+      expect({
+        allowanceCalls:
+          completed.values.contextProcessing?.allowance
+            ?.consumedAdditionalCalls,
+        compactionCalls: completedCompactionCalls.length,
+        compactionStatus:
+          completed.values.contextProcessing?.compaction?.status,
+        lookupOutcome: completed.values.outcome?.status,
+        requestKind: completed.values.request.kind,
+      }).toStrictEqual({
+        allowanceCalls: 1,
+        compactionCalls: 1,
+        compactionStatus: "ready",
+        lookupOutcome: "answer_ready",
+        requestKind: "player_lookup",
+      });
+      expect(
+        textCompactionFacts(completed).lookupResultAvailable
+      ).toBeGreaterThan(0);
+    } finally {
+      await session.close();
+    }
+  }, 20_000);
+
   it("reuses a confirmed roster mapping across threads and restart without restoring absent members", async () => {
     const session = await startDevServerSession(
       "./tests/fixtures/persistence-agent.ts:agent"

@@ -87,10 +87,19 @@ type ModelContextFailure =
   | "provider_overflow"
   | "response_truncated";
 
+const ModelContextPurposeSchema = z.enum([
+  "understand_request",
+  "lookup_player",
+  "answer",
+  "compact_context",
+]);
+
+type ModelContextPurpose = z.infer<typeof ModelContextPurposeSchema>;
+
 type ModelContextRequest = {
   currentUserInput?: string;
   messages: BaseMessage[];
-  purpose: "understand_request" | "lookup_player" | "answer";
+  purpose: ModelContextPurpose;
   structuredOutputSchemas?: Parameters<typeof toJsonSchema>[0][];
   tools?: StructuredToolInterface[];
 };
@@ -754,6 +763,7 @@ export type {
   ModelContextProfile,
   ModelContextProfileInput,
   ModelContextProfileResolution,
+  ModelContextPurpose,
   ModelContextRequest,
   ModelOutputLimitAdapter,
 };

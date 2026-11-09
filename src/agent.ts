@@ -19,6 +19,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod/v4";
 import "dotenv/config";
 
+import { activeComparisonContext } from "./comparison-context.js";
 import {
   createNodeRetryPolicy,
   externalFaultFrom,
@@ -64,13 +65,20 @@ import {
   validatePlayerReference,
 } from "./player-memory.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
-import { createRequestUnderstandingExtractor } from "./request-extraction.js";
+import {
+  createRequestUnderstandingExtractor,
+  prepareRequestUnderstandingModelRequest,
+} from "./request-extraction.js";
 import type {
   FaultToleranceState,
   AgentStateType,
   RequestState,
 } from "./state.js";
-import { AgentState, createInitialFaultToleranceState } from "./state.js";
+import {
+  AgentState,
+  createInitialConversationContext,
+  createInitialFaultToleranceState,
+} from "./state.js";
 import {
   getApiFootballSquad,
   searchApiFootballTeams,
@@ -78,9 +86,25 @@ import {
 import type { ApiFootballClient } from "./team-data/api-football.js";
 import { resolveTeamRosterIdentity } from "./team-data/roster-identity.js";
 import type { TeamRosterIdentityLookup } from "./team-data/roster-identity.js";
+import {
+  compactionRoute,
+  createTextCompactionAnswerNode,
+  prepareTextCompactionNode,
+  routeAfterTextCompaction,
+  runTextCompactionNode,
+} from "./text-compaction.js";
+import type {
+  TextCompactionAllowanceConfiguration,
+  TextCompactionModelInputBuilder,
+} from "./text-compaction.js";
 import { createTools } from "./tools/search-player-records.js";
+import { previousTurnSummary } from "./workflow-continuation.js";
 
 type CreateAgentOptions = {
+  compactionModel?: BaseChatModel;
+  compactionModelContextProfile?: ModelContextProfileInput;
+  compactionModelOutputLimitAdapter?: ModelOutputLimitAdapter;
+  contextProcessingAllowance?: TextCompactionAllowanceConfiguration;
   model?: BaseChatModel;
   modelContextProfile?: ModelContextProfileInput;
   modelOutputLimitAdapter?: ModelOutputLimitAdapter;
@@ -92,6 +116,82 @@ type CreateAgentOptions = {
   playerReferenceValidator?: typeof validatePlayerReference;
   checkpointer?: BaseCheckpointSaver;
   store?: BaseStore | null;
+};
+
+const modelContextConfigurationFrom = (
+  profile: ModelContextProfileInput | undefined,
+  outputLimitAdapter: ModelOutputLimitAdapter | undefined
+): ModelContextConfiguration => {
+  const configuration: ModelContextConfiguration = {};
+
+  if (profile !== undefined) {
+    configuration.profile = profile;
+  }
+
+  if (outputLimitAdapter !== undefined) {
+    configuration.outputLimitAdapter = outputLimitAdapter;
+  }
+
+  return configuration;
+};
+
+const compactionModelContextConfigurationFrom = (
+  options: CreateAgentOptions,
+  taskModel: BaseChatModel,
+  compactionModel: BaseChatModel,
+  taskConfiguration: ModelContextConfiguration
+): ModelContextConfiguration => {
+  const hasSpecificConfiguration =
+    compactionModel !== taskModel ||
+    options.compactionModelContextProfile !== undefined ||
+    options.compactionModelOutputLimitAdapter !== undefined;
+
+  if (!hasSpecificConfiguration) {
+    return taskConfiguration;
+  }
+
+  const configuration: ModelContextConfiguration = {};
+
+  if (options.compactionModelContextProfile !== undefined) {
+    configuration.profile = options.compactionModelContextProfile;
+  }
+
+  if (options.compactionModelOutputLimitAdapter !== undefined) {
+    configuration.outputLimitAdapter =
+      options.compactionModelOutputLimitAdapter;
+  } else if (
+    compactionModel !== taskModel &&
+    options.modelOutputLimitAdapter !== undefined
+  ) {
+    configuration.outputLimitAdapter = options.modelOutputLimitAdapter;
+  }
+
+  return configuration;
+};
+
+const requestUnderstandingInputBuilderFrom = (
+  extractor: RequestUnderstandingExtractor | undefined
+): TextCompactionModelInputBuilder => {
+  if (extractor !== undefined) {
+    return () => ({ messages: [], purpose: "understand_request" });
+  }
+
+  return (message, state, compactedInstruction) => {
+    const conversationContext =
+      state.conversationContext ?? createInitialConversationContext();
+
+    const normalizedState = { ...state, conversationContext };
+
+    return prepareRequestUnderstandingModelRequest({
+      compactedInstruction,
+      context: {
+        ...conversationContext,
+        activeComparison: activeComparisonContext(conversationContext),
+      },
+      message,
+      previousTurn: previousTurnSummary(normalizedState),
+    });
+  };
 };
 
 type ErrorHandlerConfig = {
@@ -554,16 +654,20 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const tools = options.tools ?? createTools();
   const model = options.model ?? configuredModel();
 
-  const modelContextConfiguration: ModelContextConfiguration = {};
+  const modelContextConfiguration = modelContextConfigurationFrom(
+    options.modelContextProfile,
+    options.modelOutputLimitAdapter
+  );
 
-  if (options.modelContextProfile !== undefined) {
-    modelContextConfiguration.profile = options.modelContextProfile;
-  }
+  const compactionModel = options.compactionModel ?? model;
 
-  if (options.modelOutputLimitAdapter !== undefined) {
-    modelContextConfiguration.outputLimitAdapter =
-      options.modelOutputLimitAdapter;
-  }
+  const compactionModelContextConfiguration =
+    compactionModelContextConfigurationFrom(
+      options,
+      model,
+      compactionModel,
+      modelContextConfiguration
+    );
 
   const playerReferenceValidator =
     options.playerReferenceValidator ?? validatePlayerReference;
@@ -599,6 +703,19 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     options.requestUnderstandingExtractor ??
       createRequestUnderstandingExtractor(model, modelContextConfiguration)
   );
+
+  const prepareRequestUnderstanding = requestUnderstandingInputBuilderFrom(
+    options.requestUnderstandingExtractor
+  );
+
+  const prepareContextProcessing = prepareTextCompactionNode({
+    allowance: options.contextProcessingAllowance,
+    compactionModel,
+    compactionModelContextConfiguration,
+    model,
+    modelContextConfiguration,
+    prepareRequestUnderstanding,
+  });
 
   const resolveEntities = createEntityResolutionNode(
     options.playerIdentityLookup ?? resolvePlayerReference,
@@ -645,6 +762,19 @@ const createAgent = (options: CreateAgentOptions = {}) => {
   const boundedLookupTools = createExecuteLookupToolsNode(lookupTool);
 
   const graph = new StateGraph(AgentState)
+    .addNode("prepare_context_processing", prepareContextProcessing)
+    .addNode(
+      "compact_request_text",
+      runTextCompactionNode({
+        allowance: options.contextProcessingAllowance,
+        compactionModel,
+        compactionModelContextConfiguration,
+        model,
+        modelContextConfiguration,
+        prepareRequestUnderstanding,
+      })
+    )
+    .addNode("answer_context_processing", createTextCompactionAnswerNode())
     .addNode("understand_request", understandRequest, {
       errorHandler: modelFailureHandler("understand_request"),
       retryPolicy: createNodeRetryPolicy("understand_request", {
@@ -692,7 +822,17 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       timeout: modelExecutionTimeoutMs,
     })
     .addNode("answer_failure", createFaultAnswerNode())
-    .addEdge(START, "understand_request")
+    .addEdge(START, "prepare_context_processing")
+    .addConditionalEdges("prepare_context_processing", compactionRoute, [
+      "compact_request_text",
+      "answer_context_processing",
+      "understand_request",
+    ])
+    .addConditionalEdges("compact_request_text", routeAfterTextCompaction, [
+      "understand_request",
+      "answer_context_processing",
+    ])
+    .addEdge("answer_context_processing", END)
     .addConditionalEdges("understand_request", routeAfterRequestUnderstanding, [
       END,
       "clarify",
