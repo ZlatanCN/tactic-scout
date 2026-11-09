@@ -20,6 +20,7 @@ import { z } from "zod/v4";
 import "dotenv/config";
 
 import { activeComparisonContext } from "./comparison-context.js";
+import { createInitialContextProcessing } from "./context-processing-state.js";
 import {
   createNodeRetryPolicy,
   externalFaultFrom,
@@ -525,12 +526,15 @@ const isStateCompatibilityFailure = (state: AgentStateType): boolean =>
 const routeAfterClarification = (state: AgentStateType): string => {
   const { request } = state;
 
+  const contextProcessing =
+    state.contextProcessing ?? createInitialContextProcessing();
+
   if (isStateCompatibilityFailure(state)) {
     return END;
   }
 
-  const compactionClarification = state.contextProcessing.clarification;
-  const { compaction } = state.contextProcessing;
+  const compactionClarification = contextProcessing.clarification;
+  const { compaction } = contextProcessing;
 
   if (
     compactionClarification !== null &&

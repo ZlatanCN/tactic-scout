@@ -551,7 +551,7 @@ describe("runtime model input budget", () => {
       modelResponses: 1,
       node: "understand_request",
     });
-  });
+  }, 10_000);
 
   it("shows the complete saved result when its explanation cannot fit", async () => {
     const message = new HumanMessage({

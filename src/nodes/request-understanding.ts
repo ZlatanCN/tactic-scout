@@ -4,6 +4,7 @@ import { activeComparisonContext } from "../comparison-context.js";
 import {
   contextProcessingHash,
   contextProcessingInputText,
+  createInitialContextProcessing,
 } from "../context-processing-state.js";
 import type { ContextProcessingCompaction } from "../context-processing-state.js";
 import { createModelRequestBudget } from "../model-requests.js";
@@ -245,7 +246,10 @@ const requestUnderstandingInputFor = (
   messageId: string | null,
   originalText: string
 ): RequestUnderstandingInput => {
-  const candidateCompaction = state.contextProcessing.compaction;
+  const contextProcessing =
+    state.contextProcessing ?? createInitialContextProcessing();
+
+  const candidateCompaction = contextProcessing.compaction;
 
   const sourceMessageId =
     messageId ?? candidateCompaction?.sourceMessageId ?? "";
@@ -253,7 +257,7 @@ const requestUnderstandingInputFor = (
   const sourceText = contextProcessingInputText(
     originalText,
     sourceMessageId,
-    state.contextProcessing.clarification
+    contextProcessing.clarification
   );
 
   const compactedInstruction = compactionMatchesCurrentMessage(
@@ -269,7 +273,7 @@ const requestUnderstandingInputFor = (
     text: requestUnderstandingText(
       sourceText,
       compactedInstruction,
-      state.contextProcessing.clarification?.answers ?? []
+      contextProcessing.clarification?.answers ?? []
     ),
   };
 };

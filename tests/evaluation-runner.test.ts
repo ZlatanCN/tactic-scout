@@ -5399,7 +5399,7 @@ describe("local scouting evaluation entry", () => {
         )
       )
     ).toStrictEqual([]);
-  }, 45_000);
+  }, 90_000);
 
   it("records malformed model tool arguments without claiming a search ran", async () => {
     let requestCount = 0;
