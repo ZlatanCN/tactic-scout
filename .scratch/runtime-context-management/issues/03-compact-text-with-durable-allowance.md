@@ -10,6 +10,7 @@ Parent: [运行时上下文管理](../spec.md)
 ## Acceptance criteria
 
 - [x] 打通一个真实业务入口的自动文字处理闭环；本轮原文能在旧内容缩减后装下时保留原样，不将原本未使用的历史重新全量注入。
+  - [x] lookup continuation 只在 compaction 与当前 HumanMessage 的 ID、源 hash、指令 hash 匹配时替换模型工作副本；匹配的澄清答案和当前轮工具消息会保留，checkpoint 中原文不变。
 - [x] 默认沿用任务模型 / 端点，独立压缩模型可显式配置并验证自身预算；待压源文字超出辅助请求预算时不递归盲发，明确保留进度供后续分块路径处理。
   - [x] 当前消息达到已配置 soft trigger 时也会尝试压缩；目标按当前模型 60% usable-input target 推导并传给压缩模型。若待压文本不足以达到目标，小请求继续正常路径。
   - [x] 若完整请求超限来自必要结构化上下文，而当前消息本身无法解释溢出，直接报告 context limit，不压缩或删除当前工作流条件。
@@ -22,7 +23,7 @@ Parent: [运行时上下文管理](../spec.md)
   - [ ] 所有后续 context-processing operation 共用 grant 及细分的取消 / 重试分类由后续实施扩展。
 - [ ] 压缩元数据和公共来源 / 覆盖观测契约随线程保存；复用时匹配源消息 / 范围、内容 hash、依赖结果 digest、原请求及适用模型配置 / 格式版本。不匹配则从原文重建，不能仅凭缓存存在就复用。
   - [x] 本 ticket 的辅助 State 保存 source 范围 / hash、锚点 / 引用、上下文 digest、模型配置及格式版本；不匹配时重建。
-  - [x] stale context digest 会从原文重建；更换输入、端点 / 模型配置或格式版本的各失效分支仍需单独回归。
+  - [x] 图测试分别使源 hash / message ID / request ID / 上下文 digest / 模型配置 / 格式版本 / 指令 digest 失配，并验证从原文重新压缩。
 - [ ] 正常重启可复用有效缓存；原请求恢复不清零，不因新图步骤重新获得原业务三次请求额度，未知完成状态保守结算；辅助缓存失效不拒绝整条线程。
   - [x] Dev Server 重启后保留已完成摘要、lookup 结果和额度；重放同一稳定消息 ID 不重复压缩。
   - [x] 编译图 checkpoint 测试从“已压缩、未理解”的历史 checkpoint 恢复；request-understanding 实际收到缓存摘要，且没有重复压缩调用。未结 reservation 按调用数和时间上界结算，不重复调用。
@@ -47,3 +48,8 @@ Parent: [运行时上下文管理](../spec.md)
 - 2026-11-09：别名锚点使用既有 `findConfirmedPlayerAliasesInMessage` 与 `normalizeMentionText`；偏移仍通过原文精确切片校验。未标注的人名 / 队名、隐含指代和任意语义遗漏无法由字面扫描完整证明。规格 user story 60 要求 continuation fidelity evaluation，但仓库当前没有独立的 fidelity evaluation 工单；ticket 05 实际是 project lookup evidence，不能作为该评估的交接编号。此项仍未完成，票据保持 claimed。
 - 2026-11-09 follow-up：所有活动时长差值通过 `elapsedMsSince` 计算并 clamp 到非负，避免本机 wall clock 回拨使已消费额度倒退。Dev Server 用例验证的是已完成任务后的正常重启；未结请求恢复由编译图历史 checkpoint 覆盖。
 - 2026-11-09 review follow-up：节点实现遵守 ADR-0003 放入 `src/nodes/`；预算预检现在区分当前用户输入溢出与必要结构化上下文溢出。按 80% soft trigger / 60% target 验收，native context-processing clarification 可以续跑 compaction。保真评估仍留给规格阶段 06；未做真实模型语义评测。
+- 2026-11-09 follow-up：缓存身份的源字段、上下文 digest、模型配置、格式和指令 digest 分别失配的图回归通过；下一阶段的语义评估仍要用真实 compaction 输出验证任意自然语言保真。
+- 2026-11-09 follow-up：新增 `lookup-compaction-long-input-synthetic-v1` 延续执行评测用例，使用本地已准备的 lookup evidence。无 judge 的 preview 正常；启用语义 judge 的 preview 估算最多 114 个模型请求，尚未执行真实语义评测。
+- 2026-11-10 follow-up：lookup 图级回归验证 compaction、匹配澄清答案、身份解析、工具查询和回答闭环；lookup 输入不含 filler，保留工具消息，原始 HumanMessage / checkpoint 不变。修正引用重定位的重叠匹配检测，`aaa` 中的 `aa` 不再被当成唯一来源。
+- 2026-11-10 follow-up：长输入 smoke case 移至 `evals/smoke-cases/`，避免改变固定开发集 / 留出集数量；`evals/README.md` 记录了专用运行命令。真实 smoke `c35132e1-cefa-425f-896e-85647892bff1` 使用 4 次请求，8/8 代码契约检查通过，无拒绝请求；未启用 semantic judge。先前尝试 `03af3ba1-64fb-4207-b5e5-bc2717c47bed` 使用 1 次请求，因模型压缩引用未通过确定性校验而停止；随后保留 `sourceScope` 中的 EPL 以准备对应 Understat fixture，再运行成功 smoke。
+- 2026-11-10 评测额度：此前语义评测消耗 104 次请求；其后 smoke 共消耗 5 次，累计 109/114，原授权还剩 5 次。当前 semantic preview 上限为 114 次，因此尚需新的请求额度才能从头重跑语义评测。用户故事 60 的语义保真结论仍未验证，ticket 保持 claimed。

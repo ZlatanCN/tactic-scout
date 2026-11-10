@@ -242,6 +242,37 @@ type RequiredSourceReference = {
 
 type CompactionOutput = z.output<typeof textCompactionResponseSchema>;
 
+const normalizedReferenceOffsets = (
+  references: ContextProcessingCompaction["references"],
+  source: string
+): ContextProcessingCompaction["references"] | null => {
+  const normalized: ContextProcessingCompaction["references"] = [];
+
+  for (const reference of references) {
+    if (
+      reference.end <= source.length &&
+      source.slice(reference.start, reference.end) === reference.text
+    ) {
+      normalized.push(reference);
+      continue;
+    }
+
+    const firstMatch = source.indexOf(reference.text);
+
+    if (firstMatch === -1 || source.includes(reference.text, firstMatch + 1)) {
+      return null;
+    }
+
+    normalized.push({
+      ...reference,
+      end: firstMatch + reference.text.length,
+      start: firstMatch,
+    });
+  }
+
+  return normalized;
+};
+
 const requiredSourceReferences = (
   source: string
 ): RequiredSourceReference[] => {
@@ -327,14 +358,13 @@ const requiredCompactionReferencesArePresent = (
 ): boolean => {
   const { references } = response;
 
-  const referenceKeys = new Set(
-    references.map(({ end, start, text }) => `${start}:${end}:${text}`)
-  );
-
   for (const requiredReference of requiredSourceReferences(source)) {
-    const referenceKey = `${requiredReference.start}:${requiredReference.end}:${requiredReference.text}`;
+    const isCovered = references.some(
+      ({ end, start }) =>
+        start <= requiredReference.start && end >= requiredReference.end
+    );
 
-    if (!referenceKeys.has(referenceKey)) {
+    if (!isCovered) {
       return false;
     }
   }
@@ -363,15 +393,27 @@ const parseCompactionOutput = (
     return { ambiguities: response.ambiguities, status: "ambiguous" };
   }
 
+  const references = normalizedReferenceOffsets(response.references, source);
+
+  if (references === null) {
+    return { status: "invalid" };
+  }
+
+  const normalizedResponse = { ...response, references };
+
   if (
-    response.anchors.length === 0 ||
-    !compactionAnchorsMatchSource(response, source) ||
-    !requiredCompactionReferencesArePresent(response, source, requiredAliases)
+    normalizedResponse.anchors.length === 0 ||
+    !compactionAnchorsMatchSource(normalizedResponse, source) ||
+    !requiredCompactionReferencesArePresent(
+      normalizedResponse,
+      source,
+      requiredAliases
+    )
   ) {
     return { status: "invalid" };
   }
 
-  const { anchors, instruction, references } = response;
+  const { anchors, instruction } = normalizedResponse;
 
   return { anchors, instruction, references, status: "ready" };
 };
@@ -652,10 +694,17 @@ const unknownReservationDecision = (
 const previousCompactionMatches = (
   previousCompaction: ContextProcessingCompaction | null,
   input: CompactionIdentity
-): boolean =>
-  previousCompaction !== null &&
-  compactionMatchesIdentity(previousCompaction, input) &&
-  previousCompaction.status !== "reserved";
+): boolean => {
+  if (
+    previousCompaction === null ||
+    previousCompaction.status === "ready" ||
+    previousCompaction.status === "reserved"
+  ) {
+    return false;
+  }
+
+  return compactionMatchesIdentity(previousCompaction, input);
+};
 
 const existingCompactionDecision = (
   state: AgentStateType,

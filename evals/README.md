@@ -17,6 +17,13 @@ Run one local smoke trial with an explicit whole-run allowance:
 pnpm eval:run --mode smoke --case lookup-smoke-v1 --max-model-requests <N>
 ```
 
+The long-input compaction fixture is kept outside the fixed development and held-out packs. Preview and run it as a dedicated smoke case:
+
+```sh
+pnpm eval:preview --mode smoke --case-directory evals/smoke-cases --case lookup-compaction-long-input-synthetic-v1 --evidence-directory .data/evals/evidence
+pnpm eval:run --mode smoke --case-directory evals/smoke-cases --case lookup-compaction-long-input-synthetic-v1 --evidence-directory .data/evals/evidence --max-model-requests <N>
+```
+
 For a first live smoke across all four workflows, preview and run these development cases with the judge enabled. The current conservative estimate is 171 gateway requests, covering up to three attempts per calibration anchor and per trial judge operation; choose an explicit cap before dispatch:
 
 ```sh

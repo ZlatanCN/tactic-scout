@@ -12,6 +12,10 @@ import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import { correctComparisonAnswer } from "../comparison-answer.js";
+import {
+  contextProcessingHash,
+  contextProcessingInputText,
+} from "../context-processing-state.js";
 import { invokeWithModelContext } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
@@ -98,6 +102,60 @@ const seasonStartYearFromConstraints = (
   const year = Number(parsedStartYear.data);
 
   return year >= 2000 && year <= 2100 ? year : undefined;
+};
+
+const messagesForLookupModel = (state: AgentStateType) => {
+  const messages = messagesInCurrentTurn(state.messages);
+  const sourceMessage = latestHumanMessage(messages);
+  const { compaction } = state.contextProcessing;
+
+  if (
+    sourceMessage === undefined ||
+    compaction === null ||
+    compaction.status !== "ready" ||
+    compaction.instruction === null
+  ) {
+    return messages;
+  }
+
+  const sourceMessageId = sourceMessage.id ?? compaction.sourceMessageId;
+  const originalText = messageText(sourceMessage);
+
+  const sourceText = contextProcessingInputText(
+    originalText,
+    sourceMessageId,
+    state.contextProcessing.clarification
+  );
+
+  if (
+    compaction.sourceMessageId !== sourceMessageId ||
+    compaction.sourceHash !== contextProcessingHash(sourceText) ||
+    compaction.instructionHash !== contextProcessingHash(compaction.instruction)
+  ) {
+    return messages;
+  }
+
+  const clarificationAnswers =
+    sourceText === originalText
+      ? []
+      : (state.contextProcessing.clarification?.answers.toReversed() ?? []);
+
+  const compactedInstructionWithClarifications = [
+    ...clarificationAnswers,
+    compaction.instruction,
+  ].join("\n\n");
+
+  const workingMessage = new HumanMessage({
+    additional_kwargs: sourceMessage.additional_kwargs,
+    content: compactedInstructionWithClarifications,
+    id: sourceMessage.id,
+    name: sourceMessage.name,
+    response_metadata: sourceMessage.response_metadata,
+  });
+
+  return messages.map((message) =>
+    message === sourceMessage ? workingMessage : message
+  );
 };
 
 const pinSearchToResolvedIdentity = (
@@ -734,7 +792,7 @@ const createLookupPlayerNode =
       };
     }
 
-    const messages = messagesInCurrentTurn(state.messages);
+    const messages = messagesForLookupModel(state);
 
     if (state.faultTolerance.lookupLimitReached) {
       return {
