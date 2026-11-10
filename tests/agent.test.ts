@@ -608,11 +608,8 @@ describe("runtime model input budget", () => {
     expect(model.callCount).toBe(0);
   });
 
-  it("identifies a current user instruction that exceeds the input budget", async () => {
-    const message = Array.from(
-      { length: 30_000 },
-      (_, index) => `ScoutingConstraint${index}`
-    ).join(" ");
+  it("identifies a required numeric span that cannot fit within the input budget", async () => {
+    const message = "9".repeat(100_000);
 
     const model = fakeModel();
     vi.spyOn(model, "getNumTokens").mockImplementation(async (input) => {

@@ -27,6 +27,10 @@ type ContextProcessingState = AgentStateType["contextProcessing"];
 type ReferenceCandidate =
   AgentStateType["conversationContext"]["playerAliases"][number]["reference"]["candidate"];
 
+type ModelTokenCountInput = Parameters<
+  ReturnType<typeof fakeModel>["getNumTokens"]
+>[0];
+
 vi.stubEnv("OPENAI_API_KEY", "vitest-placeholder");
 
 vi.stubEnv("OPENAI_MODEL", "vitest-placeholder");
@@ -47,6 +51,74 @@ const anchorAt = (source: string, text: string) => {
   const start = source.indexOf(text);
 
   return { end: start + text.length, start, text };
+};
+
+const codePointCount = (value: string): number => {
+  let count = 0;
+  let index = 0;
+
+  while (index < value.length) {
+    const codePoint = value.codePointAt(index);
+    index += codePoint !== undefined && codePoint > 0xff_ff ? 2 : 1;
+    count += 1;
+  }
+
+  return count;
+};
+
+const chunkEndFromInput = (input: ModelTokenCountInput): number | null => {
+  if (Array.isArray(input)) {
+    return null;
+  }
+
+  let serializedRequest: unknown;
+
+  try {
+    serializedRequest = JSON.parse(input);
+  } catch {
+    return null;
+  }
+
+  const request = z
+    .looseObject({
+      messages: z.array(
+        z.looseObject({ content: z.unknown(), role: z.string() })
+      ),
+    })
+    .safeParse(serializedRequest);
+
+  if (!request.success) {
+    return null;
+  }
+
+  const humanMessage = request.data.messages.find(
+    ({ role }) => role === "human"
+  );
+
+  const humanContent = z.string().safeParse(humanMessage?.content);
+
+  if (!humanContent.success) {
+    return null;
+  }
+
+  let parsedContent: unknown;
+
+  try {
+    parsedContent = JSON.parse(humanContent.data);
+  } catch {
+    return null;
+  }
+
+  const payload = z
+    .looseObject({
+      operation: z.string().optional(),
+      range: z.object({ end: z.number() }).optional(),
+    })
+    .safeParse(parsedContent);
+
+  return payload.success && payload.data.operation === "extract_text_chunk"
+    ? (payload.data.range?.end ?? null)
+    : null;
 };
 
 const mockDeterministicTokenCount = (model: ReturnType<typeof fakeModel>) =>
@@ -88,6 +160,7 @@ describe("automatic text compaction", () => {
 
   it("compacts an oversized request once, preserves its source, and continues the graph", async () => {
     const model = fakeModel();
+
     const filler = "Background note with no scouting constraint. ".repeat(600);
     const original = `Look up Harry Kane in Bundesliga for 2025/26, excluding Erling Haaland. ${filler}`;
 
@@ -207,7 +280,7 @@ describe("automatic text compaction", () => {
       compactedInstruction: result.contextProcessing?.compaction?.instruction,
       compactedSourceHash: result.contextProcessing?.compaction?.sourceHash,
       modelInputCount: serializedModelInputs.length,
-      originalMessage: result.messages[0]?.content,
+      originalMessagePreserved: result.messages[0]?.content === original,
       originalTextAbsentFromBusinessRequest:
         !lastSerializedInput.includes(filler),
       outcome: result.outcome?.status,
@@ -219,7 +292,7 @@ describe("automatic text compaction", () => {
       compactedInstruction: instruction,
       compactedSourceHash: expectedHash,
       modelInputCount: 2,
-      originalMessage: original,
+      originalMessagePreserved: true,
       originalTextAbsentFromBusinessRequest: true,
       outcome: "identity_data_unavailable",
       preflightTimeCharged: true,
@@ -248,6 +321,1130 @@ describe("automatic text compaction", () => {
       maxActiveTimeMs: 120_000,
       maxAdditionalCalls: 6,
       reservation: null,
+    });
+  });
+
+  it("chunks a first oversized instruction and merges a later season correction before lookup", async () => {
+    const filler = "Background note with no scouting constraint. ".repeat(1000);
+    const original = `Look up Harry Kane in Bundesliga at Bayern Munich for 2024/25; excluding Erling Haaland; age 22; position ST. ${filler}Use 2025/26 for him instead.`;
+
+    const instruction =
+      "Look up Harry Kane in Bundesliga at Bayern Munich for 2025/26 instead of the earlier 2024/25 request; excluding Erling Haaland; age 22; position ST.";
+
+    const structuredOperations: string[] = [];
+    const structuredInputs: unknown[] = [];
+
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          args: { sourceRecords: [] },
+          name: "search_player_records",
+        },
+      ])
+      .respond(new AIMessage("The selected player records were checked."));
+
+    mockDeterministicTokenCount(model);
+
+    const candidate: ReferenceCandidate = {
+      ...knownKaneCandidate,
+      records: [
+        ...knownKaneCandidate.records,
+        {
+          canonicalIdentityId: "canonical-kane",
+          competition: "EPL",
+          identityVerified: true,
+          name: "Harry Kane",
+          provider: "understat",
+          season: "2025/26",
+          sourceId: "kane-understat",
+          team: "Fixture FC",
+        },
+      ],
+    };
+
+    const search = vi.fn<PlayerSearch>((input) =>
+      JSON.stringify({
+        fm: { records: [], status: "not_found" },
+        identityGroups: {
+          canonicalGroups: [],
+          registryStatus: "not_needed",
+          unlinkedRecords: [],
+        },
+        query: input.sourceRecords,
+        requestedUnderstatSeasonStartYear: input.seasonStartYear ?? null,
+        understat: { records: [], status: "not_found" },
+      })
+    );
+
+    const [lookupTool] = createTools(search);
+
+    if (lookupTool === undefined) {
+      throw new Error("The player lookup tool is unavailable.");
+    }
+
+    const modelWithTools = model.bindTools([lookupTool]);
+    const lookupModelInvoke = vi.spyOn(modelWithTools, "invoke");
+    vi.spyOn(model, "bindTools").mockReturnValue(modelWithTools);
+
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        structuredInputs.push(input);
+
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const humanContent = z.string().safeParse(humanMessage?.content);
+
+        const requestPayload = humanContent.success
+          ? z
+              .looseObject({
+                chunks: z.array(z.unknown()).optional(),
+                message: z.string().optional(),
+                operation: z.string().optional(),
+              })
+              .safeParse(JSON.parse(humanContent.data))
+          : null;
+
+        if (requestPayload === null || !requestPayload.success) {
+          throw new Error("The fake model received a non-JSON user message.");
+        }
+
+        const payloadData = requestPayload.data;
+        const { operation } = payloadData;
+
+        if (operation === "extract_text_chunk") {
+          structuredOperations.push(operation);
+
+          const payload = z
+            .looseObject({
+              message: z.string(),
+              range: z.object({ end: z.number(), start: z.number() }),
+            })
+            .parse(payloadData);
+
+          const anchors = [
+            { kind: "participant", text: "Harry Kane" },
+            { kind: "competition", text: "Bundesliga" },
+            { kind: "team", text: "Bayern Munich" },
+            { kind: "season", text: "2024/25" },
+            { kind: "exclusion", text: "excluding Erling Haaland" },
+            { kind: "number", text: "22" },
+            { kind: "position", text: "ST" },
+            { kind: "season", text: "2025/26" },
+          ].filter(({ text }) => payload.message.includes(text));
+
+          const chunkInstruction = anchors.length
+            ? anchors.map(({ text }) => text).join("; ")
+            : "No scouting constraints in this fragment.";
+
+          return {
+            parsed: {
+              ambiguities: [],
+              anchors,
+              instruction: chunkInstruction,
+              references: anchors.map((anchor, anchorIndex) => {
+                const start = payload.message.indexOf(anchor.text);
+
+                return {
+                  anchorIndex,
+                  end: start + anchor.text.length,
+                  start,
+                  text: anchor.text,
+                };
+              }),
+            },
+            raw: new AIMessage("chunk extraction"),
+          };
+        }
+
+        if (operation === "merge_text_chunks") {
+          structuredOperations.push(operation);
+
+          const anchors = [
+            { kind: "participant", text: "Harry Kane" },
+            { kind: "competition", text: "Bundesliga" },
+            { kind: "team", text: "Bayern Munich" },
+            { kind: "season", text: "2024/25" },
+            { kind: "exclusion", text: "excluding Erling Haaland" },
+            { kind: "number", text: "22" },
+            { kind: "position", text: "ST" },
+            { kind: "season", text: "2025/26" },
+          ];
+
+          return {
+            parsed: {
+              ambiguities: [],
+              anchors,
+              instruction,
+              references: anchors.map(({ text }, anchorIndex) => ({
+                anchorIndex,
+                ...anchorAt(original, text),
+              })),
+            },
+            raw: new AIMessage("merged chunk extraction"),
+          };
+        }
+
+        if (operation === undefined) {
+          structuredOperations.push("understand_request");
+
+          return {
+            parsed: {
+              constraints: [],
+              kind: "player_lookup",
+              players: [
+                {
+                  lookupName: null,
+                  mention: "Harry Kane",
+                  recommendationRole: "reference",
+                  referenceScope: "explicit",
+                  referenceTargetMention: null,
+                },
+              ],
+              teams: [],
+            },
+            raw: new AIMessage("understood merged request"),
+          };
+        }
+
+        structuredOperations.push("unexpected");
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [],
+            instruction: "No scouting constraints in this fragment.",
+            references: [],
+          },
+          raw: new AIMessage("unexpected structured request"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 1,
+        candidates: [candidate],
+        candidatesTruncated: false,
+        canonicalIdentityId: candidate.canonicalIdentityId,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: candidate.candidateId,
+        selectedName: candidate.name,
+        status: "resolved",
+      }),
+      store: null,
+      tools: [lookupTool],
+    });
+
+    const config = {
+      configurable: { thread_id: "first-message-chunked-compaction" },
+    };
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "chunked-lookup" }),
+          ],
+        },
+        config
+      )
+    );
+
+    const checkpointSnapshot = await graph.getState(config);
+    const checkpoint = AgentState.parse(checkpointSnapshot.values);
+    const lookupModelInput = lookupModelInvoke.mock.calls[0]?.[0];
+
+    const lookupHumanMessage = Array.isArray(lookupModelInput)
+      ? lookupModelInput.find((message) => message instanceof HumanMessage)
+      : undefined;
+
+    const searchInput = search.mock.calls[0]?.[0];
+
+    expect({
+      compactionStatus: result.contextProcessing.compaction?.status,
+      finalInstruction: result.contextProcessing.compaction?.instruction,
+      fullSourceAbsentFromModelInputs: !structuredInputs
+        .map((value) => JSON.stringify(value))
+        .some((value) => value.includes(original)),
+      hasAllowanceForAuxiliaryCalls:
+        (result.contextProcessing.allowance?.consumedAdditionalCalls ?? 0) >= 3,
+      hasMergeOperation: structuredOperations.includes("merge_text_chunks"),
+      hasMultipleChunkCalls:
+        structuredOperations.filter(
+          (operation) => operation === "extract_text_chunk"
+        ).length > 1,
+      hasUnderstandingOperation:
+        structuredOperations.includes("understand_request"),
+      lookupInstruction: lookupHumanMessage?.content,
+      mergeOperationCount: structuredOperations.filter(
+        (operation) => operation === "merge_text_chunks"
+      ).length,
+      originalMessage: checkpoint.messages[0]?.content,
+      outcome: result.outcome?.status,
+      seasonStartYear: searchInput?.seasonStartYear,
+      sourceRecords: searchInput?.sourceRecords,
+      sourceReferencesMatchOriginal:
+        result.contextProcessing.compaction?.references.every(
+          ({ end, start, text }) => original.slice(start, end) === text
+        ),
+    }).toStrictEqual({
+      compactionStatus: "ready",
+      finalInstruction: instruction,
+      fullSourceAbsentFromModelInputs: true,
+      hasAllowanceForAuxiliaryCalls: true,
+      hasMergeOperation: true,
+      hasMultipleChunkCalls: true,
+      hasUnderstandingOperation: true,
+      lookupInstruction: instruction,
+      mergeOperationCount: 1,
+      originalMessage: original,
+      outcome: "answer_ready",
+      seasonStartYear: 2025,
+      sourceRecords: [
+        { provider: "fm", sourceId: "kane-fm" },
+        { provider: "understat", sourceId: "kane-understat" },
+      ],
+      sourceReferencesMatchOriginal: true,
+    });
+    expect(search).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a merge that drops a chunk ambiguity before request understanding", async () => {
+    const filler = "Background note with no scouting constraint. ".repeat(1000);
+    const original = `Look up Harry Kane for 2024/25. ${filler}Team reference for him: Bayern Munich.`;
+    const chunkAmbiguity = "本段代词“him”没有可见的先行对象";
+    const operations: string[] = [];
+    const model = fakeModel();
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const payload = z
+          .looseObject({
+            message: z.string().optional(),
+            operation: z.string().optional(),
+          })
+          .parse(JSON.parse(z.string().parse(humanMessage?.content)));
+
+        operations.push(payload.operation ?? "understand_request");
+
+        if (payload.operation === "merge_text_chunks") {
+          return {
+            parsed: {
+              ambiguities: [],
+              anchors: [
+                { kind: "participant", text: "Harry Kane" },
+                { kind: "season", text: "2024/25" },
+                { kind: "team", text: "Bayern Munich" },
+              ],
+              instruction:
+                "Look up Harry Kane for 2024/25 and include Bayern Munich.",
+              references: [
+                { anchorIndex: 0, ...anchorAt(original, "Harry Kane") },
+                { anchorIndex: 1, ...anchorAt(original, "2024/25") },
+                { anchorIndex: 2, ...anchorAt(original, "Bayern Munich") },
+              ],
+            },
+            raw: new AIMessage("merge omitted the local ambiguity"),
+          };
+        }
+
+        if (payload.operation === undefined) {
+          return {
+            parsed: {
+              constraints: [],
+              kind: "player_lookup",
+              players: [
+                {
+                  lookupName: null,
+                  mention: "Harry Kane",
+                  recommendationRole: "reference",
+                  referenceScope: "explicit",
+                  referenceTargetMention: null,
+                },
+              ],
+              teams: [],
+            },
+            raw: new AIMessage("understood partial merge"),
+          };
+        }
+
+        const chunkText = payload.message ?? "";
+
+        const anchors = [
+          { kind: "participant", text: "Harry Kane" },
+          { kind: "season", text: "2024/25" },
+          { kind: "team", text: "Bayern Munich" },
+        ].filter(({ text }) => chunkText.includes(text));
+
+        const ambiguities = chunkText.includes("him") ? [chunkAmbiguity] : [];
+
+        return {
+          parsed: {
+            ambiguities,
+            anchors,
+            instruction: anchors.map(({ text }) => text).join("; "),
+            references: anchors.map(({ text }, anchorIndex) => {
+              const start = chunkText.indexOf(text);
+
+              return {
+                anchorIndex,
+                end: start + text.length,
+                start,
+                text,
+              };
+            }),
+          },
+          raw: new AIMessage("chunk extraction"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "omitted-merge-anchor" }),
+          ],
+        },
+        { configurable: { thread_id: "omitted-merge-anchor" } }
+      )
+    );
+
+    const chunking = result.contextProcessing.compaction?.chunking;
+
+    expect({
+      chunksSavedWithSourceReferences: chunking?.chunks.every(
+        ({ references, status }) =>
+          status === "ready" &&
+          references.every(
+            ({ end, start, text }) => original.slice(start, end) === text
+          )
+      ),
+      compactionStatus: result.contextProcessing.compaction?.status,
+      mergeRan: operations.includes("merge_text_chunks"),
+      requestUnderstandingCalls: operations.filter(
+        (operation) => operation === "understand_request"
+      ).length,
+      stopReason: result.contextProcessing.compaction?.stopReason,
+    }).toStrictEqual({
+      chunksSavedWithSourceReferences: true,
+      compactionStatus: "failed",
+      mergeRan: true,
+      requestUnderstandingCalls: 0,
+      stopReason: "source_reference_invalid",
+    });
+  });
+
+  it("asks through the native clarification interrupt when merged chunks conflict", async () => {
+    const filler = "Background note with no scouting constraint. ".repeat(1000);
+    const original = `Look up Harry Kane in 2024/25. ${filler}Also consider 2025/26.`;
+    const clarification = "Use 2025/26 only.";
+    const clarifiedSource = `${original}\n\nUser clarification: ${clarification}`;
+    const operations: string[] = [];
+    const sourceMessageIds: string[] = [];
+    const sourceHashes: string[] = [];
+    let mergeCount = 0;
+    const model = fakeModel();
+
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const humanContent = z.string().parse(humanMessage?.content);
+
+        const payload = z
+          .looseObject({
+            chunks: z.array(z.unknown()).optional(),
+            message: z.string().optional(),
+            operation: z.string().optional(),
+          })
+          .parse(JSON.parse(humanContent));
+
+        const { operation } = payload;
+        operations.push(operation ?? "understand_request");
+
+        if (operation === "merge_text_chunks") {
+          mergeCount += 1;
+
+          const mergePayload = z
+            .object({
+              source: z.object({ hash: z.string(), messageId: z.string() }),
+            })
+            .parse(payload);
+
+          sourceHashes.push(mergePayload.source.hash);
+          sourceMessageIds.push(mergePayload.source.messageId);
+
+          if (mergeCount === 1) {
+            return {
+              parsed: {
+                ambiguities: ["请确认使用 2024/25 还是 2025/26"],
+                anchors: [
+                  { kind: "participant", text: "Harry Kane" },
+                  { kind: "season", text: "2024/25" },
+                  { kind: "season", text: "2025/26" },
+                ],
+                instruction: "Compare Harry Kane in 2024/25 or 2025/26.",
+                references: [
+                  { anchorIndex: 0, ...anchorAt(original, "Harry Kane") },
+                  { anchorIndex: 1, ...anchorAt(original, "2024/25") },
+                  { anchorIndex: 2, ...anchorAt(original, "2025/26") },
+                ],
+              },
+              raw: new AIMessage("merged ambiguity"),
+            };
+          }
+
+          const resolvedAnchors = [
+            {
+              kind: "participant",
+              ...anchorAt(clarifiedSource, "Harry Kane"),
+            },
+            {
+              kind: "season",
+              ...anchorAt(clarifiedSource, "2024/25"),
+            },
+            ...[...clarifiedSource.matchAll(/2025\/26/gu)].map((match) => ({
+              end: (match.index ?? 0) + match[0].length,
+              kind: "season",
+              start: match.index ?? 0,
+              text: match[0],
+            })),
+          ];
+
+          return {
+            parsed: {
+              ambiguities: [],
+              anchors: resolvedAnchors.map(({ kind, text }) => ({
+                kind,
+                text,
+              })),
+              instruction:
+                "Use 2025/26 only for Harry Kane; this corrects the earlier 2024/25 scope.",
+              references: resolvedAnchors.map(
+                ({ end, start, text }, anchorIndex) => ({
+                  anchorIndex,
+                  end,
+                  start,
+                  text,
+                })
+              ),
+            },
+            raw: new AIMessage("merged clarified chunks"),
+          };
+        }
+
+        if (operation === undefined) {
+          return {
+            parsed: {
+              constraints: [],
+              kind: "player_lookup",
+              players: [
+                {
+                  lookupName: null,
+                  mention: "Harry Kane",
+                  recommendationRole: "reference",
+                  referenceScope: "explicit",
+                  referenceTargetMention: null,
+                },
+              ],
+              teams: [],
+            },
+            raw: new AIMessage("understood clarified request"),
+          };
+        }
+
+        const sourceChunk = payload.message ?? "";
+
+        const chunkPayload = z
+          .object({ sourceHash: z.string(), sourceMessageId: z.string() })
+          .parse(payload);
+
+        sourceHashes.push(chunkPayload.sourceHash);
+        sourceMessageIds.push(chunkPayload.sourceMessageId);
+
+        const anchorTexts = ["Harry Kane", "2024/25", "2025/26"];
+
+        const anchors = anchorTexts.flatMap((text) => {
+          const found = [...sourceChunk.matchAll(new RegExp(text, "gu"))];
+
+          return found.map((match) => ({
+            kind: text === "Harry Kane" ? "participant" : "season",
+            start: match.index ?? 0,
+            text,
+          }));
+        });
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: anchors.map(({ kind, text }) => ({ kind, text })),
+            instruction: anchors.length
+              ? anchors.map(({ text }) => text).join("; ")
+              : "No scouting constraints in this fragment.",
+            references: anchors.map(({ start, text }, anchorIndex) => ({
+              anchorIndex,
+              end: start + text.length,
+              start,
+              text,
+            })),
+          },
+          raw: new AIMessage("chunk extraction"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      playerIdentityLookup: (mention) => ({
+        candidateCount: 0,
+        candidates: [],
+        candidatesTruncated: false,
+        canonicalIdentityId: null,
+        clarificationMessage: null,
+        mention,
+        selectedCandidateId: null,
+        selectedName: null,
+        status: "data_unavailable",
+      }),
+      store: null,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "chunk-conflict-clarification" },
+    };
+
+    const paused = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "chunk-conflict" }),
+          ],
+        },
+        config
+      )
+    );
+
+    const snapshot = await graph.getState(config);
+    const chunking = paused.contextProcessing.compaction?.chunking;
+
+    expect({
+      allChunksSaved: chunking?.chunks.every(
+        ({ status }) => status === "ready"
+      ),
+      answerHasQuestion: paused.pendingClarification?.question,
+      chunksExtracted:
+        operations.filter((operation) => operation === "extract_text_chunk")
+          .length > 1,
+      compactionStatus: paused.contextProcessing.compaction?.status,
+      interruptPending: snapshot.tasks.some(
+        ({ interrupts }) => interrupts.length > 0
+      ),
+      mergeCallCount: operations.filter(
+        (operation) => operation === "merge_text_chunks"
+      ).length,
+      mergeRanLast: operations.at(-1) === "merge_text_chunks",
+      mergeStatus: chunking?.mergeStatus,
+      originalMessage: paused.messages[0]?.content,
+      pendingKind: paused.pendingClarification?.kind,
+    }).toStrictEqual({
+      allChunksSaved: true,
+      answerHasQuestion:
+        "原始球探指令中这些条件不明确或相互冲突：请确认使用 2024/25 还是 2025/26。请补充或修正后继续。",
+      chunksExtracted: true,
+      compactionStatus: "needs_clarification",
+      interruptPending: true,
+      mergeCallCount: 1,
+      mergeRanLast: true,
+      mergeStatus: "ready",
+      originalMessage: original,
+      pendingKind: "context_processing",
+    });
+
+    const resumed = AgentState.parse(
+      await graph.invoke(new Command({ resume: clarification }), config)
+    );
+
+    const resumedChunking = resumed.contextProcessing.compaction?.chunking;
+
+    expect({
+      allResumedChunksSaved: resumedChunking?.chunks.every(
+        ({ status }) => status === "ready"
+      ),
+      clarificationAnswers: resumed.contextProcessing.clarification?.answers,
+      compactionStatus: resumed.contextProcessing.compaction?.status,
+      finalInstruction: resumed.contextProcessing.compaction?.instruction,
+      referencesMatchClarifiedSource:
+        resumed.contextProcessing.compaction?.references.every(
+          ({ end, start, text }) => clarifiedSource.slice(start, end) === text
+        ),
+      resumedMessage: resumed.messages[0]?.content,
+      resumedSourceHashChanged:
+        new Set(sourceHashes).size === 2 &&
+        sourceHashes.at(-1) !== sourceHashes[0],
+      resumedSourceIdsStayBound:
+        sourceMessageIds.length > 0 &&
+        sourceMessageIds.every(
+          (sourceMessageId) => sourceMessageId === "chunk-conflict"
+        ),
+      resumedThroughUnderstanding: operations.includes("understand_request"),
+    }).toStrictEqual({
+      allResumedChunksSaved: true,
+      clarificationAnswers: [clarification],
+      compactionStatus: "ready",
+      finalInstruction:
+        "Use 2025/26 only for Harry Kane; this corrects the earlier 2024/25 scope.",
+      referencesMatchClarifiedSource: true,
+      resumedMessage: original,
+      resumedSourceHashChanged: true,
+      resumedSourceIdsStayBound: true,
+      resumedThroughUnderstanding: true,
+    });
+  });
+
+  it("preserves processed chunk progress and stops before understanding when the allowance runs out", async () => {
+    const filler = "Background note with no scouting constraint. ".repeat(1000);
+    const original = `Look up Harry Kane. ${filler}`;
+
+    const priorLookup = {
+      player: { candidate: knownKaneCandidate, referenceId: "prior-kane" },
+      resultJson: "previous-success-snapshot",
+    };
+
+    const structuredOperations: string[] = [];
+    const model = fakeModel();
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const humanContent = z.string().parse(humanMessage?.content);
+
+        const payload = z
+          .looseObject({
+            message: z.string().optional(),
+            operation: z.string(),
+          })
+          .parse(JSON.parse(humanContent));
+
+        structuredOperations.push(payload.operation);
+
+        const source = payload.message ?? "";
+        const participantStart = source.indexOf("Harry Kane");
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors:
+              participantStart === -1
+                ? []
+                : [{ kind: "participant", text: "Harry Kane" }],
+            instruction:
+              participantStart === -1
+                ? "No scouting constraints in this fragment."
+                : "Look up Harry Kane.",
+            references:
+              participantStart === -1
+                ? []
+                : [
+                    {
+                      anchorIndex: 0,
+                      end: participantStart + "Harry Kane".length,
+                      start: participantStart,
+                      text: "Harry Kane",
+                    },
+                  ],
+          },
+          raw: new AIMessage("chunk extraction"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      contextProcessingAllowance: { maxAdditionalCalls: 1 },
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          conversationContext: {
+            ...createInitialConversationContext(),
+            activeLookup: priorLookup,
+          },
+          messages: [
+            new HumanMessage({ content: original, id: "quota-chunk" }),
+          ],
+          stateSchemaVersion: agentStateSchemaVersion,
+        },
+        { configurable: { thread_id: "chunk-quota-progress" } }
+      )
+    );
+
+    const chunking = result.contextProcessing.compaction?.chunking;
+    const currentInstruction = result.messages.at(-1)?.content;
+
+    expect({
+      allowanceCalls:
+        result.contextProcessing.allowance?.consumedAdditionalCalls,
+      chunkStatus: chunking?.chunks[0]?.status,
+      nextStartIsBeforeEnd:
+        (chunking?.nextStart ?? original.length) < original.length,
+      originalLength: original.length,
+      originalMessagePreserved: result.messages[0]?.content === original,
+      outcome: result.outcome,
+      priorSnapshotPreserved:
+        result.conversationContext.activeLookup?.resultJson ===
+        priorLookup.resultJson,
+      processedCalls: structuredOperations,
+      status: result.contextProcessing.compaction?.status,
+      stopAnswer: currentInstruction,
+      stopReason: result.contextProcessing.compaction?.stopReason,
+    }).toStrictEqual({
+      allowanceCalls: 1,
+      chunkStatus: "ready",
+      nextStartIsBeforeEnd: true,
+      originalLength: original.length,
+      originalMessagePreserved: true,
+      outcome: null,
+      priorSnapshotPreserved: true,
+      processedCalls: ["extract_text_chunk"],
+      status: "allowance_exhausted",
+      stopAnswer:
+        "本请求的自动上下文处理额度已用完，原文和处理进度仍保留。请明确要求继续后再追加额度。",
+      stopReason: "allowance_exhausted",
+    });
+  });
+
+  it("rebuilds chunking when a persisted chunk source hash is stale", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(1000);
+    const original = `Look up Harry Kane. ${filler}`;
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const payload = z
+          .looseObject({ message: z.string().optional() })
+          .parse(JSON.parse(z.string().parse(humanMessage?.content)));
+
+        const chunkText = payload.message ?? "";
+        const start = chunkText.indexOf("Harry Kane");
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors:
+              start === -1 ? [] : [{ kind: "participant", text: "Harry Kane" }],
+            instruction:
+              start === -1
+                ? "No scouting constraints in this fragment."
+                : "Harry Kane",
+            references:
+              start === -1
+                ? []
+                : [
+                    {
+                      anchorIndex: 0,
+                      end: start + "Harry Kane".length,
+                      start,
+                      text: "Harry Kane",
+                    },
+                  ],
+          },
+          raw: new AIMessage("chunk extraction"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      contextProcessingAllowance: { maxAdditionalCalls: 1 },
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "stale-chunk-hash" },
+    };
+
+    const partiallyProcessed = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "stale-chunk-hash" }),
+          ],
+        },
+        config
+      )
+    );
+
+    const { compaction } = partiallyProcessed.contextProcessing;
+    const chunking = compaction?.chunking;
+
+    if (compaction === null || chunking === null || chunking === undefined) {
+      throw new Error("The partial chunking checkpoint is missing.");
+    }
+
+    await graph.updateState(config, {
+      contextProcessing: {
+        ...partiallyProcessed.contextProcessing,
+        compaction: {
+          ...compaction,
+          chunking: {
+            ...chunking,
+            chunks: chunking.chunks.map((chunk, index) =>
+              index === 0 ? { ...chunk, sourceHash: "stale-chunk-hash" } : chunk
+            ),
+          },
+        },
+      },
+    });
+
+    const replayed = AgentState.parse(
+      await graph.invoke({ messages: [] }, config)
+    );
+
+    expect({
+      allowanceCalls:
+        replayed.contextProcessing.allowance?.consumedAdditionalCalls,
+      chunkCallCount: modelPayloads.length,
+      chunkCount:
+        replayed.contextProcessing.compaction?.chunking?.chunks.length,
+      compactionStatus: replayed.contextProcessing.compaction?.status,
+      nextStart: replayed.contextProcessing.compaction?.chunking?.nextStart,
+      originalMessagePreserved: replayed.messages[0]?.content === original,
+    }).toStrictEqual({
+      allowanceCalls: 1,
+      chunkCallCount: 1,
+      chunkCount: 0,
+      compactionStatus: "allowance_exhausted",
+      nextStart: 0,
+      originalMessagePreserved: true,
+    });
+  });
+
+  it("preserves ready chunks when a later chunk reservation has unknown completion", async () => {
+    const model = fakeModel();
+    const filler = "Background note with no scouting constraint. ".repeat(1000);
+    const original = `Look up Harry Kane. ${filler}`;
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const payload = z
+          .looseObject({ message: z.string().optional() })
+          .parse(JSON.parse(z.string().parse(humanMessage?.content)));
+
+        const source = payload.message ?? "";
+        const start = source.indexOf("Harry Kane");
+
+        const anchors =
+          start === -1 ? [] : [{ kind: "participant", text: "Harry Kane" }];
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors,
+            instruction:
+              start === -1
+                ? "No scouting constraints in this fragment."
+                : "Harry Kane",
+            references:
+              start === -1
+                ? []
+                : [
+                    {
+                      anchorIndex: 0,
+                      end: start + "Harry Kane".length,
+                      start,
+                      text: "Harry Kane",
+                    },
+                  ],
+          },
+          raw: new AIMessage("chunk extraction"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      contextProcessingAllowance: { maxAdditionalCalls: 1 },
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const config = {
+      configurable: { thread_id: "unknown-later-chunk" },
+    };
+
+    const partial = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "unknown-later-chunk" }),
+          ],
+        },
+        config
+      )
+    );
+
+    const { allowance, compaction } = partial.contextProcessing;
+    const chunking = compaction?.chunking;
+
+    if (allowance === null || compaction === null) {
+      throw new Error(
+        "The partial chunk allowance and compaction are missing."
+      );
+    }
+
+    if (chunking === null || chunking === undefined) {
+      throw new Error("A partial chunk progress checkpoint was not created.");
+    }
+
+    if (chunking.nextStart >= chunking.sourceLength) {
+      throw new Error("The partial chunk plan has no remaining source text.");
+    }
+
+    const remainderStart = chunking.nextStart;
+    const remainderText = original.slice(remainderStart);
+
+    const reservedRemainder = {
+      ambiguities: [],
+      anchors: [],
+      end: original.length,
+      instruction: null,
+      instructionTokenEstimate: null,
+      references: [],
+      sourceHash: createHash("sha256").update(remainderText).digest("hex"),
+      start: remainderStart,
+      status: "reserved" as const,
+      targetTokenEstimate: 1,
+    };
+
+    const resumedChunking = {
+      ...chunking,
+      chunks: [...chunking.chunks, reservedRemainder],
+      mergeStatus: "pending" as const,
+      nextStart: original.length,
+    };
+
+    const reservationTimeMs = 1000;
+
+    await graph.updateState(config, {
+      contextProcessing: {
+        ...partial.contextProcessing,
+        allowance: {
+          ...allowance,
+          maxAdditionalCalls: 4,
+          reservation: {
+            chunkIndex: 1,
+            maxActiveTimeMs: reservationTimeMs,
+            operation: "compact_text_chunk",
+            operationId: "unknown-later-chunk-reservation",
+            sourceHash: compaction.sourceHash,
+            sourceMessageId: compaction.sourceMessageId,
+          },
+        },
+        compaction: {
+          ...compaction,
+          chunking: resumedChunking,
+          progress: { end: original.length, start: remainderStart },
+          status: "reserved",
+          stopReason: null,
+        },
+      },
+    });
+
+    const recovered = AgentState.parse(
+      await graph.invoke({ messages: [] }, config)
+    );
+
+    const recoveredAllowance = recovered.contextProcessing.allowance;
+    const recoveredCompaction = recovered.contextProcessing.compaction;
+    const recoveredChunking = recoveredCompaction?.chunking;
+
+    expect({
+      allowanceCalls: recoveredAllowance?.consumedAdditionalCalls,
+      chunkCount: recoveredChunking?.chunks.length,
+      chunkStatuses: recoveredChunking?.chunks.map(({ status }) => status),
+      compactionStatus: recoveredCompaction?.status,
+      modelCallCount: modelPayloads.length,
+      nextStart: recoveredChunking?.nextStart,
+      reservation: recoveredAllowance?.reservation,
+      sourceMessagePreserved: recovered.messages[0]?.content === original,
+    }).toStrictEqual({
+      allowanceCalls: 2,
+      chunkCount: 2,
+      chunkStatuses: ["ready", "reserved"],
+      compactionStatus: "unknown",
+      modelCallCount: 1,
+      nextStart: original.length,
+      reservation: null,
+      sourceMessagePreserved: true,
     });
   });
 
@@ -429,7 +1626,7 @@ describe("automatic text compaction", () => {
       lookupSearchCount: search.mock.calls.length,
       lookupWorkingMessageId: lookupHumanMessage?.id,
       originalCheckpointMessage: checkpoint.messages[0]?.content,
-      originalMessage: result.messages[0]?.content,
+      originalMessagePreserved: result.messages[0]?.content === original,
       outcome: result.outcome?.status,
       requestUnderstandingReceivedClarification: JSON.stringify(
         requestUnderstandingPayload
@@ -451,7 +1648,7 @@ describe("automatic text compaction", () => {
       lookupSearchCount: 1,
       lookupWorkingMessageId: "long-lookup",
       originalCheckpointMessage: original,
-      originalMessage: original,
+      originalMessagePreserved: true,
       outcome: "answer_ready",
       requestUnderstandingReceivedClarification: true,
       requestUnderstandingReceivedFiller: false,
@@ -1804,7 +3001,7 @@ describe("automatic text compaction", () => {
     expect(recovered.messages.at(-1)?.content).toContain("无法确认");
   });
 
-  it("leaves oversized text pending for bounded chunk processing", async () => {
+  it("fails safely when a chunk response is invalid and preserves the original message", async () => {
     const model = fakeModel();
     const filler = "Background note with no scouting constraint. ".repeat(1100);
     const original = `Look up Harry Kane. ${filler}`;
@@ -1845,18 +3042,183 @@ describe("automatic text compaction", () => {
     }
 
     expect({
+      chunkStatus:
+        result.contextProcessing.compaction?.chunking?.chunks[0]?.status,
       compactionStatus: result.contextProcessing.compaction?.status,
       inputCount: modelPayloads.length,
-      originalMessage: result.messages[0]?.content,
+      nextStart: result.contextProcessing.compaction?.chunking?.nextStart,
+      originalMessagePreserved: result.messages[0]?.content === original,
+      progress: result.contextProcessing.compaction?.progress,
+    }).toStrictEqual({
+      chunkStatus: "failed",
+      compactionStatus: "failed",
+      inputCount: 1,
+      nextStart: original.length,
+      originalMessagePreserved: true,
+      progress: { end: 31_744, start: 0 },
+    });
+    expect(allowance.consumedAdditionalCalls).toBe(1);
+    expect(allowance.reservation).toBeNull();
+    expect(lastAssistantMessage).toContain("无法安全压缩");
+  });
+
+  it("does not split a required numeric span that cannot fit in one chunk", async () => {
+    const model = fakeModel();
+    const original = "9".repeat(40_000);
+    const modelPayloads: unknown[] = [];
+    mockDeterministicTokenCount(model);
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        modelPayloads.push(input);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [],
+            instruction: "No scouting constraints in this fragment.",
+            references: [],
+          },
+          raw: new AIMessage("unexpected chunk response"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "long-number" }),
+          ],
+        },
+        { configurable: { thread_id: "long-required-number" } }
+      )
+    );
+
+    expect({
+      compactionStatus: result.contextProcessing.compaction?.status,
+      inputCount: modelPayloads.length,
+      originalMessagePreserved: result.messages[0]?.content === original,
       progress: result.contextProcessing.compaction?.progress,
     }).toStrictEqual({
       compactionStatus: "needs_chunking",
       inputCount: 0,
-      originalMessage: original,
+      originalMessagePreserved: true,
       progress: { end: original.length, start: 0 },
     });
-    expect(allowance.consumedAdditionalCalls).toBe(0);
-    expect(allowance.reservation).toBeNull();
-    expect(lastAssistantMessage).toContain("拆分或缩短");
+  });
+
+  it("keeps chunk boundaries between UTF-16 surrogate pairs", async () => {
+    const model = fakeModel();
+    const firstChunkEnd = 31_808;
+
+    const original = `${"x".repeat(firstChunkEnd - 1)}😀${"x".repeat(
+      40_001 - firstChunkEnd - 1
+    )}`;
+
+    const chunkRanges: { end: number; start: number }[] = [];
+
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (input) => {
+      const chunkEnd = chunkEndFromInput(input);
+
+      if (chunkEnd !== null) {
+        return chunkEnd <= firstChunkEnd ? 1 : 100_000;
+      }
+
+      const serializedInput = Array.isArray(input)
+        ? (JSON.stringify(input) ?? "")
+        : input;
+
+      await yieldNow();
+
+      return Math.ceil(serializedInput.length / 4);
+    });
+    vi.spyOn(model, "withStructuredOutput").mockReturnValue(
+      RunnableLambda.from((input) => {
+        const humanMessage = Array.isArray(input)
+          ? input.find((message) => message instanceof HumanMessage)
+          : undefined;
+
+        const payload = z
+          .looseObject({
+            range: z.object({ end: z.number(), start: z.number() }),
+          })
+          .parse(JSON.parse(z.string().parse(humanMessage?.content)));
+
+        chunkRanges.push(payload.range);
+
+        return {
+          parsed: {
+            ambiguities: [],
+            anchors: [],
+            instruction: "No scouting constraints in this fragment.",
+            references: [],
+          },
+          raw: new AIMessage("empty chunk extraction"),
+        };
+      })
+    );
+
+    const graph = createAgent({
+      checkpointer: new MemorySaver(),
+      contextProcessingAllowance: { maxAdditionalCalls: 1 },
+      model,
+      modelContextProfile,
+      modelOutputLimitAdapter: testModelOutputLimitAdapter,
+      store: null,
+      tools: [],
+    });
+
+    const result = AgentState.parse(
+      await graph.invoke(
+        {
+          messages: [
+            new HumanMessage({ content: original, id: "unicode-chunk" }),
+          ],
+        },
+        { configurable: { thread_id: "unicode-chunk-boundary" } }
+      )
+    );
+
+    const [range] = chunkRanges;
+
+    const sourceCodePointCount = codePointCount(original);
+
+    const splitsSurrogatePair = (index: number): boolean => {
+      if (index <= 0 || index >= original.length) {
+        return false;
+      }
+
+      return (
+        codePointCount(original.slice(0, index)) +
+          codePointCount(original.slice(index)) >
+        sourceCodePointCount
+      );
+    };
+
+    expect({
+      chunkCount: chunkRanges.length,
+      compactionStatus: result.contextProcessing.compaction?.status,
+      originalMessagePreserved: result.messages[0]?.content === original,
+      range: range ?? null,
+      splitsPair:
+        range === undefined
+          ? null
+          : splitsSurrogatePair(range.start) || splitsSurrogatePair(range.end),
+    }).toStrictEqual({
+      chunkCount: 1,
+      compactionStatus: "allowance_exhausted",
+      originalMessagePreserved: true,
+      range: range ?? null,
+      splitsPair: false,
+    });
   });
 });

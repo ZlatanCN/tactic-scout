@@ -72,8 +72,13 @@ const threadStateSchema = z.looseObject({
             requestId: z.string(),
             reservation: z
               .object({
+                chunkIndex: z.number().nullable().optional(),
                 maxActiveTimeMs: z.number(),
-                operation: z.literal("compact_text"),
+                operation: z.enum([
+                  "compact_text",
+                  "compact_text_chunk",
+                  "merge_text_chunks",
+                ]),
                 operationId: z.string(),
                 sourceHash: z.string(),
                 sourceMessageId: z.string(),
@@ -85,6 +90,39 @@ const threadStateSchema = z.looseObject({
           .object({
             activeContextHash: z.string(),
             anchors: z.array(z.object({ kind: z.string(), text: z.string() })),
+            chunking: z
+              .object({
+                chunks: z.array(
+                  z.object({
+                    ambiguities: z.array(z.string()),
+                    anchors: z.array(
+                      z.object({ kind: z.string(), text: z.string() })
+                    ),
+                    end: z.number(),
+                    instruction: z.string().nullable(),
+                    instructionTokenEstimate: z.number().nullable(),
+                    references: z.array(
+                      z.object({
+                        anchorIndex: z.number(),
+                        end: z.number(),
+                        start: z.number(),
+                        text: z.string(),
+                      })
+                    ),
+                    sourceHash: z.string(),
+                    start: z.number(),
+                    status: z.string(),
+                    targetTokenEstimate: z.number(),
+                  })
+                ),
+                mergeStatus: z.string(),
+                nextStart: z.number(),
+                sourceHash: z.string(),
+                sourceLength: z.number(),
+                sourceMessageId: z.string(),
+              })
+              .nullable()
+              .optional(),
             formatVersion: z.number(),
             instruction: z.string().nullable(),
             instructionHash: z.string().nullable(),
@@ -637,7 +675,12 @@ const compactionArgumentsForFixtureText = (
   const start = message.indexOf(participant);
 
   if (start === -1) {
-    return null;
+    return {
+      ambiguities: [],
+      anchors: [],
+      instruction: "No scouting constraints in this fragment.",
+      references: [],
+    };
   }
 
   return {

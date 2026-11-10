@@ -94,6 +94,33 @@ const textCompactionFacts = (state: ThreadState) => ({
   requestKind: state.values.request.kind,
 });
 
+const chunkProgressFacts = (
+  state: ReturnType<typeof AgentState.parse>,
+  message: string,
+  messageId: string
+) => {
+  const allowanceCalls =
+    state.contextProcessing.allowance?.consumedAdditionalCalls ?? null;
+
+  const { compaction } = state.contextProcessing;
+  const chunking = compaction?.chunking;
+
+  return {
+    allProcessedChunksSaved:
+      chunking?.chunks.every(({ status }) => status === "ready") ?? false,
+    allowanceCalls,
+    chunkCount: chunking?.chunks.length ?? 0,
+    hasUnprocessedTail: Boolean(
+      chunking && chunking.nextStart < chunking.sourceLength
+    ),
+    originalMessagePresent: state.messages.some(
+      ({ content, id, type }) =>
+        type === "human" && id === messageId && content === message
+    ),
+    status: compaction?.status ?? null,
+  };
+};
+
 const memoryForgetOptionLabel = (state: ThreadState, marker: string) => {
   const pending = z
     .object({
@@ -688,6 +715,107 @@ describe("managed Dev Server persistence", () => {
       await session.close();
     }
   }, 45_000);
+
+  it("persists completed chunks and exhausted allowance through a native restart", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/text-compaction-agent.ts:agent"
+    );
+
+    const { baseUrl, gateway } = session;
+    const thread = await createAgentThread(baseUrl);
+    const filler = "Background note with no scouting constraint. ".repeat(6000);
+    const message = `Look up Harry Kane. ${filler}`;
+    const messageId = "partial-chunk-progress";
+
+    const chunkCalls = () =>
+      gateway.calls().filter((call) => call.includes("extract_text_chunk"));
+
+    const readAgentState = async () => {
+      const state = await requestJson(
+        baseUrl,
+        `/threads/${thread.thread_id}/state`,
+        z.looseObject({ values: z.unknown().optional() })
+      );
+
+      if (state.values === undefined) {
+        throw new Error("The chunked thread has no state values.");
+      }
+
+      return AgentState.parse(state.values);
+    };
+
+    try {
+      await runPlayerLookup(baseUrl, thread.thread_id, message, messageId);
+      const beforeRestart = await readAgentState();
+
+      const beforeCompaction = beforeRestart.contextProcessing.compaction;
+
+      const beforeChunking = beforeCompaction?.chunking;
+
+      expect({
+        ...chunkProgressFacts(beforeRestart, message, messageId),
+        chunkCalls: chunkCalls().length,
+        mergeCalls: gateway
+          .calls()
+          .filter((call) => call.includes("merge_text_chunks")).length,
+      }).toStrictEqual({
+        allProcessedChunksSaved: true,
+        allowanceCalls: 6,
+        chunkCalls: 6,
+        chunkCount: 6,
+        hasUnprocessedTail: true,
+        mergeCalls: 0,
+        originalMessagePresent: true,
+        status: "allowance_exhausted",
+      });
+
+      await session.restart();
+
+      const afterRestart = await readAgentState();
+
+      expect({
+        ...chunkProgressFacts(afterRestart, message, messageId),
+        chunkCalls: chunkCalls().length,
+        chunkingMatches: isDeepStrictEqual(
+          afterRestart.contextProcessing.compaction?.chunking,
+          beforeChunking
+        ),
+      }).toStrictEqual({
+        allProcessedChunksSaved: true,
+        allowanceCalls: 6,
+        chunkCalls: 6,
+        chunkCount: 6,
+        chunkingMatches: true,
+        hasUnprocessedTail: true,
+        originalMessagePresent: true,
+        status: "allowance_exhausted",
+      });
+
+      await runPlayerLookup(baseUrl, thread.thread_id, message, messageId);
+
+      const afterReplay = await readAgentState();
+
+      expect({
+        ...chunkProgressFacts(afterReplay, message, messageId),
+        chunkCalls: chunkCalls().length,
+        chunkingMatches: isDeepStrictEqual(
+          afterReplay.contextProcessing.compaction?.chunking,
+          beforeChunking
+        ),
+      }).toStrictEqual({
+        allProcessedChunksSaved: true,
+        allowanceCalls: 6,
+        chunkCalls: 6,
+        chunkCount: 6,
+        chunkingMatches: true,
+        hasUnprocessedTail: true,
+        originalMessagePresent: true,
+        status: "allowance_exhausted",
+      });
+    } finally {
+      await session.close();
+    }
+  }, 90_000);
 
   it("retries an unfinished lookup after restart and rebuilds an incompatible compaction cache", async () => {
     const session = await startDevServerSession(

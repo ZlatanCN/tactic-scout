@@ -29,8 +29,13 @@ const ContextProcessingReferenceSchema = z.object({
 });
 
 const ContextProcessingReservationSchema = z.object({
+  chunkIndex: z.number().int().nonnegative().nullable().default(null),
   maxActiveTimeMs: z.number().int().positive(),
-  operation: z.literal("compact_text"),
+  operation: z.enum([
+    "compact_text",
+    "compact_text_chunk",
+    "merge_text_chunks",
+  ]),
   operationId: z.string().min(1),
   sourceHash: z.string().min(1),
   sourceMessageId: z.string().min(1),
@@ -45,10 +50,33 @@ const ContextProcessingAllowanceSchema = z.object({
   reservation: ContextProcessingReservationSchema.nullable(),
 });
 
+const ContextProcessingChunkSchema = z.object({
+  ambiguities: z.array(z.string()).default([]),
+  anchors: z.array(ContextProcessingAnchorSchema),
+  end: z.number().int().positive(),
+  instruction: z.string().nullable(),
+  instructionTokenEstimate: z.number().int().nonnegative().nullable(),
+  references: z.array(ContextProcessingReferenceSchema),
+  sourceHash: z.string().min(1),
+  start: z.number().int().nonnegative(),
+  status: z.enum(["pending", "reserved", "ready", "failed"]),
+  targetTokenEstimate: z.number().int().positive(),
+});
+
+const ContextProcessingChunkingSchema = z.object({
+  chunks: z.array(ContextProcessingChunkSchema),
+  mergeStatus: z.enum(["pending", "reserved", "ready", "failed"]),
+  nextStart: z.number().int().nonnegative(),
+  sourceHash: z.string().min(1),
+  sourceLength: z.number().int().nonnegative(),
+  sourceMessageId: z.string().min(1),
+});
+
 const ContextProcessingCompactionSchema = z.object({
   activeContextHash: z.string().min(1),
   ambiguities: z.array(z.string()).default([]),
   anchors: z.array(ContextProcessingAnchorSchema),
+  chunking: ContextProcessingChunkingSchema.nullable().default(null),
   formatVersion: z.number().int().positive(),
   instruction: z.string().nullable(),
   instructionHash: z.string().nullable(),
@@ -67,6 +95,8 @@ const ContextProcessingCompactionSchema = z.object({
   status: z.enum([
     "reserved",
     "ready",
+    "chunking",
+    "merging",
     "needs_chunking",
     "needs_clarification",
     "failed",
@@ -117,6 +147,12 @@ type ContextProcessingAllowance = z.infer<
   typeof ContextProcessingAllowanceSchema
 >;
 
+type ContextProcessingChunk = z.infer<typeof ContextProcessingChunkSchema>;
+
+type ContextProcessingChunking = z.infer<
+  typeof ContextProcessingChunkingSchema
+>;
+
 type ContextProcessingCompaction = z.infer<
   typeof ContextProcessingCompactionSchema
 >;
@@ -159,6 +195,8 @@ const contextProcessingInputText = (
 
 export {
   ContextProcessingSchema,
+  ContextProcessingChunkSchema,
+  ContextProcessingChunkingSchema,
   contextProcessingAnchorKinds,
   contextProcessingHash,
   contextProcessingInputText,
@@ -169,6 +207,8 @@ export type {
   ContextProcessing,
   ContextProcessingAllowance,
   ContextProcessingAnchor,
+  ContextProcessingChunk,
+  ContextProcessingChunking,
   ContextProcessingCompaction,
   ContextProcessingClarification,
   ContextProcessingReference,

@@ -844,6 +844,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       "understand_request",
     ])
     .addConditionalEdges("compact_request_text", routeAfterTextCompaction, [
+      "prepare_context_processing",
       "understand_request",
       "answer_context_processing",
     ])
