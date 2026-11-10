@@ -30,6 +30,7 @@ import {
   modelExecutionTimeoutMs,
   apiTimeoutMs,
 } from "./fault-tolerance.js";
+import { scoutingEvidenceProjections } from "./lookup-evidence.js";
 import { modelContextFailure } from "./model-context.js";
 import type {
   ModelContextConfiguration,
@@ -48,6 +49,11 @@ import { createExecuteLookupToolsNode } from "./nodes/execute-lookup-tools.js";
 import { createFetchTeamRosterNode } from "./nodes/fetch-team-roster.js";
 import { createGuardLookupSearchNode } from "./nodes/guard-lookup-search.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
+import {
+  createAnswerLookupEvidenceBatchNode,
+  createPrepareLookupEvidenceNode,
+  lookupEvidenceRoute,
+} from "./nodes/lookup-evidence.js";
 import { createManagePlayerMemoryNode } from "./nodes/manage-player-memory.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
@@ -76,6 +82,7 @@ import {
   rememberRosterIdentity,
   validatePlayerReference,
 } from "./player-memory.js";
+import { latestHumanMessage, messageText } from "./player-mentions.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
 import {
   createRequestUnderstandingExtractor,
@@ -581,13 +588,39 @@ const routeAfterClarification = (state: AgentStateType): string => {
   return "answer";
 };
 
+const lookupResultNeedsBatches = (state: AgentStateType): boolean => {
+  const { outcome } = state;
+  const sourceMessage = latestHumanMessage(state.messages);
+
+  if (
+    outcome?.kind !== "player_lookup" ||
+    outcome.resultJson === null ||
+    !("source" in outcome) ||
+    sourceMessage === undefined
+  ) {
+    return false;
+  }
+
+  const batches = scoutingEvidenceProjections(
+    outcome.resultJson,
+    messageText(sourceMessage),
+    outcome.source
+  );
+
+  return batches !== null && batches.length > 1;
+};
+
 const routeLookupResponse = (state: AgentStateType): string => {
   const lastMessage = state.messages.at(-1);
 
-  return lastMessage instanceof AIMessage &&
+  if (
+    lastMessage instanceof AIMessage &&
     (lastMessage.tool_calls ?? []).length > 0
-    ? "lookup_tools_guard"
-    : "answer";
+  ) {
+    return "lookup_tools_guard";
+  }
+
+  return lookupResultNeedsBatches(state) ? "prepare_lookup_evidence" : "answer";
 };
 
 const routeAfterApiRateLimitWait = (state: AgentStateType): string =>
@@ -616,7 +649,7 @@ const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
     state.outcome?.kind === "player_lookup" &&
     state.outcome.status === "lookup_follow_up"
   ) {
-    return "answer";
+    return "prepare_lookup_evidence";
   }
 
   if (state.outcome !== null && "source" in state.outcome) {
@@ -776,6 +809,16 @@ const createAgent = (options: CreateAgentOptions = {}) => {
 
   const boundedLookupTools = createExecuteLookupToolsNode(lookupTool);
 
+  const prepareLookupEvidence = createPrepareLookupEvidenceNode({
+    allowance: options.contextProcessingAllowance,
+  });
+
+  const answerLookupEvidenceBatch = createAnswerLookupEvidenceBatchNode({
+    allowance: options.contextProcessingAllowance,
+    model,
+    modelContextConfiguration,
+  });
+
   const graph = new StateGraph(AgentState)
     .addNode("prepare_context_processing", prepareContextProcessing)
     .addNode(
@@ -790,6 +833,10 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       })
     )
     .addNode("answer_context_processing", createTextCompactionAnswerNode())
+    .addNode("prepare_lookup_evidence", prepareLookupEvidence)
+    .addNode("answer_lookup_evidence_batch", answerLookupEvidenceBatch, {
+      timeout: modelExecutionTimeoutMs,
+    })
     .addNode("understand_request", understandRequest, {
       errorHandler: modelFailureHandler("understand_request"),
       retryPolicy: createNodeRetryPolicy("understand_request", {
@@ -848,6 +895,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       "understand_request",
       "answer_context_processing",
     ])
+    .addConditionalEdges("prepare_lookup_evidence", lookupEvidenceRoute, [
+      "answer",
+      "answer_lookup_evidence_batch",
+    ])
+    .addEdge("answer_lookup_evidence_batch", "prepare_lookup_evidence")
     .addConditionalEdges(
       "answer_context_processing",
       (state) =>
@@ -860,6 +912,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       END,
       "clarify",
       "answer",
+      "prepare_lookup_evidence",
       "manage_player_memory",
       "resolve_entities",
     ])
@@ -927,6 +980,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addConditionalEdges("lookup_player", routeLookupResponse, [
       "lookup_tools_guard",
       "answer",
+      "prepare_lookup_evidence",
     ])
     .addEdge("lookup_tools_guard", "lookup_tools")
     .addEdge("lookup_tools", "commit_lookup")

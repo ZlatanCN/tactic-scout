@@ -3,12 +3,18 @@ import { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 
+import { HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 
 import { comparisonResultSchema } from "../src/player-data/compare-records.js";
 import { recommendationResultSchema } from "../src/player-data/recommend-players.js";
-import { AgentState, agentStateSchemaVersion } from "../src/state.js";
+import {
+  AgentState,
+  agentStateSchemaVersion,
+  createInitialConversationContext,
+  createInitialRequestState,
+} from "../src/state.js";
 import { teamRecommendationResultSchema } from "../src/team-data/recommendation-result.js";
 import {
   apiThreadSchema,
@@ -602,7 +608,462 @@ const verifyCompletedFailureWaitsForExplicitRetry = async ({
   });
 };
 
+type LookupEvidenceReservationRecoveryInput = {
+  baseUrl: string;
+  gateway: LocalGateway;
+  question: string;
+  questionHash: string;
+  resultDigest: string;
+  resultJson: string;
+  seededState: ReturnType<typeof AgentState.parse>;
+  session: DevServerSession;
+};
+
+const verifyUnknownLookupEvidenceReservationAfterRestart = async ({
+  baseUrl,
+  gateway,
+  question,
+  questionHash,
+  resultDigest,
+  resultJson,
+  seededState,
+  session,
+}: LookupEvidenceReservationRecoveryInput) => {
+  const reservedThread = await createAgentThread(baseUrl);
+  const reservedMessageId = "saved-lookup-unknown-batch-reservation";
+  const reservedRequestId = `message:${reservedMessageId}`;
+
+  const reservedSourceHash = createHash("sha256")
+    .update(
+      `saved:${reservedMessageId}:${resultDigest}:${questionHash}:lookup-evidence-v1`
+    )
+    .digest("hex");
+
+  const { allowance } = seededState.contextProcessing;
+  const evidence = seededState.lookupEvidence;
+
+  if (allowance === null || evidence === null) {
+    throw new Error("The persistence fixture needs allowance and evidence.");
+  }
+
+  const reservation = {
+    chunkIndex: 1,
+    maxActiveTimeMs: allowance.maxActiveTimeMs - allowance.consumedActiveTimeMs,
+    maxAdditionalCalls: 1,
+    operation: "explain_lookup_evidence" as const,
+    operationId: createHash("sha256")
+      .update(`${reservedRequestId}:${reservedSourceHash}:batch:1`)
+      .digest("hex"),
+    sourceHash: reservedSourceHash,
+    sourceMessageId: reservedMessageId,
+  };
+
+  const reservedState = {
+    ...seededState,
+    contextProcessing: {
+      ...seededState.contextProcessing,
+      allowance: {
+        ...allowance,
+        requestId: reservedRequestId,
+        reservation,
+      },
+    },
+    lookupEvidence: {
+      ...evidence,
+      batches: evidence.batches.map((batch) =>
+        batch.index === reservation.chunkIndex
+          ? { ...batch, status: "reserved" as const }
+          : batch
+      ),
+      requestId: reservedRequestId,
+      sourceHash: reservedSourceHash,
+      sourceMessageId: reservedMessageId,
+      status: "processing" as const,
+    },
+    messages: [{ content: question, id: reservedMessageId, type: "human" }],
+    request: {
+      ...seededState.request,
+      processedMessageId: reservedMessageId,
+    },
+  };
+
+  await postJson(
+    baseUrl,
+    `/threads/${reservedThread.thread_id}/state`,
+    waitResponseSchema,
+    JSON.stringify({ values: reservedState })
+  );
+  await session.restart();
+
+  const reservedAfterRestart = await getAgentThreadState(
+    baseUrl,
+    reservedThread.thread_id
+  );
+
+  expect({
+    allowanceCalls:
+      reservedAfterRestart.values.contextProcessing?.allowance
+        ?.consumedAdditionalCalls,
+    reservationOperation:
+      reservedAfterRestart.values.contextProcessing?.allowance?.reservation
+        ?.operation,
+  }).toStrictEqual({
+    allowanceCalls: 1,
+    reservationOperation: "explain_lookup_evidence",
+  });
+
+  await runPlayerLookup(
+    baseUrl,
+    reservedThread.thread_id,
+    question,
+    reservedMessageId
+  );
+
+  const settledUnknown = await getAgentThreadState(
+    baseUrl,
+    reservedThread.thread_id
+  );
+
+  const unknownAnswer = latestAssistantText(settledUnknown);
+
+  expect({
+    activeTimeMs:
+      settledUnknown.values.contextProcessing?.allowance?.consumedActiveTimeMs,
+    allowanceCalls:
+      settledUnknown.values.contextProcessing?.allowance
+        ?.consumedAdditionalCalls,
+    batchStatuses: settledUnknown.values.lookupEvidence?.batches.map(
+      ({ status }) => status
+    ),
+    containsCompleteSnapshot: unknownAnswer.includes(resultJson),
+    evidenceStatus: settledUnknown.values.lookupEvidence?.status,
+    modelCalls: gateway.calls().length,
+    reservation:
+      settledUnknown.values.contextProcessing?.allowance?.reservation,
+  }).toStrictEqual({
+    activeTimeMs: 120_000,
+    allowanceCalls: 2,
+    batchStatuses: ["ready", "failed"],
+    containsCompleteSnapshot: true,
+    evidenceStatus: "failed",
+    modelCalls: 1,
+    reservation: null,
+  });
+};
+
 describe("managed Dev Server persistence", () => {
+  it("continues saved lookup evidence with its allowance after a native restart", async () => {
+    const session = await startDevServerSession();
+    const { baseUrl, gateway } = session;
+    const thread = await createAgentThread(baseUrl);
+    const messageId = "saved-lookup-evidence-restart";
+    const question = "What xA did Understat report across these seasons?";
+
+    const resultJson = JSON.stringify({
+      identityGroups: {
+        canonicalGroups: [
+          {
+            canonicalIdentityId: "canonical-mikel",
+            name: "Mikel Oyarzabal",
+            records: [
+              {
+                identitySourceId: "understat-mikel",
+                name: "Mikel Oyarzabal",
+                provider: "understat",
+                recordId: "understat-mikel",
+              },
+            ],
+          },
+        ],
+        registryStatus: "available",
+        unlinkedRecords: [],
+      },
+      query: [{ provider: "understat", sourceId: "understat-mikel" }],
+      requestedUnderstatSeasonStartYear: null,
+      understat: {
+        records: [
+          {
+            appearances: 8,
+            assists: 2,
+            competition: "La_liga",
+            expectedAssists: 0.8,
+            expectedGoals: 1.1,
+            goals: 2,
+            keyPasses: 9,
+            minutes: 520,
+            nonPenaltyExpectedGoals: 1.1,
+            player: "Mikel Oyarzabal",
+            position: "F M S",
+            season: "2024/25",
+            shots: 14,
+            source: "Understat",
+            sourcePlayerId: "understat-mikel",
+            team: "Real Sociedad",
+          },
+          {
+            appearances: 10,
+            assists: 3,
+            competition: "La_liga",
+            expectedAssists: 1.4,
+            expectedGoals: 1.7,
+            goals: 3,
+            keyPasses: 12,
+            minutes: 700,
+            nonPenaltyExpectedGoals: 1.7,
+            player: "Mikel Oyarzabal",
+            position: "F M S",
+            season: "2025/26",
+            shots: 20,
+            source: "Understat",
+            sourcePlayerId: "understat-mikel",
+            team: "Real Sociedad",
+          },
+        ],
+        status: "found",
+      },
+    });
+
+    const resultDigest = createHash("sha256").update(resultJson).digest("hex");
+
+    const questionHash = createHash("sha256").update(question).digest("hex");
+    const requestId = `message:${messageId}`;
+
+    const sourceHash = createHash("sha256")
+      .update(
+        `saved:${messageId}:${resultDigest}:${questionHash}:lookup-evidence-v1`
+      )
+      .digest("hex");
+
+    const identityGroups = {
+      canonicalGroups: [
+        {
+          canonicalIdentityId: "canonical-mikel",
+          name: "Mikel Oyarzabal",
+          records: [
+            {
+              identitySourceId: "understat-mikel",
+              name: "Mikel Oyarzabal",
+              provider: "understat",
+              recordId: "understat-mikel",
+            },
+          ],
+        },
+      ],
+      registryStatus: "available" as const,
+      unlinkedRecords: [],
+    };
+
+    const query = [{ provider: "understat", sourceId: "understat-mikel" }];
+
+    const projection = (index: number, season: string) =>
+      JSON.stringify({
+        batch: {
+          completedRecordRefs: index === 0 ? [] : ["understat.records[0]"],
+          index,
+          recordRefs: [`understat.records[${index}]`],
+          remainingRecordRefs: index === 0 ? ["understat.records[1]"] : [],
+          total: 2,
+        },
+        coverage: {
+          fields: {
+            fm: { selected: [], unselected: [] },
+            understat: {
+              selected: ["expectedAssists"],
+              unselected: [],
+            },
+          },
+          providers: {
+            fm: { queried: false, status: "not_queried" },
+            understat: {
+              queried: true,
+              seasonMode: "default_snapshot",
+              status: "found",
+            },
+          },
+          records: [`understat.records[${index}]`],
+        },
+        digest: resultDigest,
+        identityGroups,
+        query,
+        records: [
+          {
+            competition: "La_liga",
+            fieldStates: {
+              expectedAssists: {
+                state: "value",
+                value: index === 0 ? 0.8 : 1.4,
+              },
+            },
+            player: "Mikel Oyarzabal",
+            provider: "understat",
+            recordRef: `understat.records[${index}]`,
+            season,
+            selectedFields: ["expectedAssists"],
+            source: "Understat",
+            sourceId: "understat-mikel",
+            team: "Real Sociedad",
+            unselectedFields: [],
+          },
+        ],
+        requestedUnderstatSeasonStartYear: null,
+        source: "saved",
+        version: 1,
+      });
+
+    const seededState = AgentState.parse({
+      contextProcessing: {
+        allowance: {
+          consumedActiveTimeMs: 500,
+          consumedAdditionalCalls: 1,
+          maxActiveTimeMs: 120_000,
+          maxAdditionalCalls: 2,
+          requestId,
+          reservation: null,
+        },
+        clarification: null,
+        compaction: null,
+      },
+      conversationContext: {
+        ...createInitialConversationContext(),
+        activeLookup: {
+          player: playerReference("fm-mikel", "Mikel Oyarzabal"),
+          resultJson,
+        },
+      },
+      lookupEvidence: {
+        batches: [
+          {
+            answer: "The 2024/25 xA was 0.8.",
+            index: 0,
+            projectionJson: projection(0, "2024/25"),
+            recordRefs: ["understat.records[0]"],
+            status: "ready",
+          },
+          {
+            answer: null,
+            index: 1,
+            projectionJson: projection(1, "2025/26"),
+            recordRefs: ["understat.records[1]"],
+            status: "pending",
+          },
+        ],
+        failureReason: null,
+        questionHash,
+        requestId,
+        resultDigest,
+        source: "saved",
+        sourceHash,
+        sourceMessageId: messageId,
+        status: "processing",
+      },
+      messages: [new HumanMessage({ content: question, id: messageId })],
+      outcome: {
+        kind: "player_lookup",
+        resultJson,
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        kind: "player_lookup",
+        processedMessageId: messageId,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    try {
+      const values = {
+        ...seededState,
+        messages: [{ content: question, id: messageId, type: "human" }],
+      };
+
+      await postJson(
+        baseUrl,
+        `/threads/${thread.thread_id}/state`,
+        waitResponseSchema,
+        JSON.stringify({ values })
+      );
+
+      const beforeRestart = await getAgentThreadState(
+        baseUrl,
+        thread.thread_id
+      );
+
+      expect({
+        allowanceCalls:
+          beforeRestart.values.contextProcessing?.allowance
+            ?.consumedAdditionalCalls,
+        evidenceStatuses: beforeRestart.values.lookupEvidence?.batches.map(
+          ({ status }) => status
+        ),
+      }).toStrictEqual({
+        allowanceCalls: 1,
+        evidenceStatuses: ["ready", "pending"],
+      });
+
+      await session.restart();
+
+      const restored = await getAgentThreadState(baseUrl, thread.thread_id);
+
+      expect({
+        allowanceCalls:
+          restored.values.contextProcessing?.allowance?.consumedAdditionalCalls,
+        evidenceStatuses: restored.values.lookupEvidence?.batches.map(
+          ({ status }) => status
+        ),
+        resultJson:
+          restored.values.conversationContext.activeLookup?.resultJson,
+      }).toStrictEqual({
+        allowanceCalls: 1,
+        evidenceStatuses: ["ready", "pending"],
+        resultJson,
+      });
+
+      await runPlayerLookup(baseUrl, thread.thread_id, question, messageId);
+
+      const completed = await getAgentThreadState(baseUrl, thread.thread_id);
+
+      expect({
+        allowanceCalls:
+          completed.values.contextProcessing?.allowance
+            ?.consumedAdditionalCalls,
+        answer: latestAssistantText(completed),
+        evidenceAnswers: completed.values.lookupEvidence?.batches.map(
+          ({ answer }) => answer
+        ),
+        evidenceStatus: completed.values.lookupEvidence?.status,
+        modelCalls: gateway.calls().length,
+        providerEvents: gateway.events(),
+        reservation: completed.values.contextProcessing?.allowance?.reservation,
+      }).toStrictEqual({
+        allowanceCalls: 2,
+        answer:
+          "按来源记录分别说明：\n\nThe 2024/25 xA was 0.8.\n\nThe saved scouting context is ready.",
+        evidenceAnswers: [
+          "The 2024/25 xA was 0.8.",
+          "The saved scouting context is ready.",
+        ],
+        evidenceStatus: "complete",
+        modelCalls: 1,
+        providerEvents: [],
+        reservation: null,
+      });
+
+      await verifyUnknownLookupEvidenceReservationAfterRestart({
+        baseUrl,
+        gateway,
+        question,
+        questionHash,
+        resultDigest,
+        resultJson,
+        seededState,
+        session,
+      });
+    } finally {
+      await session.close();
+    }
+  }, 60_000);
+
   it("reuses a completed text compaction after a native Dev Server restart", async () => {
     const session = await startDevServerSession(
       "./tests/fixtures/text-compaction-agent.ts:agent"

@@ -255,9 +255,14 @@ const modelFailureFromError = (error: Error): ModelFailure | null => {
 
 const createModelRequestBudget = (
   runtime: ModelRuntime,
-  node: string
+  node: string,
+  maximumRequests = maxExternalRequests
 ): ModelRequestBudget => {
-  let requests = Math.max(0, (runtime.executionInfo?.nodeAttempt ?? 1) - 1);
+  let requests = Math.min(
+    maximumRequests,
+    Math.max(0, (runtime.executionInfo?.nodeAttempt ?? 1) - 1)
+  );
+
   let latestDurationMs: number | undefined;
 
   const callOnce = async <Value>(
@@ -339,7 +344,7 @@ const createModelRequestBudget = (
       return retry.value;
     }
 
-    if (retry.failure.retryable && requests < maxExternalRequests) {
+    if (retry.failure.retryable && requests < maximumRequests) {
       logFaultEvent({
         attempt: requests,
         category: retry.failure.category,
@@ -389,7 +394,7 @@ const createModelRequestBudget = (
     request: (signal?: AbortSignal) => Promise<Value>,
     options: { allowRateLimitRetry?: boolean } = {}
   ): Promise<Value> => {
-    if (requests >= maxExternalRequests) {
+    if (requests >= maximumRequests) {
       throw createExternalFaultError({
         category: "attempt_limit",
         message: failureMessage("attempt_limit"),
@@ -418,7 +423,7 @@ const createModelRequestBudget = (
     const canRetryRateLimit =
       options.allowRateLimitRetry !== false &&
       hasRetryableRateLimit &&
-      requests < maxExternalRequests;
+      requests < maximumRequests;
 
     if (canRetryRateLimit && rateLimit !== undefined) {
       logFaultEvent({
@@ -443,14 +448,14 @@ const createModelRequestBudget = (
       provider: "model",
       providerCode: first.failure.providerCode,
       requestsUsed: requests,
-      retryable: first.failure.retryable && requests < maxExternalRequests,
+      retryable: first.failure.retryable && requests < maximumRequests,
       runId: runtime.executionInfo?.runId,
       threadId: runtime.executionInfo?.threadId,
     });
   };
 
   return {
-    canMakeRequest: () => requests < maxExternalRequests,
+    canMakeRequest: () => requests < maximumRequests,
     invoke,
     lastRequestDurationMs: () => latestDurationMs,
     logRepair: () => {

@@ -74,9 +74,11 @@ const threadStateSchema = z.looseObject({
               .object({
                 chunkIndex: z.number().nullable().optional(),
                 maxActiveTimeMs: z.number(),
+                maxAdditionalCalls: z.number().optional(),
                 operation: z.enum([
                   "compact_text",
                   "compact_text_chunk",
+                  "explain_lookup_evidence",
                   "merge_text_chunks",
                 ]),
                 operationId: z.string(),
@@ -157,6 +159,28 @@ const threadStateSchema = z.looseObject({
         .looseObject({ resultJson: z.string() })
         .nullable(),
     }),
+    lookupEvidence: z
+      .object({
+        batches: z.array(
+          z.object({
+            answer: z.string().nullable(),
+            index: z.number(),
+            projectionJson: z.string(),
+            recordRefs: z.array(z.string()),
+            status: z.string(),
+          })
+        ),
+        failureReason: z.string().nullable(),
+        questionHash: z.string(),
+        requestId: z.string(),
+        resultDigest: z.string(),
+        source: z.string(),
+        sourceHash: z.string(),
+        sourceMessageId: z.string(),
+        status: z.string(),
+      })
+      .nullable()
+      .optional(),
     messages: z
       .array(
         z.object({

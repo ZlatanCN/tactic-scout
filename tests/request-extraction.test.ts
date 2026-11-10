@@ -4,7 +4,7 @@ import { HumanMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import { RunnableLambda } from "@langchain/core/runnables";
 import type { RunnableConfig } from "@langchain/core/runnables";
-import { fakeModel } from "@langchain/core/testing";
+import { fakeModel as createFakeModel } from "@langchain/core/testing";
 import { MemorySaver, NodeTimeoutError } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { describe, expect, it, vi } from "vitest";
@@ -46,6 +46,18 @@ vi.stubEnv(
     model: "vitest-placeholder",
   })
 );
+
+const fakeModel = () => {
+  const model = createFakeModel();
+
+  vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+    await Promise.resolve();
+
+    return Math.ceil(text.length / 4);
+  });
+
+  return model;
+};
 
 const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
 
@@ -114,6 +126,12 @@ describe("request understanding extraction", () => {
 
   it("does not accept model-inferred memory type or IDs absent from the forget command", async () => {
     const model = fakeModel();
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
+    });
+
     const structuredOutput = vi.spyOn(model, "withStructuredOutput");
     structuredOutput.mockReturnValue(
       RunnableLambda.from(() => ({
@@ -475,6 +493,12 @@ describe("request understanding extraction", () => {
       temperature: 0,
     });
 
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
+    });
+
     const graph = createAgentWithRuntime({
       checkpointer: new MemorySaver(),
       model,
@@ -548,6 +572,12 @@ describe("request understanding extraction", () => {
       maxRetries: 0,
       model: "gpt-4o",
       temperature: 0,
+    });
+
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
     });
 
     const message = new HumanMessage({
@@ -673,6 +703,12 @@ describe("request understanding extraction", () => {
       model: "gpt-6-luna",
       temperature: 0,
       useResponsesApi: true,
+    });
+
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
     });
 
     const graph = createAgentWithRuntime({

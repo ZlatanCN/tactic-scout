@@ -19,6 +19,7 @@ import type {
 } from "./contracts.js";
 
 const sourceProviderSchema = z.enum(["api_football", "fm", "understat"]);
+const lookupSourceProviderSchema = z.enum(["fm", "understat"]);
 const jsonRecordSchema = z.record(z.string(), z.json());
 
 type SourceProvider = z.output<typeof sourceProviderSchema>;
@@ -173,6 +174,58 @@ const contentString = (value: BaseMessage["content"]): string => {
   return parsedJson.success ? (JSON.stringify(parsedJson.data) ?? "") : "";
 };
 
+type DeliveredEvidenceSource = {
+  provider: SourceProvider | "application";
+  sourceId: string | null;
+};
+
+const deliveredEvidenceSourcesFromValue = (
+  value: JsonValue | null
+): DeliveredEvidenceSource[] => {
+  const projection = z
+    .object({
+      query: z.array(
+        z.object({
+          provider: lookupSourceProviderSchema,
+          sourceId: z.string(),
+        })
+      ),
+      records: z.array(
+        z.object({
+          provider: lookupSourceProviderSchema,
+          sourceId: z.string(),
+        })
+      ),
+      version: z.literal(1),
+    })
+    .safeParse(value);
+
+  if (!projection.success) {
+    return sourceRecordsFromValue(value).map(({ provider, sourceId }) => ({
+      provider,
+      sourceId,
+    }));
+  }
+
+  const sources = [...projection.data.records, ...projection.data.query].map(
+    ({ provider, sourceId }) => ({ provider, sourceId })
+  );
+
+  const uniqueSources = [
+    ...new Map(
+      sources.map((source) => [`${source.provider}:${source.sourceId}`, source])
+    ).values(),
+  ];
+
+  return uniqueSources.length > 0
+    ? uniqueSources.toSorted(
+        (left, right) =>
+          left.provider.localeCompare(right.provider) ||
+          left.sourceId.localeCompare(right.sourceId)
+      )
+    : [{ provider: "application", sourceId: null }];
+};
+
 const parsedResult = (value: JsonValue): JsonValue | null => {
   const parsedString = z.string().safeParse(value);
 
@@ -233,7 +286,11 @@ const evidenceContent = (message: BaseMessage): string | null => {
   if (message instanceof HumanMessage) {
     const content = contentString(message.content);
 
-    const markers = ["结构化工具结果：\n", "已保存的查询结果 JSON：\n"];
+    const markers = [
+      "结构化工具结果：\n",
+      "已保存的查询结果 JSON：\n",
+      "Scouting evidence projection JSON:\n",
+    ];
 
     const marker = markers.find((item) => content.includes(item));
 
@@ -428,13 +485,8 @@ const createEvaluationObserver = (
         continue;
       }
 
-      const records = sourceRecordsFromValue(parsedResult(content));
+      const sources = deliveredEvidenceSourcesFromValue(parsedResult(content));
       const contentHash = createHash("sha256").update(content).digest("hex");
-
-      const sources =
-        records.length === 0
-          ? [{ provider: "application" as const, sourceId: null }]
-          : records;
 
       for (const source of sources) {
         const evidenceId = `${request.trialId}:${activeTurnId}:model-${modelCallIndex}:message-${messageIndex}:${source.provider}:${source.sourceId ?? contentHash}`;
@@ -462,7 +514,11 @@ const createEvaluationObserver = (
     turnId: string
   ): void => {
     const renderedIds = renderedByTurn.get(turnId) ?? new Set<string>();
-    const prefix = "以下是本次已完成并验证的完整结构化结果与来源：\n\n";
+
+    const prefixes = [
+      "以下是本次已完成并验证的完整结构化结果与来源：\n\n",
+      "查询数据已完整保存，但模型解释未完成。以下是完整结果与来源：\n\n",
+    ];
 
     const resultMessages = messages.flatMap((message, messageIndex) => {
       if (!(message instanceof AIMessage)) {
@@ -470,13 +526,19 @@ const createEvaluationObserver = (
       }
 
       const answer = contentString(message.content);
-      const prefixIndex = answer.indexOf(prefix);
 
-      if (prefixIndex === -1) {
+      const prefixMatch = prefixes
+        .map((prefix) => ({ index: answer.indexOf(prefix), prefix }))
+        .find(({ index }) => index !== -1);
+
+      if (prefixMatch === undefined) {
         return [];
       }
 
-      const content = answer.slice(prefixIndex + prefix.length);
+      const content = answer.slice(
+        prefixMatch.index + prefixMatch.prefix.length
+      );
+
       const parsed = parsedResult(content);
 
       return parsed === null ? [] : [{ content, messageIndex, parsed }];

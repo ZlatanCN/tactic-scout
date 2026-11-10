@@ -31,9 +31,11 @@ const ContextProcessingReferenceSchema = z.object({
 const ContextProcessingReservationSchema = z.object({
   chunkIndex: z.number().int().nonnegative().nullable().default(null),
   maxActiveTimeMs: z.number().int().positive(),
+  maxAdditionalCalls: z.number().int().positive().default(1),
   operation: z.enum([
     "compact_text",
     "compact_text_chunk",
+    "explain_lookup_evidence",
     "merge_text_chunks",
   ]),
   operationId: z.string().min(1),
@@ -127,6 +129,38 @@ const ContextProcessingClarificationSchema = z.object({
   sourceMessageId: z.string().min(1),
 });
 
+const LookupEvidenceBatchSchema = z.object({
+  answer: z.string().nullable(),
+  index: z.number().int().nonnegative(),
+  projectionJson: z.string(),
+  recordRefs: z.array(z.string()),
+  status: z.enum(["pending", "reserved", "ready", "failed"]),
+});
+
+const LookupEvidenceSchema = z.object({
+  batches: z.array(LookupEvidenceBatchSchema),
+  failureReason: z
+    .enum(["allowance_exhausted", "call_failed", "reservation_unknown"])
+    .nullable(),
+  questionHash: z.string().min(1),
+  requestId: z.string().min(1),
+  resultDigest: z.string().min(1),
+  source: z.enum(["executed", "saved"]),
+  sourceHash: z.string().min(1),
+  sourceMessageId: z.string().min(1),
+  status: z.enum([
+    "pending",
+    "processing",
+    "complete",
+    "allowance_exhausted",
+    "failed",
+  ]),
+});
+
+type LookupEvidence = z.infer<typeof LookupEvidenceSchema>;
+
+type LookupEvidenceBatch = z.infer<typeof LookupEvidenceBatchSchema>;
+
 const ContextProcessingSchema = z.object({
   allowance: ContextProcessingAllowanceSchema.nullable(),
   clarification: ContextProcessingClarificationSchema.nullable().default(null),
@@ -197,6 +231,7 @@ export {
   ContextProcessingSchema,
   ContextProcessingChunkSchema,
   ContextProcessingChunkingSchema,
+  LookupEvidenceSchema,
   contextProcessingAnchorKinds,
   contextProcessingHash,
   contextProcessingInputText,
@@ -213,4 +248,6 @@ export type {
   ContextProcessingClarification,
   ContextProcessingReference,
   ContextProcessingReservation,
+  LookupEvidence,
+  LookupEvidenceBatch,
 };

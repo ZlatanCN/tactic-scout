@@ -1423,6 +1423,7 @@ const reserveNextChunkOperation = async (
   const reservation: ContextProcessingAllowance["reservation"] = {
     chunkIndex,
     maxActiveTimeMs: reservationMs,
+    maxAdditionalCalls: 1,
     operation: operation.name,
     operationId: contextProcessingHash(
       `${input.requestId}:${input.sourceHash}:${input.activeContextHash}:${input.modelConfigurationHash}:${operation.name}:${chunkIndex}`
@@ -1902,6 +1903,7 @@ const reserveTextCompaction = async (
     reservation: {
       chunkIndex: null,
       maxActiveTimeMs: reservationMs,
+      maxAdditionalCalls: 1,
       operation: "compact_text",
       operationId,
       sourceHash: input.sourceHash,
@@ -1924,6 +1926,49 @@ const reserveTextCompaction = async (
       compaction,
     },
   };
+};
+
+const currentMessageWasProcessed = (
+  processedMessageId: string | null | undefined,
+  currentMessageId: string | undefined,
+  hasPendingReservation: boolean
+): boolean =>
+  currentMessageId !== undefined &&
+  !hasPendingReservation &&
+  processedMessageId === currentMessageId;
+
+const lookupEvidenceReservationMatchesMessage = (
+  state: AgentStateType,
+  currentMessage: HumanMessage,
+  reservation: ContextProcessingAllowance["reservation"]
+): boolean => {
+  if (
+    reservation === null ||
+    reservation.operation !== "explain_lookup_evidence"
+  ) {
+    return false;
+  }
+
+  const evidence = state.lookupEvidence;
+  const { allowance } = state.contextProcessing;
+
+  if (evidence === null || evidence === undefined || allowance === null) {
+    return false;
+  }
+
+  const question = messageText(currentMessage);
+  const messageIndex = state.messages.indexOf(currentMessage);
+
+  const requestId = requestIdFor(currentMessage.id, question, messageIndex + 1);
+
+  const sourceMessageId = currentMessage.id ?? requestId;
+
+  return (
+    allowance.requestId === requestId &&
+    evidence.requestId === requestId &&
+    evidence.sourceMessageId === sourceMessageId &&
+    reservation.sourceMessageId === sourceMessageId
+  );
 };
 
 const prepareTextCompactionNode =
@@ -1952,15 +1997,26 @@ const prepareTextCompactionNode =
     };
 
     const reservation =
-      normalizedState.contextProcessing.allowance?.reservation;
+      normalizedState.contextProcessing.allowance?.reservation ?? null;
 
-    const hasPendingReservation =
-      reservation !== null && reservation !== undefined;
+    const hasPendingReservation = reservation !== null;
 
     if (
-      currentMessage.id !== undefined &&
-      normalizedState.request?.processedMessageId === currentMessage.id &&
-      !hasPendingReservation
+      lookupEvidenceReservationMatchesMessage(
+        normalizedState,
+        currentMessage,
+        reservation
+      )
+    ) {
+      return {};
+    }
+
+    if (
+      currentMessageWasProcessed(
+        normalizedState.request?.processedMessageId,
+        currentMessage.id,
+        hasPendingReservation
+      )
     ) {
       return {};
     }
@@ -2454,6 +2510,14 @@ const invokeTextCompaction = async (
     };
   }
 
+  if (reservation.operation === "explain_lookup_evidence") {
+    return {
+      durationMs: 0,
+      kind: "failed",
+      stopReason: "reservation_unknown",
+    };
+  }
+
   const { chunking } = input.compaction;
   let chunk: ContextProcessingChunk | undefined;
   let request: ModelContextRequest;
@@ -2757,6 +2821,7 @@ const createTextCompactionAnswerNode =
 export {
   compactionRoute,
   createTextCompactionAnswerNode,
+  defaultContextProcessingAllowance,
   modelConfigurationHash,
   prepareTextCompactionNode,
   routeAfterTextCompaction,

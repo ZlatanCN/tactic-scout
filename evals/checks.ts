@@ -18,6 +18,11 @@ import type {
 type JsonEvidenceValue =
   EvaluationCase["contract"]["requiredEvidence"][number]["value"];
 
+const projectedFieldStateSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("source_null") }),
+  z.object({ state: z.literal("value"), value: z.json() }),
+]);
+
 type ObservedToolAction = {
   businessOutcome: string;
   name: string;
@@ -570,6 +575,22 @@ const evidenceValueIfMatches = (
     record.season !== expectation.season
   ) {
     return null;
+  }
+
+  const projectedFields = z
+    .record(z.string(), z.json())
+    .safeParse(record.fieldStates);
+
+  const projectedValue = projectedFields.success
+    ? projectedFieldStateSchema.safeParse(
+        projectedFields.data[expectation.field]
+      )
+    : { success: false as const };
+
+  if (projectedValue.success) {
+    return projectedValue.data.state === "source_null"
+      ? "null"
+      : (JSON.stringify(projectedValue.data.value) ?? "null");
   }
 
   const value = record[expectation.field];

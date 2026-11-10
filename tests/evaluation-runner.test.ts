@@ -3592,7 +3592,6 @@ describe("local scouting evaluation entry", () => {
           "Current registration is not present in FM or Understat and must be stated as unknown.",
         ],
         requiredEvidence: [
-          ...sourceCase.contract.requiredEvidence,
           {
             competition: "EPL",
             field: "team",

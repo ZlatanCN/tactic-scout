@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -88,13 +88,36 @@ vi.stubEnv("TACTISCOUT_REEP_IDENTITY_DB_PATH", missingPlayerSourceDatabase);
 const { createAgent: createAgentWithRuntime } = await import("../src/agent.js");
 const { createTools } = await import("../src/tools/search-player-records.js");
 
-const createAgent = (options: CreateAgentOptions = {}) =>
-  createAgentWithRuntime({
+const fakeModelWithDeterministicTokenCount = (
+  model: NonNullable<CreateAgentOptions["model"]>
+) => {
+  if (model instanceof ChatOpenAI || Object.hasOwn(model, "getNumTokens")) {
+    return model;
+  }
+
+  return Object.assign(model, {
+    getNumTokens: async (text: string) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
+    },
+  });
+};
+
+const createAgent = (options: CreateAgentOptions = {}) => {
+  const { model, ...remainingOptions } = options;
+
+  return createAgentWithRuntime({
+    model:
+      model === undefined
+        ? undefined
+        : fakeModelWithDeterministicTokenCount(model),
     modelContextProfile: testModelContextProfile,
     modelOutputLimitAdapter: testModelOutputLimitAdapter,
     playerReferenceValidator: () => ({ status: "current" }),
-    ...options,
+    ...remainingOptions,
   });
+};
 
 type ExtractedRequest = Awaited<ReturnType<RequestUnderstandingExtractor>>;
 
@@ -579,6 +602,11 @@ describe("runtime model input budget", () => {
     });
 
     const model = fakeModel();
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
+    });
 
     const graph = createAgentWithRuntime({
       checkpointer: new MemorySaver(),
@@ -1966,6 +1994,11 @@ describe("LangGraph player workflows", () => {
       .respond(new AIMessage("The Mikel Oyarzabal lookup is complete."))
       .respond(new AIMessage("The saved Understat result reports xA 1.41."));
 
+    const lookupTool = createSearchTool(search);
+    const modelWithLookupTool = model.bindTools([lookupTool]);
+    vi.spyOn(model, "bindTools").mockReturnValue(modelWithLookupTool);
+    const modelInvoke = vi.spyOn(model, "invoke");
+
     const graph = createAgent({
       checkpointer: new MemorySaver(),
       model,
@@ -1974,7 +2007,7 @@ describe("LangGraph player workflows", () => {
         [firstMessage]: requestForPlayers("player_lookup", [player.name]),
         [followUp]: requestForPlayers("player_lookup", ["Understat"]),
       }),
-      tools: [createSearchTool(search)],
+      tools: [lookupTool],
     });
 
     const config = {
@@ -1991,12 +2024,27 @@ describe("LangGraph player workflows", () => {
       config
     );
 
+    const followUpModelInput = JSON.stringify(
+      modelInvoke.mock.calls.at(-1)?.[0]
+    );
+
     expect({
       answer: result.messages.at(-1)?.content,
       firstActiveLookup:
         firstResult.conversationContext.activeLookup?.player.candidate.name,
       firstOutcome: firstResult.outcome?.status,
       lookupFollowUp: result.outcome?.status,
+      modelInputContainsExpectedAssistsValue: followUpModelInput.includes(
+        `\\"expectedAssists\\":{\\"state\\":\\"value\\"`
+      ),
+      modelInputContainsProjection: followUpModelInput.includes(
+        "Scouting evidence projection JSON:"
+      ),
+      modelInputContainsSourceRecord:
+        followUpModelInput.includes("mikel-understat"),
+      modelInputContainsUnselectedMetricValue: followUpModelInput.includes(
+        `\\"nonPenaltyExpectedGoals\\":{\\"state\\":\\"value\\"`
+      ),
       requestPlayers: result.request.players,
       searchCalls: search.mock.calls.length,
     }).toMatchObject({
@@ -2004,8 +2052,865 @@ describe("LangGraph player workflows", () => {
       firstActiveLookup: "Mikel Oyarzabal",
       firstOutcome: "answer_ready",
       lookupFollowUp: "lookup_follow_up",
+      modelInputContainsExpectedAssistsValue: true,
+      modelInputContainsProjection: true,
+      modelInputContainsSourceRecord: true,
+      modelInputContainsUnselectedMetricValue: false,
       requestPlayers: [],
       searchCalls: 1,
+    });
+  });
+
+  it("explains every saved lookup record in bounded batches without requerying", async () => {
+    const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+    const message = new HumanMessage({
+      content: "What xA did Understat report across these seasons?",
+      id: "saved-lookup-multiple-season-batches",
+    });
+
+    const resultJson = JSON.stringify({
+      identityGroups: {
+        canonicalGroups: [
+          {
+            canonicalIdentityId: "canonical-mikel",
+            name: player.name,
+            records: [
+              {
+                identitySourceId: "mikel-understat",
+                name: player.name,
+                provider: "understat",
+                recordId: "mikel-understat",
+              },
+            ],
+          },
+        ],
+        registryStatus: "available",
+        unlinkedRecords: [],
+      },
+      query: [{ provider: "understat", sourceId: "mikel-understat" }],
+      requestedUnderstatSeasonStartYear: null,
+      understat: {
+        records: [
+          {
+            appearances: 9,
+            assists: 2,
+            competition: "La_liga",
+            expectedAssists: 0.7,
+            expectedGoals: 1.3,
+            goals: 2,
+            keyPasses: 11,
+            minutes: 606,
+            nonPenaltyExpectedGoals: 1.3,
+            player: player.name,
+            position: "F M S",
+            season: "2023/24",
+            shots: 19,
+            source: "Understat",
+            sourcePlayerId: "mikel-understat",
+            team: "Real Sociedad",
+          },
+          {
+            appearances: 10,
+            assists: 3,
+            competition: "La_liga",
+            expectedAssists: 1.1,
+            expectedGoals: 1.8,
+            goals: 3,
+            keyPasses: 13,
+            minutes: 710,
+            nonPenaltyExpectedGoals: 1.7,
+            player: player.name,
+            position: "F M S",
+            season: "2024/25",
+            shots: 21,
+            source: "Understat",
+            sourcePlayerId: "mikel-understat",
+            team: "Real Sociedad",
+          },
+          {
+            appearances: 11,
+            assists: 4,
+            competition: "La_liga",
+            expectedAssists: 1.6,
+            expectedGoals: 2.1,
+            goals: 4,
+            keyPasses: 15,
+            minutes: 805,
+            nonPenaltyExpectedGoals: 2,
+            player: player.name,
+            position: "F M S",
+            season: "2025/26",
+            shots: 24,
+            source: "Understat",
+            sourcePlayerId: "mikel-understat",
+            team: "Real Sociedad",
+          },
+        ],
+        status: "found",
+      },
+    });
+
+    const model = fakeModel()
+      .respond(
+        new AIMessage("The 2023/24 xA was 0.7 and the 2024/25 xA was 1.1.")
+      )
+      .respond(new AIMessage("The 2025/26 xA was 1.6."));
+
+    const modelInvoke = vi.spyOn(model, "invoke");
+
+    const search = vi.fn<PlayerSearch>(() => {
+      throw new Error("Saved evidence must not trigger another provider read.");
+    });
+
+    const graph = createAgent({
+      model,
+      tools: [createSearchTool(search)],
+    });
+
+    const savedPlayerReference = conversationReferenceFromCandidate(player);
+
+    const state = AgentState.parse({
+      conversationContext: {
+        ...createInitialConversationContext(),
+        activeLookup: { player: savedPlayerReference, resultJson },
+      },
+      messages: [message],
+      outcome: {
+        kind: "player_lookup",
+        resultJson,
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-lookup-multiple-season-batches" },
+    });
+
+    const modelInputs = modelInvoke.mock.calls.map(([input]) =>
+      JSON.stringify(input)
+    );
+
+    const seasons = ["2023/24", "2024/25", "2025/26"];
+    const response = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(result.contextProcessing.allowance).toMatchObject({
+      consumedAdditionalCalls: 2,
+      reservation: null,
+    });
+
+    expect({
+      answers: result.lookupEvidence?.batches.map(({ answer }) => answer),
+      batchCoverage: result.lookupEvidence?.batches.map(({ recordRefs }) =>
+        recordRefs.join(",")
+      ),
+      digestMatchesSnapshot:
+        result.lookupEvidence?.resultDigest ===
+        createHash("sha256").update(resultJson).digest("hex"),
+      modelCallCount: modelInvoke.mock.calls.length,
+      modelInputsAreBoundedBatches: modelInputs.every((input) => {
+        const seasonsInBatch = seasons.filter((season) =>
+          input.includes(season)
+        ).length;
+
+        return seasonsInBatch > 0 && seasonsInBatch <= 2;
+      }),
+      outcome: result.outcome?.status,
+      searchCalls: search.mock.calls.length,
+      status: result.lookupEvidence?.status,
+    }).toStrictEqual({
+      answers: [
+        "The 2023/24 xA was 0.7 and the 2024/25 xA was 1.1.",
+        "The 2025/26 xA was 1.6.",
+      ],
+      batchCoverage: [
+        "understat.records[0],understat.records[1]",
+        "understat.records[2]",
+      ],
+      digestMatchesSnapshot: true,
+      modelCallCount: 2,
+      modelInputsAreBoundedBatches: true,
+      outcome: "lookup_follow_up",
+      searchCalls: 0,
+      status: "complete",
+    });
+
+    for (const answer of [
+      "The 2023/24 xA was 0.7",
+      "2024/25 xA was 1.1",
+      "The 2025/26 xA was 1.6.",
+    ]) {
+      expect(response).toContain(answer);
+    }
+  });
+
+  it("rebuilds saved evidence when a new lookup replaces its source digest", async () => {
+    const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+    const message = new HumanMessage({
+      content: "What xA did Understat report?",
+      id: "saved-lookup-new-result",
+    });
+
+    const resultJson = JSON.stringify({
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
+      query: [{ provider: "understat", sourceId: "mikel-understat" }],
+      requestedUnderstatSeasonStartYear: 2025,
+      understat: {
+        records: [
+          {
+            appearances: 8,
+            assists: 2,
+            competition: "La_liga",
+            expectedAssists: 1.2,
+            expectedGoals: 1.1,
+            goals: 2,
+            keyPasses: 9,
+            minutes: 520,
+            nonPenaltyExpectedGoals: 1.1,
+            player: player.name,
+            position: "F M S",
+            season: "2025/26",
+            shots: 14,
+            source: "Understat",
+            sourcePlayerId: "mikel-understat",
+            team: "Real Sociedad",
+          },
+        ],
+        status: "found",
+      },
+    });
+
+    const model = fakeModel().respond(
+      new AIMessage("The current saved lookup reports xA 1.2.")
+    );
+
+    const modelInvoke = vi.spyOn(model, "invoke");
+    const graph = createAgent({ model, tools: [] });
+    const oldMessageId = "saved-lookup-old-result";
+
+    const state = AgentState.parse({
+      contextProcessing: {
+        allowance: {
+          consumedActiveTimeMs: 300,
+          consumedAdditionalCalls: 1,
+          maxActiveTimeMs: 120_000,
+          maxAdditionalCalls: 6,
+          requestId: `message:${oldMessageId}`,
+          reservation: null,
+        },
+        clarification: null,
+        compaction: null,
+      },
+      conversationContext: {
+        ...createInitialConversationContext(),
+        activeLookup: {
+          player: conversationReferenceFromCandidate(player),
+          resultJson,
+        },
+      },
+      lookupEvidence: {
+        batches: [
+          {
+            answer: "STALE: the previous lookup reported xA 0.1.",
+            index: 0,
+            projectionJson: "stale projection",
+            recordRefs: ["understat.records[0]"],
+            status: "ready",
+          },
+        ],
+        failureReason: null,
+        questionHash: "stale-question-hash",
+        requestId: `message:${oldMessageId}`,
+        resultDigest: "stale-result-digest",
+        source: "saved",
+        sourceHash: "stale-source-hash",
+        sourceMessageId: oldMessageId,
+        status: "complete",
+      },
+      messages: [message],
+      outcome: {
+        kind: "player_lookup",
+        resultJson,
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-lookup-new-result" },
+    });
+
+    expect({
+      allowanceCalls:
+        result.contextProcessing.allowance?.consumedAdditionalCalls,
+      answer: result.messages.at(-1)?.content,
+      evidenceDigestMatches:
+        result.lookupEvidence?.resultDigest ===
+        createHash("sha256").update(resultJson).digest("hex"),
+      evidenceStatus: result.lookupEvidence?.status,
+      modelCalls: modelInvoke.mock.calls.length,
+    }).toStrictEqual({
+      allowanceCalls: 1,
+      answer: "The current saved lookup reports xA 1.2.",
+      evidenceDigestMatches: true,
+      evidenceStatus: "complete",
+      modelCalls: 1,
+    });
+  });
+
+  it("distinguishes source null, unselected fields, and an unqueried provider", async () => {
+    const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+    const message = new HumanMessage({
+      content: "What xA did Understat report?",
+      id: "saved-lookup-null-xa",
+    });
+
+    const resultJson = JSON.stringify({
+      identityGroups: {
+        canonicalGroups: [
+          {
+            canonicalIdentityId: "canonical-mikel",
+            name: player.name,
+            records: [
+              {
+                identitySourceId: "mikel-understat",
+                name: player.name,
+                provider: "understat",
+                recordId: "mikel-understat",
+              },
+            ],
+          },
+        ],
+        registryStatus: "available",
+        unlinkedRecords: [],
+      },
+      query: [{ provider: "understat", sourceId: "mikel-understat" }],
+      requestedUnderstatSeasonStartYear: null,
+      understat: {
+        records: [
+          {
+            appearances: 7,
+            assists: 1,
+            competition: "La_liga",
+            expectedAssists: null,
+            expectedGoals: 0.8,
+            goals: 1,
+            keyPasses: 5,
+            minutes: 411,
+            nonPenaltyExpectedGoals: 0.8,
+            player: player.name,
+            position: "F M S",
+            season: "2025/26",
+            shots: 10,
+            source: "Understat",
+            sourcePlayerId: "mikel-understat",
+            team: "Real Sociedad",
+          },
+        ],
+        status: "found",
+      },
+    });
+
+    const model = fakeModel().respond(
+      new AIMessage("Understat returned xA as null for this record.")
+    );
+
+    const modelInvoke = vi.spyOn(model, "invoke");
+
+    const search = vi.fn<PlayerSearch>(() => {
+      throw new Error("A saved lookup follow-up must not reread the provider.");
+    });
+
+    const graph = createAgent({
+      model,
+      tools: [createSearchTool(search)],
+    });
+
+    const state = AgentState.parse({
+      conversationContext: {
+        ...createInitialConversationContext(),
+        activeLookup: {
+          player: conversationReferenceFromCandidate(player),
+          resultJson,
+        },
+      },
+      messages: [message],
+      outcome: {
+        kind: "player_lookup",
+        resultJson,
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-lookup-null-xa" },
+    });
+
+    const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
+
+    const evidenceProjection =
+      result.lookupEvidence?.batches.at(0)?.projectionJson ?? "";
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      evidenceStatus: result.lookupEvidence?.status,
+      modelCalls: modelInvoke.mock.calls.length,
+      modelReceivedProjection: modelInput.includes(
+        "Scouting evidence projection JSON:"
+      ),
+      searchCalls: search.mock.calls.length,
+      sourceNullIsExplicit: evidenceProjection.includes("source_null"),
+      unqueriedProviderIsExplicit: evidenceProjection.includes(
+        '"status":"not_queried"'
+      ),
+      unselectedExpectedGoalsAreNotPresentAsValues:
+        !evidenceProjection.includes(
+          `\\"expectedGoals\\":{\\"state\\":\\"value\\"`
+        ),
+      unselectedFieldsAreExplicit:
+        evidenceProjection.includes("unselectedFields"),
+    }).toStrictEqual({
+      answer: "Understat returned xA as null for this record.",
+      evidenceStatus: "complete",
+      modelCalls: 1,
+      modelReceivedProjection: true,
+      searchCalls: 0,
+      sourceNullIsExplicit: true,
+      unqueriedProviderIsExplicit: true,
+      unselectedExpectedGoalsAreNotPresentAsValues: true,
+      unselectedFieldsAreExplicit: true,
+    });
+  });
+
+  it.each([
+    {
+      id: "short-season-range",
+      question: "What xA did Understat report for 24/25?",
+    },
+    {
+      id: "english-single-year-season",
+      question: "What xA did Understat report for 2024 season?",
+    },
+    {
+      id: "bare-english-year-with-xa",
+      question: "What xA did Understat report in 2024?",
+    },
+    {
+      id: "chinese-single-year-season",
+      question: "2024年 Understat 的 xA 是多少？",
+    },
+  ])(
+    "preserves unresolved explicit season scope: $id",
+    async ({ id, question }) => {
+      const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+      const message = new HumanMessage({
+        content: question,
+        id: `saved-lookup-unavailable-fm-${id}`,
+      });
+
+      const resultJson = JSON.stringify({
+        fm: {
+          reason: "The FM snapshot is unavailable.",
+          status: "unavailable",
+        },
+        identityGroups: {
+          canonicalGroups: [
+            {
+              canonicalIdentityId: "canonical-mikel",
+              name: player.name,
+              records: [
+                {
+                  identitySourceId: "mikel-understat",
+                  name: player.name,
+                  provider: "understat",
+                  recordId: "mikel-understat",
+                },
+              ],
+            },
+          ],
+          registryStatus: "available",
+          unlinkedRecords: [],
+        },
+        query: [
+          { provider: "fm", sourceId: "mikel-fm" },
+          { provider: "understat", sourceId: "mikel-understat" },
+        ],
+        requestedUnderstatSeasonStartYear: null,
+        understat: {
+          records: [
+            {
+              appearances: 8,
+              assists: 2,
+              competition: "La_liga",
+              expectedAssists: 1.2,
+              expectedGoals: 1.1,
+              goals: 2,
+              keyPasses: 9,
+              minutes: 520,
+              nonPenaltyExpectedGoals: 1.1,
+              player: player.name,
+              position: "F M S",
+              season: "2025/26",
+              shots: 14,
+              source: "Understat",
+              sourcePlayerId: "mikel-understat",
+              team: "Real Sociedad",
+            },
+          ],
+          status: "found",
+        },
+      });
+
+      const model = fakeModel().respond(
+        new AIMessage(
+          "The requested season was not normalized; the returned record is for 2025/26."
+        )
+      );
+
+      const modelInvoke = vi.spyOn(model, "invoke");
+
+      const search = vi.fn<PlayerSearch>(() => {
+        throw new Error(
+          "A saved lookup follow-up must not reread the provider."
+        );
+      });
+
+      const graph = createAgent({
+        model,
+        tools: [createSearchTool(search)],
+      });
+
+      const state = AgentState.parse({
+        conversationContext: {
+          ...createInitialConversationContext(),
+          activeLookup: {
+            player: conversationReferenceFromCandidate(player),
+            resultJson,
+          },
+        },
+        messages: [message],
+        outcome: {
+          kind: "player_lookup",
+          resultJson,
+          source: "saved",
+          status: "lookup_follow_up",
+        },
+        request: {
+          ...createInitialRequestState(),
+          processedMessageId: message.id,
+        },
+        stateSchemaVersion: agentStateSchemaVersion,
+      });
+
+      const result = await graph.invoke(state, {
+        configurable: { thread_id: `saved-lookup-unavailable-fm-${id}` },
+      });
+
+      const projectionJson =
+        result.lookupEvidence?.batches.at(0)?.projectionJson ?? "";
+
+      const projection = z
+        .object({
+          coverage: z.object({
+            providers: z.object({
+              fm: z.object({ queried: z.boolean(), status: z.string() }),
+              understat: z.object({
+                queried: z.boolean(),
+                seasonMode: z.string(),
+                status: z.string(),
+              }),
+            }),
+          }),
+        })
+        .parse(JSON.parse(projectionJson));
+
+      expect({
+        answer: result.messages.at(-1)?.content,
+        evidenceStatus: result.lookupEvidence?.status,
+        fmProvider: projection.coverage.providers.fm,
+        modelCalls: modelInvoke.mock.calls.length,
+        modelReceivedProjection: JSON.stringify(
+          modelInvoke.mock.calls.at(-1)?.[0]
+        ).includes("Scouting evidence projection JSON:"),
+        searchCalls: search.mock.calls.length,
+        understatSeasonMode: projection.coverage.providers.understat.seasonMode,
+      }).toStrictEqual({
+        answer:
+          "The requested season was not normalized; the returned record is for 2025/26.",
+        evidenceStatus: "complete",
+        fmProvider: { queried: true, status: "unavailable" },
+        modelCalls: 1,
+        modelReceivedProjection: true,
+        searchCalls: 0,
+        understatSeasonMode: "explicit_unresolved",
+      });
+    }
+  );
+
+  it.each([
+    {
+      answer: "Understat reports expected goals 3.2.",
+      otherField: "goals",
+      question: "Understat 的预期进球是多少？",
+      selectedField: "expectedGoals",
+    },
+    {
+      answer: "Understat reports expected assists 1.4.",
+      otherField: "assists",
+      question: "Understat 的预期助攻是多少？",
+      selectedField: "expectedAssists",
+    },
+  ])("selects the requested Chinese expected metric", async (testCase) => {
+    const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+    const message = new HumanMessage({
+      content: testCase.question,
+      id: `saved-lookup-${testCase.selectedField}`,
+    });
+
+    const resultJson = JSON.stringify({
+      identityGroups: {
+        canonicalGroups: [],
+        registryStatus: "not_needed",
+        unlinkedRecords: [],
+      },
+      query: [{ provider: "understat", sourceId: "mikel-understat" }],
+      requestedUnderstatSeasonStartYear: null,
+      understat: {
+        records: [
+          {
+            appearances: 7,
+            assists: 5,
+            competition: "La_liga",
+            expectedAssists: 1.4,
+            expectedGoals: 3.2,
+            goals: 7,
+            keyPasses: 11,
+            minutes: 606,
+            nonPenaltyExpectedGoals: 2.5,
+            player: player.name,
+            position: "F M S",
+            season: "2025/26",
+            shots: 20,
+            source: "Understat",
+            sourcePlayerId: "mikel-understat",
+            team: "Real Sociedad",
+          },
+        ],
+        status: "found",
+      },
+    });
+
+    const model = fakeModel().respond(new AIMessage(testCase.answer));
+    const modelInvoke = vi.spyOn(model, "invoke");
+    const graph = createAgent({ model, tools: [] });
+
+    const state = AgentState.parse({
+      conversationContext: {
+        ...createInitialConversationContext(),
+        activeLookup: {
+          player: conversationReferenceFromCandidate(player),
+          resultJson,
+        },
+      },
+      messages: [message],
+      outcome: {
+        kind: "player_lookup",
+        resultJson,
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: `saved-lookup-${testCase.selectedField}` },
+    });
+
+    const projectionJson =
+      result.lookupEvidence?.batches.at(0)?.projectionJson ?? "";
+
+    const projection = z
+      .object({
+        records: z.array(
+          z.object({
+            fieldStates: z.record(z.string(), z.unknown()),
+            unselectedFields: z.array(z.string()),
+          })
+        ),
+      })
+      .parse(JSON.parse(projectionJson));
+
+    const [record] = projection.records;
+
+    expect({
+      answer: result.messages.at(-1)?.content,
+      modelCalls: modelInvoke.mock.calls.length,
+      selectedFields: Object.keys(record?.fieldStates ?? {}),
+      unselectedStatistic: record?.unselectedFields.includes(
+        testCase.otherField
+      ),
+    }).toStrictEqual({
+      answer: testCase.answer,
+      modelCalls: 1,
+      selectedFields: [testCase.selectedField],
+      unselectedStatistic: true,
+    });
+  });
+
+  it("renders the complete saved lookup when the evidence grant runs out", async () => {
+    const player = playerCandidate("Mikel Oyarzabal", "mikel");
+
+    const message = new HumanMessage({
+      content: "What xA did Understat report across these seasons?",
+      id: "saved-lookup-evidence-quota",
+    });
+
+    const record = (season: string, expectedAssists: number) => ({
+      appearances: 9,
+      assists: 2,
+      competition: "La_liga",
+      expectedAssists,
+      expectedGoals: 1.3,
+      goals: 2,
+      keyPasses: 11,
+      minutes: 606,
+      nonPenaltyExpectedGoals: 1.3,
+      player: player.name,
+      position: "F M S",
+      season,
+      shots: 19,
+      source: "Understat",
+      sourcePlayerId: "mikel-understat",
+      team: "Real Sociedad",
+    });
+
+    const resultJson = JSON.stringify({
+      identityGroups: {
+        canonicalGroups: [
+          {
+            canonicalIdentityId: "canonical-mikel",
+            name: player.name,
+            records: [
+              {
+                identitySourceId: "mikel-understat",
+                name: player.name,
+                provider: "understat",
+                recordId: "mikel-understat",
+              },
+            ],
+          },
+        ],
+        registryStatus: "available",
+        unlinkedRecords: [],
+      },
+      query: [{ provider: "understat", sourceId: "mikel-understat" }],
+      requestedUnderstatSeasonStartYear: null,
+      understat: {
+        records: [
+          record("2024/25", 0.7),
+          record("2025/26", 1.1),
+          record("2026/27", 1.5),
+        ],
+        status: "found",
+      },
+    });
+
+    const model = fakeModel().respond(
+      new AIMessage("Only the first evidence batch was explained.")
+    );
+
+    const modelInvoke = vi.spyOn(model, "invoke");
+
+    const search = vi.fn<PlayerSearch>(() => {
+      throw new Error("A saved lookup follow-up must not reread the provider.");
+    });
+
+    const graph = createAgent({
+      contextProcessingAllowance: { maxAdditionalCalls: 1 },
+      model,
+      tools: [createSearchTool(search)],
+    });
+
+    const state = AgentState.parse({
+      conversationContext: {
+        ...createInitialConversationContext(),
+        activeLookup: {
+          player: conversationReferenceFromCandidate(player),
+          resultJson,
+        },
+      },
+      messages: [message],
+      outcome: {
+        kind: "player_lookup",
+        resultJson,
+        source: "saved",
+        status: "lookup_follow_up",
+      },
+      request: {
+        ...createInitialRequestState(),
+        processedMessageId: message.id,
+      },
+      stateSchemaVersion: agentStateSchemaVersion,
+    });
+
+    const result = await graph.invoke(state, {
+      configurable: { thread_id: "saved-lookup-evidence-quota" },
+    });
+
+    const answer = z.string().parse(result.messages.at(-1)?.content);
+
+    expect(result.contextProcessing.allowance).toMatchObject({
+      consumedAdditionalCalls: 1,
+      reservation: null,
+    });
+
+    expect({
+      batchStatuses: result.lookupEvidence?.batches.map(({ status }) => status),
+      containsCompleteSnapshot: answer.includes(resultJson),
+      containsIncompleteNotice: answer.includes("模型解释未完成"),
+      containsPartialModelAnswer: answer.includes(
+        "Only the first evidence batch"
+      ),
+      evidenceStatus: result.lookupEvidence?.status,
+      modelCalls: modelInvoke.mock.calls.length,
+      searchCalls: search.mock.calls.length,
+    }).toStrictEqual({
+      batchStatuses: ["ready", "pending"],
+      containsCompleteSnapshot: true,
+      containsIncompleteNotice: true,
+      containsPartialModelAnswer: false,
+      evidenceStatus: "allowance_exhausted",
+      modelCalls: 1,
+      searchCalls: 0,
     });
   });
 
@@ -3082,6 +3987,11 @@ describe("LangGraph player workflows", () => {
       ])
       .respond(new AIMessage("I found the confirmed player's records."));
 
+    const lookupTool = createSearchTool(search);
+    const modelWithLookupTool = model.bindTools([lookupTool]);
+    const modelInvoke = vi.spyOn(modelWithLookupTool, "invoke");
+    vi.spyOn(model, "bindTools").mockReturnValue(modelWithLookupTool);
+
     const graph = createAgent({
       checkpointer: new MemorySaver(),
       model,
@@ -3091,13 +4001,25 @@ describe("LangGraph player workflows", () => {
           "Harry Kane",
         ]),
       }),
-      tools: [createSearchTool(search)],
+      tools: [lookupTool],
     });
 
     const result = await graph.invoke(
       { messages: [new HumanMessage("Look up Harry Kane.")] },
       { configurable: { thread_id: "exact-id-lookup" } }
     );
+
+    const toolCallMessage = result.messages.findLast(
+      (message): message is AIMessage =>
+        message instanceof AIMessage && (message.tool_calls ?? []).length > 0
+    );
+
+    const toolResultMessage = result.messages.findLast(
+      (message): message is ToolMessage => message instanceof ToolMessage
+    );
+
+    const toolCallId = toolCallMessage?.tool_calls?.[0]?.id;
+    const modelInput = JSON.stringify(modelInvoke.mock.calls.at(-1)?.[0]);
 
     expect(search.mock.calls[0]?.[0]).toStrictEqual({
       sourceRecords: [
@@ -3108,6 +4030,23 @@ describe("LangGraph player workflows", () => {
     expect(
       result.messages.some((message) => message instanceof ToolMessage)
     ).toBeTruthy();
+    expect({
+      modelReceivedPairedToolCallId:
+        toolCallId !== undefined && modelInput.includes(toolCallId),
+      modelReceivedProjection: modelInput.includes("version"),
+      originalToolResultWasPreserved:
+        toolResultMessage !== undefined &&
+        z
+          .string()
+          .parse(toolResultMessage.content)
+          .includes('"requestedUnderstatSeasonStartYear":null'),
+      stateToolPairIsValid: toolResultMessage?.tool_call_id === toolCallId,
+    }).toStrictEqual({
+      modelReceivedPairedToolCallId: true,
+      modelReceivedProjection: true,
+      originalToolResultWasPreserved: true,
+      stateToolPairIsValid: true,
+    });
     expect(result.conversationContext.focusPlayers).toMatchObject([
       { referenceId: "canonical-kane" },
     ]);
@@ -3307,7 +4246,11 @@ describe("LangGraph player workflows", () => {
         },
       ])
       .respond(new AIMessage("The local records are loaded."))
-      .respond(new AIMessage("The saved result covers the 2025/26 season."));
+      .respond(
+        new AIMessage(
+          "Understat returned no season record; the query used the default snapshot scope."
+        )
+      );
 
     const graph = createAgent({
       model,
@@ -3338,7 +4281,8 @@ describe("LangGraph player workflows", () => {
       searchCalls: search.mock.calls.length,
     }).toStrictEqual({
       activeLookup: lookupResult,
-      followUpAnswer: "The saved result covers the 2025/26 season.",
+      followUpAnswer:
+        "Understat returned no season record; the query used the default snapshot scope.",
       outcomeStatus: "lookup_follow_up",
       pendingClarification: null,
       searchCalls: 1,

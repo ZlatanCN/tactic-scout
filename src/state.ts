@@ -3,6 +3,7 @@ import { z } from "zod/v3";
 
 import {
   ContextProcessingSchema,
+  LookupEvidenceSchema,
   createInitialContextProcessing,
 } from "./context-processing-state.js";
 import { faultCategoryValues } from "./fault-categories.js";
@@ -535,6 +536,7 @@ const AgentState = MessagesZodState.extend({
   faultTolerance: FaultToleranceSchema.default(
     createInitialFaultToleranceState
   ),
+  lookupEvidence: LookupEvidenceSchema.nullable().default(null),
   outcome: TurnOutcomeSchema.nullable().default(null),
   pendingClarification: PendingClarificationSchema.nullable().default(null),
   playerMemoryManagementRequest:
@@ -559,6 +561,8 @@ type AgentStateType = z.infer<typeof AgentState>;
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
 
 type ContextProcessingState = z.infer<typeof ContextProcessingSchema>;
+
+type LookupEvidenceState = z.infer<typeof LookupEvidenceSchema>;
 
 type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
 
@@ -629,6 +633,7 @@ export type {
   ComparisonAction,
   ConversationContext,
   ContextProcessingState,
+  LookupEvidenceState,
   FaultToleranceState,
   ConversationPlayerAlias,
   ConversationPlayerReference,

@@ -6,6 +6,7 @@ import {
   BaseMessage,
   HumanMessage,
   SystemMessage,
+  ToolMessage,
 } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { GraphNode } from "@langchain/langgraph";
@@ -16,6 +17,7 @@ import {
   contextProcessingHash,
   contextProcessingInputText,
 } from "../context-processing-state.js";
+import { scoutingEvidenceProjections } from "../lookup-evidence.js";
 import { invokeWithModelContext } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
@@ -36,6 +38,7 @@ import type {
   RequestConstraint,
   RequestPlayerState,
 } from "../state.js";
+import { lookupEvidenceMatchesCurrentOutcome } from "./lookup-evidence.js";
 
 const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。数据源分工必须严格遵守：Understat 提供按赛事和赛季变化的出场次数、分钟、进球、助攻、射门、xG、xA 等表现记录；Football Manager 是固定日期的能力快照，只用于该快照中的 CA、PA、自然位置和属性。不得用 FM 信息替代、推导或描述当前或赛季表现，也不得用它确认当前俱乐部、注册状态、伤病、可用性或转会状态。任何强时效性事实都必须由实际返回且覆盖所问时间范围的来源支持；没有这样的来源时明确说资料不足。Understat 只支持其返回的赛事和赛季记录，不代表实时状态。用户同时询问不同类型的信息时分别依据对应来源回答；其中一个来源没有返回记录时，明确说明缺失。用户明确指定赛季时必须按请求中的 seasonStartYear 查询，不要改成最新赛季；用户未指定赛季时省略 seasonStartYear，工具默认使用快照最新赛季。最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季。如果用户明确写了赛季，但 requestedUnderstatSeasonStartYear 为 null，表示该写法没有转换为查询范围；不要把默认最新赛季说成用户要求的赛季，请用户补充完整赛季范围，不要推断世纪或把单一年份当作赛季。
 
@@ -44,7 +47,9 @@ const lookupPrompt = `你是一个足球资料助手。回答球员查询时先�
 最终回答不要从记忆猜测或复述 source ID；只有用户明确询问且该 ID 出现在本次返回的具体记录中时才可提供。只依据工具结果作答，不要把同名记录当作同一人。保留 Understat 和 Football Manager 各自的数据与来源，不要把不同含义的字段混成一个指标。FM 的 techniqueRaw 表示“技术”，dribblingRaw 表示“盘带”；若缺少 dribblingRaw，必须说明未提供，不得把 techniqueRaw 的值写成“盘带”或“盘带技术”。Understat 的 appearances 字段只表示返回记录中的出场场次；只有该字段为具体数值时才能报告。若 appearances 为 null，明确说记录未提供出场场次；不得用分钟、进球、90 分钟换算或其他统计推算。若用户询问的字段没有返回数值，回答无法确定时，同时简要列出与问题相关、且确实返回的数值，保留原字段含义和标签；例如可报告 goals 或 minutes，但不得把它们换算或称为 appearances。Understat 的 team 字段只表示对应赛事和赛季表现记录中的球队，不代表当前注册球队。用户询问当前俱乐部或注册球队时，只有来源明确提供当前注册信息才能回答；如果只有 Understat 赛季记录，只能标为“该赛事/赛季记录中的球队”，并明确当前注册无法从资料确定。不要使用“当前俱乐部”或“Current club”作为标题或字段名，除非某个来源明确提供了当前注册信息；也不要把 Understat.team 值放在该标题下。无论用户用中文还是英文询问当前俱乐部，都遵守此规则。不要补猜缺失值、合同、身价或转会可行性。说明来源、赛事和赛季；没有证据时明确说未知。`;
 
 const lookupFollowUpPrompt =
-  "你在回答对最近一次球员资料查询的追问。只能依据提供的已保存查询结果 JSON 作答；如果结果里没有用户问的字段，要明确说资料未包含。不得补猜、改写来源或引入外部事实。";
+  "你在回答对最近一次球员资料查询的追问。输入可能是从完整已验证查询结果生成的 scouting evidence projection。只依据提供的投影和 coverage 作答；source_null 表示来源明确返回 null，未选择的字段不表示来源缺失，unavailable 和 not_queried 也要分别说明。保留精确记录、canonical / unlinked 身份关系、来源、实际赛季和查询赛季语义。当 understat seasonMode=explicit_unresolved 时，说明用户明确写了赛季，但程序没有把它转换为查询范围；不能把 default_snapshot 的记录当成所请求的赛季，要求用户补充完整范围。不得补猜、改写来源或引入外部事实。";
+
+const lookupProjectionPrompt = `工具结果可能是从已验证完整结果生成的 scouting evidence projection。digest、批次范围、记录引用、来源和 coverage 由程序生成。state=source_null 表示来源明确返回 null；unselectedFields 表示没有选择，不能当作缺失；unavailable、not_found、not_queried 含义不同。当 understat seasonMode=explicit_unresolved 时，说明用户明确写了赛季但程序没有将其转换为查询范围，不要将 default_snapshot 记录当成用户所求范围。如果 batch.remainingRecordRefs 非空，当前消息只覆盖其中列出的批次；不要据此得出整份结果的结论，也不要为了读取剩余记录重复调用搜索工具，应用会逐批解释已保存结果。`;
 
 const comparisonPrompt = `你是一个足球资料助手。当前请求是多人球员比较，只能依据下面提供的结构化比较结果作答。优先用表格逐项呈现全部已确认球员。Understat 的 understatScopeGroups 表示至少两名球员有记录的赛事和赛季范围，不保证覆盖所有参与者。每组必须检查 coverage.coversAllParticipants；只有它为 true 时，才能称该范围对所有参与者共同。为 false 时，只能比较该组中 record 非 null 的球员，明确指出未覆盖的球员；如果 coverage.commonUnderstatScopeCount 为 0，必须说明没有覆盖全部参与者的共同 Understat 范围，不得把该组说成所有参与者共同范围或据此给所有球员排名。各球员原始 Understat 记录仍按自己的赛事和赛季分别呈现。Football Manager 的能力值和属性单独呈现，不要把它们说成比赛表现，也不要与 Understat 指标合并成综合分。FM 的 naturalPositions 表示球员的自然位置，不代表当前注册位置或本场位置；表格必须标为“自然位置”或“Natural position”，不得写“当前位置”或“Current position”。FM 属性键 technique 表示“技术”，dribbling 表示“盘带”；不要把 technique 写成“盘带技术”。若 FM 记录的 birthDate、heightCm 或属性字段有具体值，应准确报告；只有对应值为 null 或无记录时，才能说该球员该字段未提供，不得笼统声称全部缺失。不要补猜缺失值、当前球队、合同、身价、转会可行性或谁整体更强。`;
 
@@ -104,18 +109,63 @@ const seasonStartYearFromConstraints = (
   return year >= 2000 && year <= 2100 ? year : undefined;
 };
 
+const lookupToolMessagesForModel = (
+  messages: BaseMessage[],
+  question: string
+): BaseMessage[] =>
+  messages.map((message) => {
+    if (
+      !(message instanceof ToolMessage) ||
+      message.name !== "search_player_records"
+    ) {
+      return message;
+    }
+
+    const resultJson = z.string().safeParse(message.content);
+
+    if (!resultJson.success) {
+      return message;
+    }
+
+    const projections = scoutingEvidenceProjections(
+      resultJson.data,
+      question,
+      "executed"
+    );
+
+    const projection = projections?.[0];
+
+    if (projection === undefined) {
+      return message;
+    }
+
+    return new ToolMessage({
+      content: projection,
+      id: message.id,
+      name: message.name,
+      response_metadata: message.response_metadata,
+      status: message.status,
+      tool_call_id: message.tool_call_id,
+    });
+  });
+
 const messagesForLookupModel = (state: AgentStateType) => {
   const messages = messagesInCurrentTurn(state.messages);
   const sourceMessage = latestHumanMessage(messages);
+
+  if (sourceMessage === undefined) {
+    return messages;
+  }
+
+  const question = messageText(sourceMessage);
   const { compaction } = state.contextProcessing;
 
   if (
-    sourceMessage === undefined ||
     compaction === null ||
     compaction.status !== "ready" ||
     compaction.instruction === null
   ) {
-    return messages;
+    return lookupToolMessagesForModel(messages, question);
   }
 
   const sourceMessageId = sourceMessage.id ?? compaction.sourceMessageId;
@@ -132,7 +182,7 @@ const messagesForLookupModel = (state: AgentStateType) => {
     compaction.sourceHash !== contextProcessingHash(sourceText) ||
     compaction.instructionHash !== contextProcessingHash(compaction.instruction)
   ) {
-    return messages;
+    return lookupToolMessagesForModel(messages, question);
   }
 
   const clarificationAnswers =
@@ -153,8 +203,11 @@ const messagesForLookupModel = (state: AgentStateType) => {
     response_metadata: sourceMessage.response_metadata,
   });
 
-  return messages.map((message) =>
-    message === sourceMessage ? workingMessage : message
+  return lookupToolMessagesForModel(
+    messages.map((message) =>
+      message === sourceMessage ? workingMessage : message
+    ),
+    sourceText
   );
 };
 
@@ -805,7 +858,11 @@ const createLookupPlayerNode =
     }
 
     const budget = createModelRequestBudget(runtime, "lookup_player");
-    const requestMessages = [new SystemMessage(lookupPrompt), ...messages];
+
+    const requestMessages = [
+      new SystemMessage(`${lookupPrompt}\n\n${lookupProjectionPrompt}`),
+      ...messages,
+    ];
 
     const response = await invokeWithModelContext(
       model,
@@ -955,6 +1012,55 @@ const recommendationAnswerMessage = (
   return correction === null ? message : new AIMessage(correction);
 };
 
+const completedLookupEvidenceAnswer = (
+  state: AgentStateType
+): BaseMessage | null => {
+  if (!lookupEvidenceMatchesCurrentOutcome(state)) {
+    return null;
+  }
+
+  const { outcome } = state;
+  const lookupEvidence = state.lookupEvidence ?? null;
+
+  if (
+    outcome?.kind !== "player_lookup" ||
+    outcome.resultJson === null ||
+    lookupEvidence === null
+  ) {
+    return null;
+  }
+
+  if (lookupEvidence.status === "complete") {
+    const answers = lookupEvidence.batches.map(({ answer }) => answer);
+
+    if (answers.some((answer) => answer === null)) {
+      return new AIMessage(
+        `查询数据已完整保存，但解释未完成。以下是完整结果与来源：\n\n${outcome.resultJson}`
+      );
+    }
+
+    const text = answers.join("\n\n");
+
+    const answer =
+      lookupEvidence.batches.length > 1
+        ? `按来源记录分别说明：\n\n${text}`
+        : text;
+
+    return answerWithPlayerMemoryNotice(state, new AIMessage(answer));
+  }
+
+  if (
+    lookupEvidence.status === "allowance_exhausted" ||
+    lookupEvidence.status === "failed"
+  ) {
+    return new AIMessage(
+      `查询数据已完整保存，但模型解释未完成。以下是完整结果与来源：\n\n${outcome.resultJson}`
+    );
+  }
+
+  return null;
+};
+
 const createAnswerNode = (
   model: BaseChatModel,
   modelContextConfiguration: ModelContextConfiguration = {}
@@ -983,12 +1089,28 @@ const createAnswerNode = (
     const latestUserMessage = latestHumanMessage(state.messages);
 
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
+    const resultJson = state.outcome?.resultJson ?? "";
+
+    const projections = scoutingEvidenceProjections(
+      resultJson,
+      requestText,
+      "saved"
+    );
+
+    const projection = projections?.length === 1 ? projections[0] : null;
+
+    const evidenceLabel =
+      projection === null
+        ? "已保存的查询结果 JSON："
+        : "Scouting evidence projection JSON:";
+
+    const evidenceJson = projection ?? resultJson;
 
     const response = await invokeAnswerModel(
       [
         new SystemMessage(lookupFollowUpPrompt),
         new HumanMessage(
-          `用户追问：${requestText}\n\n已保存的查询结果 JSON：\n${state.outcome?.resultJson ?? ""}`
+          `用户追问：${requestText}\n\n${evidenceLabel}\n${evidenceJson}`
         ),
       ],
       runtime
@@ -1015,6 +1137,12 @@ const createAnswerNode = (
     }
 
     if (outcome.kind === "player_lookup") {
+      const evidenceAnswer = completedLookupEvidenceAnswer(state);
+
+      if (evidenceAnswer !== null) {
+        return { messages: [evidenceAnswer] };
+      }
+
       if (
         outcome.status === "lookup_follow_up" &&
         outcome.resultJson !== null
