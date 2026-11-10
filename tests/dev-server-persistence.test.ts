@@ -689,6 +689,137 @@ describe("managed Dev Server persistence", () => {
     }
   }, 45_000);
 
+  it("retries an unfinished lookup after restart and rebuilds an incompatible compaction cache", async () => {
+    const session = await startDevServerSession(
+      "./tests/fixtures/text-compaction-agent.ts:agent"
+    );
+
+    const { baseUrl, gateway } = session;
+    const thread = await createAgentThread(baseUrl);
+    const filler = "Background note with no scouting constraint. ".repeat(600);
+    const message = `Look up Harry Kane. ${filler}`;
+    const messageId = "understanding-restart-recovery";
+
+    try {
+      const readSparseAgentState = async () => {
+        const state = await requestJson(
+          baseUrl,
+          `/threads/${thread.thread_id}/state`,
+          z.looseObject({ values: z.looseObject({}).optional() })
+        );
+
+        if (state.values === undefined) {
+          throw new Error("The interrupted thread has no state values.");
+        }
+
+        return AgentState.parse(state.values);
+      };
+
+      gateway.failModelCallsAt([2, 3, 4]);
+      await runPlayerLookup(baseUrl, thread.thread_id, message, messageId);
+
+      const interrupted = await readSparseAgentState();
+      const interruptedCompaction = interrupted.contextProcessing.compaction;
+
+      if (
+        interruptedCompaction === undefined ||
+        interruptedCompaction === null
+      ) {
+        throw new Error("The interrupted request has no compaction record.");
+      }
+
+      const compactionCallsBeforeRestart = gateway
+        .calls()
+        .filter((call) =>
+          call.includes('"name":"compact_scouting_instruction"')
+        );
+
+      expect({
+        allowanceCalls:
+          interrupted.contextProcessing.allowance?.consumedAdditionalCalls,
+        compactionCalls: compactionCallsBeforeRestart.length,
+        compactionStatus: interruptedCompaction.status,
+        originalMessagePresent: interrupted.messages.some(
+          (item) =>
+            item.type === "human" &&
+            item.id === messageId &&
+            item.content === message
+        ),
+        understandingFailureReported:
+          interrupted.faultTolerance.failure?.node === "understand_request",
+      }).toStrictEqual({
+        allowanceCalls: 1,
+        compactionCalls: 1,
+        compactionStatus: "ready",
+        originalMessagePresent: true,
+        understandingFailureReported: true,
+      });
+
+      const incompatibleCompaction = {
+        ...interruptedCompaction,
+        activeContextHash: "stale-online-context-hash",
+      };
+
+      const { contextProcessing } = interrupted;
+
+      await postJson(
+        baseUrl,
+        `/threads/${thread.thread_id}/state`,
+        waitResponseSchema,
+        JSON.stringify({
+          values: {
+            contextProcessing: {
+              ...contextProcessing,
+              compaction: incompatibleCompaction,
+            },
+          },
+        })
+      );
+      await session.restart();
+
+      const restarted = await readSparseAgentState();
+      gateway.failModelCallsAt([]);
+      await runPlayerLookup(baseUrl, thread.thread_id, message, messageId);
+
+      const completed = await getAgentThreadState(baseUrl, thread.thread_id);
+
+      const completedCompactionCalls = gateway
+        .calls()
+        .filter((call) =>
+          call.includes('"name":"compact_scouting_instruction"')
+        );
+
+      expect({
+        allowanceCalls:
+          completed.values.contextProcessing?.allowance
+            ?.consumedAdditionalCalls,
+        compactionCalls: completedCompactionCalls.length,
+        compactionStatus:
+          completed.values.contextProcessing?.compaction?.status,
+        lookupOutcome: completed.values.outcome?.status,
+        originalMessagePresent: completed.values.messages.some(
+          ({ content, id, type }) =>
+            type === "human" && id === messageId && content === message
+        ),
+        staleCacheSurvivedRestart:
+          restarted.contextProcessing.compaction?.activeContextHash ===
+          "stale-online-context-hash",
+      }).toStrictEqual({
+        allowanceCalls: 2,
+        compactionCalls: 2,
+        compactionStatus: "ready",
+        lookupOutcome: "answer_ready",
+        originalMessagePresent: true,
+        staleCacheSurvivedRestart: true,
+      });
+      expect(
+        textCompactionFacts(completed).lookupResultAvailable
+      ).toBeGreaterThan(0);
+    } finally {
+      await session.close();
+    }
+  }, 90_000);
+
   it("reuses a confirmed roster mapping across threads and restart without restoring absent members", async () => {
     const session = await startDevServerSession(
       "./tests/fixtures/persistence-agent.ts:agent"

@@ -35,6 +35,7 @@ type LocalGateway = {
   close: () => Promise<void>;
   eventUrl: string;
   events: () => string[];
+  failModelCallsAt: (callNumbers: number[]) => void;
   providerUrl: string;
   url: string;
 };
@@ -857,6 +858,7 @@ const reservePort = async (): Promise<number> => {
 const startGateway = async (): Promise<LocalGateway> => {
   const receivedCalls: string[] = [];
   const receivedEvents: string[] = [];
+  const failedModelCallNumbers = new Set<number>();
   let extractionCallIndex = 0;
   let rosterMemoryFetchCount = 0;
   const eventSchema = z.object({ name: z.string() });
@@ -922,6 +924,22 @@ const startGateway = async (): Promise<LocalGateway> => {
       }
 
       receivedCalls.push(body);
+
+      if (failedModelCallNumbers.has(receivedCalls.length)) {
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            error: {
+              code: "temporary_model_failure",
+              message: "Injected persistence test model failure.",
+              type: "server_error",
+            },
+          })
+        );
+
+        return;
+      }
+
       const chatRequest = chatRequestSchema.safeParse(JSON.parse(body));
 
       const lastUserMessage = chatRequest.success
@@ -1057,6 +1075,13 @@ const startGateway = async (): Promise<LocalGateway> => {
     },
     eventUrl: `${baseUrl}/events`,
     events: () => [...receivedEvents],
+    failModelCallsAt: (callNumbers) => {
+      failedModelCallNumbers.clear();
+
+      for (const callNumber of callNumbers) {
+        failedModelCallNumbers.add(callNumber);
+      }
+    },
     providerUrl: baseUrl,
     url: `${baseUrl}/v1`,
   };
