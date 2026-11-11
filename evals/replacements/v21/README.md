@@ -2,7 +2,7 @@
 
 This 16-case pack replaces the exposed v20 held-out set. It has four cases for each workflow, with one ordinary, one boundary, and two multi-turn cases per workflow. Twelve cases use new local FM and Understat source records; four use a new synthetic API-Football roster fixture.
 
-The v21 case IDs, scenario families, player mentions, provider source IDs, evidence bundle IDs, and synthetic team IDs do not overlap the development, v1-v19 held-out, or exposed v20 packs. `tests/replacement-v21-pack.test.ts` checks those boundaries and the saved-result identity contract.
+The v21 case IDs, scenario families, player mentions, provider source IDs, evidence bundle IDs, and synthetic team IDs do not overlap the development, v1-v19 held-out, or exposed v20 packs. `tests/evaluation/packs/replacement-v21-pack.test.ts` checks those boundaries and the saved-result identity contract.
 
 Real-source evidence is prepared locally from the FM, Understat, and Reep snapshots. The generated bundle stays under ignored `.data/evals/v21-evidence/`. The synthetic team bundle is versioned at `evals/evidence/replacement-v21-team-synthetic.json`.
 

@@ -12,10 +12,12 @@ import {
   contextProcessingAnchorKinds,
   contextProcessingHash,
   contextProcessingInputText,
+  defaultContextProcessingAllowance,
   createInitialContextProcessing,
 } from "../context-processing-state.js";
 import type {
   ContextProcessingAllowance,
+  ContextProcessingAllowanceConfiguration,
   ContextProcessingClarification,
   ContextProcessingChunk,
   ContextProcessingChunking,
@@ -48,15 +50,14 @@ import {
   createInitialFaultToleranceState,
   createInitialRequestState,
 } from "../state.js";
-import type { AgentState, AgentStateType } from "../state.js";
+import type {
+  AgentState,
+  AgentStateType,
+  EvidenceBatchState,
+} from "../state.js";
 import { previousTurnSummary } from "../workflow-continuation.js";
 
 const compactedScoutingInstructionFormatVersion = 2;
-
-const defaultContextProcessingAllowance = {
-  maxActiveTimeMs: 120_000,
-  maxAdditionalCalls: 6,
-} as const;
 
 const textCompactionPrompt = `你负责压缩一条球探请求，只输出结构化结果。
 
@@ -127,13 +128,8 @@ type TextCompactionModelInputBuilder = (
   compactedInstruction?: ContextProcessingCompaction
 ) => ModelContextRequest;
 
-type TextCompactionAllowanceConfiguration = {
-  maxActiveTimeMs?: number;
-  maxAdditionalCalls?: number;
-};
-
 type TextCompactionNodeConfiguration = {
-  allowance?: TextCompactionAllowanceConfiguration;
+  allowance?: ContextProcessingAllowanceConfiguration;
   compactionModel?: BaseChatModel;
   compactionModelContextConfiguration?: ModelContextConfiguration;
   model: BaseChatModel;
@@ -207,7 +203,7 @@ const requestIdFor = (
 
 const allowanceFor = (
   requestId: string,
-  allowance: TextCompactionAllowanceConfiguration
+  allowance: ContextProcessingAllowanceConfiguration
 ): ContextProcessingAllowance => ({
   consumedActiveTimeMs: 0,
   consumedAdditionalCalls: 0,
@@ -1585,7 +1581,7 @@ const previousCompactionMatches = (
 const existingCompactionDecision = (
   state: AgentStateType,
   input: CompactionIdentity,
-  allowanceConfiguration: TextCompactionAllowanceConfiguration
+  allowanceConfiguration: ContextProcessingAllowanceConfiguration
 ): ExistingCompactionDecision => {
   const previousProcessing = state.contextProcessing;
   const previousAllowance = previousProcessing.allowance;
@@ -1937,19 +1933,17 @@ const currentMessageWasProcessed = (
   !hasPendingReservation &&
   processedMessageId === currentMessageId;
 
-const lookupEvidenceReservationMatchesMessage = (
+const evidenceReservationMatchesMessage = (
   state: AgentStateType,
   currentMessage: HumanMessage,
-  reservation: ContextProcessingAllowance["reservation"]
+  reservation: ContextProcessingAllowance["reservation"],
+  operation: "explain_lookup_evidence" | "explain_comparison_evidence",
+  evidence: EvidenceBatchState | null | undefined
 ): boolean => {
-  if (
-    reservation === null ||
-    reservation.operation !== "explain_lookup_evidence"
-  ) {
+  if (reservation === null || reservation.operation !== operation) {
     return false;
   }
 
-  const evidence = state.lookupEvidence;
   const { allowance } = state.contextProcessing;
 
   if (evidence === null || evidence === undefined || allowance === null) {
@@ -1958,9 +1952,7 @@ const lookupEvidenceReservationMatchesMessage = (
 
   const question = messageText(currentMessage);
   const messageIndex = state.messages.indexOf(currentMessage);
-
   const requestId = requestIdFor(currentMessage.id, question, messageIndex + 1);
-
   const sourceMessageId = currentMessage.id ?? requestId;
 
   return (
@@ -2002,10 +1994,19 @@ const prepareTextCompactionNode =
     const hasPendingReservation = reservation !== null;
 
     if (
-      lookupEvidenceReservationMatchesMessage(
+      evidenceReservationMatchesMessage(
         normalizedState,
         currentMessage,
-        reservation
+        reservation,
+        "explain_lookup_evidence",
+        normalizedState.lookupEvidence
+      ) ||
+      evidenceReservationMatchesMessage(
+        normalizedState,
+        currentMessage,
+        reservation,
+        "explain_comparison_evidence",
+        normalizedState.comparisonEvidence
       )
     ) {
       return {};
@@ -2510,7 +2511,10 @@ const invokeTextCompaction = async (
     };
   }
 
-  if (reservation.operation === "explain_lookup_evidence") {
+  if (
+    reservation.operation === "explain_lookup_evidence" ||
+    reservation.operation === "explain_comparison_evidence"
+  ) {
     return {
       durationMs: 0,
       kind: "failed",
@@ -2821,7 +2825,6 @@ const createTextCompactionAnswerNode =
 export {
   compactionRoute,
   createTextCompactionAnswerNode,
-  defaultContextProcessingAllowance,
   modelConfigurationHash,
   prepareTextCompactionNode,
   routeAfterTextCompaction,
@@ -2830,7 +2833,6 @@ export {
 };
 
 export type {
-  TextCompactionAllowanceConfiguration,
   TextCompactionModelInputBuilder,
   TextCompactionNodeConfiguration,
 };

@@ -14,6 +14,11 @@ import { z } from "zod/v4";
 
 import { correctComparisonAnswer } from "../comparison-answer.js";
 import {
+  comparisonAnswerMessages,
+  comparisonBatchIsComplete,
+  comparisonEvidenceAnswerText,
+} from "../comparison-evidence.js";
+import {
   contextProcessingHash,
   contextProcessingInputText,
 } from "../context-processing-state.js";
@@ -38,6 +43,7 @@ import type {
   RequestConstraint,
   RequestPlayerState,
 } from "../state.js";
+import { comparisonEvidenceMatchesCurrentOutcome } from "./comparison-evidence.js";
 import { lookupEvidenceMatchesCurrentOutcome } from "./lookup-evidence.js";
 
 const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。数据源分工必须严格遵守：Understat 提供按赛事和赛季变化的出场次数、分钟、进球、助攻、射门、xG、xA 等表现记录；Football Manager 是固定日期的能力快照，只用于该快照中的 CA、PA、自然位置和属性。不得用 FM 信息替代、推导或描述当前或赛季表现，也不得用它确认当前俱乐部、注册状态、伤病、可用性或转会状态。任何强时效性事实都必须由实际返回且覆盖所问时间范围的来源支持；没有这样的来源时明确说资料不足。Understat 只支持其返回的赛事和赛季记录，不代表实时状态。用户同时询问不同类型的信息时分别依据对应来源回答；其中一个来源没有返回记录时，明确说明缺失。用户明确指定赛季时必须按请求中的 seasonStartYear 查询，不要改成最新赛季；用户未指定赛季时省略 seasonStartYear，工具默认使用快照最新赛季。最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季。如果用户明确写了赛季，但 requestedUnderstatSeasonStartYear 为 null，表示该写法没有转换为查询范围；不要把默认最新赛季说成用户要求的赛季，请用户补充完整赛季范围，不要推断世纪或把单一年份当作赛季。
@@ -50,8 +56,6 @@ const lookupFollowUpPrompt =
   "你在回答对最近一次球员资料查询的追问。输入可能是从完整已验证查询结果生成的 scouting evidence projection。只依据提供的投影和 coverage 作答；source_null 表示来源明确返回 null，未选择的字段不表示来源缺失，unavailable 和 not_queried 也要分别说明。保留精确记录、canonical / unlinked 身份关系、来源、实际赛季和查询赛季语义。当 understat seasonMode=explicit_unresolved 时，说明用户明确写了赛季，但程序没有把它转换为查询范围；不能把 default_snapshot 的记录当成所请求的赛季，要求用户补充完整范围。不得补猜、改写来源或引入外部事实。";
 
 const lookupProjectionPrompt = `工具结果可能是从已验证完整结果生成的 scouting evidence projection。digest、批次范围、记录引用、来源和 coverage 由程序生成。state=source_null 表示来源明确返回 null；unselectedFields 表示没有选择，不能当作缺失；unavailable、not_found、not_queried 含义不同。当 understat seasonMode=explicit_unresolved 时，说明用户明确写了赛季但程序没有将其转换为查询范围，不要将 default_snapshot 记录当成用户所求范围。如果 batch.remainingRecordRefs 非空，当前消息只覆盖其中列出的批次；不要据此得出整份结果的结论，也不要为了读取剩余记录重复调用搜索工具，应用会逐批解释已保存结果。`;
-
-const comparisonPrompt = `你是一个足球资料助手。当前请求是多人球员比较，只能依据下面提供的结构化比较结果作答。优先用表格逐项呈现全部已确认球员。Understat 的 understatScopeGroups 表示至少两名球员有记录的赛事和赛季范围，不保证覆盖所有参与者。每组必须检查 coverage.coversAllParticipants；只有它为 true 时，才能称该范围对所有参与者共同。为 false 时，只能比较该组中 record 非 null 的球员，明确指出未覆盖的球员；如果 coverage.commonUnderstatScopeCount 为 0，必须说明没有覆盖全部参与者的共同 Understat 范围，不得把该组说成所有参与者共同范围或据此给所有球员排名。各球员原始 Understat 记录仍按自己的赛事和赛季分别呈现。Football Manager 的能力值和属性单独呈现，不要把它们说成比赛表现，也不要与 Understat 指标合并成综合分。FM 的 naturalPositions 表示球员的自然位置，不代表当前注册位置或本场位置；表格必须标为“自然位置”或“Natural position”，不得写“当前位置”或“Current position”。FM 属性键 technique 表示“技术”，dribbling 表示“盘带”；不要把 technique 写成“盘带技术”。若 FM 记录的 birthDate、heightCm 或属性字段有具体值，应准确报告；只有对应值为 null 或无记录时，才能说该球员该字段未提供，不得笼统声称全部缺失。不要补猜缺失值、当前球队、合同、身价、转会可行性或谁整体更强。`;
 
 const recommendationCandidateFields =
   "姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance";
@@ -1061,6 +1065,52 @@ const completedLookupEvidenceAnswer = (
   return null;
 };
 
+const completedComparisonEvidenceAnswer = (
+  state: AgentStateType,
+  model: BaseChatModel,
+  modelContextConfiguration: ModelContextConfiguration
+): BaseMessage | null => {
+  if (
+    !comparisonEvidenceMatchesCurrentOutcome(state, {
+      model,
+      modelContextConfiguration,
+    })
+  ) {
+    return null;
+  }
+
+  const { outcome } = state;
+  const evidence = state.comparisonEvidence;
+
+  if (
+    outcome?.kind !== "player_comparison" ||
+    outcome.resultJson === null ||
+    evidence === null
+  ) {
+    return null;
+  }
+
+  if (evidence.status === "complete") {
+    if (!comparisonBatchIsComplete(evidence, outcome.resultJson)) {
+      return new AIMessage(
+        `比较数据已完整验证，但分批解释未完成。以下是完整比较结果与来源：\n\n${outcome.resultJson}`
+      );
+    }
+
+    const answer = comparisonEvidenceAnswerText(evidence);
+
+    return answer === null
+      ? new AIMessage(
+          `比较数据已完整验证，但解释未完成。以下是完整比较结果与来源：\n\n${outcome.resultJson}`
+        )
+      : answerWithPlayerMemoryNotice(state, new AIMessage(answer));
+  }
+
+  return new AIMessage(
+    `比较数据已完整验证，但分批解释未完成。以下是完整比较结果与来源：\n\n${outcome.resultJson}`
+  );
+};
+
 const createAnswerNode = (
   model: BaseChatModel,
   modelContextConfiguration: ModelContextConfiguration = {}
@@ -1136,6 +1186,16 @@ const createAnswerNode = (
       };
     }
 
+    const comparisonEvidenceAnswer = completedComparisonEvidenceAnswer(
+      state,
+      model,
+      modelContextConfiguration
+    );
+
+    if (comparisonEvidenceAnswer !== null) {
+      return { messages: [comparisonEvidenceAnswer] };
+    }
+
     if (outcome.kind === "player_lookup") {
       const evidenceAnswer = completedLookupEvidenceAnswer(state);
 
@@ -1190,24 +1250,24 @@ const createAnswerNode = (
 
     let prompt = recommendationPrompt;
 
-    if (outcome.kind === "player_comparison") {
-      prompt = comparisonPrompt;
-    } else if (outcome.kind === "team_recommendation") {
+    if (outcome.kind === "team_recommendation") {
       prompt = teamRecommendationPrompt;
     }
 
     const latestUserMessage = latestHumanMessage(state.messages);
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
 
-    const response = await invokeAnswerModel(
-      [
-        new SystemMessage(prompt),
-        new HumanMessage(
-          `用户请求：${requestText}\n\n结构化工具结果：\n${outcome.resultJson}`
-        ),
-      ],
-      runtime
-    );
+    const messages =
+      outcome.kind === "player_comparison"
+        ? comparisonAnswerMessages(requestText, outcome.resultJson)
+        : [
+            new SystemMessage(prompt),
+            new HumanMessage(
+              `用户请求：${requestText}\n\n结构化工具结果：\n${outcome.resultJson}`
+            ),
+          ];
+
+    const response = await invokeAnswerModel(messages, runtime);
 
     const answer =
       response instanceof BaseMessage ? response : new AIMessage(response);

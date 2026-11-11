@@ -4,7 +4,7 @@ Status: exposed. Do not use v22 as a blind acceptance gate; its outputs were ins
 
 This 16-case pack replaces the exposed v21 attempt. It contains four cases for each workflow, with one ordinary, one boundary, and two multi-turn cases per workflow. Twelve cases use new local FM and Understat source records; four use a new synthetic API-Football roster fixture.
 
-The v22 player mentions, provider source IDs, evidence groups, scenario families, and team IDs do not overlap the development, v1-v21 held-out, or exposed v21 packs. `tests/replacement-v22-pack.test.ts` checks those boundaries and saved-result identity reuse.
+The v22 player mentions, provider source IDs, evidence groups, scenario families, and team IDs do not overlap the development, v1-v21 held-out, or exposed v21 packs. `tests/evaluation/packs/replacement-v22-pack.test.ts` checks those boundaries and saved-result identity reuse.
 
 Prepare the real-source evidence locally, copy the versioned team fixture to the same evidence directory, and preview before dispatch:
 

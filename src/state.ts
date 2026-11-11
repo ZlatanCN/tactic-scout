@@ -2,6 +2,7 @@ import { MessagesZodState } from "@langchain/langgraph";
 import { z } from "zod/v3";
 
 import {
+  ComparisonEvidenceSchema,
   ContextProcessingSchema,
   LookupEvidenceSchema,
   createInitialContextProcessing,
@@ -527,6 +528,7 @@ const createInitialPlayerMemoryStatus = () => ({
 const agentStateSchemaVersion = 1;
 
 const AgentState = MessagesZodState.extend({
+  comparisonEvidence: ComparisonEvidenceSchema.nullable().default(null),
   contextProcessing: ContextProcessingSchema.default(
     createInitialContextProcessing
   ),
@@ -561,8 +563,6 @@ type AgentStateType = z.infer<typeof AgentState>;
 type ConversationContext = z.infer<typeof ConversationContextSchema>;
 
 type ContextProcessingState = z.infer<typeof ContextProcessingSchema>;
-
-type LookupEvidenceState = z.infer<typeof LookupEvidenceSchema>;
 
 type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
 
@@ -633,7 +633,6 @@ export type {
   ComparisonAction,
   ConversationContext,
   ContextProcessingState,
-  LookupEvidenceState,
   FaultToleranceState,
   ConversationPlayerAlias,
   ConversationPlayerReference,
@@ -657,3 +656,5 @@ export type {
   ReferenceCandidate,
   ReferenceLookupResult,
 } from "./player-data/contracts.js";
+
+export type { EvidenceBatch as EvidenceBatchState } from "./context-processing-state.js";

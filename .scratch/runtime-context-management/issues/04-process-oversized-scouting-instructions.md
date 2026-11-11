@@ -27,4 +27,4 @@ Parent: [运行时上下文管理](../spec.md)
 - 2026-11-08：用户确认拆分粒度和依赖（“合适了”），按批准的提案发布；尚未认领或实施。
 - 2026-11-10：实现并验收有界分块、跨块合并、冲突澄清后重新分块、精确引用检查、Unicode 安全边界、stale chunk hash 重建和 quota checkpoint 恢复。完整图 lookup 验收覆盖修正 / 冲突季节、团队 / 排除 / 年龄 / 位置条件和实际 FM / Understat source IDs；回归确认合并遗漏 ready chunk 的球队锚点或局部 ambiguity 时 fail closed，并阻止请求理解运行。额度耗尽用例保留旧成功快照；未知后续 chunk 调用结算保留已完成块。managed Dev Server 测试覆盖 6 个已完成 chunk 和额度在正常重启 / 同 message ID 重放后的保持。
 - 2026-11-10：本票采用固定 fake model / provider 合约验收，没有运行 chunking 路径的 live-model semantic judge；测试验证约束进入最终指令和业务 lookup，但不声称证明任意自然语言压缩的普遍语义保真。额度耗尽后追加 grant 并继续处理尚未规划的范围由 [11: 额度耗尽后明确继续并跨重启续接](11-continue-exhausted-context-processing.md) 实现。
-- 2026-11-10 最终验证：`tests/text-compaction.test.ts` 23/23 通过，managed Dev Server chunk recovery 通过；全量 `pnpm test` 为 41 个文件 / 450 个测试全部通过，`pnpm typecheck` 和改动文件的 Ultracite 检查通过。完整图代表路径按本票“代表场景”的单数语义选择 lookup；comparison / recommendation 的证据交付仍由 06–08 票据覆盖。
+- 2026-11-10 最终验证：`tests/runtime-context/compaction` 23/23 通过，managed Dev Server chunk recovery 通过；全量 `pnpm test` 为 41 个文件 / 450 个测试全部通过，`pnpm typecheck` 和改动文件的 Ultracite 检查通过。完整图代表路径按本票“代表场景”的单数语义选择 lookup；comparison / recommendation 的证据交付仍由 06–08 票据覆盖。

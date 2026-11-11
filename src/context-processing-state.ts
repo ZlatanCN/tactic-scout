@@ -36,6 +36,7 @@ const ContextProcessingReservationSchema = z.object({
     "compact_text",
     "compact_text_chunk",
     "explain_lookup_evidence",
+    "explain_comparison_evidence",
     "merge_text_chunks",
   ]),
   operationId: z.string().min(1),
@@ -137,7 +138,7 @@ const LookupEvidenceBatchSchema = z.object({
   status: z.enum(["pending", "reserved", "ready", "failed"]),
 });
 
-const LookupEvidenceSchema = z.object({
+const EvidenceBatchSchema = z.object({
   batches: z.array(LookupEvidenceBatchSchema),
   failureReason: z
     .enum(["allowance_exhausted", "call_failed", "reservation_unknown"])
@@ -157,9 +158,23 @@ const LookupEvidenceSchema = z.object({
   ]),
 });
 
-type LookupEvidence = z.infer<typeof LookupEvidenceSchema>;
+const LookupEvidenceSchema = EvidenceBatchSchema;
+
+const ComparisonEvidenceSchema = EvidenceBatchSchema;
+
+type EvidenceBatch = z.infer<typeof EvidenceBatchSchema>;
 
 type LookupEvidenceBatch = z.infer<typeof LookupEvidenceBatchSchema>;
+
+const defaultContextProcessingAllowance = {
+  maxActiveTimeMs: 120_000,
+  maxAdditionalCalls: 6,
+} as const;
+
+type ContextProcessingAllowanceConfiguration = {
+  maxActiveTimeMs?: number;
+  maxAdditionalCalls?: number;
+};
 
 const ContextProcessingSchema = z.object({
   allowance: ContextProcessingAllowanceSchema.nullable(),
@@ -229,6 +244,8 @@ const contextProcessingInputText = (
 
 export {
   ContextProcessingSchema,
+  defaultContextProcessingAllowance,
+  ComparisonEvidenceSchema,
   ContextProcessingChunkSchema,
   ContextProcessingChunkingSchema,
   LookupEvidenceSchema,
@@ -240,6 +257,8 @@ export {
 
 export type {
   ContextProcessing,
+  ContextProcessingAllowanceConfiguration,
+  EvidenceBatch,
   ContextProcessingAllowance,
   ContextProcessingAnchor,
   ContextProcessingChunk,
@@ -248,6 +267,5 @@ export type {
   ContextProcessingClarification,
   ContextProcessingReference,
   ContextProcessingReservation,
-  LookupEvidence,
   LookupEvidenceBatch,
 };

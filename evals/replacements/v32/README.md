@@ -15,9 +15,9 @@ V32 run `d98eeaa0-bab4-4fbd-9a92-5b7e28d03094` completed 48 Agent trials, passed
 Offline validation:
 
 ```sh
-pnpm exec vitest run tests/replacement-v32-pack.test.ts
+pnpm exec vitest run tests/evaluation/packs/replacement-v32-pack.test.ts
 pnpm typecheck
-pnpm exec ultracite check src/nodes/assistant.ts src/recommendation-answer.ts tests/agent.test.ts tests/team-recommendation.test.ts tests/replacement-v32-pack.test.ts evals/evidence/replacement-v32-team-synthetic.json evals/replacements/v32/cases
+pnpm exec ultracite check src/nodes/assistant.ts src/recommendation-answer.ts tests/application/recommendations/player-answers.test.ts tests/application/recommendations/team-answers.test.ts tests/evaluation/packs/replacement-v32-pack.test.ts evals/evidence/replacement-v32-team-synthetic.json evals/replacements/v32/cases
 node --import tsx evals/cli.ts preview --mode held_out --judge --case-directory evals/replacements/v32/cases --evidence-directory .data/evals/v32-evidence
 ```
 

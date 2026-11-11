@@ -408,12 +408,42 @@ const identityLookupEventSchema = z.object({
   turnId: z.string(),
 });
 
+const deliveredEvidenceProjectionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    batchCount: z.number().int().positive(),
+    batchIndex: z.number().int().nonnegative(),
+    kind: z.literal("lookup"),
+    recordRefs: z.array(z.string()),
+    resultDigest: z.string(),
+  }),
+  z.object({
+    batchCount: z.number().int().positive(),
+    batchIndex: z.number().int().nonnegative(),
+    commonUnderstatScopeCount: z.number().int().nonnegative(),
+    kind: z.literal("comparison"),
+    participantCount: z.number().int().positive(),
+    participantRefs: z.array(z.string()),
+    recordRefs: z.array(z.string()),
+    resultDigest: z.string(),
+    understatScopes: z.array(
+      z.object({
+        competition: z.string(),
+        coveredPlayerCount: z.number().int().nonnegative(),
+        coversAllParticipants: z.boolean(),
+        participantCount: z.number().int().positive(),
+        season: z.string(),
+      })
+    ),
+  }),
+]);
+
 const deliveredEvidenceSchema = z.object({
   content: z.string(),
   evidenceId: z.string(),
   messageIndex: z.number().int().nonnegative(),
   modelCallIndex: z.number().int().positive(),
   modelRunId: z.string(),
+  projection: deliveredEvidenceProjectionSchema.optional(),
   provider: z.enum(["api_football", "application", "fm", "understat"]),
   sourceId: z.string().nullable(),
   trialId: z.string(),
@@ -800,6 +830,10 @@ type IdentityLookupEvent = z.output<typeof identityLookupEventSchema>;
 
 type DeliveredEvidence = z.output<typeof deliveredEvidenceSchema>;
 
+type DeliveredEvidenceProjection = z.output<
+  typeof deliveredEvidenceProjectionSchema
+>;
+
 type RenderedEvidence = z.output<typeof renderedEvidenceSchema>;
 
 type EvaluationEvidenceBundle = z.output<typeof evaluationEvidenceBundleSchema>;
@@ -828,6 +862,7 @@ export {
   declaredEvaluationDataFaultSchema,
   evaluationActionEventSchema,
   evaluationEvidenceBundleSchema,
+  deliveredEvidenceProjectionSchema,
   identityLookupEventSchema,
   gatewayExchangeSchema,
   evaluationReportSchema,
@@ -847,6 +882,7 @@ export type {
   EvaluationGatewayExchange,
   DeclaredEvaluationDataFault,
   DeliveredEvidence,
+  DeliveredEvidenceProjection,
   EvaluationActionEvent,
   IdentityLookupEvent,
   JsonValue,

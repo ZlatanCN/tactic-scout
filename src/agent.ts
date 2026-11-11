@@ -21,6 +21,7 @@ import "dotenv/config";
 
 import { activeComparisonContext } from "./comparison-context.js";
 import { createInitialContextProcessing } from "./context-processing-state.js";
+import type { ContextProcessingAllowanceConfiguration } from "./context-processing-state.js";
 import {
   createNodeRetryPolicy,
   externalFaultFrom,
@@ -44,6 +45,7 @@ import {
 } from "./nodes/assistant.js";
 import { createCommitLookupResultsNode } from "./nodes/commit-lookup.js";
 import { createComparePlayersNode } from "./nodes/compare-players.js";
+import { createComparisonEvidenceNodes } from "./nodes/comparison-evidence.js";
 import { createEntityResolutionNode } from "./nodes/entity-resolution.js";
 import { createExecuteLookupToolsNode } from "./nodes/execute-lookup-tools.js";
 import { createFetchTeamRosterNode } from "./nodes/fetch-team-roster.js";
@@ -67,10 +69,7 @@ import {
   routeAfterTextCompaction,
   runTextCompactionNode,
 } from "./nodes/text-compaction.js";
-import type {
-  TextCompactionAllowanceConfiguration,
-  TextCompactionModelInputBuilder,
-} from "./nodes/text-compaction.js";
+import type { TextCompactionModelInputBuilder } from "./nodes/text-compaction.js";
 import { createUnavailableTaskNode } from "./nodes/unavailable-task.js";
 import { createWaitForApiRateLimitNode } from "./nodes/wait-api-rate-limit.js";
 import { resolvePlayerReference } from "./player-data/resolve-reference.js";
@@ -112,7 +111,7 @@ type CreateAgentOptions = {
   compactionModel?: BaseChatModel;
   compactionModelContextProfile?: ModelContextProfileInput;
   compactionModelOutputLimitAdapter?: ModelOutputLimitAdapter;
-  contextProcessingAllowance?: TextCompactionAllowanceConfiguration;
+  contextProcessingAllowance?: ContextProcessingAllowanceConfiguration;
   model?: BaseChatModel;
   modelContextProfile?: ModelContextProfileInput;
   modelOutputLimitAdapter?: ModelOutputLimitAdapter;
@@ -610,6 +609,30 @@ const lookupResultNeedsBatches = (state: AgentStateType): boolean => {
   return batches !== null && batches.length > 1;
 };
 
+const comparisonHasCompletedResult = (state: AgentStateType): boolean => {
+  const { outcome } = state;
+
+  return (
+    outcome?.kind === "player_comparison" &&
+    "source" in outcome &&
+    (outcome.status === "ready" || outcome.status === "no_comparable_data")
+  );
+};
+
+const isSavedComparisonResult = (state: AgentStateType): boolean => {
+  const { outcome } = state;
+
+  if (outcome?.kind !== "player_comparison" || !("source" in outcome)) {
+    return false;
+  }
+
+  if (outcome.source !== "saved") {
+    return false;
+  }
+
+  return outcome.status === "ready" || outcome.status === "no_comparable_data";
+};
+
 const routeLookupResponse = (state: AgentStateType): string => {
   const lastMessage = state.messages.at(-1);
 
@@ -652,11 +675,25 @@ const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
     return "prepare_lookup_evidence";
   }
 
+  if (isSavedComparisonResult(state)) {
+    return "prepare_comparison_evidence";
+  }
+
   if (state.outcome !== null && "source" in state.outcome) {
     return state.outcome.source === "saved" ? "answer" : "resolve_entities";
   }
 
   return "resolve_entities";
+};
+
+const routeAfterComparison = (state: AgentStateType): string => {
+  if (state.pendingClarification?.kind === "season") {
+    return "clarify";
+  }
+
+  return comparisonHasCompletedResult(state)
+    ? "prepare_comparison_evidence"
+    : "answer";
 };
 
 const apiRateLimitWaitIsPending = (state: AgentStateType): boolean =>
@@ -819,6 +856,12 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     modelContextConfiguration,
   });
 
+  const comparisonEvidenceNodes = createComparisonEvidenceNodes({
+    allowance: options.contextProcessingAllowance,
+    model,
+    modelContextConfiguration,
+  });
+
   const graph = new StateGraph(AgentState)
     .addNode("prepare_context_processing", prepareContextProcessing)
     .addNode(
@@ -837,6 +880,12 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("answer_lookup_evidence_batch", answerLookupEvidenceBatch, {
       timeout: modelExecutionTimeoutMs,
     })
+    .addNode("prepare_comparison_evidence", comparisonEvidenceNodes.prepare)
+    .addNode(
+      "answer_comparison_evidence_batch",
+      comparisonEvidenceNodes.answer,
+      { timeout: modelExecutionTimeoutMs }
+    )
     .addNode("understand_request", understandRequest, {
       errorHandler: modelFailureHandler("understand_request"),
       retryPolicy: createNodeRetryPolicy("understand_request", {
@@ -901,6 +950,15 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     ])
     .addEdge("answer_lookup_evidence_batch", "prepare_lookup_evidence")
     .addConditionalEdges(
+      "prepare_comparison_evidence",
+      (state) =>
+        comparisonEvidenceNodes.route(state)
+          ? "answer_comparison_evidence_batch"
+          : "answer",
+      ["answer", "answer_comparison_evidence_batch"]
+    )
+    .addEdge("answer_comparison_evidence_batch", "prepare_comparison_evidence")
+    .addConditionalEdges(
       "answer_context_processing",
       (state) =>
         state.pendingClarification?.kind === "context_processing"
@@ -913,6 +971,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       "clarify",
       "answer",
       "prepare_lookup_evidence",
+      "prepare_comparison_evidence",
       "manage_player_memory",
       "resolve_entities",
     ])
@@ -969,6 +1028,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "resolve_team_roster",
         "recommend_players_for_team",
         "answer",
+        "prepare_comparison_evidence",
         "prepare_context_processing",
       ]
     )
@@ -992,12 +1052,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
           : "lookup_player",
       ["answer", "lookup_player"]
     )
-    .addConditionalEdges(
-      "compare_players",
-      (state) =>
-        state.pendingClarification?.kind === "season" ? "clarify" : "answer",
-      ["clarify", "answer"]
-    )
+    .addConditionalEdges("compare_players", routeAfterComparison, [
+      "clarify",
+      "prepare_comparison_evidence",
+      "answer",
+    ])
     .addConditionalEdges(
       "recommend_players",
       (state) =>

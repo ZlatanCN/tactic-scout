@@ -4,7 +4,7 @@ Status: exposed; do not reuse this pack as an acceptance gate.
 
 This 16-case replacement pack has four cases per workflow: one ordinary case, one boundary case, and two multi-turn cases. Twelve cases use local FM and Understat snapshots; four use a separate synthetic API-Football roster fixture. It uses new player identities, provider IDs, team IDs, scenario families, and evidence bundle IDs relative to the existing development and v1-v22 cases.
 
-The pack includes same-turn singular-pronoun handling, saved lookup reuse, common and non-common competition scopes, comparison scope inheritance, PA/CA distinctions, recommendation filter refinement, added recommendation references, team roster mapping, and unmapped-roster stopping behavior. `tests/replacement-v23-pack.test.ts` checks case balance, data independence, saved-result reuse, and team-fixture naming.
+The pack includes same-turn singular-pronoun handling, saved lookup reuse, common and non-common competition scopes, comparison scope inheritance, PA/CA distinctions, recommendation filter refinement, added recommendation references, team roster mapping, and unmapped-roster stopping behavior. `tests/evaluation/packs/replacement-v23-pack.test.ts` checks case balance, data independence, saved-result reuse, and team-fixture naming.
 
 Prepare fixed local evidence and the synthetic roster bundle:
 

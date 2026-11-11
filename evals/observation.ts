@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 
 import type { ReferenceLookupResult } from "../src/player-data/contracts.js";
 import type { AgentStateType } from "../src/state.js";
+import { deliveredEvidenceProjectionSchema } from "./contracts.js";
 import type {
   EvaluationActionEvent,
   EvaluationWorkerRequest,
@@ -226,6 +227,86 @@ const deliveredEvidenceSourcesFromValue = (
     : [{ provider: "application", sourceId: null }];
 };
 
+const comparisonProjectionMetadataSchema = z.object({
+  batch: z.object({
+    index: z.number().int().nonnegative(),
+    participantRefs: z.array(z.string()),
+    total: z.number().int().positive(),
+  }),
+  coverage: z.object({
+    commonUnderstatScopeCount: z.number().int().nonnegative(),
+    playerCount: z.number().int().positive(),
+  }),
+  digest: z.string(),
+  recordRefs: z.array(z.string()),
+  understatScopes: z.array(
+    z.object({
+      competition: z.string(),
+      coverage: z.object({
+        coveredPlayerCount: z.number().int().nonnegative(),
+        coversAllParticipants: z.boolean(),
+        participantCount: z.number().int().positive(),
+      }),
+      season: z.string(),
+    })
+  ),
+  version: z.literal(1),
+});
+
+const lookupProjectionMetadataSchema = z.object({
+  batch: z.object({
+    index: z.number().int().nonnegative(),
+    recordRefs: z.array(z.string()),
+    total: z.number().int().positive(),
+  }),
+  digest: z.string(),
+  version: z.literal(1),
+});
+
+const projectionMetadataFromValue = (
+  value: JsonValue | null
+): DeliveredEvidence["projection"] => {
+  const comparisonProjection =
+    comparisonProjectionMetadataSchema.safeParse(value);
+
+  if (comparisonProjection.success) {
+    const { batch, coverage, digest, recordRefs, understatScopes } =
+      comparisonProjection.data;
+
+    return deliveredEvidenceProjectionSchema.parse({
+      batchCount: batch.total,
+      batchIndex: batch.index,
+      commonUnderstatScopeCount: coverage.commonUnderstatScopeCount,
+      kind: "comparison",
+      participantCount: coverage.playerCount,
+      participantRefs: batch.participantRefs,
+      recordRefs,
+      resultDigest: digest,
+      understatScopes: understatScopes.map((scope) => ({
+        competition: scope.competition,
+        coveredPlayerCount: scope.coverage.coveredPlayerCount,
+        coversAllParticipants: scope.coverage.coversAllParticipants,
+        participantCount: scope.coverage.participantCount,
+        season: scope.season,
+      })),
+    });
+  }
+
+  const lookupProjection = lookupProjectionMetadataSchema.safeParse(value);
+
+  if (lookupProjection.success) {
+    return deliveredEvidenceProjectionSchema.parse({
+      batchCount: lookupProjection.data.batch.total,
+      batchIndex: lookupProjection.data.batch.index,
+      kind: "lookup",
+      recordRefs: lookupProjection.data.batch.recordRefs,
+      resultDigest: lookupProjection.data.digest,
+    });
+  }
+
+  return undefined;
+};
+
 const parsedResult = (value: JsonValue): JsonValue | null => {
   const parsedString = z.string().safeParse(value);
 
@@ -289,6 +370,7 @@ const evidenceContent = (message: BaseMessage): string | null => {
     const markers = [
       "结构化工具结果：\n",
       "已保存的查询结果 JSON：\n",
+      "Comparison evidence projection JSON:\n",
       "Scouting evidence projection JSON:\n",
     ];
 
@@ -486,12 +568,13 @@ const createEvaluationObserver = (
       }
 
       const sources = deliveredEvidenceSourcesFromValue(parsedResult(content));
+      const projection = projectionMetadataFromValue(parsedResult(content));
       const contentHash = createHash("sha256").update(content).digest("hex");
 
       for (const source of sources) {
         const evidenceId = `${request.trialId}:${activeTurnId}:model-${modelCallIndex}:message-${messageIndex}:${source.provider}:${source.sourceId ?? contentHash}`;
 
-        deliveredEvidence.push({
+        const evidence: DeliveredEvidence = {
           content,
           evidenceId,
           messageIndex,
@@ -501,7 +584,13 @@ const createEvaluationObserver = (
           sourceId: source.sourceId,
           trialId: request.trialId,
           turnId: activeTurnId,
-        });
+        };
+
+        if (projection !== undefined) {
+          evidence.projection = projection;
+        }
+
+        deliveredEvidence.push(evidence);
         currentEvidenceIds.add(evidenceId);
       }
     }
@@ -517,6 +606,8 @@ const createEvaluationObserver = (
 
     const prefixes = [
       "以下是本次已完成并验证的完整结构化结果与来源：\n\n",
+      "比较数据已完整验证，但分批解释未完成。以下是完整比较结果与来源：\n\n",
+      "比较数据已完整验证，但解释未完成。以下是完整比较结果与来源：\n\n",
       "查询数据已完整保存，但模型解释未完成。以下是完整结果与来源：\n\n",
     ];
 

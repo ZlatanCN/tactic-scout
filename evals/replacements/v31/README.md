@@ -13,9 +13,9 @@ The corrected-scoring run `d7ee4ab1-9aa2-44c6-b630-0b5cad353d3b` completed 48 de
 Offline validation:
 
 ```sh
-pnpm exec vitest run tests/replacement-v31-pack.test.ts
+pnpm exec vitest run tests/evaluation/packs/replacement-v31-pack.test.ts
 pnpm typecheck
-pnpm exec ultracite check src/nodes/assistant.ts tests/agent.test.ts tests/replacement-v31-pack.test.ts evals/evidence/replacement-v31-team-synthetic.json evals/replacements/v31/cases
+pnpm exec ultracite check src/nodes/assistant.ts tests/runtime-context/evidence/lookup-evidence.test.ts tests/evaluation/packs/replacement-v31-pack.test.ts evals/evidence/replacement-v31-team-synthetic.json evals/replacements/v31/cases
 node --import tsx evals/cli.ts preview --mode held_out --judge --case-directory evals/replacements/v31/cases --evidence-directory .data/evals/v31-evidence
 ```
 

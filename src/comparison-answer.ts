@@ -1,4 +1,7 @@
+import { z } from "zod/v4";
+
 import { comparisonResultSchema } from "./player-data/compare-records.js";
+import { fmReadResultSchema } from "./player-data/football-manager.js";
 
 const missingBirthDateClaimPattern =
   /出生日期(?:未提供|没有提供)|(?:birth date|date of birth) (?:was )?not provided/iu;
@@ -6,14 +9,16 @@ const missingBirthDateClaimPattern =
 const currentPositionClaimPattern = /当前位置|\bcurrent position\b/iu;
 const currentPositionLabelPattern = /当前位置|\bcurrent position\b/giu;
 
+type ComparisonAnswerPlayer = {
+  fm: z.output<typeof fmReadResultSchema> | null;
+  playerName: string;
+};
+
 const birthDateLines = (
-  result: Extract<
-    ReturnType<typeof comparisonResultSchema.parse>,
-    { status: "ready" | "no_comparable_data" }
-  >,
+  players: ComparisonAnswerPlayer[],
   language: "en" | "zh"
 ): string[] =>
-  result.players.flatMap(({ fm, playerName }) => {
+  players.flatMap(({ fm, playerName }) => {
     if (fm?.status !== "found") {
       return [];
     }
@@ -33,9 +38,9 @@ const birthDateLines = (
     );
   });
 
-const correctComparisonAnswer = (
+const correctComparisonAnswerForPlayers = (
   answer: string,
-  resultJson: string
+  players: ComparisonAnswerPlayer[]
 ): string | null => {
   const claimsMissingBirthDate = missingBirthDateClaimPattern.test(answer);
   const claimsCurrentPosition = currentPositionClaimPattern.test(answer);
@@ -44,23 +49,11 @@ const correctComparisonAnswer = (
     return null;
   }
 
-  let parsed: ReturnType<typeof comparisonResultSchema.safeParse>;
-
-  try {
-    parsed = comparisonResultSchema.safeParse(JSON.parse(resultJson));
-  } catch {
-    return null;
-  }
-
-  if (!parsed.success || !("coverage" in parsed.data)) {
-    return null;
-  }
-
   const language = /\p{Script=Han}/u.test(answer) ? "zh" : "en";
   let corrected = answer;
 
   if (claimsMissingBirthDate) {
-    const dates = birthDateLines(parsed.data, language);
+    const dates = birthDateLines(players, language);
 
     if (dates.length > 0) {
       const replacement =
@@ -72,7 +65,7 @@ const correctComparisonAnswer = (
     }
   }
 
-  const hasNaturalPosition = parsed.data.players.some(
+  const hasNaturalPosition = players.some(
     ({ fm }) =>
       fm?.status === "found" &&
       fm.records.some(({ naturalPositions }) => naturalPositions !== null)
@@ -88,4 +81,51 @@ const correctComparisonAnswer = (
   return corrected === answer ? null : corrected;
 };
 
-export { correctComparisonAnswer };
+const correctComparisonAnswer = (
+  answer: string,
+  resultJson: string
+): string | null => {
+  let rawResult: unknown;
+
+  try {
+    rawResult = JSON.parse(resultJson);
+  } catch {
+    return null;
+  }
+
+  const parsed = comparisonResultSchema.safeParse(rawResult);
+
+  return parsed.success && "coverage" in parsed.data
+    ? correctComparisonAnswerForPlayers(answer, parsed.data.players)
+    : null;
+};
+
+const correctComparisonEvidenceBatchAnswer = (
+  answer: string,
+  projectionJson: string
+): string | null => {
+  let rawProjection: unknown;
+
+  try {
+    rawProjection = JSON.parse(projectionJson);
+  } catch {
+    return null;
+  }
+
+  const parsed = z
+    .object({
+      selectedPlayers: z.array(
+        z.object({
+          fm: fmReadResultSchema.nullable(),
+          playerName: z.string(),
+        })
+      ),
+    })
+    .safeParse(rawProjection);
+
+  return parsed.success
+    ? correctComparisonAnswerForPlayers(answer, parsed.data.selectedPlayers)
+    : null;
+};
+
+export { correctComparisonAnswer, correctComparisonEvidenceBatchAnswer };
