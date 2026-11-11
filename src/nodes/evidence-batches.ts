@@ -7,13 +7,17 @@ import { z } from "zod/v4";
 import type {
   ContextProcessingAllowance,
   ContextProcessingAllowanceConfiguration,
+  ContextProcessingEvidenceOperation,
   ContextProcessingReservation,
 } from "../context-processing-state.js";
 import {
   contextProcessingHash,
   defaultContextProcessingAllowance,
 } from "../context-processing-state.js";
-import { invokeWithModelContext } from "../model-context.js";
+import {
+  assessModelRequest,
+  invokeWithModelContext,
+} from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
@@ -53,7 +57,7 @@ type EvidenceWorkflow = {
     resultJson: string;
     source: EvidenceSource;
   } | null;
-  operation: "explain_lookup_evidence" | "explain_comparison_evidence";
+  operation: ContextProcessingEvidenceOperation;
   project: (
     task: EvidenceTask & {
       deadlineAt: number;
@@ -75,6 +79,72 @@ type EvidenceBatchNodeConfiguration = {
   allowance?: ContextProcessingAllowanceConfiguration;
   model: BaseChatModel;
   modelContextConfiguration?: ModelContextConfiguration;
+};
+
+const evidenceProjectionsFitModelInput = async (
+  projections: readonly { projectionJson: string }[],
+  model: BaseChatModel,
+  modelContextConfiguration: ModelContextConfiguration | undefined,
+  deadlineAt: number,
+  messagesForProjection: (projectionJson: string) => BaseMessage[]
+): Promise<boolean> => {
+  const projectionFitsAt = async (index: number): Promise<boolean> => {
+    if (Date.now() >= deadlineAt) {
+      return false;
+    }
+
+    const projection = projections[index];
+
+    if (projection === undefined) {
+      return true;
+    }
+
+    try {
+      const assessment = await assessModelRequest(
+        model,
+        {
+          messages: messagesForProjection(projection.projectionJson),
+          purpose: "answer",
+        },
+        modelContextConfiguration ?? {}
+      );
+
+      return (
+        assessment.failure === null &&
+        Date.now() < deadlineAt &&
+        (await projectionFitsAt(index + 1))
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  return await projectionFitsAt(0);
+};
+
+const largestFittingEvidencePlan = async (
+  maximumBatchSize: number,
+  deadlineAt: number,
+  projectAtSize: (batchSize: number) => EvidenceProjection[] | null,
+  projectionsFit: (projections: EvidenceProjection[]) => Promise<boolean>
+): Promise<EvidenceProjection[] | null> => {
+  const findAtSize = async (
+    batchSize: number
+  ): Promise<EvidenceProjection[] | null> => {
+    if (Date.now() >= deadlineAt) {
+      return null;
+    }
+
+    const projections = projectAtSize(batchSize);
+
+    if (projections !== null && (await projectionsFit(projections))) {
+      return projections;
+    }
+
+    return batchSize <= 1 ? null : await findAtSize(batchSize - 1);
+  };
+
+  return await findAtSize(Math.max(maximumBatchSize, 1));
 };
 
 type EvidenceRequestIdentity = {
@@ -711,6 +781,10 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
   };
 };
 
-export { createEvidenceBatchNodes };
+export {
+  createEvidenceBatchNodes,
+  evidenceProjectionsFitModelInput,
+  largestFittingEvidencePlan,
+};
 
 export type { EvidenceProjection, EvidenceTask, EvidenceWorkflow };

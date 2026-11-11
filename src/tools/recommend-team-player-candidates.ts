@@ -76,6 +76,24 @@ const teamRecommendationInputSchema = z.object({
   team: teamIdentitySchema,
 });
 
+const teamRecommendationExclusionScope = (
+  input: RecommendTeamPlayerCandidatesInput,
+  excludedFmIds: string[]
+) => ({
+  currentRosterMembers: input.roster.members.flatMap((member) =>
+    member.fmId === null || member.mappingMethod === null
+      ? []
+      : [
+          {
+            apiFootballPlayerId: member.apiFootballPlayerId,
+            fmId: member.fmId,
+            mappingMethod: member.mappingMethod,
+          },
+        ]
+  ),
+  effectiveExcludedFmIds: excludedFmIds,
+});
+
 const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
   input,
   ageAsOfDate
@@ -118,6 +136,7 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
 
   if (calculation.status === "team_position_unavailable") {
     return JSON.stringify({
+      exclusionScope: teamRecommendationExclusionScope(input, excludedFmIds),
       filters: {
         includePotential: input.includePotential,
         maxAge: input.maxAge,
@@ -143,6 +162,7 @@ const recommendTeamPlayerCandidates: RecommendTeamPlayerCandidates = (
   }
 
   return JSON.stringify({
+    exclusionScope: teamRecommendationExclusionScope(input, excludedFmIds),
     filters: {
       includePotential: input.includePotential,
       maxAge: input.maxAge,

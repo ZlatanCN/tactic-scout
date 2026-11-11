@@ -98,6 +98,14 @@
         "sourceRecords": [
           {
             "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
+          {
+            "provider": "api_football",
             "sourceId": "team:901"
           },
           {
@@ -123,6 +131,14 @@
         "name": "recommend_team_player_candidates",
         "businessOutcome": "ready",
         "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
           {
             "provider": "api_football",
             "sourceId": "team:901"
@@ -365,6 +381,14 @@
         "sourceRecords": [
           {
             "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
+          {
+            "provider": "api_football",
             "sourceId": "team:901"
           },
           {
@@ -389,6 +413,14 @@
         "name": "recommend_team_player_candidates",
         "businessOutcome": "ready",
         "sourceRecords": [
+          {
+            "provider": "api_football",
+            "sourceId": "player:501"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
           {
             "provider": "api_football",
             "sourceId": "team:901"

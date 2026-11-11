@@ -33,18 +33,31 @@ import {
   messagesInCurrentTurn,
   messageText,
 } from "../player-mentions.js";
+import { playerRecommendationEvidenceIsComplete } from "../player-recommendation-evidence.js";
 import {
+  completeRecommendationResultAnswer,
+  completeTeamRecommendationResultAnswer,
   correctRecommendationAnswer,
   correctTeamRecommendationAnswer,
 } from "../recommendation-answer.js";
 import type {
   AgentState,
   AgentStateType,
+  EvidenceBatchState,
   RequestConstraint,
   RequestPlayerState,
 } from "../state.js";
+import { teamRecommendationBatchIsComplete } from "../team-recommendation-evidence.js";
 import { comparisonEvidenceMatchesCurrentOutcome } from "./comparison-evidence.js";
 import { lookupEvidenceMatchesCurrentOutcome } from "./lookup-evidence.js";
+import {
+  playerRecommendationEvidenceAnswerText,
+  playerRecommendationEvidenceMatchesCurrentOutcome,
+} from "./player-recommendation-evidence.js";
+import {
+  teamRecommendationEvidenceAnswerText,
+  teamRecommendationEvidenceMatchesCurrentOutcome,
+} from "./team-recommendation-evidence.js";
 
 const lookupPrompt = `你是一个足球资料助手。回答球员查询时先调用 search_player_records 工具。系统已通过身份解析选定了精确的来源记录 ID；必须原样使用工具调用中提供的 sourceRecords，不得按姓名另行搜索、替换或补充 ID。数据源分工必须严格遵守：Understat 提供按赛事和赛季变化的出场次数、分钟、进球、助攻、射门、xG、xA 等表现记录；Football Manager 是固定日期的能力快照，只用于该快照中的 CA、PA、自然位置和属性。不得用 FM 信息替代、推导或描述当前或赛季表现，也不得用它确认当前俱乐部、注册状态、伤病、可用性或转会状态。任何强时效性事实都必须由实际返回且覆盖所问时间范围的来源支持；没有这样的来源时明确说资料不足。Understat 只支持其返回的赛事和赛季记录，不代表实时状态。用户同时询问不同类型的信息时分别依据对应来源回答；其中一个来源没有返回记录时，明确说明缺失。用户明确指定赛季时必须按请求中的 seasonStartYear 查询，不要改成最新赛季；用户未指定赛季时省略 seasonStartYear，工具默认使用快照最新赛季。最终回答只报告返回记录中的 season；除非工具结果明确标出 latest snapshot，否则不要声称这就是数据库最新赛季。如果用户明确写了赛季，但 requestedUnderstatSeasonStartYear 为 null，表示该写法没有转换为查询范围；不要把默认最新赛季说成用户要求的赛季，请用户补充完整赛季范围，不要推断世纪或把单一年份当作赛季。
 
@@ -1111,6 +1124,128 @@ const completedComparisonEvidenceAnswer = (
   );
 };
 
+const recommendationEvidenceAnswerLanguage = (
+  state: AgentStateType
+): "en" | "zh" => {
+  const message = latestHumanMessage(state.messages);
+  const content = message === undefined ? "" : messageText(message);
+
+  return /\p{Script=Han}/u.test(content) ? "zh" : "en";
+};
+
+type RecommendationEvidenceFinalization = {
+  answerText: (
+    evidence: EvidenceBatchState,
+    resultJson: string
+  ) => string | null;
+  complete: (evidence: EvidenceBatchState, resultJson: string) => boolean;
+  fallbackText: (resultJson: string, language: "en" | "zh") => string | null;
+  incompleteNotice: string;
+};
+
+const completedRecommendationEvidenceMessage = (
+  state: AgentStateType,
+  evidence: EvidenceBatchState,
+  resultJson: string,
+  finalization: RecommendationEvidenceFinalization
+): BaseMessage => {
+  if (
+    evidence.status === "complete" &&
+    finalization.complete(evidence, resultJson)
+  ) {
+    const answer = finalization.answerText(evidence, resultJson);
+
+    if (answer !== null) {
+      return answerWithPlayerMemoryNotice(state, new AIMessage(answer));
+    }
+  }
+
+  const completeAnswer = finalization.fallbackText(
+    resultJson,
+    recommendationEvidenceAnswerLanguage(state)
+  );
+
+  return new AIMessage(
+    `${finalization.incompleteNotice}\n\n${completeAnswer ?? resultJson}`
+  );
+};
+
+const completedPlayerRecommendationEvidenceAnswer = (
+  state: AgentStateType,
+  model: BaseChatModel,
+  modelContextConfiguration: ModelContextConfiguration
+): BaseMessage | null => {
+  if (
+    !playerRecommendationEvidenceMatchesCurrentOutcome(state, {
+      model,
+      modelContextConfiguration,
+    })
+  ) {
+    return null;
+  }
+
+  const { outcome, playerRecommendationEvidence: evidence } = state;
+
+  if (
+    outcome?.kind !== "player_recommendation" ||
+    outcome.resultJson === null ||
+    evidence === null
+  ) {
+    return null;
+  }
+
+  return completedRecommendationEvidenceMessage(
+    state,
+    evidence,
+    outcome.resultJson,
+    {
+      answerText: playerRecommendationEvidenceAnswerText,
+      complete: playerRecommendationEvidenceIsComplete,
+      fallbackText: completeRecommendationResultAnswer,
+      incompleteNotice:
+        "推荐数据已完整验证，但分批解释未完成。以下是完整名单和来源：",
+    }
+  );
+};
+
+const completedTeamRecommendationEvidenceAnswer = (
+  state: AgentStateType,
+  model: BaseChatModel,
+  modelContextConfiguration: ModelContextConfiguration
+): BaseMessage | null => {
+  if (
+    !teamRecommendationEvidenceMatchesCurrentOutcome(state, {
+      model,
+      modelContextConfiguration,
+    })
+  ) {
+    return null;
+  }
+
+  const { outcome, teamRecommendationEvidence: evidence } = state;
+
+  if (
+    outcome?.kind !== "team_recommendation" ||
+    outcome.resultJson === null ||
+    evidence === null
+  ) {
+    return null;
+  }
+
+  return completedRecommendationEvidenceMessage(
+    state,
+    evidence,
+    outcome.resultJson,
+    {
+      answerText: teamRecommendationEvidenceAnswerText,
+      complete: teamRecommendationBatchIsComplete,
+      fallbackText: completeTeamRecommendationResultAnswer,
+      incompleteNotice:
+        "球队推荐数据已完整验证，但分批解释未完成。以下是完整名单和来源：",
+    }
+  );
+};
+
 const createAnswerNode = (
   model: BaseChatModel,
   modelContextConfiguration: ModelContextConfiguration = {}
@@ -1194,6 +1329,28 @@ const createAnswerNode = (
 
     if (comparisonEvidenceAnswer !== null) {
       return { messages: [comparisonEvidenceAnswer] };
+    }
+
+    const playerRecommendationEvidenceAnswer =
+      completedPlayerRecommendationEvidenceAnswer(
+        state,
+        model,
+        modelContextConfiguration
+      );
+
+    if (playerRecommendationEvidenceAnswer !== null) {
+      return { messages: [playerRecommendationEvidenceAnswer] };
+    }
+
+    const teamRecommendationEvidenceAnswer =
+      completedTeamRecommendationEvidenceAnswer(
+        state,
+        model,
+        modelContextConfiguration
+      );
+
+    if (teamRecommendationEvidenceAnswer !== null) {
+      return { messages: [teamRecommendationEvidenceAnswer] };
     }
 
     if (outcome.kind === "player_lookup") {

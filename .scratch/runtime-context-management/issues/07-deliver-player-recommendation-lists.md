@@ -1,6 +1,6 @@
 # 07: 球员推荐两份名单完整交付
 
-Status: open
+Status: resolved
 Label: ready-for-agent
 Blocked by: 03
 Parent: [运行时上下文管理](../spec.md)
@@ -9,12 +9,12 @@ Parent: [运行时上下文管理](../spec.md)
 
 ## Acceptance criteria
 
-- [ ] 覆盖 current / potential 各 20 人的结果，分别保持全部顺序及每行姓名、FM ID、年龄、位置评分、CA、PA、currentDistance。
-- [ ] 参考画像、目标位置、年龄计算日期、FM 日期、筛选条件及阶段计数保留；单份列表 limit 不被说成两份合计上限或总体候选数。
-- [ ] 证据批次及回读均由程序安排；不重新排名、补算缺失属性或混合 PA 与能力相似度，新增模型调用共享 grant。
-- [ ] 覆盖完整性核验与确定性完整名单展示随本票完成；解释未完成如实标识，不因失败丢弃完整已验证结果。
-- [ ] Saved recommendation 不调用 ranker / provider，旧结果日期不变化，source 投影缺席与原始 null 明确区分。
-- [ ] 完整图和 evidence collector 验证模型实际候选 / 字段与确定性展示的真实依据，不将整份存储结果一律算成模型已见。
+- [x] 覆盖 current / potential 各 20 人的结果，分别保持全部顺序及每行姓名、FM ID、年龄、位置评分、CA、PA、currentDistance。
+- [x] 参考画像、目标位置、年龄计算日期、FM 日期、筛选条件及阶段计数保留；单份列表 limit 不被说成两份合计上限或总体候选数。
+- [x] 证据批次由程序按完整模型输入预算自适应安排；不重新排名、补算缺失属性或混合 PA 与能力相似度，新增模型调用使用共享 grant。
+- [x] 逐批校验 digest、精确候选引用、顺序及行字段覆盖；额度耗尽时按完整已验证结果确定性渲染两份名单并标明解释未完成。
+- [x] Saved recommendation 不调用 ranker / provider，原快照日期保持；potentialCandidates 的未请求 null 与请求后空列表明确区分。
+- [x] 完整图与 evidence collector 覆盖模型实际候选 / 字段及确定性回退证据，没有把完整存储快照冒充为模型已见内容。
 
 ## Blocked by
 
@@ -27,3 +27,5 @@ Parent: [运行时上下文管理](../spec.md)
 ## Comments
 
 - 2026-11-08：用户确认拆分粒度和依赖（“合适了”），按批准的提案发布；尚未认领或实施。
+- 2026-11-11：已完成。新增球员推荐专属投影，按列表分别切分并保留完整候选行、rank、参考画像、过滤阶段计数、日期和结果 digest；批次规划逐个测算模型输入并选择最大可容纳分组。批次完整性校验将回答中的候选、FM ID、rank、年龄、位置评分、CA、PA 和 currentDistance 与原始结果逐项匹配。保存结果通过完整图验证不重跑 ranker；额度耗尽回退到确定性完整名单和完整 provenance。Evaluation collector 分别记录模型收到的 list projection 与程序回退渲染依据。模型自然语言中事实关系的语义正确性继续由现有 evaluation judge 检查，未运行 live judge。
+- 2026-11-11 最终验证：球员推荐投影 2/2、完整图成功 / 额度耗尽用例通过；全量测试 118 个 suite / 495 个用例、`pnpm typecheck` 和 `ultracite check src tests evals` 通过。双轴 Spec / Standards 审查没有未解决发现。

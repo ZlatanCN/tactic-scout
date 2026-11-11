@@ -435,6 +435,43 @@ const deliveredEvidenceProjectionSchema = z.discriminatedUnion("kind", [
       })
     ),
   }),
+  z.object({
+    batchCount: z.number().int().positive(),
+    batchIndex: z.number().int().nonnegative(),
+    candidateRefs: z.array(z.string()),
+    currentCandidateCount: z.number().int().nonnegative(),
+    kind: z.literal("player_recommendation"),
+    potentialCandidateCount: z.number().int().nonnegative(),
+    potentialListStatus: z.enum(["not_requested", "requested"]),
+    resultDigest: z.string(),
+  }),
+  z.object({
+    batchCount: z.number().int().positive(),
+    batchIndex: z.number().int().nonnegative(),
+    candidateRefs: z.array(z.string()),
+    completedCandidateRefs: z.array(z.string()),
+    currentCandidateCount: z.number().int().nonnegative(),
+    currentRosterMembers: z.array(
+      z.object({
+        apiFootballPlayerId: z.number().int().positive(),
+        fmId: z.string(),
+        mappingMethod: z.enum(["reep_bridge", "user_confirmation"]),
+      })
+    ),
+    effectiveExcludedFmIds: z.array(z.string()),
+    fmSnapshotDate: z.string().nullable(),
+    kind: z.literal("team_recommendation"),
+    potentialCandidateCount: z.number().int().nonnegative().nullable(),
+    rankingBasis: z.enum([
+      "equal_weight_mean_of_position_capable_squad_profiles",
+      "named_fm_reference_profile",
+    ]),
+    remainingCandidateRefs: z.array(z.string()),
+    resultDigest: z.string(),
+    rosterRetrievedAt: z.string(),
+    rosterSource: z.literal("API-Football"),
+    teamId: z.number().int().positive(),
+  }),
 ]);
 
 const deliveredEvidenceSchema = z.object({

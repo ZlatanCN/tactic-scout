@@ -9,11 +9,16 @@ import {
   comparisonEvidenceProjections,
   comparisonEvidenceQuestionMessage,
 } from "../comparison-evidence.js";
+import { contextProcessingEvidenceOperation } from "../context-processing-state.js";
 import type { ContextProcessingAllowanceConfiguration } from "../context-processing-state.js";
 import { assessModelRequest } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import type { AgentStateType } from "../state.js";
-import { createEvidenceBatchNodes } from "./evidence-batches.js";
+import {
+  createEvidenceBatchNodes,
+  evidenceProjectionsFitModelInput,
+  largestFittingEvidencePlan,
+} from "./evidence-batches.js";
 import type {
   EvidenceProjection,
   EvidenceTask,
@@ -24,54 +29,6 @@ type ComparisonEvidenceConfiguration = {
   allowance?: ContextProcessingAllowanceConfiguration;
   model: BaseChatModel;
   modelContextConfiguration?: ModelContextConfiguration;
-};
-
-const comparisonProjectionsFitModelInput = async (
-  projections: EvidenceProjection[],
-  question: string,
-  configuration: ComparisonEvidenceConfiguration,
-  deadlineAt: number
-): Promise<boolean> => {
-  const projectionFitsAt = async (index: number): Promise<boolean> => {
-    if (Date.now() >= deadlineAt) {
-      return false;
-    }
-
-    const projection = projections[index];
-
-    if (projection === undefined) {
-      return true;
-    }
-
-    try {
-      const assessment = await assessModelRequest(
-        configuration.model,
-        {
-          messages: [
-            new SystemMessage(comparisonBatchPrompt),
-            new HumanMessage(
-              comparisonEvidenceQuestionMessage(
-                question,
-                projection.projectionJson
-              )
-            ),
-          ],
-          purpose: "answer",
-        },
-        configuration.modelContextConfiguration ?? {}
-      );
-
-      return (
-        assessment.failure === null &&
-        Date.now() < deadlineAt &&
-        (await projectionFitsAt(index + 1))
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  return await projectionFitsAt(0);
 };
 
 const comparisonEvidenceProjectionsWithinBudget = async (
@@ -92,40 +49,31 @@ const comparisonEvidenceProjectionsWithinBudget = async (
     return null;
   }
 
-  const findLargestFittingPlan = async (
-    participantsPerBatch: number
-  ): Promise<EvidenceProjection[] | null> => {
-    if (Date.now() >= task.deadlineAt) {
-      return null;
-    }
-
-    const projections =
+  return await largestFittingEvidencePlan(
+    singleParticipantProjections.length,
+    task.deadlineAt,
+    (participantsPerBatch) =>
       participantsPerBatch === 1
         ? singleParticipantProjections
         : comparisonEvidenceProjections(
             task.resultJson,
             task.source,
             participantsPerBatch
-          );
-
-    if (
-      projections !== null &&
-      (await comparisonProjectionsFitModelInput(
+          ),
+    async (projections) =>
+      await evidenceProjectionsFitModelInput(
         projections,
-        task.question,
-        configuration,
-        task.deadlineAt
-      ))
-    ) {
-      return projections;
-    }
-
-    return participantsPerBatch === 1
-      ? null
-      : await findLargestFittingPlan(participantsPerBatch - 1);
-  };
-
-  return await findLargestFittingPlan(singleParticipantProjections.length);
+        configuration.model,
+        configuration.modelContextConfiguration,
+        task.deadlineAt,
+        (projectionJson) => [
+          new SystemMessage(comparisonBatchPrompt),
+          new HumanMessage(
+            comparisonEvidenceQuestionMessage(task.question, projectionJson)
+          ),
+        ]
+      )
+  );
 };
 
 const comparisonEvidenceWorkflow = (
@@ -152,7 +100,7 @@ const comparisonEvidenceWorkflow = (
 
     return { resultJson: outcome.resultJson, source: outcome.source };
   },
-  operation: "explain_comparison_evidence",
+  operation: contextProcessingEvidenceOperation.comparison,
   project: async (task) =>
     await comparisonEvidenceProjectionsWithinBudget(task, configuration),
   questionMessage: comparisonEvidenceQuestionMessage,

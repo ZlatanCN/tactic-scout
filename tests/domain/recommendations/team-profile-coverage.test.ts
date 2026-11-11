@@ -253,6 +253,16 @@ describe("team profile and roster coverage", () => {
 
     const result = z
       .object({
+        exclusionScope: z.object({
+          currentRosterMembers: z.array(
+            z.object({
+              apiFootballPlayerId: z.number(),
+              fmId: z.string(),
+              mappingMethod: z.enum(["reep_bridge", "user_confirmation"]),
+            })
+          ),
+          effectiveExcludedFmIds: z.array(z.string()),
+        }),
         filters: z.object({
           maxAge: z.number().nullable(),
           minimumCurrentAbility: z.number().nullable(),
@@ -288,6 +298,25 @@ describe("team profile and roster coverage", () => {
       .parse(JSON.parse(resultJson));
 
     expect(result).toMatchObject({
+      exclusionScope: {
+        currentRosterMembers: [
+          {
+            apiFootballPlayerId: 8101,
+            fmId: "team-reference",
+            mappingMethod: "reep_bridge",
+          },
+          {
+            apiFootballPlayerId: 8102,
+            fmId: "team-low-rated",
+            mappingMethod: "user_confirmation",
+          },
+        ],
+        effectiveExcludedFmIds: [
+          "team-low-rated",
+          "team-reference",
+          "team-reference-alternate",
+        ],
+      },
       filters: {
         maxAge: 30,
         minimumCurrentAbility: 120,

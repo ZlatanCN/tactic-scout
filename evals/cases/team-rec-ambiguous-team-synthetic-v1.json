@@ -98,11 +98,19 @@
         "sourceRecords": [
           {
             "provider": "api_football",
+            "sourceId": "player:503"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:504"
+          },
+          {
+            "provider": "api_football",
             "sourceId": "team:902"
           },
           {
             "provider": "fm",
-            "sourceId": "fm-future-01"
+            "sourceId": "fm-close-01"
           },
           {
             "provider": "fm",
@@ -110,7 +118,7 @@
           },
           {
             "provider": "fm",
-            "sourceId": "fm-close-01"
+            "sourceId": "fm-future-01"
           },
           {
             "provider": "fm",
@@ -361,11 +369,19 @@
         "sourceRecords": [
           {
             "provider": "api_football",
+            "sourceId": "player:503"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "player:504"
+          },
+          {
+            "provider": "api_football",
             "sourceId": "team:902"
           },
           {
             "provider": "fm",
-            "sourceId": "fm-future-01"
+            "sourceId": "fm-close-01"
           },
           {
             "provider": "fm",
@@ -373,7 +389,7 @@
           },
           {
             "provider": "fm",
-            "sourceId": "fm-close-01"
+            "sourceId": "fm-future-01"
           },
           {
             "provider": "fm",

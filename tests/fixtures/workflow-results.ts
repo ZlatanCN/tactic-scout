@@ -92,6 +92,34 @@ const recommendationResult = (
   overrides: RecommendationOverrides = {}
 ) => JSON.stringify(recommendationResultData(status, position, overrides));
 
+const exclusionScopeFrom = (
+  input: RecommendTeamPlayerCandidatesInput,
+  referenceFmIds = input.referenceFmIds
+) => {
+  const currentRosterMembers = input.roster.members.flatMap((member) =>
+    member.fmId === null || member.mappingMethod === null
+      ? []
+      : [
+          {
+            apiFootballPlayerId: member.apiFootballPlayerId,
+            fmId: member.fmId,
+            mappingMethod: member.mappingMethod,
+          },
+        ]
+  );
+
+  return {
+    currentRosterMembers,
+    effectiveExcludedFmIds: [
+      ...new Set([
+        ...currentRosterMembers.map(({ fmId }) => fmId),
+        ...input.referenceFmIds,
+        ...referenceFmIds,
+      ]),
+    ].toSorted(),
+  };
+};
+
 const teamRecommendationResult = (
   status: "ready" | "no_candidates",
   input: RecommendTeamPlayerCandidatesInput,
@@ -111,6 +139,10 @@ const teamRecommendationResult = (
   };
 
   return JSON.stringify({
+    exclusionScope: exclusionScopeFrom(
+      input,
+      nestedRecommendationOverrides.referenceFmIds
+    ),
     filters: {
       includePotential: input.includePotential,
       maxAge: input.maxAge,
@@ -144,6 +176,7 @@ const teamPositionUnavailableResult = (
   input: RecommendTeamPlayerCandidatesInput
 ) =>
   JSON.stringify({
+    exclusionScope: exclusionScopeFrom(input),
     filters: {
       includePotential: input.includePotential,
       maxAge: input.maxAge,
@@ -176,6 +209,7 @@ const teamRecommendationFailureResult = (
   };
 
   return JSON.stringify({
+    exclusionScope: exclusionScopeFrom(input),
     filters: {
       includePotential: input.includePotential,
       maxAge: input.maxAge,

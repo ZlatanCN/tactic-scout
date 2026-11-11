@@ -16,6 +16,30 @@ const contextProcessingAnchorKinds = [
   "other",
 ] as const;
 
+const contextProcessingEvidenceOperation = {
+  comparison: "explain_comparison_evidence",
+  lookup: "explain_lookup_evidence",
+  playerRecommendation: "explain_player_recommendation_evidence",
+  teamRecommendation: "explain_team_recommendation_evidence",
+} as const;
+
+const contextProcessingEvidenceOperations = [
+  contextProcessingEvidenceOperation.lookup,
+  contextProcessingEvidenceOperation.comparison,
+  contextProcessingEvidenceOperation.playerRecommendation,
+  contextProcessingEvidenceOperation.teamRecommendation,
+] as const;
+
+const contextProcessingOperationNames = [
+  "compact_text",
+  "compact_text_chunk",
+  ...contextProcessingEvidenceOperations,
+  "merge_text_chunks",
+] as const;
+
+type ContextProcessingEvidenceOperation =
+  (typeof contextProcessingEvidenceOperations)[number];
+
 const ContextProcessingAnchorSchema = z.object({
   kind: z.enum(contextProcessingAnchorKinds),
   text: z.string().min(1),
@@ -32,13 +56,7 @@ const ContextProcessingReservationSchema = z.object({
   chunkIndex: z.number().int().nonnegative().nullable().default(null),
   maxActiveTimeMs: z.number().int().positive(),
   maxAdditionalCalls: z.number().int().positive().default(1),
-  operation: z.enum([
-    "compact_text",
-    "compact_text_chunk",
-    "explain_lookup_evidence",
-    "explain_comparison_evidence",
-    "merge_text_chunks",
-  ]),
+  operation: z.enum(contextProcessingOperationNames),
   operationId: z.string().min(1),
   sourceHash: z.string().min(1),
   sourceMessageId: z.string().min(1),
@@ -162,6 +180,10 @@ const LookupEvidenceSchema = EvidenceBatchSchema;
 
 const ComparisonEvidenceSchema = EvidenceBatchSchema;
 
+const PlayerRecommendationEvidenceSchema = EvidenceBatchSchema;
+
+const TeamRecommendationEvidenceSchema = EvidenceBatchSchema;
+
 type EvidenceBatch = z.infer<typeof EvidenceBatchSchema>;
 
 type LookupEvidenceBatch = z.infer<typeof LookupEvidenceBatchSchema>;
@@ -246,9 +268,14 @@ export {
   ContextProcessingSchema,
   defaultContextProcessingAllowance,
   ComparisonEvidenceSchema,
+  contextProcessingEvidenceOperation,
+  contextProcessingEvidenceOperations,
+  contextProcessingOperationNames,
   ContextProcessingChunkSchema,
   ContextProcessingChunkingSchema,
   LookupEvidenceSchema,
+  PlayerRecommendationEvidenceSchema,
+  TeamRecommendationEvidenceSchema,
   contextProcessingAnchorKinds,
   contextProcessingHash,
   contextProcessingInputText,
@@ -258,6 +285,7 @@ export {
 export type {
   ContextProcessing,
   ContextProcessingAllowanceConfiguration,
+  ContextProcessingEvidenceOperation,
   EvidenceBatch,
   ContextProcessingAllowance,
   ContextProcessingAnchor,

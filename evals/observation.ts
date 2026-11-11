@@ -77,6 +77,19 @@ const sourceRecordsFromObject = (
     );
   }
 
+  const effectiveExcludedFmIds = z
+    .array(z.string())
+    .safeParse(object.effectiveExcludedFmIds);
+
+  if (effectiveExcludedFmIds.success) {
+    records.push(
+      ...effectiveExcludedFmIds.data.map((sourceId) => ({
+        provider: "fm" as const,
+        sourceId,
+      }))
+    );
+  }
+
   const understatId = z.string().safeParse(object.sourcePlayerId);
 
   if (understatId.success) {
@@ -263,6 +276,58 @@ const lookupProjectionMetadataSchema = z.object({
   version: z.literal(1),
 });
 
+const playerRecommendationProjectionMetadataSchema = z.object({
+  batch: z.object({
+    candidateRefs: z.array(z.string()),
+    index: z.number().int().nonnegative(),
+    list: z.enum(["current", "potential"]),
+    total: z.number().int().positive(),
+  }),
+  candidateCounts: z.object({
+    current: z.number().int().nonnegative(),
+    potential: z.number().int().nonnegative(),
+  }),
+  digest: z.string(),
+  potentialListStatus: z.enum(["not_requested", "requested"]),
+  version: z.literal(1),
+});
+
+const teamRecommendationProjectionMetadataSchema = z.object({
+  batch: z.object({
+    candidateRefs: z.array(z.string()),
+    completedCandidateRefs: z.array(z.string()),
+    index: z.number().int().nonnegative(),
+    remainingCandidateRefs: z.array(z.string()),
+    total: z.number().int().positive(),
+  }),
+  candidateCoverage: z.object({
+    currentCandidateCount: z.number().int().nonnegative(),
+    potentialCandidateCount: z.number().int().nonnegative().nullable(),
+  }),
+  digest: z.string(),
+  exclusionScope: z.object({
+    currentRosterMembers: z.array(
+      z.object({
+        apiFootballPlayerId: z.number().int().positive(),
+        fmId: z.string(),
+        mappingMethod: z.enum(["reep_bridge", "user_confirmation"]),
+      })
+    ),
+    effectiveExcludedFmIds: z.array(z.string()),
+  }),
+  fmSnapshotDate: z.string().nullable(),
+  rankingBasis: z.enum([
+    "equal_weight_mean_of_position_capable_squad_profiles",
+    "named_fm_reference_profile",
+  ]),
+  roster: z.object({
+    retrievedAt: z.string(),
+    source: z.literal("API-Football"),
+  }),
+  team: z.object({ id: z.number().int().positive() }),
+  version: z.literal(1),
+});
+
 const projectionMetadataFromValue = (
   value: JsonValue | null
 ): DeliveredEvidence["projection"] => {
@@ -301,6 +366,52 @@ const projectionMetadataFromValue = (
       kind: "lookup",
       recordRefs: lookupProjection.data.batch.recordRefs,
       resultDigest: lookupProjection.data.digest,
+    });
+  }
+
+  const playerRecommendationProjection =
+    playerRecommendationProjectionMetadataSchema.safeParse(value);
+
+  if (playerRecommendationProjection.success) {
+    const { batch, candidateCounts, digest, potentialListStatus } =
+      playerRecommendationProjection.data;
+
+    return deliveredEvidenceProjectionSchema.parse({
+      batchCount: batch.total,
+      batchIndex: batch.index,
+      candidateRefs: batch.candidateRefs,
+      currentCandidateCount: candidateCounts.current,
+      kind: "player_recommendation",
+      potentialCandidateCount: candidateCounts.potential,
+      potentialListStatus,
+      resultDigest: digest,
+    });
+  }
+
+  const teamRecommendationProjection =
+    teamRecommendationProjectionMetadataSchema.safeParse(value);
+
+  if (teamRecommendationProjection.success) {
+    const { batch, candidateCoverage, digest, exclusionScope, fmSnapshotDate } =
+      teamRecommendationProjection.data;
+
+    return deliveredEvidenceProjectionSchema.parse({
+      batchCount: batch.total,
+      batchIndex: batch.index,
+      candidateRefs: batch.candidateRefs,
+      completedCandidateRefs: batch.completedCandidateRefs,
+      currentCandidateCount: candidateCoverage.currentCandidateCount,
+      currentRosterMembers: exclusionScope.currentRosterMembers,
+      effectiveExcludedFmIds: exclusionScope.effectiveExcludedFmIds,
+      fmSnapshotDate,
+      kind: "team_recommendation",
+      potentialCandidateCount: candidateCoverage.potentialCandidateCount,
+      rankingBasis: teamRecommendationProjection.data.rankingBasis,
+      remainingCandidateRefs: batch.remainingCandidateRefs,
+      resultDigest: digest,
+      rosterRetrievedAt: teamRecommendationProjection.data.roster.retrievedAt,
+      rosterSource: teamRecommendationProjection.data.roster.source,
+      teamId: teamRecommendationProjection.data.team.id,
     });
   }
 
@@ -371,7 +482,9 @@ const evidenceContent = (message: BaseMessage): string | null => {
       "结构化工具结果：\n",
       "已保存的查询结果 JSON：\n",
       "Comparison evidence projection JSON:\n",
+      "Player recommendation evidence projection JSON:\n",
       "Scouting evidence projection JSON:\n",
+      "Team recommendation evidence projection JSON:\n",
     ];
 
     const marker = markers.find((item) => content.includes(item));
@@ -600,7 +713,8 @@ const createEvaluationObserver = (
 
   const recordRenderedEvidence = (
     messages: BaseMessage[],
-    turnId: string
+    turnId: string,
+    state: AgentStateType
   ): void => {
     const renderedIds = renderedByTurn.get(turnId) ?? new Set<string>();
 
@@ -608,6 +722,8 @@ const createEvaluationObserver = (
       "以下是本次已完成并验证的完整结构化结果与来源：\n\n",
       "比较数据已完整验证，但分批解释未完成。以下是完整比较结果与来源：\n\n",
       "比较数据已完整验证，但解释未完成。以下是完整比较结果与来源：\n\n",
+      "推荐数据已完整验证，但分批解释未完成。以下是完整名单和来源：\n\n",
+      "球队推荐数据已完整验证，但分批解释未完成。以下是完整名单和来源：\n\n",
       "查询数据已完整保存，但模型解释未完成。以下是完整结果与来源：\n\n",
     ];
 
@@ -630,9 +746,21 @@ const createEvaluationObserver = (
         prefixMatch.index + prefixMatch.prefix.length
       );
 
-      const parsed = parsedResult(content);
+      const parsedAnswer = parsedResult(content);
 
-      return parsed === null ? [] : [{ content, messageIndex, parsed }];
+      const outcomeResultJson =
+        state.outcome !== null && "resultJson" in state.outcome
+          ? state.outcome.resultJson
+          : null;
+
+      const parsedOutcome =
+        parsedAnswer === null && outcomeResultJson !== null
+          ? parsedResult(outcomeResultJson)
+          : parsedAnswer;
+
+      return parsedOutcome === null
+        ? []
+        : [{ content, messageIndex, parsed: parsedOutcome }];
     });
 
     for (const { content, messageIndex, parsed } of resultMessages) {
@@ -1024,7 +1152,7 @@ const createEvaluationObserver = (
       message instanceof AIMessage ? [contentString(message.content)] : []
     );
 
-    recordRenderedEvidence(relevantMessages, turn.turnId);
+    recordRenderedEvidence(relevantMessages, turn.turnId, state);
 
     const deliveredEvidenceIds = [
       ...(deliveredByTurn.get(turn.turnId) ?? new Set()),

@@ -7,7 +7,10 @@ import { z } from "zod/v3";
 import { createAnswerNode } from "../../../src/nodes/assistant.js";
 import { AgentState } from "../../../src/state.js";
 import type { RecommendTeamPlayerCandidatesInput } from "../../../src/tools/recommend-team-player-candidates.js";
-import { testModelContextConfiguration } from "../../fixtures/model-context.js";
+import {
+  testModelContextConfiguration,
+  testModelWithDeterministicTokenCount,
+} from "../../fixtures/model-context.js";
 import { teamRecommendationResult } from "../../fixtures/workflow-results.js";
 
 describe("team recommendation answer corrections", () => {
@@ -62,9 +65,11 @@ describe("team recommendation answer corrections", () => {
       .addNode(
         "answer",
         createAnswerNode(
-          fakeModel().respond(
-            new AIMessage(
-              "应用年龄条件后有 5 个，应用 CA 条件后有 5 个，应用 PA 条件后有 5 个。"
+          testModelWithDeterministicTokenCount(
+            fakeModel().respond(
+              new AIMessage(
+                "应用年龄条件后有 5 个，应用 CA 条件后有 5 个，应用 PA 条件后有 5 个。"
+              )
             )
           ),
           testModelContextConfiguration
@@ -137,13 +142,15 @@ describe("team recommendation answer corrections", () => {
         .addNode(
           "answer",
           createAnswerNode(
-            fakeModel().respond(
-              new AIMessage([
-                {
-                  text: falseBasisClaim,
-                  type: "text",
-                },
-              ])
+            testModelWithDeterministicTokenCount(
+              fakeModel().respond(
+                new AIMessage([
+                  {
+                    text: falseBasisClaim,
+                    type: "text",
+                  },
+                ])
+              )
             ),
             testModelContextConfiguration
           )
@@ -229,8 +236,10 @@ describe("team recommendation answer corrections", () => {
       .addNode(
         "answer",
         createAnswerNode(
-          fakeModel().respond(
-            new AIMessage("工具未提供身份排除的具体对象，无法判断排除了谁。")
+          testModelWithDeterministicTokenCount(
+            fakeModel().respond(
+              new AIMessage("工具未提供身份排除的具体对象，无法判断排除了谁。")
+            )
           ),
           testModelContextConfiguration
         )

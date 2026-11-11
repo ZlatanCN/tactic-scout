@@ -9,7 +9,10 @@ import type { ReferenceIdentityLookup } from "../../../src/player-data/resolve-r
 import { AgentState } from "../../../src/state.js";
 import type { RecommendPlayerCandidates } from "../../../src/tools/recommend-player-candidates.js";
 import { agentGraphTest } from "../../fixtures/agent-graph.js";
-import { testModelContextConfiguration } from "../../fixtures/model-context.js";
+import {
+  testModelContextConfiguration,
+  testModelWithDeterministicTokenCount,
+} from "../../fixtures/model-context.js";
 import {
   recommendationResult,
   recommendationResultData,
@@ -366,9 +369,11 @@ describe("player recommendation answers", () => {
       .addNode(
         "answer",
         createAnswerNode(
-          fakeModel().respond(
-            new AIMessage(
-              "当前能力相似名单为空，因此没有可列出的 currentDistance 排名候选。高潜名单包含 Ansu Fati。"
+          testModelWithDeterministicTokenCount(
+            fakeModel().respond(
+              new AIMessage(
+                "当前能力相似名单为空，因此没有可列出的 currentDistance 排名候选。高潜名单包含 Ansu Fati。"
+              )
             )
           ),
           testModelContextConfiguration
@@ -439,9 +444,11 @@ describe("player recommendation answers", () => {
       .addNode(
         "answer",
         createAnswerNode(
-          fakeModel().respond(
-            new AIMessage(
-              "应用年龄、CA 和 PA 条件后各阶段均为 5 人；应用身份排除规则后为 3 人。"
+          testModelWithDeterministicTokenCount(
+            fakeModel().respond(
+              new AIMessage(
+                "应用年龄、CA 和 PA 条件后各阶段均为 5 人；应用身份排除规则后为 3 人。"
+              )
             )
           ),
           testModelContextConfiguration
@@ -490,8 +497,12 @@ describe("player recommendation answers", () => {
       .addNode(
         "answer",
         createAnswerNode(
-          fakeModel().respond(
-            new AIMessage([{ text: "年龄范围已用于筛选候选。", type: "text" }])
+          testModelWithDeterministicTokenCount(
+            fakeModel().respond(
+              new AIMessage([
+                { text: "年龄范围已用于筛选候选。", type: "text" },
+              ])
+            )
           ),
           testModelContextConfiguration
         )
@@ -547,9 +558,11 @@ describe("player recommendation answers", () => {
       .addNode(
         "answer",
         createAnswerNode(
-          fakeModel().respond(
-            new AIMessage(
-              "## Current ability similarity candidates\n\nTest Candidate, CA 140, PA 160."
+          testModelWithDeterministicTokenCount(
+            fakeModel().respond(
+              new AIMessage(
+                "## Current ability similarity candidates\n\nTest Candidate, CA 140, PA 160."
+              )
             )
           ),
           testModelContextConfiguration

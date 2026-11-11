@@ -21,5 +21,6 @@ For mechanisms that claim to preserve coverage, completeness, recovery, or input
 - The full oversized instruction exceeds the model input budget; chunked extraction and merge complete the same request.
 - A full saved lookup exceeds the soft input trigger; bounded evidence batches fit and reuse the saved result.
 - A full comparison exceeds the hard input budget; adaptive participant batches fit. A batch response that omits its participants cannot complete the explanation. If one participant cannot fit, active time is exhausted, or one batch call is removed, the graph returns the complete validated result with an incomplete-explanation notice.
+- Two complete 20-candidate recommendation lists exceed the input budget together; each workflow batches both lists while retaining original order and row fields. Removing the shared call grant must return the complete deterministic lists and mark the explanation incomplete. Team projections also retain the exact saved roster-to-FM mappings and effective exclusion set; saved reuse after a managed restart performs no roster fetch or ranking.
 
 Keep expected values independent of implementation calculations. For persisted progress, exercise checkpoint restore through the public managed Dev Server API; for graph behavior, invoke or resume the compiled graph.

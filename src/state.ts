@@ -5,6 +5,8 @@ import {
   ComparisonEvidenceSchema,
   ContextProcessingSchema,
   LookupEvidenceSchema,
+  PlayerRecommendationEvidenceSchema,
+  TeamRecommendationEvidenceSchema,
   createInitialContextProcessing,
 } from "./context-processing-state.js";
 import { faultCategoryValues } from "./fault-categories.js";
@@ -546,8 +548,12 @@ const AgentState = MessagesZodState.extend({
   playerMemoryStatus: PlayerMemoryStatusSchema.default(
     createInitialPlayerMemoryStatus
   ),
+  playerRecommendationEvidence:
+    PlayerRecommendationEvidenceSchema.nullable().default(null),
   request: RequestStateSchema.default(createInitialRequestState),
   stateSchemaVersion: z.number().int().nonnegative().nullable().default(null),
+  teamRecommendationEvidence:
+    TeamRecommendationEvidenceSchema.nullable().default(null),
 });
 
 type ActiveComparison = z.infer<typeof ActiveComparisonSchema>;

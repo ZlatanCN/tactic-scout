@@ -21,6 +21,7 @@ type RecommendationFilterValues = {
 };
 
 type TeamRecommendationAnswerData = {
+  exclusionScope?: TeamRecommendationResult["exclusionScope"];
   filters: RecommendationFilterValues;
   fmSnapshotDate: string | null;
   position: string;
@@ -253,14 +254,50 @@ const teamRankingBasisSummary = (
     : "Reference calculation: use the user-selected FM reference profiles.";
 };
 
+const recommendationFilterCountsSummary = (
+  counts: CompletedRecommendationResult["filterCounts"],
+  language: AnswerLanguage
+): string =>
+  language === "zh"
+    ? `阶段计数：位置合格 ${counts.eligiblePositionProfiles}；属性完整 ${counts.currentAttributeComplete}；年龄后 ${counts.afterAge}；CA 后 ${counts.afterCurrentAbility}；PA 后 ${counts.afterPotentialAbility}；身份排除后 ${counts.afterIdentityExclusion}；缺属性排除 ${counts.excludedMissingAttribute}；缺 FM ID 排除 ${counts.excludedMissingFmIdCandidates}；因 PA 缺失未进入高潜榜 ${counts.excludedMissingPotentialForPotentialList}。`
+    : `Stage counts: position-eligible ${counts.eligiblePositionProfiles}; complete attributes ${counts.currentAttributeComplete}; after age ${counts.afterAge}; after CA ${counts.afterCurrentAbility}; after PA ${counts.afterPotentialAbility}; after identity exclusions ${counts.afterIdentityExclusion}; missing-attribute exclusions ${counts.excludedMissingAttribute}; missing FM-ID exclusions ${counts.excludedMissingFmIdCandidates}; omitted from potential ranking for missing PA ${counts.excludedMissingPotentialForPotentialList}.`;
+
+const recommendationMetadataSummary = (
+  result: CompletedRecommendationResult,
+  language: AnswerLanguage
+): string[] => [
+  language === "zh"
+    ? `目标位置：${result.position.toUpperCase()}`
+    : `Target position: ${result.position.toUpperCase()}`,
+  language === "zh" ? "参考画像：" : "Reference profiles:",
+  ...result.references.map((reference) => referenceLine(reference, language)),
+  language === "zh"
+    ? `年龄按 ${result.ageAsOfDate} 计算；CA、PA 和属性来自 ${result.snapshotDate} 的 FM 快照。`
+    : `Age is calculated as of ${result.ageAsOfDate}; CA, PA, and attributes come from the FM snapshot dated ${result.snapshotDate}.`,
+  language === "zh"
+    ? `当前能力相似名单人数：${result.currentCandidates.length}`
+    : `Current-ability similarity candidates: ${result.currentCandidates.length}`,
+  ...(result.potentialCandidates === null
+    ? [
+        language === "zh"
+          ? "高潜名单：未请求。"
+          : "High-potential list: not requested.",
+      ]
+    : [
+        language === "zh"
+          ? `高潜名单人数：${result.potentialCandidates.length}`
+          : `High-potential candidates: ${result.potentialCandidates.length}`,
+      ]),
+  filterSummary(result.filters, language),
+  recommendationFilterCountsSummary(result.filterCounts, language),
+];
+
 const renderChineseCorrection = (
   result: CompletedRecommendationResult
 ): string => {
   const sections = [
-    `参考画像（${result.position.toUpperCase()}）：`,
-    ...result.references.map((reference) => referenceLine(reference, "zh")),
+    ...recommendationMetadataSummary(result, "zh"),
     "",
-    `年龄按 ${result.ageAsOfDate} 计算；CA、PA 和属性来自 ${result.snapshotDate} 的 FM 快照。`,
     `当前能力相似候选（${result.currentCandidates.length}）：`,
     ...result.currentCandidates.map((candidate) =>
       candidateLine(candidate, "zh")
@@ -279,8 +316,6 @@ const renderChineseCorrection = (
 
   sections.push(
     "",
-    filterSummary(result.filters, "zh"),
-    "",
     "这些结果只反映 FM 属性画像相似。PA 是潜力信号，不代表未来 CA 保证、战术适配或转会可行性。"
   );
 
@@ -291,10 +326,8 @@ const renderEnglishCorrection = (
   result: CompletedRecommendationResult
 ): string => {
   const sections = [
-    `Reference profiles (${result.position.toUpperCase()}):`,
-    ...result.references.map((reference) => referenceLine(reference, "en")),
+    ...recommendationMetadataSummary(result, "en"),
     "",
-    `Age is calculated as of ${result.ageAsOfDate}; CA, PA, and attributes come from the FM snapshot dated ${result.snapshotDate}.`,
     `Current-ability similarity candidates (${result.currentCandidates.length}):`,
     ...result.currentCandidates.map((candidate) =>
       candidateLine(candidate, "en")
@@ -313,12 +346,50 @@ const renderEnglishCorrection = (
 
   sections.push(
     "",
-    filterSummary(result.filters, "en"),
-    "",
     "These results describe FM profile similarity. PA is not a guarantee of future CA, tactical fit, or transfer feasibility."
   );
 
   return sections.join("\n");
+};
+
+const completeRecommendationResultAnswer = (
+  resultJson: string,
+  language: AnswerLanguage
+): string | null => {
+  let result: RecommendationResult;
+
+  try {
+    result = recommendationResultSchema.parse(JSON.parse(resultJson));
+  } catch {
+    return null;
+  }
+
+  if (result.status !== "ready" && result.status !== "no_candidates") {
+    return null;
+  }
+
+  return language === "zh"
+    ? renderChineseCorrection(result)
+    : renderEnglishCorrection(result);
+};
+
+const recommendationEvidenceMetadataSummary = (
+  resultJson: string,
+  language: AnswerLanguage
+): string | null => {
+  let result: RecommendationResult;
+
+  try {
+    result = recommendationResultSchema.parse(JSON.parse(resultJson));
+  } catch {
+    return null;
+  }
+
+  if (result.status !== "ready" && result.status !== "no_candidates") {
+    return null;
+  }
+
+  return recommendationMetadataSummary(result, language).join("\n");
 };
 
 const correctionForAnswer = (
@@ -455,106 +526,38 @@ const answerClaimsWrongSquadReferenceCount = (
   });
 };
 
-const renderChineseTeamCorrection = (
-  data: TeamRecommendationAnswerData
+const teamRecommendationExclusionSummary = (
+  data: TeamRecommendationAnswerData,
+  language: AnswerLanguage
 ): string => {
-  const {
-    fmSnapshotDate: rawFmSnapshotDate,
-    position,
-    recommendation,
-    roster,
-    team,
-  } = data;
+  const { exclusionScope } = data;
 
-  const country = team.country === null ? "" : `（${team.country}）`;
-  const fmSnapshotDate = rawFmSnapshotDate ?? "未提供";
-
-  const sections = [
-    `球队：${team.name}${country}；目标位置：${position.toUpperCase()}`,
-    `阵容来源：${roster.source}，获取时间：${roster.retrievedAt}；FM 快照日期：${fmSnapshotDate}`,
-    `候选年龄按 ${recommendation.ageAsOfDate} 计算；能力和属性仍按 FM 快照日期计算。`,
-    `阵容映射：${roster.mappedMembers}/${roster.totalMembers} 人（Reep 桥接 ${roster.reepBridgeMappings}，用户确认 ${roster.userConfirmedMappings}）；无本地画像 ${roster.noLocalProfileMembers} 人，待确认 ${roster.pendingMembers} 人。映射到 FM 画像不代表位置评分达标。`,
-    teamRankingBasisSummary(data.rankingBasis, "zh"),
-    "",
-    `队内参考画像（已作为参考并从候选中排除；${recommendation.references.length} 人）：`,
-    ...recommendation.references.map((reference) =>
-      referenceLine(reference, "zh")
-    ),
-    "",
-    `当前能力相似候选（${recommendation.currentCandidates.length}）：`,
-    ...recommendation.currentCandidates.map((candidate) =>
-      candidateLine(candidate, "zh")
-    ),
-  ];
-
-  if (recommendation.potentialCandidates !== null) {
-    sections.push(
-      "",
-      `高潜候选（${recommendation.potentialCandidates.length}）：`,
-      ...recommendation.potentialCandidates.map((candidate) =>
-        candidateLine(candidate, "zh")
-      )
-    );
+  if (exclusionScope === undefined) {
+    return language === "zh"
+      ? "此历史结果未保存可核验的阵容身份排除清单，因此不扩大说明排除范围。"
+      : "This historical result has no verifiable roster-identity exclusion list, so the exclusion scope is not expanded here.";
   }
 
-  sections.push(
-    "",
-    filterSummary(data.filters, "zh"),
-    "这些结果只反映 FM 属性画像相似，不代表战术适配或转会可行性。PA 是潜力信号，不代表未来 CA 保证。"
-  );
+  const rosterProfiles = exclusionScope.currentRosterMembers
+    .map(
+      ({ apiFootballPlayerId, fmId, mappingMethod }) =>
+        `${apiFootballPlayerId} → ${fmId} (${mappingMethod})`
+    )
+    .join(", ");
 
-  return sections.join("\n");
-};
+  const excludedProfiles = exclusionScope.effectiveExcludedFmIds.join(", ");
 
-const renderEnglishTeamCorrection = (
-  data: TeamRecommendationAnswerData
-): string => {
-  const {
-    fmSnapshotDate: rawFmSnapshotDate,
-    position,
-    recommendation,
-    roster,
-    team,
-  } = data;
+  const emptyRosterProfiles =
+    rosterProfiles || (language === "zh" ? "无" : "none");
 
-  const country = team.country === null ? "" : ` (${team.country})`;
-  const fmSnapshotDate = rawFmSnapshotDate ?? "not provided";
+  const emptyExcludedProfiles =
+    excludedProfiles || (language === "zh" ? "无" : "none");
 
-  const sections = [
-    `Team: ${team.name}${country}; target position: ${position.toUpperCase()}`,
-    `Roster source: ${roster.source}, retrieved ${roster.retrievedAt}; FM snapshot: ${fmSnapshotDate}`,
-    `Candidate ages are calculated as of ${recommendation.ageAsOfDate}; ability and attributes use the FM snapshot date.`,
-    `Roster mapping: ${roster.mappedMembers}/${roster.totalMembers} mapped (Reep ${roster.reepBridgeMappings}, user-confirmed ${roster.userConfirmedMappings}); no local profile ${roster.noLocalProfileMembers}; pending ${roster.pendingMembers}. Mapping does not imply position eligibility.`,
-    teamRankingBasisSummary(data.rankingBasis, "en"),
-    "",
-    `Squad reference profiles (used as references and excluded from candidates; ${recommendation.references.length}):`,
-    ...recommendation.references.map((reference) =>
-      referenceLine(reference, "en")
-    ),
-    "",
-    `Current-ability similarity candidates (${recommendation.currentCandidates.length}):`,
-    ...recommendation.currentCandidates.map((candidate) =>
-      candidateLine(candidate, "en")
-    ),
-  ];
-
-  if (recommendation.potentialCandidates !== null) {
-    sections.push(
-      "",
-      `High-potential candidates (${recommendation.potentialCandidates.length}):`,
-      ...recommendation.potentialCandidates.map((candidate) =>
-        candidateLine(candidate, "en")
-      )
-    );
+  if (language === "zh") {
+    return `当前阵容映射身份（API-Football ID → FM ID / 方法）：${emptyRosterProfiles}。计算时实际排除的 FM ID：${emptyExcludedProfiles}。`;
   }
 
-  sections.push(
-    "",
-    filterSummary(data.filters, "en"),
-    "These results describe FM profile similarity, not tactical fit or transfer feasibility. PA is not a guarantee of future CA."
-  );
-
-  return sections.join("\n");
+  return `Mapped current-roster identities (API-Football ID → FM ID / method): ${emptyRosterProfiles}. FM IDs actually excluded during calculation: ${emptyExcludedProfiles}.`;
 };
 
 const teamRecommendationAnswerDataFrom = (
@@ -574,6 +577,7 @@ const teamRecommendationAnswerDataFrom = (
   }
 
   return {
+    exclusionScope: result.exclusionScope,
     filters: result.filters,
     fmSnapshotDate: result.fmSnapshotDate,
     position: result.position,
@@ -582,6 +586,180 @@ const teamRecommendationAnswerDataFrom = (
     roster: result.roster,
     team: result.team,
   };
+};
+
+const teamRecommendationMetadataSummary = (
+  data: TeamRecommendationAnswerData,
+  language: AnswerLanguage
+): string[] => {
+  const { fmSnapshotDate, position, recommendation, roster, team } = data;
+
+  const countrySuffix =
+    language === "zh"
+      ? `（${team.country ?? ""}）`
+      : ` (${team.country ?? ""})`;
+
+  const teamName =
+    team.country === null ? team.name : `${team.name}${countrySuffix}`;
+
+  const missingDate = language === "zh" ? "未提供" : "not provided";
+
+  return [
+    language === "zh"
+      ? `球队：${teamName}；目标位置：${position.toUpperCase()}`
+      : `Team: ${teamName}; target position: ${position.toUpperCase()}`,
+    language === "zh"
+      ? `阵容来源：${roster.source}，获取时间：${roster.retrievedAt}；FM 快照日期：${fmSnapshotDate ?? missingDate}`
+      : `Roster source: ${roster.source}, retrieved ${roster.retrievedAt}; FM snapshot: ${fmSnapshotDate ?? missingDate}`,
+    language === "zh"
+      ? `候选年龄按 ${recommendation.ageAsOfDate} 计算；能力和属性按 FM 快照日期计算。`
+      : `Candidate ages use ${recommendation.ageAsOfDate}; ability and attributes use the FM snapshot date.`,
+    language === "zh"
+      ? `阵容映射：${roster.mappedMembers}/${roster.totalMembers} 人（Reep 桥接 ${roster.reepBridgeMappings}，用户确认 ${roster.userConfirmedMappings}）；无本地画像 ${roster.noLocalProfileMembers} 人，待确认 ${roster.pendingMembers} 人。映射到 FM 画像不代表位置评分达标。`
+      : `Roster mapping: ${roster.mappedMembers}/${roster.totalMembers} (Reep ${roster.reepBridgeMappings}, user-confirmed ${roster.userConfirmedMappings}); no local profile ${roster.noLocalProfileMembers}; pending ${roster.pendingMembers}. Mapping does not imply position eligibility.`,
+    teamRecommendationExclusionSummary(data, language),
+    teamRankingBasisSummary(data.rankingBasis, language),
+    language === "zh"
+      ? `队内参考画像（已作为参考并从候选中排除；${recommendation.references.length} 人）：`
+      : `Squad reference profiles (used as references and excluded from candidates; ${recommendation.references.length}):`,
+    ...recommendation.references.map((reference) =>
+      referenceLine(reference, language)
+    ),
+    language === "zh"
+      ? `当前能力相似名单人数：${recommendation.currentCandidates.length}`
+      : `Current-ability similarity candidates: ${recommendation.currentCandidates.length}`,
+    ...(recommendation.potentialCandidates === null
+      ? [
+          language === "zh"
+            ? "高潜名单：未请求。"
+            : "High-potential list: not requested.",
+        ]
+      : [
+          language === "zh"
+            ? `高潜名单人数：${recommendation.potentialCandidates.length}`
+            : `High-potential candidates: ${recommendation.potentialCandidates.length}`,
+        ]),
+    filterSummary(data.filters, language),
+    recommendationFilterCountsSummary(recommendation.filterCounts, language),
+  ];
+};
+
+const teamRecommendationEvidenceMetadataSummary = (
+  resultJson: string,
+  language: AnswerLanguage
+): string | null => {
+  let parsedResult: ReturnType<typeof teamRecommendationResultSchema.safeParse>;
+
+  try {
+    parsedResult = teamRecommendationResultSchema.safeParse(
+      JSON.parse(resultJson)
+    );
+  } catch {
+    return null;
+  }
+
+  if (!parsedResult.success) {
+    return null;
+  }
+
+  const data = teamRecommendationAnswerDataFrom(parsedResult.data);
+
+  return data === null
+    ? null
+    : teamRecommendationMetadataSummary(data, language).join("\n");
+};
+
+const renderChineseTeamCorrection = (
+  data: TeamRecommendationAnswerData
+): string => {
+  const { recommendation } = data;
+
+  const sections = [
+    ...teamRecommendationMetadataSummary(data, "zh"),
+    "",
+    `当前能力相似候选（${recommendation.currentCandidates.length}）：`,
+    ...recommendation.currentCandidates.map((candidate) =>
+      candidateLine(candidate, "zh")
+    ),
+  ];
+
+  if (recommendation.potentialCandidates !== null) {
+    sections.push(
+      "",
+      `高潜候选（${recommendation.potentialCandidates.length}）：`,
+      ...recommendation.potentialCandidates.map((candidate) =>
+        candidateLine(candidate, "zh")
+      )
+    );
+  }
+
+  sections.push(
+    "",
+    "这些结果只反映 FM 属性画像相似，不代表战术适配或转会可行性。PA 是潜力信号，不代表未来 CA 保证。"
+  );
+
+  return sections.join("\n");
+};
+
+const renderEnglishTeamCorrection = (
+  data: TeamRecommendationAnswerData
+): string => {
+  const { recommendation } = data;
+
+  const sections = [
+    ...teamRecommendationMetadataSummary(data, "en"),
+    "",
+    `Current-ability similarity candidates (${recommendation.currentCandidates.length}):`,
+    ...recommendation.currentCandidates.map((candidate) =>
+      candidateLine(candidate, "en")
+    ),
+  ];
+
+  if (recommendation.potentialCandidates !== null) {
+    sections.push(
+      "",
+      `High-potential candidates (${recommendation.potentialCandidates.length}):`,
+      ...recommendation.potentialCandidates.map((candidate) =>
+        candidateLine(candidate, "en")
+      )
+    );
+  }
+
+  sections.push(
+    "",
+    "These results describe FM profile similarity, not tactical fit or transfer feasibility. PA is not a guarantee of future CA."
+  );
+
+  return sections.join("\n");
+};
+
+const completeTeamRecommendationResultAnswer = (
+  resultJson: string,
+  language: AnswerLanguage
+): string | null => {
+  let parsedResult: ReturnType<typeof teamRecommendationResultSchema.safeParse>;
+
+  try {
+    parsedResult = teamRecommendationResultSchema.safeParse(
+      JSON.parse(resultJson)
+    );
+  } catch {
+    return null;
+  }
+
+  if (!parsedResult.success) {
+    return null;
+  }
+
+  const data = teamRecommendationAnswerDataFrom(parsedResult.data);
+
+  if (data === null) {
+    return null;
+  }
+
+  return language === "zh"
+    ? renderChineseTeamCorrection(data)
+    : renderEnglishTeamCorrection(data);
 };
 
 const correctTeamRecommendationAnswer = (
@@ -632,4 +810,11 @@ const correctTeamRecommendationAnswer = (
     : renderEnglishTeamCorrection(data);
 };
 
-export { correctRecommendationAnswer, correctTeamRecommendationAnswer };
+export {
+  completeRecommendationResultAnswer,
+  completeTeamRecommendationResultAnswer,
+  correctRecommendationAnswer,
+  correctTeamRecommendationAnswer,
+  recommendationEvidenceMetadataSummary,
+  teamRecommendationEvidenceMetadataSummary,
+};

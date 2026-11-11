@@ -2,6 +2,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import { contextProcessingEvidenceOperation } from "../context-processing-state.js";
 import type { ContextProcessingAllowanceConfiguration } from "../context-processing-state.js";
 import { scoutingEvidenceProjections } from "../lookup-evidence.js";
 import type { ModelContextConfiguration } from "../model-context.js";
@@ -40,7 +41,7 @@ const lookupEvidenceWorkflow: EvidenceWorkflow = {
 
     return { resultJson: outcome.resultJson, source: outcome.source };
   },
-  operation: "explain_lookup_evidence",
+  operation: contextProcessingEvidenceOperation.lookup,
   project: ({ question, resultJson, source }): EvidenceProjection[] | null => {
     const projections = scoutingEvidenceProjections(
       resultJson,

@@ -11,6 +11,7 @@ import { deflateRawSync } from "node:zlib";
 
 import { z } from "zod/v4";
 
+import { contextProcessingOperationNames } from "../../src/context-processing-state.js";
 import type { PlayerMemoryManagementExtraction } from "../../src/request-extraction.js";
 import type { RequestKind } from "../../src/state.js";
 
@@ -75,12 +76,7 @@ const threadStateSchema = z.looseObject({
                 chunkIndex: z.number().nullable().optional(),
                 maxActiveTimeMs: z.number(),
                 maxAdditionalCalls: z.number().optional(),
-                operation: z.enum([
-                  "compact_text",
-                  "compact_text_chunk",
-                  "explain_lookup_evidence",
-                  "merge_text_chunks",
-                ]),
+                operation: z.enum(contextProcessingOperationNames),
                 operationId: z.string(),
                 sourceHash: z.string(),
                 sourceMessageId: z.string(),
@@ -206,6 +202,10 @@ const threadStateSchema = z.looseObject({
       })
       .nullable()
       .optional(),
+    playerRecommendationEvidence: z
+      .looseObject({ status: z.string().optional() })
+      .nullable()
+      .optional(),
     request: z.looseObject({
       constraints: z
         .array(z.object({ name: z.string(), value: z.string() }))
@@ -279,6 +279,10 @@ const threadStateSchema = z.looseObject({
         .optional(),
     }),
     stateSchemaVersion: z.number().int().nonnegative().nullable().optional(),
+    teamRecommendationEvidence: z
+      .looseObject({ status: z.string().optional() })
+      .nullable()
+      .optional(),
   }),
 });
 

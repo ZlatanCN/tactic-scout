@@ -94,11 +94,15 @@
         "sourceRecords": [
           {
             "provider": "api_football",
-            "sourceId": "team:901"
+            "sourceId": "player:501"
           },
           {
-            "provider": "fm",
-            "sourceId": "fm-ref-01"
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
           },
           {
             "provider": "fm",
@@ -106,11 +110,15 @@
           },
           {
             "provider": "fm",
+            "sourceId": "fm-far-01"
+          },
+          {
+            "provider": "fm",
             "sourceId": "fm-future-01"
           },
           {
             "provider": "fm",
-            "sourceId": "fm-far-01"
+            "sourceId": "fm-ref-01"
           }
         ],
         "turnId": "team-rec-synthetic-v1-turn-1"
@@ -462,11 +470,15 @@
         "sourceRecords": [
           {
             "provider": "api_football",
-            "sourceId": "team:901"
+            "sourceId": "player:501"
           },
           {
-            "provider": "fm",
-            "sourceId": "fm-ref-01"
+            "provider": "api_football",
+            "sourceId": "player:502"
+          },
+          {
+            "provider": "api_football",
+            "sourceId": "team:901"
           },
           {
             "provider": "fm",
@@ -474,11 +486,15 @@
           },
           {
             "provider": "fm",
+            "sourceId": "fm-far-01"
+          },
+          {
+            "provider": "fm",
             "sourceId": "fm-future-01"
           },
           {
             "provider": "fm",
-            "sourceId": "fm-far-01"
+            "sourceId": "fm-ref-01"
           }
         ]
       }

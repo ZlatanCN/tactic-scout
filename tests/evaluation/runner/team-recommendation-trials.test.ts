@@ -115,6 +115,8 @@ describe("evaluation team recommendation trials", () => {
           name: "recommend_team_player_candidates",
           outcome: "ready",
           sourceRecords: [
+            { provider: "api_football", sourceId: "player:501" },
+            { provider: "api_football", sourceId: "player:502" },
             { provider: "api_football", sourceId: "team:901" },
             { provider: "fm", sourceId: "fm-close-01" },
             { provider: "fm", sourceId: "fm-far-01" },

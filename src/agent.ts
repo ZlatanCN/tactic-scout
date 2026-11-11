@@ -57,11 +57,13 @@ import {
   lookupEvidenceRoute,
 } from "./nodes/lookup-evidence.js";
 import { createManagePlayerMemoryNode } from "./nodes/manage-player-memory.js";
+import { createPlayerRecommendationEvidenceNodes } from "./nodes/player-recommendation-evidence.js";
 import { createRecommendPlayersForTeamNode } from "./nodes/recommend-players-for-team.js";
 import { createRecommendPlayersNode } from "./nodes/recommend-players.js";
 import { createRequestUnderstandingNode } from "./nodes/request-understanding.js";
 import { createResolveTeamRosterNode } from "./nodes/resolve-team-roster.js";
 import { createResolveTeamNode } from "./nodes/resolve-team.js";
+import { createTeamRecommendationEvidenceNodes } from "./nodes/team-recommendation-evidence.js";
 import {
   compactionRoute,
   createTextCompactionAnswerNode,
@@ -633,6 +635,72 @@ const isSavedComparisonResult = (state: AgentStateType): boolean => {
   return outcome.status === "ready" || outcome.status === "no_comparable_data";
 };
 
+const playerRecommendationHasCompletedResult = (
+  state: AgentStateType
+): boolean => {
+  const { outcome } = state;
+
+  if (outcome?.kind !== "player_recommendation") {
+    return false;
+  }
+
+  if (outcome.resultJson === null || !("source" in outcome)) {
+    return false;
+  }
+
+  return outcome.status === "ready" || outcome.status === "no_candidates";
+};
+
+const teamRecommendationHasCompletedResult = (
+  state: AgentStateType
+): boolean => {
+  const { outcome } = state;
+
+  if (outcome?.kind !== "team_recommendation") {
+    return false;
+  }
+
+  if (outcome.resultJson === null || !("source" in outcome)) {
+    return false;
+  }
+
+  return outcome.status === "ready" || outcome.status === "no_candidates";
+};
+
+const isSavedPlayerRecommendationResult = (state: AgentStateType): boolean => {
+  const { outcome } = state;
+
+  if (outcome?.kind !== "player_recommendation") {
+    return false;
+  }
+
+  if (
+    outcome.resultJson === null ||
+    (outcome.status !== "ready" && outcome.status !== "no_candidates")
+  ) {
+    return false;
+  }
+
+  return outcome.source === "saved";
+};
+
+const isSavedTeamRecommendationResult = (state: AgentStateType): boolean => {
+  const { outcome } = state;
+
+  if (outcome?.kind !== "team_recommendation") {
+    return false;
+  }
+
+  if (
+    outcome.resultJson === null ||
+    (outcome.status !== "ready" && outcome.status !== "no_candidates")
+  ) {
+    return false;
+  }
+
+  return outcome.source === "saved";
+};
+
 const routeLookupResponse = (state: AgentStateType): string => {
   const lastMessage = state.messages.at(-1);
 
@@ -679,6 +747,14 @@ const routeAfterRequestUnderstanding = (state: AgentStateType): string => {
     return "prepare_comparison_evidence";
   }
 
+  if (isSavedPlayerRecommendationResult(state)) {
+    return "prepare_player_recommendation_evidence";
+  }
+
+  if (isSavedTeamRecommendationResult(state)) {
+    return "prepare_team_recommendation_evidence";
+  }
+
   if (state.outcome !== null && "source" in state.outcome) {
     return state.outcome.source === "saved" ? "answer" : "resolve_entities";
   }
@@ -693,6 +769,29 @@ const routeAfterComparison = (state: AgentStateType): string => {
 
   return comparisonHasCompletedResult(state)
     ? "prepare_comparison_evidence"
+    : "answer";
+};
+
+const routeAfterPlayerRecommendation = (state: AgentStateType): string => {
+  if (
+    state.pendingClarification?.kind === "position" ||
+    state.pendingClarification?.kind === "fm_profile"
+  ) {
+    return "clarify";
+  }
+
+  return playerRecommendationHasCompletedResult(state)
+    ? "prepare_player_recommendation_evidence"
+    : "answer";
+};
+
+const routeAfterTeamRecommendation = (state: AgentStateType): string => {
+  if (state.pendingClarification !== null) {
+    return "clarify";
+  }
+
+  return teamRecommendationHasCompletedResult(state)
+    ? "prepare_team_recommendation_evidence"
     : "answer";
 };
 
@@ -862,6 +961,21 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     modelContextConfiguration,
   });
 
+  const playerRecommendationEvidenceNodes =
+    createPlayerRecommendationEvidenceNodes({
+      allowance: options.contextProcessingAllowance,
+      model,
+      modelContextConfiguration,
+    });
+
+  const teamRecommendationEvidenceNodes = createTeamRecommendationEvidenceNodes(
+    {
+      allowance: options.contextProcessingAllowance,
+      model,
+      modelContextConfiguration,
+    }
+  );
+
   const graph = new StateGraph(AgentState)
     .addNode("prepare_context_processing", prepareContextProcessing)
     .addNode(
@@ -884,6 +998,24 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode(
       "answer_comparison_evidence_batch",
       comparisonEvidenceNodes.answer,
+      { timeout: modelExecutionTimeoutMs }
+    )
+    .addNode(
+      "prepare_player_recommendation_evidence",
+      playerRecommendationEvidenceNodes.prepare
+    )
+    .addNode(
+      "answer_player_recommendation_evidence_batch",
+      playerRecommendationEvidenceNodes.answer,
+      { timeout: modelExecutionTimeoutMs }
+    )
+    .addNode(
+      "prepare_team_recommendation_evidence",
+      teamRecommendationEvidenceNodes.prepare
+    )
+    .addNode(
+      "answer_team_recommendation_evidence_batch",
+      teamRecommendationEvidenceNodes.answer,
       { timeout: modelExecutionTimeoutMs }
     )
     .addNode("understand_request", understandRequest, {
@@ -959,6 +1091,30 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     )
     .addEdge("answer_comparison_evidence_batch", "prepare_comparison_evidence")
     .addConditionalEdges(
+      "prepare_player_recommendation_evidence",
+      (state) =>
+        playerRecommendationEvidenceNodes.route(state)
+          ? "answer_player_recommendation_evidence_batch"
+          : "answer",
+      ["answer", "answer_player_recommendation_evidence_batch"]
+    )
+    .addEdge(
+      "answer_player_recommendation_evidence_batch",
+      "prepare_player_recommendation_evidence"
+    )
+    .addConditionalEdges(
+      "prepare_team_recommendation_evidence",
+      (state) =>
+        teamRecommendationEvidenceNodes.route(state)
+          ? "answer_team_recommendation_evidence_batch"
+          : "answer",
+      ["answer", "answer_team_recommendation_evidence_batch"]
+    )
+    .addEdge(
+      "answer_team_recommendation_evidence_batch",
+      "prepare_team_recommendation_evidence"
+    )
+    .addConditionalEdges(
       "answer_context_processing",
       (state) =>
         state.pendingClarification?.kind === "context_processing"
@@ -972,6 +1128,8 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       "answer",
       "prepare_lookup_evidence",
       "prepare_comparison_evidence",
+      "prepare_player_recommendation_evidence",
+      "prepare_team_recommendation_evidence",
       "manage_player_memory",
       "resolve_entities",
     ])
@@ -1004,22 +1162,24 @@ const createAgent = (options: CreateAgentOptions = {}) => {
             : "resolve_entities";
         }
 
-        if (
-          state.pendingClarification === null &&
-          routeAfterRequestUnderstanding(state) === "answer"
-        ) {
-          return "answer";
+        if (state.pendingClarification !== null) {
+          return "clarify";
         }
 
-        return state.pendingClarification === null
-          ? routeAfterClarification(state)
-          : "clarify";
+        const requestRoute = routeAfterRequestUnderstanding(state);
+
+        if (requestRoute !== "resolve_entities") {
+          return requestRoute;
+        }
+
+        return routeAfterClarification(state);
       },
       [
         "clarify",
         "manage_player_memory",
         END,
         "resolve_entities",
+        "prepare_lookup_evidence",
         "lookup_player",
         "compare_players",
         "recommend_players",
@@ -1029,6 +1189,8 @@ const createAgent = (options: CreateAgentOptions = {}) => {
         "recommend_players_for_team",
         "answer",
         "prepare_comparison_evidence",
+        "prepare_player_recommendation_evidence",
+        "prepare_team_recommendation_evidence",
         "prepare_context_processing",
       ]
     )
@@ -1057,15 +1219,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       "prepare_comparison_evidence",
       "answer",
     ])
-    .addConditionalEdges(
-      "recommend_players",
-      (state) =>
-        state.pendingClarification?.kind === "position" ||
-        state.pendingClarification?.kind === "fm_profile"
-          ? "clarify"
-          : "answer",
-      ["clarify", "answer"]
-    )
+    .addConditionalEdges("recommend_players", routeAfterPlayerRecommendation, [
+      "clarify",
+      "answer",
+      "prepare_player_recommendation_evidence",
+    ])
     .addConditionalEdges(
       "resolve_team",
       (state) => routeAfterTeamResolution(state),
@@ -1087,8 +1245,8 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     ])
     .addConditionalEdges(
       "recommend_players_for_team",
-      (state) => (state.pendingClarification === null ? "answer" : "clarify"),
-      ["clarify", "answer"]
+      routeAfterTeamRecommendation,
+      ["clarify", "answer", "prepare_team_recommendation_evidence"]
     )
     .addEdge("answer", END);
 

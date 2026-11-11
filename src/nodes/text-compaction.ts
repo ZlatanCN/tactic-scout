@@ -10,6 +10,8 @@ import { z } from "zod/v4";
 
 import {
   contextProcessingAnchorKinds,
+  contextProcessingEvidenceOperation,
+  contextProcessingEvidenceOperations,
   contextProcessingHash,
   contextProcessingInputText,
   defaultContextProcessingAllowance,
@@ -22,6 +24,7 @@ import type {
   ContextProcessingChunk,
   ContextProcessingChunking,
   ContextProcessingCompaction,
+  ContextProcessingEvidenceOperation,
   ContextProcessingReference,
 } from "../context-processing-state.js";
 import { modelRequestTimeoutMs } from "../fault-tolerance.js";
@@ -58,6 +61,15 @@ import type {
 import { previousTurnSummary } from "../workflow-continuation.js";
 
 const compactedScoutingInstructionFormatVersion = 2;
+
+const evidenceReservationOperations = new Set<string>(
+  contextProcessingEvidenceOperations
+);
+
+const isEvidenceReservationOperation = (
+  operation: NonNullable<ContextProcessingAllowance["reservation"]>["operation"]
+): operation is ContextProcessingEvidenceOperation =>
+  evidenceReservationOperations.has(operation);
 
 const textCompactionPrompt = `你负责压缩一条球探请求，只输出结构化结果。
 
@@ -1937,7 +1949,10 @@ const evidenceReservationMatchesMessage = (
   state: AgentStateType,
   currentMessage: HumanMessage,
   reservation: ContextProcessingAllowance["reservation"],
-  operation: "explain_lookup_evidence" | "explain_comparison_evidence",
+  operation: Extract<
+    NonNullable<ContextProcessingAllowance["reservation"]>["operation"],
+    ContextProcessingEvidenceOperation
+  >,
   evidence: EvidenceBatchState | null | undefined
 ): boolean => {
   if (reservation === null || reservation.operation !== operation) {
@@ -1960,6 +1975,35 @@ const evidenceReservationMatchesMessage = (
     evidence.requestId === requestId &&
     evidence.sourceMessageId === sourceMessageId &&
     reservation.sourceMessageId === sourceMessageId
+  );
+};
+
+const evidenceReservationMatchesAnyWorkflow = (
+  state: AgentStateType,
+  currentMessage: HumanMessage,
+  reservation: ContextProcessingAllowance["reservation"]
+): boolean => {
+  const evidenceByOperation = [
+    [contextProcessingEvidenceOperation.lookup, state.lookupEvidence],
+    [contextProcessingEvidenceOperation.comparison, state.comparisonEvidence],
+    [
+      contextProcessingEvidenceOperation.playerRecommendation,
+      state.playerRecommendationEvidence,
+    ],
+    [
+      contextProcessingEvidenceOperation.teamRecommendation,
+      state.teamRecommendationEvidence,
+    ],
+  ] as const;
+
+  return evidenceByOperation.some(([operation, evidence]) =>
+    evidenceReservationMatchesMessage(
+      state,
+      currentMessage,
+      reservation,
+      operation,
+      evidence
+    )
   );
 };
 
@@ -1994,19 +2038,10 @@ const prepareTextCompactionNode =
     const hasPendingReservation = reservation !== null;
 
     if (
-      evidenceReservationMatchesMessage(
+      evidenceReservationMatchesAnyWorkflow(
         normalizedState,
         currentMessage,
-        reservation,
-        "explain_lookup_evidence",
-        normalizedState.lookupEvidence
-      ) ||
-      evidenceReservationMatchesMessage(
-        normalizedState,
-        currentMessage,
-        reservation,
-        "explain_comparison_evidence",
-        normalizedState.comparisonEvidence
+        reservation
       )
     ) {
       return {};
@@ -2511,10 +2546,7 @@ const invokeTextCompaction = async (
     };
   }
 
-  if (
-    reservation.operation === "explain_lookup_evidence" ||
-    reservation.operation === "explain_comparison_evidence"
-  ) {
+  if (isEvidenceReservationOperation(reservation.operation)) {
     return {
       durationMs: 0,
       kind: "failed",

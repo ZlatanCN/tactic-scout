@@ -56,9 +56,35 @@ const teamRecommendationRosterSchema = teamRosterCoverageSchema
     }
   });
 
+const teamRecommendationExclusionScopeSchema = z
+  .object({
+    currentRosterMembers: z.array(
+      z.object({
+        apiFootballPlayerId: z.number().int().positive(),
+        fmId: z.string().min(1),
+        mappingMethod: z.enum(["reep_bridge", "user_confirmation"]),
+      })
+    ),
+    effectiveExcludedFmIds: z.array(z.string().min(1)),
+  })
+  .superRefine((scope, context) => {
+    const excludedFmIds = new Set(scope.effectiveExcludedFmIds);
+
+    if (
+      scope.currentRosterMembers.some(({ fmId }) => !excludedFmIds.has(fmId))
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Every mapped current-roster FM profile must be excluded.",
+        path: ["effectiveExcludedFmIds"],
+      });
+    }
+  });
+
 const teamRecommendationResultSchema = z.union([
   z
     .object({
+      exclusionScope: teamRecommendationExclusionScopeSchema.optional(),
       filters: teamRecommendationFiltersSchema,
       fmSnapshotDate: z.string().nullable(),
       position: z.string(),
@@ -147,6 +173,20 @@ const teamRecommendationResultSchema = z.union([
         });
       }
 
+      if (result.exclusionScope !== undefined) {
+        const excludedFmIds = new Set(
+          result.exclusionScope.effectiveExcludedFmIds
+        );
+
+        if (result.referenceFmIds.some((fmId) => !excludedFmIds.has(fmId))) {
+          context.addIssue({
+            code: "custom",
+            message: "Every selected reference FM profile must be excluded.",
+            path: ["exclusionScope", "effectiveExcludedFmIds"],
+          });
+        }
+      }
+
       if (
         "snapshotDate" in recommendation &&
         result.fmSnapshotDate !== recommendation.snapshotDate
@@ -159,6 +199,7 @@ const teamRecommendationResultSchema = z.union([
       }
     }),
   z.object({
+    exclusionScope: teamRecommendationExclusionScopeSchema.optional(),
     filters: teamRecommendationFiltersSchema,
     fmSnapshotDate: z.string(),
     position: z.string(),
