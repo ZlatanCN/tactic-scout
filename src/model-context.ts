@@ -865,12 +865,14 @@ const createModelContextLog = (
 const createModelContextUsageLog = (
   assessment: ModelContextAssessment,
   usage: ProviderTokenUsage | null,
-  runtime: ModelRuntime
+  runtime: ModelRuntime,
+  contextIssue: "response_truncated" | null
 ): void => {
   try {
     console.info(
       JSON.stringify({
         component: "tactiscout",
+        contextIssue,
         estimatedInputTokens: assessment.estimatedInputTokens,
         providerInputTokens: usage?.inputTokens ?? null,
         providerOutputTokens: usage?.outputTokens ?? null,
@@ -972,7 +974,18 @@ const invokeWithModelContext = async <Value>(
       responseEnvelope.success &&
       modelResponseIsTruncated(responseEnvelope.data)
     ) {
-      throw createModelContextError("response_truncated");
+      createModelContextUsageLog(
+        prepared.assessment,
+        providerTokenUsageFrom(responseEnvelope.data),
+        runtime,
+        "response_truncated"
+      );
+
+      throw createModelContextError(
+        "response_truncated",
+        Math.max(0, Date.now() - requestStartedAt),
+        budget?.requestsUsed() ?? 1
+      );
     }
 
     createModelContextUsageLog(
@@ -980,7 +993,8 @@ const invokeWithModelContext = async <Value>(
       responseEnvelope.success
         ? providerTokenUsageFrom(responseEnvelope.data)
         : null,
-      runtime
+      runtime,
+      null
     );
 
     return response;

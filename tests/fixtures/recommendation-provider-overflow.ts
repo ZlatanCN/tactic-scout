@@ -69,7 +69,8 @@ const recommendationBatchResponse =
   (
     marker: string,
     projectionCandidates: (value: ProjectionJson) => OverflowCandidate[],
-    maximumCandidatesPerRequest = 1
+    maximumCandidatesPerRequest = 1,
+    failureMode: "context_overflow" | "output_truncated" = "context_overflow"
   ) =>
   (messages: BaseMessage[]) => {
     const candidates = projectionCandidates(
@@ -77,7 +78,17 @@ const recommendationBatchResponse =
     );
 
     if (candidates.length > maximumCandidatesPerRequest) {
-      return recommendationOverflowError();
+      return failureMode === "output_truncated"
+        ? new AIMessage({
+            content: "PARTIAL_TRUNCATED_RECOMMENDATION_EXPLANATION",
+            response_metadata: { finish_reason: "length" },
+            usage_metadata: {
+              input_tokens: 101,
+              output_tokens: 256,
+              total_tokens: 357,
+            },
+          })
+        : recommendationOverflowError();
     }
 
     if (candidates.length === 0) {

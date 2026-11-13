@@ -1,7 +1,6 @@
 # 10: 输出截断自动恢复并如实交付
 
-Status: open
-Label: ready-for-agent
+Status: resolved
 Blocked by: 04, 05, 06, 07, 08
 Parent: [运行时上下文管理](../spec.md)
 
@@ -9,12 +8,12 @@ Parent: [运行时上下文管理](../spec.md)
 
 ## Acceptance criteria
 
-- [ ] 终止原因、结构化输出有效性及记录 / 字段覆盖一起参与完成判断；达到输入预算并不被误当成输出一定完整。
-- [ ] 长输入提取、辅助摘要、lookup 和比较 / 推荐解释都不消费未完成结构化结果或冒称完整覆盖。
-- [ ] 有限续写 / 重新分批及其重试全部纳入额外预算；保留批次覆盖和既有排名，无进展及时退出。
-- [ ] 完整数据已有时复用对应确定性展示及 provenance，数据 / 理解不完整时不生成全体比较 / 排名，成功快照保持。
-- [ ] 内部摘要、草稿和截断流片段不会作为最终完成回答；模型证据与程序渲染证据继续区分。
-- [ ] 通过完整图和本地 fake gateway 的截断、部分结构化响应、取消和 usage 场景验证，而不是只断言某个截断 helper 被调用。
+- [x] 终止原因、结构化输出有效性及记录 / 字段覆盖一起参与完成判断；达到输入预算并不被误当成输出一定完整。
+- [x] 长输入提取、辅助摘要、lookup 和比较 / 推荐解释都不消费未完成结构化结果或冒称完整覆盖。
+- [x] 有限续写 / 重新分批及其重试全部纳入额外预算；保留批次覆盖和既有排名，无进展及时退出。
+- [x] 完整数据已有时复用对应确定性展示及 provenance，数据 / 理解不完整时不生成全体比较 / 排名，成功快照保持。
+- [x] 内部摘要、草稿和截断流片段不会作为最终完成回答；模型证据与程序渲染证据继续区分。
+- [x] 通过完整图和本地 fake gateway 的截断、部分结构化响应、取消和 usage 场景验证，而不是只断言某个截断 helper 被调用。
 
 ## Blocked by
 
@@ -31,3 +30,5 @@ Parent: [运行时上下文管理](../spec.md)
 ## Comments
 
 - 2026-11-08：用户确认拆分粒度和依赖（“合适了”），按批准的提案发布；尚未认领或实施。
+- 2026-11-13：已完成。识别 `finish_reason: length`、`max_tokens`、`incomplete` 和 Responses API incomplete 状态；截断响应会先记录估算与 provider usage，再以 `response_truncated` 分类处理。已保存完整结果的答案截断会转为 evidence batching，lookup / comparison / player / team evidence 也能按当前 workflow 重分批；无法缩减或额度不足时完整结果通过确定性出口展示。辅助文字 compaction 遇到截断会从原文分块恢复，结构化半成品不会被后续节点消费；取消后不再发起后续批次。
+- 验证：`pnpm test` 136 个测试文件 / 530 个用例通过；managed Dev Server fake gateway 截断用例 1/1、`pnpm typecheck` 与相关 Ultracite 检查通过。双轴审查后修正了输出截断的日志分类和 lookup / player / team 测试覆盖；不运行 live judge。

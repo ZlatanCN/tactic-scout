@@ -877,9 +877,13 @@ const isInputOverflowFailure = (error: Error): boolean => {
 
 const compactionStopReasonForError = (
   error: Error
-): "auxiliary_input_too_large" | "provider_failure" | "provider_overflow" => {
+): NonNullable<ContextProcessingCompaction["stopReason"]> => {
   if (modelContextFailure(error) === "provider_overflow") {
     return "provider_overflow";
+  }
+
+  if (modelContextFailure(error) === "response_truncated") {
+    return "response_truncated";
   }
 
   return isInputOverflowFailure(error)
@@ -1732,7 +1736,7 @@ const startTextChunking = async (
   );
 };
 
-const recoverTextCompactionAfterProviderOverflow = async (
+const recoverTextCompactionAfterIncompleteOutput = async (
   input: CompactionPreflightInput,
   startedAt: number
 ): Promise<Partial<AgentStateType>> => {
@@ -1894,7 +1898,8 @@ const existingCompactionDecision = (
 
   if (
     previousIsCurrent &&
-    previousCompaction?.stopReason !== "provider_overflow"
+    previousCompaction?.stopReason !== "provider_overflow" &&
+    previousCompaction?.stopReason !== "response_truncated"
   ) {
     return {
       kind: "handled",
@@ -2205,9 +2210,10 @@ const reserveTextCompaction = async (
 
   if (
     input.forceProviderOverflowRecovery === true ||
-    input.previousCompaction?.stopReason === "provider_overflow"
+    input.previousCompaction?.stopReason === "provider_overflow" ||
+    input.previousCompaction?.stopReason === "response_truncated"
   ) {
-    return await recoverTextCompactionAfterProviderOverflow(
+    return await recoverTextCompactionAfterIncompleteOutput(
       input,
       preflightStartedAt
     );
@@ -2679,7 +2685,7 @@ const failedCompactionUpdate = (
   };
 };
 
-const splitTextChunkAfterProviderOverflow = async (
+const splitTextChunkAfterIncompleteOutput = async (
   configuration: TextCompactionNodeConfiguration,
   input: ReservedTextCompaction,
   durationMs: number
@@ -2805,7 +2811,7 @@ const splitTextChunkAfterProviderOverflow = async (
   };
 };
 
-const splitTextMergeAfterProviderOverflow = async (
+const splitTextMergeAfterIncompleteOutput = async (
   configuration: TextCompactionNodeConfiguration,
   input: ReservedTextCompaction,
   durationMs: number
@@ -3131,10 +3137,7 @@ type StructuredCompactionResponseCall =
       durationMs: number;
       kind: "failed";
       providerFailureCategory?: FaultCategory;
-      stopReason:
-        | "auxiliary_input_too_large"
-        | "provider_failure"
-        | "provider_overflow";
+      stopReason: NonNullable<ContextProcessingCompaction["stopReason"]>;
     };
 
 const invokeStructuredCompactionResponse = async (
@@ -3607,8 +3610,11 @@ const failedTextCompactionUpdate = async (
   input: ReservedTextCompaction,
   call: Extract<TextCompactionCall, { kind: "failed" }>
 ): Promise<Partial<AgentStateType>> => {
-  if (call.stopReason === "provider_overflow") {
-    const splitUpdate = await splitTextChunkAfterProviderOverflow(
+  if (
+    call.stopReason === "provider_overflow" ||
+    call.stopReason === "response_truncated"
+  ) {
+    const splitUpdate = await splitTextChunkAfterIncompleteOutput(
       configuration,
       input,
       call.durationMs
@@ -3618,7 +3624,7 @@ const failedTextCompactionUpdate = async (
       return splitUpdate;
     }
 
-    const mergeUpdate = await splitTextMergeAfterProviderOverflow(
+    const mergeUpdate = await splitTextMergeAfterIncompleteOutput(
       configuration,
       input,
       call.durationMs
@@ -3805,7 +3811,10 @@ const routeAfterTextCompaction = (state: AgentStateType): string => {
   const status = state.contextProcessing.compaction?.status;
   const stopReason = state.contextProcessing.compaction?.stopReason;
 
-  if (status === "failed" && stopReason === "provider_overflow") {
+  if (
+    status === "failed" &&
+    (stopReason === "provider_overflow" || stopReason === "response_truncated")
+  ) {
     return "prepare_context_processing";
   }
 
@@ -3841,6 +3850,10 @@ const compactionStopAnswer = (
 
   if (stopReason === "ambiguous_conditions") {
     return "原始球探指令中有条件不明确或相互冲突。原文已保留，请澄清相关条件后再继续。";
+  }
+
+  if (stopReason === "response_truncated") {
+    return "自动上下文处理的模型输出不完整，未采用截断结果；原文和已有进度仍保留。";
   }
 
   if (
@@ -3885,6 +3898,14 @@ const contextFailureForCompactionStop = (
     return {
       category: "context_limit",
       contextIssue: "input_exceeds_limit",
+      node: "understand_request",
+    };
+  }
+
+  if (stopReason === "response_truncated") {
+    return {
+      category: "context_limit",
+      contextIssue: "response_truncated",
       node: "understand_request",
     };
   }

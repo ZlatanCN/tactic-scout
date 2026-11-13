@@ -248,10 +248,11 @@ const evidenceMatchesRequest = (
   return mismatches.every((mismatch) => !mismatch);
 };
 
-const answerOverflowRecoveryIsPending = (state: AgentStateType): boolean =>
+const answerEvidenceRecoveryIsPending = (state: AgentStateType): boolean =>
   state.faultTolerance.failure?.node === "answer" &&
   state.faultTolerance.failure.category === "context_limit" &&
-  state.faultTolerance.failure.contextIssue === "provider_overflow";
+  (state.faultTolerance.failure.contextIssue === "provider_overflow" ||
+    state.faultTolerance.failure.contextIssue === "response_truncated");
 
 const evidenceShouldBeSkipped = async (
   state: AgentStateType,
@@ -601,7 +602,7 @@ const invokeEvidenceProjection = async (
   );
 };
 
-const evidenceAfterProviderOverflowSplit = async (input: {
+const evidenceAfterRecoverableAnswerFailureSplit = async (input: {
   batchIndex: number;
   configuration: EvidenceBatchNodeConfiguration;
   error: unknown;
@@ -609,9 +610,12 @@ const evidenceAfterProviderOverflowSplit = async (input: {
   task: EvidenceTask;
   workflow: EvidenceWorkflow;
 }): Promise<EvidenceBatchState | null> => {
+  const modelFailure =
+    input.error instanceof Error ? modelContextFailure(input.error) : null;
+
   if (
-    !(input.error instanceof Error) ||
-    modelContextFailure(input.error) !== "provider_overflow" ||
+    (modelFailure !== "provider_overflow" &&
+      modelFailure !== "response_truncated") ||
     input.workflow.splitBatch === undefined
   ) {
     return null;
@@ -745,7 +749,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
 
       const hashes = requestHashesForEvidence(workflow, identity, task);
 
-      const overflowRecovery = answerOverflowRecoveryIsPending(state);
+      const overflowRecovery = answerEvidenceRecoveryIsPending(state);
 
       const existingMatches = evidenceMatchesRequest(
         workflow.getEvidence(state),
@@ -929,7 +933,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
             index === batch.index || (status === "ready" && answer !== null)
         );
 
-        if (!thisWasTheFinalBatch || !answerOverflowRecoveryIsPending(state)) {
+        if (!thisWasTheFinalBatch || !answerEvidenceRecoveryIsPending(state)) {
           return update;
         }
 
@@ -938,7 +942,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
           faultTolerance: { ...state.faultTolerance, failure: null },
         };
       } catch (error) {
-        const splitEvidence = await evidenceAfterProviderOverflowSplit({
+        const splitEvidence = await evidenceAfterRecoverableAnswerFailureSplit({
           batchIndex: batch.index,
           configuration,
           error,

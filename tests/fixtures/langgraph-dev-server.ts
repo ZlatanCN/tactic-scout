@@ -31,6 +31,16 @@ type RunningServer = {
   output: () => string;
 };
 
+type TruncatedModelResponse = {
+  callNumber: number;
+  finishReason: "length";
+  usage: {
+    completion_tokens: number;
+    prompt_tokens: number;
+    total_tokens: number;
+  };
+};
+
 type LocalGateway = {
   calls: () => string[];
   close: () => Promise<void>;
@@ -38,6 +48,8 @@ type LocalGateway = {
   events: () => string[];
   failModelCallsAt: (callNumbers: number[]) => void;
   overflowModelCallsAt: (callNumbers: number[]) => void;
+  truncateModelCallsAt: (callNumbers: number[]) => void;
+  truncatedResponses: () => TruncatedModelResponse[];
   ambiguousCompactionCallsAt: (callNumbers: number[]) => void;
   providerUrl: string;
   url: string;
@@ -1101,10 +1113,35 @@ const startGateway = async (): Promise<LocalGateway> => {
   const receivedEvents: string[] = [];
   const failedModelCallNumbers = new Set<number>();
   const overflowModelCallNumbers = new Set<number>();
+  const truncatedModelCallNumbers = new Set<number>();
+  const truncatedResponses: TruncatedModelResponse[] = [];
   const ambiguousCompactionCallNumbers = new Set<number>();
   let extractionCallIndex = 0;
   let rosterMemoryFetchCount = 0;
   const eventSchema = z.object({ name: z.string() });
+
+  const handleGatewayEvent = (
+    url: string | undefined,
+    body: string,
+    response: ServerResponse
+  ): boolean => {
+    if (url !== "/events") {
+      return false;
+    }
+
+    const event = eventSchema.safeParse(JSON.parse(body));
+
+    if (!event.success) {
+      response.writeHead(400).end();
+
+      return true;
+    }
+
+    receivedEvents.push(event.data.name);
+    response.writeHead(204).end();
+
+    return true;
+  };
 
   const chatRequestSchema = z.looseObject({
     messages: z
@@ -1122,6 +1159,122 @@ const startGateway = async (): Promise<LocalGateway> => {
   const chatCompletionId = "chatcmpl-persistence-test";
   const chatModelName = persistenceTestModelName;
 
+  const sendFakeProviderResponse = (
+    response: ServerResponse,
+    providerResponse: FakeProviderResponse | null
+  ): boolean => {
+    if (providerResponse === null) {
+      return false;
+    }
+
+    receivedEvents.push(providerResponse.event);
+    response.writeHead(providerResponse.statusCode, {
+      "content-type": "application/json",
+    });
+    response.end(JSON.stringify(providerResponse.body));
+
+    return true;
+  };
+
+  const sendTruncatedCompletion = (
+    response: ServerResponse,
+    stream: boolean,
+    callNumber: number
+  ): void => {
+    const usage = {
+      completion_tokens: 256,
+      prompt_tokens: 101,
+      total_tokens: 357,
+    };
+
+    truncatedResponses.push({ callNumber, finishReason: "length", usage });
+
+    if (stream) {
+      const chunkMetadata = {
+        created: 0,
+        id: chatCompletionId,
+        model: chatModelName,
+        object: "chat.completion.chunk",
+      };
+
+      response.writeHead(200, {
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+        "content-type": "text/event-stream",
+      });
+      response.write(
+        `data: ${JSON.stringify({
+          ...chunkMetadata,
+          choices: [
+            {
+              delta: { content: "PARTIAL_TRUNCATED_GATEWAY_RESPONSE" },
+              finish_reason: null,
+              index: 0,
+            },
+          ],
+        })}\n\n`
+      );
+      response.write(
+        `data: ${JSON.stringify({
+          ...chunkMetadata,
+          choices: [{ delta: {}, finish_reason: "length", index: 0 }],
+        })}\n\n`
+      );
+      response.write(
+        `data: ${JSON.stringify({ ...chunkMetadata, choices: [], usage })}\n\n`
+      );
+      response.end("data: [DONE]\n\n");
+
+      return;
+    }
+
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({
+        choices: [
+          {
+            finish_reason: "length",
+            index: 0,
+            message: {
+              content: "PARTIAL_TRUNCATED_GATEWAY_RESPONSE",
+              role: "assistant",
+            },
+          },
+        ],
+        created: 0,
+        id: chatCompletionId,
+        model: chatModelName,
+        object: "chat.completion",
+        usage,
+      })
+    );
+  };
+
+  const sendInjectedModelResponse = (
+    response: ServerResponse,
+    callNumber: number,
+    stream: boolean
+  ): boolean => {
+    if (
+      sendInjectedModelFailure(
+        response,
+        callNumber,
+        overflowModelCallNumbers,
+        failedModelCallNumbers
+      )
+    ) {
+      return true;
+    }
+
+    if (!truncatedModelCallNumbers.has(callNumber)) {
+      return false;
+    }
+
+    sendTruncatedCompletion(response, stream, callNumber);
+
+    return true;
+  };
+
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => {
@@ -1131,18 +1284,7 @@ const startGateway = async (): Promise<LocalGateway> => {
       const body = Buffer.concat(chunks).toString("utf-8");
       const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
 
-      if (request.url === "/events") {
-        const event = eventSchema.safeParse(JSON.parse(body));
-
-        if (!event.success) {
-          response.writeHead(400).end();
-
-          return;
-        }
-
-        receivedEvents.push(event.data.name);
-        response.writeHead(204).end();
-
+      if (handleGatewayEvent(request.url, body, response)) {
         return;
       }
 
@@ -1156,30 +1298,22 @@ const startGateway = async (): Promise<LocalGateway> => {
         rosterMemoryFetchCount
       );
 
-      if (providerResponse !== null) {
-        receivedEvents.push(providerResponse.event);
-        response.writeHead(providerResponse.statusCode, {
-          "content-type": "application/json",
-        });
-        response.end(JSON.stringify(providerResponse.body));
-
+      if (sendFakeProviderResponse(response, providerResponse)) {
         return;
       }
 
       receivedCalls.push(body);
+      const chatRequest = chatRequestSchema.safeParse(JSON.parse(body));
 
       if (
-        sendInjectedModelFailure(
+        sendInjectedModelResponse(
           response,
           receivedCalls.length,
-          overflowModelCallNumbers,
-          failedModelCallNumbers
+          chatRequest.success && chatRequest.data.stream === true
         )
       ) {
         return;
       }
-
-      const chatRequest = chatRequestSchema.safeParse(JSON.parse(body));
 
       const lastUserMessage = chatRequest.success
         ? chatRequest.data.messages
@@ -1338,6 +1472,14 @@ const startGateway = async (): Promise<LocalGateway> => {
       }
     },
     providerUrl: baseUrl,
+    truncateModelCallsAt: (callNumbers) => {
+      truncatedModelCallNumbers.clear();
+
+      for (const callNumber of callNumbers) {
+        truncatedModelCallNumbers.add(callNumber);
+      }
+    },
+    truncatedResponses: () => [...truncatedResponses],
     url: `${baseUrl}/v1`,
   };
 };

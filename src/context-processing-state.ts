@@ -143,6 +143,7 @@ const ContextProcessingCompactionSchema = z.object({
       "no_reduction",
       "provider_failure",
       "provider_overflow",
+      "response_truncated",
       "reservation_unknown",
       "source_reference_invalid",
       "token_estimate_failed",

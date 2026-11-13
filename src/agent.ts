@@ -354,7 +354,14 @@ const faultIsProviderOverflow = (
   faultTolerance.failure?.category === "context_limit" &&
   faultTolerance.failure.contextIssue === "provider_overflow";
 
-const contextProcessingAfterOverflowDuration = (
+const answerFailureCanUseEvidenceBatches = (
+  faultTolerance: FaultToleranceState
+): boolean =>
+  faultTolerance.failure?.category === "context_limit" &&
+  (faultTolerance.failure.contextIssue === "provider_overflow" ||
+    faultTolerance.failure.contextIssue === "response_truncated");
+
+const contextProcessingAfterAnswerFailureDuration = (
   state: AgentStateType,
   requestDurationMs: number
 ): AgentStateType["contextProcessing"] | null => {
@@ -500,20 +507,20 @@ const modelFailureHandler =
       });
     }
 
-    const overflowRecoveryTarget =
-      node === "answer" && faultIsProviderOverflow(faultTolerance)
+    const evidenceRecoveryTarget =
+      node === "answer" && answerFailureCanUseEvidenceBatches(faultTolerance)
         ? answerEvidenceRecoveryTarget(state)
         : null;
 
-    if (overflowRecoveryTarget !== null) {
-      const contextProcessing = contextProcessingAfterOverflowDuration(
+    if (evidenceRecoveryTarget !== null) {
+      const contextProcessing = contextProcessingAfterAnswerFailureDuration(
         state,
         requestDurationMs
       );
 
       if (contextProcessing !== null) {
         return new Command({
-          goto: overflowRecoveryTarget,
+          goto: evidenceRecoveryTarget,
           update: { contextProcessing, faultTolerance },
         });
       }
@@ -532,7 +539,7 @@ const modelFailureHandler =
     );
 
     return new Command({
-      goto: overflowRecoveryTarget ?? "answer_failure",
+      goto: evidenceRecoveryTarget ?? "answer_failure",
       update: {
         ...recoveryFailureUpdate,
         faultTolerance,
