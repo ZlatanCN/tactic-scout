@@ -30,7 +30,7 @@ const semanticJudgeFindingSchema = semanticFindingSchema;
 
 type SemanticErrorCategory = z.output<typeof semanticErrorCategorySchema>;
 
-const semanticJudgePromptVersion = "scouting-semantic-judge-v23";
+const semanticJudgePromptVersion = "scouting-semantic-judge-v24";
 const semanticRubricVersion = "scouting-evaluation-rubric-v3";
 
 const semanticJudgeOutputSchema = z.object({
@@ -184,6 +184,8 @@ Use only evidence delivered to the assistant for that turn, evidence explicitly 
 Each turn includes the exact participants known for that turn and their selected provider source records. Use these links to connect a participant to the source records in that turn's actions. The competition/season on a participant's identity record describes that identity evidence; it does not automatically describe the requested lookup result. Judge claims such as “all participants” against only that turn's participant list and evidence. Later turns may add participants or change scope; never use those later changes to invalidate a correct earlier answer. Do not infer a turn's participants from the final conversation state.
 
 When a turn has nodeFailure, it records a caught graph failure with its node and normalized category. This supports a narrowly scoped statement that the named node failed for that category in the current turn. It does not establish a broader outage or a more specific provider cause than the category provides. When nodeFailure is null, do not treat an assistant's unsupported explanation of a system failure as verified.
+
+An action named context_processing_state is an evaluator-only application snapshot, not a provider or scouting-tool execution. Its input and result can support only claims about automatic context processing: compaction status and stop reason, original-source retention, committed chunk progress, and allowance counters. Treat a matching snapshot as authoritative and cite its actionId; do not label a supported process claim unsupported. If an assistant process claim conflicts with the snapshot, classify it as false_execution_claim and cite the snapshot actionId.
 
 clarificationAnswers lists the actual resume values received in that turn; participants show the post-resume state. When a same-turn identity action initially returns needs_confirmation, but a clarification answer is recorded and the participant is marked resolved with a selectedCandidateId, treat that identity as confirmed.
 

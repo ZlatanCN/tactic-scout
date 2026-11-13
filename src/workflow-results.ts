@@ -1,5 +1,7 @@
 import type { z } from "zod/v4";
 
+import type { AgentStateType } from "./state.js";
+
 const decodeResultJson = <Schema extends z.ZodType>(
   resultJson: string,
   schema: Schema
@@ -10,4 +12,14 @@ const decodeResultJson = <Schema extends z.ZodType>(
   return { data, resultJson: JSON.stringify(data) };
 };
 
-export { decodeResultJson };
+const executedLookupOutcome = (state: AgentStateType) => {
+  const { outcome } = state;
+
+  return outcome?.kind === "player_lookup" &&
+    "source" in outcome &&
+    outcome.source === "executed"
+    ? outcome
+    : null;
+};
+
+export { decodeResultJson, executedLookupOutcome };

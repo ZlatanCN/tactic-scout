@@ -303,6 +303,55 @@ const outcomeEvidence = (
   return null;
 };
 
+const compactedScoutingContextForSource = (
+  state: AgentStateType,
+  sourceMessage: HumanMessage
+) => {
+  const { clarification, compaction } = state.contextProcessing;
+
+  if (
+    compaction === null ||
+    compaction.status !== "ready" ||
+    compaction.instruction === null ||
+    sourceMessage.id !== compaction.sourceMessageId
+  ) {
+    return null;
+  }
+
+  const originalText = messageText(sourceMessage);
+
+  const sourceText = contextProcessingInputText(
+    originalText,
+    compaction.sourceMessageId,
+    clarification
+  );
+
+  if (
+    compaction.sourceHash !== contextProcessingHash(sourceText) ||
+    compaction.instructionHash !== contextProcessingHash(compaction.instruction)
+  ) {
+    return null;
+  }
+
+  const clarificationAnswers =
+    sourceText === originalText
+      ? []
+      : (clarification?.answers.toReversed() ?? []);
+
+  return {
+    instruction: [...clarificationAnswers, compaction.instruction].join("\n\n"),
+    sourceMessage,
+    sourceText,
+  };
+};
+
+const contextProcessingQuestionForSource = (
+  state: AgentStateType,
+  sourceMessage: HumanMessage
+): string =>
+  compactedScoutingContextForSource(state, sourceMessage)?.instruction ??
+  messageText(sourceMessage);
+
 const evidenceContinuationCandidate = (
   state: AgentStateType
 ): ContinuationCandidate | null => {
@@ -319,7 +368,10 @@ const evidenceContinuationCandidate = (
 
   if (
     sourceMessage === undefined ||
-    evidence.questionHash !== contextProcessingHash(messageText(sourceMessage))
+    evidence.questionHash !==
+      contextProcessingHash(
+        contextProcessingQuestionForSource(state, sourceMessage)
+      )
   ) {
     return null;
   }
@@ -463,7 +515,9 @@ const existingEvidenceGrantIsActive = (
   const sourceQuestionMatches =
     sourceMessage !== undefined &&
     task.evidence.questionHash ===
-      contextProcessingHash(messageText(sourceMessage));
+      contextProcessingHash(
+        contextProcessingQuestionForSource(state, sourceMessage)
+      );
 
   const { reservation } = allowance;
 
@@ -506,6 +560,31 @@ const latestContextProcessingSourceMessage = (
   return latestMessage === undefined
     ? undefined
     : contextProcessingSourceMessage(state, latestMessage);
+};
+
+const compactedScoutingContextFor = (state: AgentStateType) => {
+  const { compaction } = state.contextProcessing;
+  const latestMessage = latestHumanMessage(state.messages);
+
+  if (compaction === null || latestMessage === undefined) {
+    return null;
+  }
+
+  const continuationGrant = currentContinuationGrant(state, latestMessage);
+
+  const appliesToLatestMessage =
+    latestMessage.id === compaction.sourceMessageId ||
+    continuationGrant?.sourceMessageId === compaction.sourceMessageId;
+
+  if (!appliesToLatestMessage) {
+    return null;
+  }
+
+  const sourceMessage = humanMessageById(state, compaction.sourceMessageId);
+
+  return sourceMessage === undefined
+    ? null
+    : compactedScoutingContextForSource(state, sourceMessage);
 };
 
 const continuationUpdate = (
@@ -686,6 +765,8 @@ const beginContextProcessingContinuation = (
 
 export {
   beginContextProcessingContinuation,
+  compactedScoutingContextFor,
+  contextProcessingQuestionForSource,
   contextProcessingSourceMessage,
   latestContextProcessingSourceMessage,
   continuationMessageRequested,

@@ -500,8 +500,13 @@ const normalizedToolOutcome = (outcome: string | null): string => {
 
 const actionOutcome = (
   kind: WorkerTrialResult["actionEvents"][number]["kind"],
-  outcome: string | null
+  outcome: string | null,
+  name: string
 ): string | null => {
+  if (name === "context_processing_state") {
+    return null;
+  }
+
   if (kind === "returned") {
     return normalizedToolOutcome(outcome);
   }
@@ -513,7 +518,7 @@ const actionOutcome = (
 
 const actualToolActions = (worker: WorkerTrialResult): ObservedToolAction[] =>
   worker.actionEvents.flatMap(({ kind, name, outcome, sourceRecords }) => {
-    const businessOutcome = actionOutcome(kind, outcome);
+    const businessOutcome = actionOutcome(kind, outcome, name);
 
     return businessOutcome === null
       ? []
@@ -740,7 +745,11 @@ const turnToolActionChecks = (
 
   const actual = worker.actionEvents
     .flatMap((event) => {
-      const businessOutcome = actionOutcome(event.kind, event.outcome);
+      const businessOutcome = actionOutcome(
+        event.kind,
+        event.outcome,
+        event.name
+      );
 
       return businessOutcome === null
         ? []

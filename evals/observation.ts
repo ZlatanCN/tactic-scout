@@ -5,6 +5,10 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import { z } from "zod/v4";
 
+import {
+  contextProcessingHash,
+  contextProcessingInputText,
+} from "../src/context-processing-state.js";
 import type { ReferenceLookupResult } from "../src/player-data/contracts.js";
 import type { AgentStateType } from "../src/state.js";
 import { deliveredEvidenceProjectionSchema } from "./contracts.js";
@@ -532,6 +536,93 @@ const effectiveConditionsForState = (
   }
 
   return null;
+};
+
+const contextProcessingSnapshotForTurn = (
+  turn: EvaluationWorkerRequest["turns"][number],
+  state: AgentStateType
+) => {
+  const { compaction } = state.contextProcessing;
+
+  if (compaction === null) {
+    return null;
+  }
+
+  const currentUserMessage = state.messages.findLast(
+    (message) =>
+      message instanceof HumanMessage &&
+      contentString(message.content) === turn.userMessage
+  );
+
+  if (currentUserMessage === undefined) {
+    return null;
+  }
+
+  const { allowance } = state.contextProcessing;
+  const isSourceTurn = currentUserMessage.id === compaction.sourceMessageId;
+
+  const isGrantedContinuation =
+    allowance?.grants.some(
+      ({ continuationMessageId }) =>
+        continuationMessageId === currentUserMessage.id
+    ) ?? false;
+
+  if (!isSourceTurn && !isGrantedContinuation) {
+    return null;
+  }
+
+  const sourceMessage = state.messages.find(
+    (message) =>
+      message instanceof HumanMessage &&
+      message.id === compaction.sourceMessageId
+  );
+
+  const sourceText =
+    sourceMessage === undefined
+      ? null
+      : contextProcessingInputText(
+          contentString(sourceMessage.content),
+          compaction.sourceMessageId,
+          state.contextProcessing.clarification
+        );
+
+  const originalSourceRetained =
+    sourceText !== null &&
+    contextProcessingHash(sourceText) === compaction.sourceHash;
+
+  const { chunking } = compaction;
+
+  return {
+    allowance:
+      allowance === null
+        ? null
+        : {
+            consumedActiveTimeMs: allowance.consumedActiveTimeMs,
+            consumedAdditionalCalls: allowance.consumedAdditionalCalls,
+            maxActiveTimeMs: allowance.maxActiveTimeMs,
+            maxAdditionalCalls: allowance.maxAdditionalCalls,
+          },
+    compaction: {
+      chunking:
+        chunking === null
+          ? null
+          : {
+              completedChunkCount: chunking.chunks.filter(
+                ({ status }) => status === "ready"
+              ).length,
+              mergeStatus: chunking.mergeStatus,
+              nextStart: chunking.nextStart,
+              plannedChunkCount: chunking.chunks.length,
+              sourceLength: chunking.sourceLength,
+            },
+      originalSourceRetained,
+      progress: compaction.progress,
+      sourceLength: sourceText?.length ?? null,
+      sourceMessageId: compaction.sourceMessageId,
+      status: compaction.status,
+      stopReason: compaction.stopReason,
+    },
+  };
 };
 
 const availableResultKindsForState = (
@@ -1161,6 +1252,31 @@ const createEvaluationObserver = (
     const renderedEvidenceIds = [
       ...(renderedByTurn.get(turn.turnId) ?? new Set()),
     ];
+
+    const contextProcessingSnapshot = contextProcessingSnapshotForTurn(
+      turn,
+      state
+    );
+
+    if (contextProcessingSnapshot !== null) {
+      const actionId = nextActionId();
+
+      appendActionEvent({
+        actionId,
+        durationMs: null,
+        eventId: `${actionId}:snapshot`,
+        input: contextProcessingSnapshot,
+        kind: "returned",
+        name: "context_processing_state",
+        outcome:
+          contextProcessingSnapshot.compaction.stopReason ??
+          contextProcessingSnapshot.compaction.status,
+        result: JSON.stringify(contextProcessingSnapshot),
+        sourceRecords: [],
+        toolCallId: null,
+        turnId: turn.turnId,
+      });
+    }
 
     turnObservations.push({
       assistantMessages,

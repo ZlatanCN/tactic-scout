@@ -19,13 +19,11 @@ import {
   comparisonEvidenceAnswerText,
 } from "../comparison-evidence.js";
 import {
+  compactedScoutingContextFor,
   contextProcessingSourceMessage,
   latestContextProcessingSourceMessage,
 } from "../context-processing-continuation.js";
-import {
-  contextProcessingHash,
-  contextProcessingInputText,
-} from "../context-processing-state.js";
+import { allEvidenceBatchAnswersAreReady } from "../evidence-batch-planning.js";
 import { scoutingEvidenceProjections } from "../lookup-evidence.js";
 import { invokeWithModelContext } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
@@ -60,6 +58,7 @@ import type {
   RequestPlayerState,
 } from "../state.js";
 import { teamRecommendationBatchIsComplete } from "../team-recommendation-evidence.js";
+import { executedLookupOutcome } from "../workflow-results.js";
 import { comparisonEvidenceMatchesCurrentOutcome } from "./comparison-evidence.js";
 import { lookupEvidenceMatchesCurrentOutcome } from "./lookup-evidence.js";
 import {
@@ -182,16 +181,7 @@ const lookupToolMessagesForModel = (
 
 const messagesForLookupModel = (state: AgentStateType) => {
   const latestMessage = latestHumanMessage(state.messages);
-
-  const sourceMessage =
-    latestMessage === undefined
-      ? undefined
-      : contextProcessingSourceMessage(state, latestMessage);
-
-  const messages =
-    sourceMessage === undefined || sourceMessage === latestMessage
-      ? messagesInCurrentTurn(state.messages)
-      : [sourceMessage];
+  const currentTurnMessages = messagesInCurrentTurn(state.messages);
 
   const recovery = state.providerOverflowRecovery;
 
@@ -202,61 +192,47 @@ const messagesForLookupModel = (state: AgentStateType) => {
       ? 1
       : undefined;
 
+  const compactedContext = compactedScoutingContextFor(state);
+
+  if (compactedContext !== null) {
+    const { sourceMessage } = compactedContext;
+
+    const workingMessage = new HumanMessage({
+      additional_kwargs: sourceMessage.additional_kwargs,
+      content: compactedContext.instruction,
+      id: sourceMessage.id,
+      name: sourceMessage.name,
+      response_metadata: sourceMessage.response_metadata,
+    });
+
+    const messages = currentTurnMessages.includes(sourceMessage)
+      ? currentTurnMessages.map((message) =>
+          message === sourceMessage ? workingMessage : message
+        )
+      : [workingMessage, ...currentTurnMessages];
+
+    return lookupToolMessagesForModel(
+      messages,
+      compactedContext.sourceText,
+      recordsPerBatch
+    );
+  }
+
+  const sourceMessage =
+    latestMessage === undefined
+      ? undefined
+      : contextProcessingSourceMessage(state, latestMessage);
+
   if (sourceMessage === undefined) {
-    return messages;
+    return currentTurnMessages;
   }
 
-  const question = messageText(sourceMessage);
-  const { compaction } = state.contextProcessing;
-
-  if (
-    compaction === null ||
-    compaction.status !== "ready" ||
-    compaction.instruction === null
-  ) {
-    return lookupToolMessagesForModel(messages, question, recordsPerBatch);
-  }
-
-  const sourceMessageId = sourceMessage.id ?? compaction.sourceMessageId;
-  const originalText = messageText(sourceMessage);
-
-  const sourceText = contextProcessingInputText(
-    originalText,
-    sourceMessageId,
-    state.contextProcessing.clarification
-  );
-
-  if (
-    compaction.sourceMessageId !== sourceMessageId ||
-    compaction.sourceHash !== contextProcessingHash(sourceText) ||
-    compaction.instructionHash !== contextProcessingHash(compaction.instruction)
-  ) {
-    return lookupToolMessagesForModel(messages, question, recordsPerBatch);
-  }
-
-  const clarificationAnswers =
-    sourceText === originalText
-      ? []
-      : (state.contextProcessing.clarification?.answers.toReversed() ?? []);
-
-  const compactedInstructionWithClarifications = [
-    ...clarificationAnswers,
-    compaction.instruction,
-  ].join("\n\n");
-
-  const workingMessage = new HumanMessage({
-    additional_kwargs: sourceMessage.additional_kwargs,
-    content: compactedInstructionWithClarifications,
-    id: sourceMessage.id,
-    name: sourceMessage.name,
-    response_metadata: sourceMessage.response_metadata,
-  });
+  const messages =
+    sourceMessage === latestMessage ? currentTurnMessages : [sourceMessage];
 
   return lookupToolMessagesForModel(
-    messages.map((message) =>
-      message === sourceMessage ? workingMessage : message
-    ),
-    sourceText,
+    messages,
+    messageText(sourceMessage),
     recordsPerBatch
   );
 };
@@ -321,16 +297,6 @@ const requiredLookupToolCall = (
       },
     ],
   });
-};
-
-const executedLookupOutcome = (state: AgentStateType) => {
-  const { outcome } = state;
-
-  return outcome?.kind === "player_lookup" &&
-    "source" in outcome &&
-    outcome.source === "executed"
-    ? outcome
-    : null;
 };
 
 const lookupSearchIsRequired = (input: {
@@ -1141,6 +1107,28 @@ const completedLookupEvidenceAnswer = (
   return null;
 };
 
+const completedLookupAnswerUpdate = (
+  state: AgentStateType,
+  answer: BaseMessage
+): Partial<AgentStateType> => {
+  const outcome = executedLookupOutcome(state);
+  const evidence = state.lookupEvidence;
+
+  const explanationIsComplete =
+    evidence?.status === "complete" &&
+    evidence.batches.length > 0 &&
+    allEvidenceBatchAnswersAreReady(evidence.batches);
+
+  if (outcome === null || !explanationIsComplete) {
+    return { messages: [answer] };
+  }
+
+  return {
+    messages: [answer],
+    outcome: { ...outcome, status: "answer_ready" },
+  };
+};
+
 const completedComparisonEvidenceAnswer = (
   state: AgentStateType,
   model: BaseChatModel,
@@ -1421,7 +1409,7 @@ const createAnswerNode = (
       const evidenceAnswer = completedLookupEvidenceAnswer(state);
 
       if (evidenceAnswer !== null) {
-        return { messages: [evidenceAnswer] };
+        return completedLookupAnswerUpdate(state, evidenceAnswer);
       }
 
       if (

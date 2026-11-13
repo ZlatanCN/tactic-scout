@@ -5,7 +5,9 @@ import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
 import {
+  compactedScoutingContextFor,
   currentContinuationGrant,
+  contextProcessingQuestionForSource,
   latestContextProcessingSourceMessage,
 } from "../context-processing-continuation.js";
 import type {
@@ -18,6 +20,7 @@ import {
   contextProcessingHash,
   defaultContextProcessingAllowance,
 } from "../context-processing-state.js";
+import { allEvidenceBatchAnswersAreReady } from "../evidence-batch-planning.js";
 import { maxExternalRequests } from "../fault-tolerance.js";
 import {
   assessModelRequest,
@@ -27,7 +30,7 @@ import {
 import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import type { ModelRequestBudget, ModelRuntime } from "../model-requests.js";
-import { latestHumanMessage, messageText } from "../player-mentions.js";
+import { latestHumanMessage } from "../player-mentions.js";
 import type {
   AgentState,
   AgentStateType,
@@ -252,6 +255,23 @@ const evidenceMatchesRequest = (
   return mismatches.every((mismatch) => !mismatch);
 };
 
+const evidenceQuestionForState = (
+  state: AgentStateType
+): { question: string; sourceMessage: HumanMessage } | null => {
+  const compactedContext = compactedScoutingContextFor(state);
+
+  const sourceMessage =
+    compactedContext?.sourceMessage ??
+    latestContextProcessingSourceMessage(state);
+
+  return sourceMessage === undefined
+    ? null
+    : {
+        question: contextProcessingQuestionForSource(state, sourceMessage),
+        sourceMessage,
+      };
+};
+
 const answerEvidenceRecoveryIsPending = (state: AgentStateType): boolean =>
   state.faultTolerance.failure?.node === "answer" &&
   state.faultTolerance.failure.category === "context_limit" &&
@@ -470,9 +490,7 @@ const reserveNextEvidenceBatch = (
   );
 
   if (batchIndex === -1) {
-    const allBatchesReady = evidence.batches.every(
-      ({ answer, status }) => status === "ready" && answer !== null
-    );
+    const allBatchesReady = allEvidenceBatchAnswersAreReady(evidence.batches);
 
     const complete =
       allBatchesReady && (workflow.complete?.(evidence, task) ?? true);
@@ -737,13 +755,13 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
     ): GraphNode<typeof AgentState> =>
     async (state) => {
       const result = workflow.getResult(state);
-      const sourceMessage = latestContextProcessingSourceMessage(state);
+      const evidenceQuestion = evidenceQuestionForState(state);
 
-      if (result === null || sourceMessage === undefined) {
+      if (result === null || evidenceQuestion === null) {
         return {};
       }
 
-      const question = messageText(sourceMessage);
+      const { question, sourceMessage } = evidenceQuestion;
 
       const task: EvidenceTask = {
         question,
@@ -895,9 +913,9 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
         return {};
       }
 
-      const sourceMessage = latestContextProcessingSourceMessage(state);
+      const evidenceQuestion = evidenceQuestionForState(state);
 
-      if (sourceMessage === undefined) {
+      if (evidenceQuestion === null) {
         return {};
       }
 
@@ -920,7 +938,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
       };
 
       const task: EvidenceTask = {
-        question: messageText(sourceMessage),
+        question: evidenceQuestion.question,
         resultJson: workflow.getResult(state)?.resultJson ?? "",
         source: evidence.source,
       };
@@ -1009,13 +1027,13 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
 
   const matchesCurrentOutcome = (state: AgentStateType): boolean => {
     const result = workflow.getResult(state);
-    const sourceMessage = latestContextProcessingSourceMessage(state);
+    const evidenceQuestion = evidenceQuestionForState(state);
 
-    if (result === null || sourceMessage === undefined) {
+    if (result === null || evidenceQuestion === null) {
       return false;
     }
 
-    const question = messageText(sourceMessage);
+    const { question, sourceMessage } = evidenceQuestion;
     const identity = requestIdentityForEvidence(state, sourceMessage, question);
 
     const hashes = requestHashesForEvidence(workflow, identity, {

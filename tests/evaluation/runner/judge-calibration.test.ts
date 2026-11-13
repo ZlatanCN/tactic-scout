@@ -115,7 +115,7 @@ describe("semantic judge calibration", () => {
         responsesWithUsage: 32,
       },
       judgeEnabled: true,
-      judgePromptVersion: "scouting-semantic-judge-v23",
+      judgePromptVersion: "scouting-semantic-judge-v24",
       judgeRequests: 1,
       modelRequests: requestCount,
       requestCount,

@@ -28,3 +28,4 @@ Parent: [运行时上下文管理](../spec.md)
 - 2026-11-08：用户确认拆分粒度和依赖（“合适了”），按批准的提案发布；尚未认领或实施。
 - 2026-11-10：实现完成。Lookup 结果现按不超过两条记录组织 evidence batches；完整快照、digest、来源范围和批次进度写入 thread State，共用 03 的 durable allowance 与 reservation。已保存追问和多批次执行结果不重查 provider；工具模型输入保留 AI tool call / ToolMessage 配对及 `tool_call_id`，并只发送当前投影。额度耗尽或解释失败时返回完整已验证结果和来源，并标明解释未完成。Evaluation collector 现在分别记录模型收到的批次证据与程序渲染的完整结果。
 - 2026-11-10：验证通过：类型检查、Ultracite、lookup 投影 / 多批次 / 缺失状态 / 额度耗尽全图用例、managed Dev Server 重启与 reservation 恢复、evaluation runner 文件（45/45）、以及最终全量测试（463/463）。新额度的明确继续与跨请求续接仍由票据 [11](11-continue-exhausted-context-processing.md) 负责。
+- 2026-11-14 follow-up：compiled lookup graph 在同轮收到与成功搜索完全相同的 tool call 时复用已有结果，不重查 provider，并追加按新 `tool_call_id` 配对的 `ToolMessage`；非重复请求仍通过既有三次搜索 guard。Evidence prepare、batch answer 与当前结果验证均使用 source hash 匹配的 compacted scouting instruction，避免“继续”轮重新注入超长原文。完整长指令续接语义 smoke `4eedfbd9-4896-4142-bb86-797c31b26e31` 通过，所有来源 / 赛季 / 必需事实检查通过；最终全量测试 146 文件 / 544 用例通过。

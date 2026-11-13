@@ -1,6 +1,13 @@
 import { z } from "zod/v4";
 
+import type { LookupEvidenceBatch } from "./context-processing-state.js";
+
 type EvidenceBatchPlanEntry = { size: number };
+
+const allEvidenceBatchAnswersAreReady = (
+  batches: readonly Pick<LookupEvidenceBatch, "answer" | "status">[]
+): boolean =>
+  batches.every(({ answer, status }) => status === "ready" && answer !== null);
 
 const splitEvidenceBatchPlan = <Batch extends EvidenceBatchPlanEntry>(
   batches: readonly Batch[],
@@ -71,6 +78,7 @@ const evidenceBatchReferenceCount = (
 };
 
 export {
+  allEvidenceBatchAnswersAreReady,
   evidenceBatchReferenceCount,
   splitEvidenceBatchPlan,
   splitEvidenceBatchProjections,

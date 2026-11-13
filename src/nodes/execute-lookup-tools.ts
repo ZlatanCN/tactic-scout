@@ -8,6 +8,7 @@ import {
   lookupToolCallExecutionKey,
   lookupToolCallId,
 } from "../lookup-tool-call-id.js";
+import { reusableLookupToolMessagesFor } from "../lookup-tool-results.js";
 import type { AgentState } from "../state.js";
 
 const toolNodeResultSchema = z.object({
@@ -118,4 +119,23 @@ const createExecuteLookupToolsNode = (
   };
 };
 
-export { createExecuteLookupToolsNode };
+const createReuseCompletedLookupToolsNode =
+  (): GraphNode<typeof AgentState> => (state) => {
+    const lastMessage = state.messages.at(-1);
+
+    if (!(lastMessage instanceof AIMessage)) {
+      throw new TypeError(
+        "lookup result reuse requires the model's tool-call message."
+      );
+    }
+
+    const messages = reusableLookupToolMessagesFor(state, lastMessage);
+
+    if (messages === null) {
+      throw new Error("The requested lookup result is not available to reuse.");
+    }
+
+    return { messages };
+  };
+
+export { createExecuteLookupToolsNode, createReuseCompletedLookupToolsNode };

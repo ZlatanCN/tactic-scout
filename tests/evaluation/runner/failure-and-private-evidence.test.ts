@@ -178,7 +178,7 @@ describe("evaluation failure handling and prepared private evidence", () => {
     expect(trial?.observation.error).toBeUndefined();
   }, 15_000);
 
-  it("distinguishes a requested but guard-blocked lookup from completed searches", async () => {
+  it("reuses a successful search result when the model repeats the same request", async () => {
     let requestCount = 0;
 
     const gateway = createServer((request, response) => {
@@ -241,13 +241,13 @@ describe("evaluation failure handling and prepared private evidence", () => {
         ({ status }) => status
       ),
     }).toStrictEqual({
-      attempted: 3,
-      blocked: 1,
-      modelRequests: 5,
-      requestCount: 5,
-      requested: 4,
-      returned: 3,
-      toolMessageStatuses: ["success", "success", "success", "error"],
+      attempted: 1,
+      blocked: 0,
+      modelRequests: 4,
+      requestCount: 4,
+      requested: 2,
+      returned: 1,
+      toolMessageStatuses: ["success", "success"],
     });
   }, 15_000);
 

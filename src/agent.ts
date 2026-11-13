@@ -32,6 +32,7 @@ import {
   apiTimeoutMs,
 } from "./fault-tolerance.js";
 import { scoutingEvidenceProjections } from "./lookup-evidence.js";
+import { lookupCallsCanReuseCompletedResults } from "./lookup-tool-results.js";
 import {
   modelContextFailure,
   modelContextRequestAttemptsUsed,
@@ -51,7 +52,10 @@ import { createCommitLookupResultsNode } from "./nodes/commit-lookup.js";
 import { createComparePlayersNode } from "./nodes/compare-players.js";
 import { createComparisonEvidenceNodes } from "./nodes/comparison-evidence.js";
 import { createEntityResolutionNode } from "./nodes/entity-resolution.js";
-import { createExecuteLookupToolsNode } from "./nodes/execute-lookup-tools.js";
+import {
+  createExecuteLookupToolsNode,
+  createReuseCompletedLookupToolsNode,
+} from "./nodes/execute-lookup-tools.js";
 import { createFetchTeamRosterNode } from "./nodes/fetch-team-roster.js";
 import { createGuardLookupSearchNode } from "./nodes/guard-lookup-search.js";
 import { createClarifyNode } from "./nodes/identity-clarification.js";
@@ -118,6 +122,7 @@ import { resolveTeamRosterIdentity } from "./team-data/roster-identity.js";
 import type { TeamRosterIdentityLookup } from "./team-data/roster-identity.js";
 import { createTools } from "./tools/search-player-records.js";
 import { previousTurnSummary } from "./workflow-continuation.js";
+import { executedLookupOutcome } from "./workflow-results.js";
 
 type CreateAgentOptions = {
   compactionModel?: BaseChatModel;
@@ -933,6 +938,13 @@ const routeLookupResponse = (state: AgentStateType): string => {
     lastMessage instanceof AIMessage &&
     (lastMessage.tool_calls ?? []).length > 0
   ) {
+    if (
+      executedLookupOutcome(state) !== null &&
+      lookupCallsCanReuseCompletedResults(state, lastMessage)
+    ) {
+      return "reuse_lookup_tools";
+    }
+
     return "lookup_tools_guard";
   }
 
@@ -1264,6 +1276,7 @@ const createAgent = (options: CreateAgentOptions = {}) => {
       }
     )
     .addNode("lookup_tools_guard", createGuardLookupSearchNode())
+    .addNode("reuse_lookup_tools", createReuseCompletedLookupToolsNode())
     .addNode("lookup_tools", boundedLookupTools)
     .addNode("commit_lookup", createCommitLookupResultsNode())
     .addNode("compare_players", comparePlayers)
@@ -1431,9 +1444,11 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     ])
     .addConditionalEdges("lookup_player", routeLookupResponse, [
       "lookup_tools_guard",
+      "reuse_lookup_tools",
       "answer",
       "prepare_lookup_evidence",
     ])
+    .addEdge("reuse_lookup_tools", "prepare_lookup_evidence")
     .addEdge("lookup_tools_guard", "lookup_tools")
     .addEdge("lookup_tools", "commit_lookup")
     .addConditionalEdges(
