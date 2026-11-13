@@ -65,6 +65,22 @@ const ContextProcessingReservationSchema = z.object({
 const ContextProcessingAllowanceSchema = z.object({
   consumedActiveTimeMs: z.number().int().nonnegative(),
   consumedAdditionalCalls: z.number().int().nonnegative(),
+  grants: z
+    .array(
+      z.object({
+        additionalActiveTimeMs: z.number().int().positive(),
+        additionalCalls: z.number().int().positive(),
+        continuationMessageId: z.string().min(1),
+        kind: z.enum([
+          "text_compaction",
+          ...contextProcessingEvidenceOperations,
+        ]),
+        requestId: z.string().min(1),
+        sourceHash: z.string().min(1),
+        sourceMessageId: z.string().min(1),
+      })
+    )
+    .default([]),
   maxActiveTimeMs: z.number().int().positive(),
   maxAdditionalCalls: z.number().int().positive(),
   requestId: z.string().min(1),
@@ -228,6 +244,8 @@ type ContextProcessingAllowance = z.infer<
   typeof ContextProcessingAllowanceSchema
 >;
 
+type ContextProcessingGrant = ContextProcessingAllowance["grants"][number];
+
 type ContextProcessingChunk = z.infer<typeof ContextProcessingChunkSchema>;
 
 type ContextProcessingChunking = z.infer<
@@ -322,6 +340,7 @@ export type {
   ContextProcessing,
   ContextProcessingAllowanceConfiguration,
   ContextProcessingEvidenceOperation,
+  ContextProcessingGrant,
   EvidenceBatch,
   ContextProcessingAllowance,
   ContextProcessingAnchor,

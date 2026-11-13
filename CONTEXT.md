@@ -50,6 +50,8 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Context-processing clarification**: A user's answer that resolves an ambiguity or conflict in an oversized scouting instruction. It clarifies the request only and does not confirm player identity.
 
+**Context-processing continuation grant**: A bounded allowance increase for the same persisted request after its context-processing budget is exhausted. It is keyed by the explicit continuation message ID, preserves prior consumption and completed work, and remains tied to the original source message.
+
 **Canonical player identity**: A Reep ID linked to one or more provider-specific player IDs. Search results may be grouped across providers only when the identity registry resolves both provider IDs to the same canonical Reep ID. Matching names alone never establish identity.
 
 **Conversation player focus**: The resolved focal player or players from the latest successful single-player data lookup in one thread. Identity resolution alone does not replace the focus. A later pronoun may refer to this prior-turn focus; an explicit player named as a comparison target in the current turn does not replace it.

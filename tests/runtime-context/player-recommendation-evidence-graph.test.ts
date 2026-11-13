@@ -9,101 +9,14 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 
 import { assessModelRequest } from "../../src/model-context.js";
-import {
-  AgentState,
-  agentStateSchemaVersion,
-  createInitialConversationContext,
-  createInitialRequestState,
-} from "../../src/state.js";
 import { agentGraphTest } from "../fixtures/agent-graph.js";
 import { testModelOutputLimitAdapter } from "../fixtures/model-context.js";
-import { recommendationResultData } from "../fixtures/workflow-results.js";
-
-const candidate = (list: string, index: number) => ({
-  age: 19 + (index % 10),
-  attributes: [],
-  currentAbility: 110 + index,
-  currentDistance: Number((index / 10).toFixed(2)),
-  fmId: `fm-${list}-${String(index + 1).padStart(2, "0")}`,
-  name: `${list} Candidate ${String(index + 1).padStart(2, "0")}`,
-  positionRating: 15 + (index % 6),
-  potentialAbility: 150 + index,
-  rank: index + 1,
-  sourceRecordId: `source-${list}-${String(index + 1).padStart(2, "0")}`,
-});
-
-const resultJson = JSON.stringify(
-  recommendationResultData("ready", "stc", {
-    currentCandidates: Array.from({ length: 20 }, (_unused, index) =>
-      candidate("current", index)
-    ),
-    filterCounts: {
-      afterAge: 40,
-      afterCurrentAbility: 35,
-      afterIdentityExclusion: 30,
-      afterPotentialAbility: 25,
-      currentAttributeComplete: 45,
-      eligiblePositionProfiles: 50,
-      excludedMissingAttribute: 5,
-      excludedMissingFmIdCandidates: 0,
-      excludedMissingPotentialForPotentialList: 3,
-    },
-    filters: {
-      includePotential: true,
-      maxAge: 25,
-      minimumCurrentAbility: null,
-      minimumPotentialAbility: 150,
-      resultLimit: 20,
-    },
-    potentialCandidates: Array.from({ length: 20 }, (_unused, index) =>
-      candidate("potential", index)
-    ),
-  })
-);
-
-const savedRecommendationState = () => {
-  const reference = agentGraphTest.playerCandidate(
-    "Synthetic Reference",
-    "reference"
-  );
-
-  const message = new HumanMessage({
-    content: "Explain the saved two-list player recommendation.",
-    id: "saved-two-list-recommendation",
-  });
-
-  return AgentState.parse({
-    conversationContext: {
-      ...createInitialConversationContext(),
-      activeRecommendation: {
-        excludePlayers: [],
-        includePotential: true,
-        maxAge: 25,
-        minimumCurrentAbility: null,
-        minimumPotentialAbility: 150,
-        position: "stc",
-        referencePlayers: [
-          agentGraphTest.conversationReferenceFromCandidate(reference),
-        ],
-        resultJson,
-        resultLimit: 20,
-        status: "ready",
-      },
-    },
-    messages: [message],
-    outcome: {
-      kind: "player_recommendation",
-      resultJson,
-      source: "saved",
-      status: "ready",
-    },
-    request: {
-      ...createInitialRequestState(),
-      processedMessageId: message.id,
-    },
-    stateSchemaVersion: agentStateSchemaVersion,
-  });
-};
+import {
+  playerRecommendationCandidate,
+  playerRecommendationResultJson as resultJson,
+  recommendationBatchAnswer,
+  savedRecommendationState,
+} from "../fixtures/player-recommendation-evidence-graph.js";
 
 describe("player recommendation evidence delivery through the full graph", () => {
   it("explains both complete ranked lists in bounded batches without reranking", async () => {
@@ -120,46 +33,7 @@ describe("player recommendation evidence delivery through the full graph", () =>
     const dynamicModelResponse = (messages: BaseMessage[]) => {
       modelInputs.push(messages);
 
-      const humanMessage = messages.find(
-        (message) => message instanceof HumanMessage
-      );
-
-      const content = z.string().parse(humanMessage?.content);
-      const marker = "Player recommendation evidence projection JSON:\n";
-      const markerIndex = content.indexOf(marker);
-
-      if (markerIndex === -1) {
-        throw new Error(
-          "The graph must send a bounded recommendation projection."
-        );
-      }
-
-      const projection = z
-        .object({
-          selectedCandidates: z.array(z.record(z.string(), z.unknown())),
-        })
-        .parse(JSON.parse(content.slice(markerIndex + marker.length)));
-
-      const answer = projection.selectedCandidates
-        .map((selected) => {
-          const values = z
-            .object({
-              age: z.number().nullable(),
-              currentAbility: z.number().nullable(),
-              currentDistance: z.number(),
-              fmId: z.string(),
-              name: z.string(),
-              positionRating: z.number(),
-              potentialAbility: z.number().nullable(),
-              rank: z.number(),
-            })
-            .parse(selected);
-
-          return `${values.rank}. ${values.name} (FM ID ${values.fmId}; age ${values.age}; position rating ${values.positionRating}; CA ${values.currentAbility}; PA ${values.potentialAbility}; currentDistance ${values.currentDistance})`;
-        })
-        .join("\n");
-
-      return new AIMessage(answer);
+      return recommendationBatchAnswer(messages);
     };
 
     const model = Object.assign(
@@ -271,10 +145,10 @@ describe("player recommendation evidence delivery through the full graph", () =>
         (result.contextProcessing.allowance?.consumedAdditionalCalls ?? 7) <= 6,
       allCandidatesDelivered: [
         ...Array.from({ length: 20 }, (_unused, index) =>
-          candidate("current", index)
+          playerRecommendationCandidate("current", index)
         ),
         ...Array.from({ length: 20 }, (_unused, index) =>
-          candidate("potential", index)
+          playerRecommendationCandidate("potential", index)
         ),
       ].every(
         ({
@@ -379,10 +253,10 @@ describe("player recommendation evidence delivery through the full graph", () =>
 
     const everyCandidate = [
       ...Array.from({ length: 20 }, (_unused, index) =>
-        candidate("current", index)
+        playerRecommendationCandidate("current", index)
       ),
       ...Array.from({ length: 20 }, (_unused, index) =>
-        candidate("potential", index)
+        playerRecommendationCandidate("potential", index)
       ),
     ];
 

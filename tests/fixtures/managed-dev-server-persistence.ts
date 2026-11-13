@@ -6,7 +6,7 @@ import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { expect } from "vitest";
 import { z } from "zod/v4";
 
-import type { AgentState } from "../../src/state.js";
+import { AgentState } from "../../src/state.js";
 import { teamRecommendationResultSchema } from "../../src/team-data/recommendation-result.js";
 import {
   apiThreadSchema,
@@ -60,6 +60,16 @@ const createAgentThread = async (baseUrl: string) =>
 
 const getAgentThreadState = async (baseUrl: string, threadId: string) =>
   await requestJson(baseUrl, `/threads/${threadId}/state`, threadStateSchema);
+
+const getParsedAgentThreadState = async (baseUrl: string, threadId: string) => {
+  const response = await requestJson(
+    baseUrl,
+    `/threads/${threadId}/state`,
+    z.looseObject({ values: z.unknown().optional() })
+  );
+
+  return AgentState.parse(response.values);
+};
 
 const latestAssistantText = (state: ThreadState) => {
   const message = state.values.messages
@@ -738,6 +748,7 @@ const managedDevServerTest = {
   createAgentThread,
   expectedRosterRecommendationFacts,
   getAgentThreadState,
+  getParsedAgentThreadState,
   latestAssistantText,
   memoryForgetOptionLabel,
   providerAndModelCallCountsAreUnchanged,

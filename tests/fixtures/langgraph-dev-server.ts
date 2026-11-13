@@ -14,6 +14,7 @@ import { z } from "zod/v4";
 import { contextProcessingOperationNames } from "../../src/context-processing-state.js";
 import type { PlayerMemoryManagementExtraction } from "../../src/request-extraction.js";
 import type { RequestKind } from "../../src/state.js";
+import { recommendationEvidenceAnswerText } from "./recommendation-evidence-answer.js";
 
 const fixtureKaneName = "Harry Kane";
 const fixtureHaalandName = "Erling Haaland";
@@ -82,6 +83,25 @@ const threadStateSchema = z.looseObject({
           .object({
             consumedActiveTimeMs: z.number(),
             consumedAdditionalCalls: z.number(),
+            grants: z
+              .array(
+                z.object({
+                  additionalActiveTimeMs: z.number(),
+                  additionalCalls: z.number(),
+                  continuationMessageId: z.string(),
+                  kind: z.enum([
+                    "text_compaction",
+                    "explain_lookup_evidence",
+                    "explain_comparison_evidence",
+                    "explain_player_recommendation_evidence",
+                    "explain_team_recommendation_evidence",
+                  ]),
+                  requestId: z.string(),
+                  sourceHash: z.string(),
+                  sourceMessageId: z.string(),
+                })
+              )
+              .default([]),
             maxActiveTimeMs: z.number(),
             maxAdditionalCalls: z.number(),
             requestId: z.string(),
@@ -257,8 +277,13 @@ const threadStateSchema = z.looseObject({
         .optional(),
       recommendation: z
         .object({
+          includePotential: z.boolean(),
           maxAge: z.number().nullable(),
+          minimumCurrentAbility: z.number().nullable(),
+          minimumPotentialAbility: z.number().nullable(),
           needsAgeClarification: z.boolean(),
+          position: z.string().nullable(),
+          resultLimit: z.number().nullable(),
         })
         .optional(),
       teamRecommendation: z
@@ -844,6 +869,33 @@ const compactionMergeArgumentsForFixtureText = (
 const currentMessageSchema = z.object({ currentMessage: z.string() });
 const auxiliaryMessageSchema = z.object({ message: z.string() });
 
+const textContentBlockSchema = z.array(
+  z.looseObject({ text: z.string(), type: z.literal("text") })
+);
+
+const chatMessageContentSchema = z.union([
+  z.string().transform((value) => ({ kind: "text" as const, value })),
+  textContentBlockSchema.transform((value) => ({
+    kind: "blocks" as const,
+    value,
+  })),
+]);
+
+const modelAnswerForFixture = (content: string): string => {
+  const marker = "Player recommendation evidence projection JSON:\n";
+  const markerIndex = content.indexOf(marker);
+
+  if (markerIndex === -1) {
+    return savedScoutingContextAnswer;
+  }
+
+  return (
+    recommendationEvidenceAnswerText(
+      content.slice(markerIndex + marker.length)
+    ) ?? savedScoutingContextAnswer
+  );
+};
+
 const currentUserText = (messageText: string): string => {
   try {
     const prompt = currentMessageSchema.safeParse(JSON.parse(messageText));
@@ -860,6 +912,16 @@ const currentUserText = (messageText: string): string => {
   } catch {
     return messageText;
   }
+};
+
+const currentUserTextFromContent = (
+  content: z.output<typeof chatMessageContentSchema>
+): string => {
+  if (content.kind === "text") {
+    return currentUserText(content.value);
+  }
+
+  return currentUserText(content.value.map(({ text }) => text).join(""));
 };
 
 const structuredArgumentsForTool = (
@@ -1039,6 +1101,7 @@ const nextRosterMemoryFetchCount = (
     : currentCount;
 
 type StructuredFixtureResponse = {
+  answer?: string;
   callId: string | null;
   extractionArguments: StructuredFixtureArguments | null;
   extractionTool: string | undefined;
@@ -1067,7 +1130,7 @@ const sendNonStreamingCompletion = (
         ],
       }
     : {
-        content: savedScoutingContextAnswer,
+        content: fixtureResponse.answer ?? savedScoutingContextAnswer,
         role: "assistant",
       };
 
@@ -1321,17 +1384,17 @@ const startGateway = async (): Promise<LocalGateway> => {
             .find((message) => message.role === "user")
         : undefined;
 
-      const userText = z.string().safeParse(lastUserMessage?.content);
-
       const extractionTool = chatRequest.success
         ? chatRequest.data.tools?.[0]?.function.name
         : undefined;
 
-      let sourceText = "";
+      const userContent = chatMessageContentSchema.safeParse(
+        lastUserMessage?.content
+      );
 
-      if (userText.success) {
-        sourceText = currentUserText(userText.data);
-      }
+      const sourceText = userContent.success
+        ? currentUserTextFromContent(userContent.data)
+        : "";
 
       const extractionArguments = structuredArgumentsForModelCall(
         extractionTool,
@@ -1342,6 +1405,8 @@ const startGateway = async (): Promise<LocalGateway> => {
 
       const structuredResponse =
         structuredResponseIsAvailable(extractionArguments);
+
+      const answer = modelAnswerForFixture(sourceText);
 
       const extractionCallId = structuredResponse
         ? `call-persistence-request-${extractionCallIndex}`
@@ -1385,7 +1450,7 @@ const startGateway = async (): Promise<LocalGateway> => {
                       ],
                     }
                   : {
-                      content: savedScoutingContextAnswer,
+                      content: answer,
                       role: "assistant",
                     },
                 finish_reason: null,
@@ -1423,6 +1488,7 @@ const startGateway = async (): Promise<LocalGateway> => {
       }
 
       sendNonStreamingCompletion(response, chatCompletionId, chatModelName, {
+        answer,
         callId: extractionCallId,
         extractionArguments,
         extractionTool,

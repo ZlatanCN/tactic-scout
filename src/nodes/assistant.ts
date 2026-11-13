@@ -19,6 +19,10 @@ import {
   comparisonEvidenceAnswerText,
 } from "../comparison-evidence.js";
 import {
+  contextProcessingSourceMessage,
+  latestContextProcessingSourceMessage,
+} from "../context-processing-continuation.js";
+import {
   contextProcessingHash,
   contextProcessingInputText,
 } from "../context-processing-state.js";
@@ -177,8 +181,18 @@ const lookupToolMessagesForModel = (
   });
 
 const messagesForLookupModel = (state: AgentStateType) => {
-  const messages = messagesInCurrentTurn(state.messages);
-  const sourceMessage = latestHumanMessage(messages);
+  const latestMessage = latestHumanMessage(state.messages);
+
+  const sourceMessage =
+    latestMessage === undefined
+      ? undefined
+      : contextProcessingSourceMessage(state, latestMessage);
+
+  const messages =
+    sourceMessage === undefined || sourceMessage === latestMessage
+      ? messagesInCurrentTurn(state.messages)
+      : [sourceMessage];
+
   const recovery = state.providerOverflowRecovery;
 
   const recordsPerBatch =
@@ -893,7 +907,7 @@ const createLookupPlayerNode =
       };
     }
 
-    const sourceMessage = latestHumanMessage(state.messages);
+    const sourceMessage = latestContextProcessingSourceMessage(state);
 
     const recovery =
       sourceMessage === undefined
@@ -1176,7 +1190,8 @@ const completedComparisonEvidenceAnswer = (
 const recommendationEvidenceAnswerLanguage = (
   state: AgentStateType
 ): "en" | "zh" => {
-  const message = latestHumanMessage(state.messages);
+  const message = latestContextProcessingSourceMessage(state);
+
   const content = message === undefined ? "" : messageText(message);
 
   return /\p{Script=Han}/u.test(content) ? "zh" : "en";
@@ -1320,7 +1335,7 @@ const createAnswerNode = (
     state: AgentStateType,
     runtime: ModelRuntime
   ) => {
-    const latestUserMessage = latestHumanMessage(state.messages);
+    const latestUserMessage = latestContextProcessingSourceMessage(state);
 
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
     const resultJson = state.outcome?.resultJson ?? "";
@@ -1460,7 +1475,8 @@ const createAnswerNode = (
       prompt = teamRecommendationPrompt;
     }
 
-    const latestUserMessage = latestHumanMessage(state.messages);
+    const latestUserMessage = latestContextProcessingSourceMessage(state);
+
     const requestText = latestUserMessage ? messageText(latestUserMessage) : "";
 
     const messages =

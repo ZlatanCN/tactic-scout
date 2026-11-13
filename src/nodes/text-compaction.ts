@@ -5,9 +5,18 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import type { GraphNode } from "@langchain/langgraph";
+import { END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod/v4";
 
+import {
+  beginContextProcessingContinuation,
+  contextProcessingSourceMessage,
+  continuationMessageRequested,
+  currentContinuationGrant,
+  evidenceContinuationNodeFor,
+  latestContextProcessingSourceMessage,
+} from "../context-processing-continuation.js";
 import {
   contextProcessingAnchorKinds,
   contextProcessingEvidenceOperation,
@@ -216,6 +225,7 @@ const allowanceFor = (
 ): ContextProcessingAllowance => ({
   consumedActiveTimeMs: 0,
   consumedAdditionalCalls: 0,
+  grants: [],
   maxActiveTimeMs:
     allowance.maxActiveTimeMs ??
     defaultContextProcessingAllowance.maxActiveTimeMs,
@@ -1116,6 +1126,7 @@ const textChunkingPlan = async (input: {
   maxSourceRangeLength?: number;
   modelConfiguration: ModelContextConfiguration;
   source: string;
+  startAt?: number;
   sourceHash: string;
   sourceMessageId: string;
   targetTokenEstimate: number;
@@ -1127,11 +1138,13 @@ const textChunkingPlan = async (input: {
   const maxChunkCalls = Math.max(0, availableCalls);
 
   if (maxChunkCalls === 0) {
+    const startAt = input.startAt ?? 0;
+
     return {
       chunks: [],
       mergeGroups: [],
       mergeStatus: "pending",
-      nextStart: 0,
+      nextStart: startAt,
       sourceHash: input.sourceHash,
       sourceLength: input.source.length,
       sourceMessageId: input.sourceMessageId,
@@ -1139,7 +1152,7 @@ const textChunkingPlan = async (input: {
   }
 
   const chunks: ContextProcessingChunk[] = [];
-  let start = 0;
+  let start = input.startAt ?? 0;
 
   while (start < input.source.length && chunks.length < maxChunkCalls) {
     // eslint-disable-next-line no-await-in-loop -- The next range starts after this fitted chunk.
@@ -1656,6 +1669,48 @@ const reserveNextChunkOperation = async (
   );
 };
 
+const extendTextChunkingPlan = async (
+  input: CompactionPreflightInput,
+  chunking: ContextProcessingChunking
+): Promise<ContextProcessingChunking> => {
+  const availableCalls =
+    input.allowance.maxAdditionalCalls -
+    input.allowance.consumedAdditionalCalls;
+
+  if (availableCalls < 1 || chunking.nextStart >= input.sourceText.length) {
+    return chunking;
+  }
+
+  if (chunking.mergeGroups.length > 0 || chunking.mergeStatus !== "pending") {
+    return chunking;
+  }
+
+  if (!chunking.chunks.every(({ status }) => status === "ready")) {
+    return chunking;
+  }
+
+  const extension = await textChunkingPlan({
+    allowance: input.allowance,
+    compactionModel: input.compactionModel,
+    modelConfiguration: input.compactionModelConfiguration,
+    source: input.sourceText,
+    sourceHash: input.sourceHash,
+    sourceMessageId: input.sourceMessageId,
+    startAt: chunking.nextStart,
+    targetTokenEstimate: input.targetTokenEstimate ?? 1,
+  });
+
+  if (extension === null || extension.chunks.length === 0) {
+    return chunking;
+  }
+
+  return {
+    ...chunking,
+    chunks: [...chunking.chunks, ...extension.chunks],
+    nextStart: extension.nextStart,
+  };
+};
+
 const reserveExistingTextChunking = async (
   input: CompactionPreflightInput,
   startedAt: number
@@ -1670,10 +1725,18 @@ const reserveExistingTextChunking = async (
     return null;
   }
 
+  const extendedChunking = await extendTextChunkingPlan(
+    {
+      ...input,
+      targetTokenEstimate: previousCompaction.targetTokenEstimate,
+    },
+    chunking
+  );
+
   return await reserveNextChunkOperation(
     input,
     previousCompaction,
-    chunking,
+    extendedChunking,
     startedAt
   );
 };
@@ -2387,29 +2450,94 @@ const textCompactionShouldSkip = (
     forceProviderOverflowRecovery
   );
 
+type TextCompactionContinuation =
+  | { kind: "stop"; update: Partial<AgentStateType> }
+  | { kind: "empty" }
+  | { currentMessage: HumanMessage; kind: "proceed"; state: AgentStateType };
+
+const textCompactionContinuationFor = (
+  state: AgentStateType,
+  allowance: ContextProcessingAllowanceConfiguration
+): TextCompactionContinuation => {
+  const latestMessage = latestHumanMessage(state.messages);
+
+  if (latestMessage === undefined) {
+    return { kind: "empty" };
+  }
+
+  const compatibilityUpdate = stateCompatibilityUpdate(state);
+
+  if (compatibilityUpdate !== null) {
+    return {
+      kind: "stop",
+      update: compatibilityUpdate,
+    };
+  }
+
+  const decision = beginContextProcessingContinuation(
+    state,
+    latestMessage,
+    allowance
+  );
+
+  if (decision.kind === "blocked" || decision.kind === "duplicate") {
+    return {
+      kind: "stop",
+      update: {
+        ...decision.update,
+        stateSchemaVersion: state.stateSchemaVersion ?? agentStateSchemaVersion,
+      },
+    };
+  }
+
+  if (
+    (decision.kind === "granted" || decision.kind === "active") &&
+    decision.grant.kind !== "text_compaction"
+  ) {
+    return {
+      kind: "stop",
+      update: decision.kind === "granted" ? decision.update : {},
+    };
+  }
+
+  const nextState =
+    decision.kind === "granted" ? { ...state, ...decision.update } : state;
+
+  const currentMessage =
+    decision.kind === "granted" || decision.kind === "active"
+      ? contextProcessingSourceMessage(nextState, latestMessage)
+      : latestMessage;
+
+  return { currentMessage, kind: "proceed", state: nextState };
+};
+
 const prepareTextCompactionNode =
   (
     configuration: TextCompactionNodeConfiguration
   ): GraphNode<typeof AgentState> =>
   async (state, runtime) => {
-    const currentMessage = latestHumanMessage(state.messages);
+    const continuation = textCompactionContinuationFor(
+      state,
+      configuration.allowance ?? {}
+    );
 
-    if (currentMessage === undefined) {
+    if (continuation.kind === "empty") {
       return {};
     }
 
-    const compatibilityUpdate = stateCompatibilityUpdate(state);
-
-    if (compatibilityUpdate !== null) {
-      return compatibilityUpdate;
+    if (continuation.kind === "stop") {
+      return continuation.update;
     }
 
+    const { currentMessage, state: continuationState } = continuation;
+
     const normalizedState = {
-      ...state,
+      ...continuationState,
       contextProcessing:
-        state.contextProcessing ?? createInitialContextProcessing(),
+        continuationState.contextProcessing ?? createInitialContextProcessing(),
       conversationContext:
-        state.conversationContext ?? createInitialConversationContext(),
+        continuationState.conversationContext ??
+        createInitialConversationContext(),
     };
 
     const reservation =
@@ -2596,7 +2724,7 @@ const reservedTextCompactionFromState = (
   state: AgentStateType
 ): ReservedTextCompaction | null => {
   const { allowance, compaction } = state.contextProcessing;
-  const sourceMessage = latestHumanMessage(state.messages);
+  const sourceMessage = latestContextProcessingSourceMessage(state);
 
   if (allowance === null || allowance.reservation === null) {
     return null;
@@ -3739,7 +3867,8 @@ const runTextCompactionNode =
       return {};
     }
 
-    const sourceMessage = latestHumanMessage(state.messages);
+    const sourceMessage = latestContextProcessingSourceMessage(state);
+
     const sourceId = sourceMessage?.id ?? input.compaction.requestId;
 
     const sourceMatches =
@@ -3782,6 +3911,24 @@ const runTextCompactionNode =
 const compactionRoute = (state: AgentStateType): string => {
   if (state.outcome?.kind === "state_compatibility") {
     return "understand_request";
+  }
+
+  const latestMessage = latestHumanMessage(state.messages);
+  const continuationGrant = currentContinuationGrant(state, latestMessage);
+
+  if (
+    latestMessage !== undefined &&
+    continuationMessageRequested(latestMessage) &&
+    state.request?.processedMessageId === latestMessage.id
+  ) {
+    return END;
+  }
+
+  if (
+    continuationGrant !== null &&
+    continuationGrant.kind !== "text_compaction"
+  ) {
+    return evidenceContinuationNodeFor(continuationGrant.kind);
   }
 
   const status = state.contextProcessing.compaction?.status;

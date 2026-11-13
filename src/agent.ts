@@ -1292,8 +1292,13 @@ const createAgent = (options: CreateAgentOptions = {}) => {
     .addNode("answer_failure", createFaultAnswerNode())
     .addEdge(START, "prepare_context_processing")
     .addConditionalEdges("prepare_context_processing", compactionRoute, [
+      END,
       "compact_request_text",
       "answer_context_processing",
+      "prepare_lookup_evidence",
+      "prepare_comparison_evidence",
+      "prepare_player_recommendation_evidence",
+      "prepare_team_recommendation_evidence",
       "understand_request",
     ])
     .addConditionalEdges("compact_request_text", routeAfterTextCompaction, [

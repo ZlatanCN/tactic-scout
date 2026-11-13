@@ -1,6 +1,7 @@
 import type { GraphNode } from "@langchain/langgraph";
 
 import { activeComparisonContext } from "../comparison-context.js";
+import { latestContextProcessingSourceMessage } from "../context-processing-continuation.js";
 import {
   contextProcessingHash,
   contextProcessingInputText,
@@ -9,7 +10,7 @@ import {
 import type { ContextProcessingCompaction } from "../context-processing-state.js";
 import { createModelRequestBudget } from "../model-requests.js";
 import type { ModelRequestBudgetOptions } from "../model-requests.js";
-import { latestHumanMessage, messageText } from "../player-mentions.js";
+import { messageText } from "../player-mentions.js";
 import {
   primaryOverflowRecoveryBudgetOptions,
   primaryOverflowRecoveryFor,
@@ -299,7 +300,7 @@ const createRequestUnderstandingNode =
       activeComparison: activeComparisonContext(conversationContext),
     };
 
-    const latestUserMessage = latestHumanMessage(state.messages);
+    const latestUserMessage = latestContextProcessingSourceMessage(state);
 
     if (!latestUserMessage) {
       return {};

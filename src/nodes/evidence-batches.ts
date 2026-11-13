@@ -4,6 +4,10 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { GraphNode } from "@langchain/langgraph";
 import { z } from "zod/v4";
 
+import {
+  currentContinuationGrant,
+  latestContextProcessingSourceMessage,
+} from "../context-processing-continuation.js";
 import type {
   ContextProcessingAllowance,
   ContextProcessingAllowanceConfiguration,
@@ -261,14 +265,19 @@ const evidenceShouldBeSkipped = async (
   sourceMessage: BaseMessage,
   deadlineAt: number,
   overflowRecovery: boolean,
-  existingMatches: boolean
+  existingMatches: boolean,
+  continuationResume: boolean
 ): Promise<boolean> => {
   if (
     overflowRecovery ||
     existingMatches ||
-    workflow.shouldProcess === undefined ||
-    Date.now() >= deadlineAt
+    continuationResume ||
+    workflow.shouldProcess === undefined
   ) {
+    return false;
+  }
+
+  if (Date.now() >= deadlineAt) {
     return false;
   }
 
@@ -363,6 +372,7 @@ const allowanceForEvidence = (
   return {
     consumedActiveTimeMs: 0,
     consumedAdditionalCalls: 0,
+    grants: [],
     maxActiveTimeMs:
       configuration.maxActiveTimeMs ??
       defaultContextProcessingAllowance.maxActiveTimeMs,
@@ -727,7 +737,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
     ): GraphNode<typeof AgentState> =>
     async (state) => {
       const result = workflow.getResult(state);
-      const sourceMessage = latestHumanMessage(state.messages);
+      const sourceMessage = latestContextProcessingSourceMessage(state);
 
       if (result === null || sourceMessage === undefined) {
         return {};
@@ -750,6 +760,16 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
       const hashes = requestHashesForEvidence(workflow, identity, task);
 
       const overflowRecovery = answerEvidenceRecoveryIsPending(state);
+
+      const continuationGrant = currentContinuationGrant(
+        state,
+        latestHumanMessage(state.messages)
+      );
+
+      const continuationResume =
+        continuationGrant?.kind === workflow.operation &&
+        state.request?.processedMessageId !==
+          continuationGrant.continuationMessageId;
 
       const existingMatches = evidenceMatchesRequest(
         workflow.getEvidence(state),
@@ -783,7 +803,8 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
           sourceMessage,
           deadlineAt,
           overflowRecovery,
-          existingMatches
+          existingMatches,
+          continuationResume
         )
       ) {
         return {};
@@ -874,7 +895,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
         return {};
       }
 
-      const sourceMessage = latestHumanMessage(state.messages);
+      const sourceMessage = latestContextProcessingSourceMessage(state);
 
       if (sourceMessage === undefined) {
         return {};
@@ -988,7 +1009,7 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
 
   const matchesCurrentOutcome = (state: AgentStateType): boolean => {
     const result = workflow.getResult(state);
-    const sourceMessage = latestHumanMessage(state.messages);
+    const sourceMessage = latestContextProcessingSourceMessage(state);
 
     if (result === null || sourceMessage === undefined) {
       return false;
