@@ -107,4 +107,6 @@ flowchart TD
 
 用户于 2026-11-08 回复“同意”，确认完整计划和技术方案，随后调用 to-spec。Q1–Q15 及整体测试入口均已确认，设计讨论标记为 resolved。
 
-2026-11-13 收尾：运行时上下文管理票据 01–11 均已 resolved。最终提交为 `ba6372c`；类型检查、全仓库 Ultracite 和最终全量测试（141 个文件 / 539 个用例）通过。续接使用固定模型 / provider 回归验证；未运行 live semantic judge，不承诺对任意自然语言摘要的普遍语义保真。
+2026-11-13 初次实施收尾：运行时上下文管理票据 01–11 均已 resolved。初次实现提交 `ba6372c`；类型检查、全仓库 Ultracite 和全量测试（141 个文件 / 539 个用例）通过。此时续接使用固定模型 / provider 回归验证，尚未运行 live semantic judge。
+
+2026-11-14 后续行为修复：语义续接 smoke 暴露 lookup 成功后模型重复请求同一搜索、证据解释继续时重新使用超长原文，以及评测器缺少上下文额度状态证据。提交 `67dfc28` 通过 full compiled-graph 回归、loopback 验收和 Standards / Spec 复审；最终全量测试为 146 个文件 / 544 个用例。语义 case `lookup-compaction-continuation-multiturn-synthetic-v1` 在受限输入压力 profile 下以 43/129 请求通过，judge calibration 32/32，代码和语义检查均通过、3/3 必需事实覆盖。该 profile 用于强制触发额度续接，不代表生产网关的实际窗口，也不承诺任意自然语言摘要的普遍保真。
