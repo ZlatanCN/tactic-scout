@@ -44,6 +44,10 @@ This branch is a LangGraph.js football-data agent with three explicit player wor
 
 **Compacted scouting instruction**: An auxiliary task-and-constraint representation of an oversized user instruction, with references to its original text. It preserves the scouting requirements for continued processing without confirming player identities or replacing the original instruction.
 
+**Provider-reported input overflow**: A model provider reports that prepared input exceeds its context limit even though local estimation accepted it.
+
+**Provider-overflow recovery**: The workflow responds to provider-reported input overflow by reducing its current working text or evidence and trying again within its existing bounds. Original messages and validated workflow results remain authoritative.
+
 **Context-processing clarification**: A user's answer that resolves an ambiguity or conflict in an oversized scouting instruction. It clarifies the request only and does not confirm player identity.
 
 **Canonical player identity**: A Reep ID linked to one or more provider-specific player IDs. Search results may be grouped across providers only when the identity registry resolves both provider IDs to the same canonical Reep ID. Matching names alone never establish identity.

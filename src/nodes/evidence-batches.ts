@@ -14,12 +14,15 @@ import {
   contextProcessingHash,
   defaultContextProcessingAllowance,
 } from "../context-processing-state.js";
+import { maxExternalRequests } from "../fault-tolerance.js";
 import {
   assessModelRequest,
   invokeWithModelContext,
+  modelContextFailure,
 } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
+import type { ModelRequestBudget, ModelRuntime } from "../model-requests.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
 import type {
   AgentState,
@@ -35,6 +38,7 @@ type EvidenceProjection = {
 };
 
 type EvidenceTask = {
+  maxItemsPerBatch?: number;
   question: string;
   resultJson: string;
   source: EvidenceSource;
@@ -61,9 +65,15 @@ type EvidenceWorkflow = {
   project: (
     task: EvidenceTask & {
       deadlineAt: number;
+      maxItemsPerBatch?: number;
       sourceMessageId: string;
     }
   ) => Promise<EvidenceProjection[] | null> | EvidenceProjection[] | null;
+  splitBatch?: (
+    task: EvidenceTask,
+    batches: EvidenceBatchState["batches"],
+    batchIndex: number
+  ) => EvidenceProjection[] | null;
   questionMessage: (question: string, projectionJson: string) => string;
   setEvidence: (evidence: EvidenceBatchState) => Partial<AgentStateType>;
   shouldProcess?: (
@@ -238,6 +248,32 @@ const evidenceMatchesRequest = (
   return mismatches.every((mismatch) => !mismatch);
 };
 
+const answerOverflowRecoveryIsPending = (state: AgentStateType): boolean =>
+  state.faultTolerance.failure?.node === "answer" &&
+  state.faultTolerance.failure.category === "context_limit" &&
+  state.faultTolerance.failure.contextIssue === "provider_overflow";
+
+const evidenceShouldBeSkipped = async (
+  state: AgentStateType,
+  workflow: EvidenceWorkflow,
+  task: EvidenceTask,
+  sourceMessage: BaseMessage,
+  deadlineAt: number,
+  overflowRecovery: boolean,
+  existingMatches: boolean
+): Promise<boolean> => {
+  if (
+    overflowRecovery ||
+    existingMatches ||
+    workflow.shouldProcess === undefined ||
+    Date.now() >= deadlineAt
+  ) {
+    return false;
+  }
+
+  return !(await workflow.shouldProcess(state, task, sourceMessage));
+};
+
 const evidenceForTask = async (
   state: AgentStateType,
   workflow: EvidenceWorkflow,
@@ -270,6 +306,7 @@ const evidenceForTask = async (
 
   const projections = await workflow.project({
     deadlineAt: task.deadlineAt,
+    maxItemsPerBatch: task.maxItemsPerBatch,
     question: task.question,
     resultJson: task.resultJson,
     source: task.source,
@@ -333,6 +370,7 @@ const allowanceForEvidence = (
       defaultContextProcessingAllowance.maxAdditionalCalls,
     requestId,
     reservation: null,
+    reservedActiveTimeMs: 0,
   };
 };
 
@@ -443,7 +481,9 @@ const reserveNextEvidenceBatch = (
     allowance.maxAdditionalCalls - allowance.consumedAdditionalCalls;
 
   const availableTime =
-    allowance.maxActiveTimeMs - allowance.consumedActiveTimeMs;
+    allowance.maxActiveTimeMs -
+    allowance.consumedActiveTimeMs -
+    allowance.reservedActiveTimeMs;
 
   if (availableCalls < 1 || availableTime < 1) {
     return {
@@ -472,7 +512,7 @@ const reserveNextEvidenceBatch = (
   const reservation: ContextProcessingReservation = {
     chunkIndex: batch.index,
     maxActiveTimeMs: availableTime,
-    maxAdditionalCalls: 1,
+    maxAdditionalCalls: Math.min(availableCalls, maxExternalRequests),
     operation: workflow.operation,
     operationId: contextProcessingHash(
       `${evidence.requestId}:${evidence.sourceHash}:batch:${batch.index}`
@@ -513,6 +553,169 @@ const failCurrentBatch = (
   }),
 });
 
+type EvidenceProjectionCall = {
+  budget: ModelRequestBudget;
+  configuration: EvidenceBatchNodeConfiguration;
+  projectionJson: string;
+  runtime: ModelRuntime;
+  task: EvidenceTask;
+  workflow: EvidenceWorkflow;
+};
+
+const messagesForEvidenceProjection = (
+  workflow: EvidenceWorkflow,
+  question: string,
+  projectionJson: string
+) => [
+  new SystemMessage(workflow.systemPrompt),
+  new HumanMessage(workflow.questionMessage(question, projectionJson)),
+];
+
+const invokeEvidenceProjection = async (
+  input: EvidenceProjectionCall
+): Promise<string> => {
+  const messages = messagesForEvidenceProjection(
+    input.workflow,
+    input.task.question,
+    input.projectionJson
+  );
+
+  const response = await invokeWithModelContext(
+    input.configuration.model,
+    { messages, purpose: "answer" },
+    input.configuration.modelContextConfiguration ?? {},
+    input.runtime,
+    async (limitedModel, signal) =>
+      await limitedModel.invoke(messages, { signal }),
+    input.budget
+  );
+
+  const answer = messageTextFromResponse(response);
+
+  if (answer === null || answer.trim().length === 0) {
+    throw new Error("The model returned an empty evidence explanation.");
+  }
+
+  return (
+    input.workflow.transformAnswer?.(answer, input.projectionJson) ?? answer
+  );
+};
+
+const evidenceAfterProviderOverflowSplit = async (input: {
+  batchIndex: number;
+  configuration: EvidenceBatchNodeConfiguration;
+  error: unknown;
+  evidence: EvidenceBatchState;
+  task: EvidenceTask;
+  workflow: EvidenceWorkflow;
+}): Promise<EvidenceBatchState | null> => {
+  if (
+    !(input.error instanceof Error) ||
+    modelContextFailure(input.error) !== "provider_overflow" ||
+    input.workflow.splitBatch === undefined
+  ) {
+    return null;
+  }
+
+  const parent = input.evidence.batches[input.batchIndex];
+
+  if (parent === undefined) {
+    return null;
+  }
+
+  const splitProjections = input.workflow.splitBatch(
+    input.task,
+    input.evidence.batches,
+    input.batchIndex
+  );
+
+  if (
+    splitProjections === null ||
+    splitProjections.length !== input.evidence.batches.length + 1
+  ) {
+    return null;
+  }
+
+  const firstChild = splitProjections[input.batchIndex];
+  const secondChild = splitProjections[input.batchIndex + 1];
+
+  if (firstChild === undefined || secondChild === undefined) {
+    return null;
+  }
+
+  const assessProjection = async (projectionJson: string) => {
+    const messages = messagesForEvidenceProjection(
+      input.workflow,
+      input.task.question,
+      projectionJson
+    );
+
+    return await assessModelRequest(
+      input.configuration.model,
+      { messages, purpose: "answer" },
+      input.configuration.modelContextConfiguration ?? {}
+    );
+  };
+
+  const [parentAssessment, childAssessments] = await Promise.all([
+    assessProjection(parent.projectionJson),
+    Promise.all([
+      assessProjection(firstChild.projectionJson),
+      assessProjection(secondChild.projectionJson),
+    ]),
+  ]);
+
+  const eachChildIsSmaller =
+    parentAssessment.failure === null &&
+    childAssessments.every(
+      ({ assessment, failure }) =>
+        failure === null &&
+        assessment.estimatedInputTokens <
+          parentAssessment.assessment.estimatedInputTokens
+    );
+
+  if (!eachChildIsSmaller) {
+    return null;
+  }
+
+  const batches: EvidenceBatchState["batches"] = [];
+
+  for (const [index, projection] of splitProjections.entries()) {
+    if (index === input.batchIndex || index === input.batchIndex + 1) {
+      batches.push({
+        answer: null,
+        index,
+        projectionJson: projection.projectionJson,
+        recordRefs: projection.recordRefs,
+        status: "pending",
+      });
+
+      continue;
+    }
+
+    const previousIndex = index < input.batchIndex ? index : index - 1;
+    const previousBatch = input.evidence.batches[previousIndex];
+
+    if (previousBatch === undefined) {
+      return null;
+    }
+
+    batches.push({
+      ...previousBatch,
+      index,
+      projectionJson: projection.projectionJson,
+      recordRefs: projection.recordRefs,
+    });
+  }
+
+  return {
+    ...input.evidence,
+    batches,
+    failureReason: null,
+    status: "processing",
+  };
+};
+
 const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
   const createPrepareNode =
     (
@@ -542,6 +745,8 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
 
       const hashes = requestHashesForEvidence(workflow, identity, task);
 
+      const overflowRecovery = answerOverflowRecoveryIsPending(state);
+
       const existingMatches = evidenceMatchesRequest(
         workflow.getEvidence(state),
         hashes
@@ -562,20 +767,30 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
             Math.max(
               0,
               currentAllowance.maxActiveTimeMs -
-                currentAllowance.consumedActiveTimeMs
+                currentAllowance.consumedActiveTimeMs -
+                currentAllowance.reservedActiveTimeMs
             );
 
       if (
-        !existingMatches &&
-        workflow.shouldProcess !== undefined &&
-        Date.now() < deadlineAt &&
-        !(await workflow.shouldProcess(state, task, sourceMessage))
+        await evidenceShouldBeSkipped(
+          state,
+          workflow,
+          task,
+          sourceMessage,
+          deadlineAt,
+          overflowRecovery,
+          existingMatches
+        )
       ) {
         return {};
       }
 
+      const projectionTask = overflowRecovery
+        ? { ...task, maxItemsPerBatch: 1 }
+        : task;
+
       const evidence = await evidenceForTask(state, workflow, {
-        ...task,
+        ...projectionTask,
         deadlineAt,
         hashes,
       });
@@ -669,16 +884,6 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
 
       const startedAt = Date.now();
 
-      const messages = [
-        new SystemMessage(workflow.systemPrompt),
-        new HumanMessage(
-          workflow.questionMessage(
-            messageText(sourceMessage),
-            batch.projectionJson
-          )
-        ),
-      ];
-
       const timeout = AbortSignal.timeout(reservation.maxActiveTimeMs);
 
       const requestRuntime = {
@@ -689,36 +894,23 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
             : AbortSignal.any([runtime.signal, timeout]),
       };
 
+      const task: EvidenceTask = {
+        question: messageText(sourceMessage),
+        resultJson: workflow.getResult(state)?.resultJson ?? "",
+        source: evidence.source,
+      };
+
       try {
-        const response = await invokeWithModelContext(
-          configuration.model,
-          { messages, purpose: "answer" },
-          configuration.modelContextConfiguration ?? {},
-          requestRuntime,
-          async (limitedModel, signal) =>
-            await limitedModel.invoke(messages, { signal }),
-          budget
-        );
+        const finalBatchAnswer = await invokeEvidenceProjection({
+          budget,
+          configuration,
+          projectionJson: batch.projectionJson,
+          runtime: requestRuntime,
+          task,
+          workflow,
+        });
 
-        const batchAnswer = messageTextFromResponse(response);
-
-        if (batchAnswer === null || batchAnswer.trim().length === 0) {
-          return failCurrentBatch(
-            state,
-            workflow,
-            evidence,
-            allowance,
-            reservation,
-            budget.requestsUsed(),
-            Date.now() - startedAt
-          );
-        }
-
-        const finalBatchAnswer =
-          workflow.transformAnswer?.(batchAnswer, batch.projectionJson) ??
-          batchAnswer;
-
-        return {
+        const update: Partial<AgentStateType> = {
           contextProcessing: {
             ...state.contextProcessing,
             allowance: settleAllowance(
@@ -731,7 +923,44 @@ const createEvidenceBatchNodes = (workflow: EvidenceWorkflow) => {
             updateBatchStatus(evidence, batch.index, "ready", finalBatchAnswer)
           ),
         };
-      } catch {
+
+        const thisWasTheFinalBatch = evidence.batches.every(
+          ({ answer, index, status }) =>
+            index === batch.index || (status === "ready" && answer !== null)
+        );
+
+        if (!thisWasTheFinalBatch || !answerOverflowRecoveryIsPending(state)) {
+          return update;
+        }
+
+        return {
+          ...update,
+          faultTolerance: { ...state.faultTolerance, failure: null },
+        };
+      } catch (error) {
+        const splitEvidence = await evidenceAfterProviderOverflowSplit({
+          batchIndex: batch.index,
+          configuration,
+          error,
+          evidence,
+          task,
+          workflow,
+        });
+
+        if (splitEvidence !== null) {
+          return {
+            contextProcessing: {
+              ...state.contextProcessing,
+              allowance: settleAllowance(
+                allowance,
+                budget.requestsUsed(),
+                Date.now() - startedAt
+              ),
+            },
+            ...workflow.setEvidence(splitEvidence),
+          };
+        }
+
         return failCurrentBatch(
           state,
           workflow,

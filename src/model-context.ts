@@ -87,6 +87,53 @@ type ModelContextFailure =
   | "provider_overflow"
   | "response_truncated";
 
+type ModelContextErrorDetails = {
+  contextBudgetFailure: ModelContextFailure;
+  contextRequestAttemptsUsed?: number;
+  contextRequestDurationMs?: number;
+};
+
+const providerContextOverflowCodes = new Set([
+  "context_length_exceeded",
+  "context_window_exceeded",
+  "input_too_long",
+  "max_context_length_exceeded",
+]);
+
+const providerContextErrorSchema = z.looseObject({
+  cause: z.looseObject({ code: z.string().optional() }).optional(),
+  code: z.string().nullable().optional(),
+  error: z.looseObject({ code: z.string().optional() }).optional(),
+});
+
+const isProviderContextOverflow = (error: Error): boolean => {
+  const details = providerContextErrorSchema.safeParse(error);
+
+  const codes = details.success
+    ? [details.data.code, details.data.error?.code, details.data.cause?.code]
+    : [];
+
+  if (
+    codes.some(
+      (code) =>
+        code !== undefined &&
+        code !== null &&
+        providerContextOverflowCodes.has(code.toLowerCase())
+    )
+  ) {
+    return true;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return [
+    "context length exceeded",
+    "maximum context length",
+    "maximum context window",
+    "too many tokens for the model",
+  ].some((phrase) => message.includes(phrase));
+};
+
 const ModelContextPurposeSchema = z.enum([
   "understand_request",
   "lookup_player",
@@ -152,25 +199,45 @@ const normalizeBaseURL = (value: string | null): string | null => {
   return normalized;
 };
 
-const modelContextFailure = (error: Error): ModelContextFailure | null => {
-  const parsed = z
-    .object({
-      contextBudgetFailure: z.enum([
-        "base_instructions_exceed_limit",
-        "profile_required",
-        "invalid_profile",
-        "output_limit_adapter_required",
-        "input_exceeds_limit",
-        "user_input_exceeds_limit",
-        "token_estimate_failed",
-        "schema_estimate_failed",
-        "provider_overflow",
-        "response_truncated",
-      ]),
-    })
-    .safeParse(error);
+const ModelContextErrorDetailsSchema = z.looseObject({
+  contextBudgetFailure: z.enum([
+    "base_instructions_exceed_limit",
+    "profile_required",
+    "invalid_profile",
+    "output_limit_adapter_required",
+    "input_exceeds_limit",
+    "user_input_exceeds_limit",
+    "token_estimate_failed",
+    "schema_estimate_failed",
+    "provider_overflow",
+    "response_truncated",
+  ]),
+  contextRequestAttemptsUsed: z.number().int().nonnegative().optional(),
+  contextRequestDurationMs: z.number().int().nonnegative().optional(),
+});
 
-  return parsed.success ? parsed.data.contextBudgetFailure : null;
+const modelContextErrorDetailsFor = (error: Error) => {
+  const parsed = ModelContextErrorDetailsSchema.safeParse(error);
+
+  return parsed.success ? parsed.data : null;
+};
+
+const modelContextFailure = (error: Error): ModelContextFailure | null => {
+  const details = modelContextErrorDetailsFor(error);
+
+  return details?.contextBudgetFailure ?? null;
+};
+
+const modelContextRequestDurationMs = (error: Error): number | null => {
+  const details = modelContextErrorDetailsFor(error);
+
+  return details?.contextRequestDurationMs ?? null;
+};
+
+const modelContextRequestAttemptsUsed = (error: Error): number | null => {
+  const details = modelContextErrorDetailsFor(error);
+
+  return details?.contextRequestAttemptsUsed ?? null;
 };
 
 const modelContextFailureMessage = (issue: ModelContextFailure): string => {
@@ -205,10 +272,35 @@ const modelContextFailureMessage = (issue: ModelContextFailure): string => {
   return "The complete model input could not be counted safely.";
 };
 
-const createModelContextError = (issue: ModelContextFailure): Error =>
-  Object.assign(new Error(modelContextFailureMessage(issue)), {
+const modelContextErrorDetails = (
+  issue: ModelContextFailure,
+  requestDurationMs?: number,
+  requestAttemptsUsed?: number
+): ModelContextErrorDetails => {
+  const details: ModelContextErrorDetails = {
     contextBudgetFailure: issue,
-  } as const);
+  };
+
+  if (requestDurationMs !== undefined) {
+    details.contextRequestDurationMs = requestDurationMs;
+  }
+
+  if (requestAttemptsUsed !== undefined) {
+    details.contextRequestAttemptsUsed = requestAttemptsUsed;
+  }
+
+  return details;
+};
+
+const createModelContextError = (
+  issue: ModelContextFailure,
+  requestDurationMs?: number,
+  requestAttemptsUsed?: number
+): Error =>
+  Object.assign(
+    new Error(modelContextFailureMessage(issue)),
+    modelContextErrorDetails(issue, requestDurationMs, requestAttemptsUsed)
+  );
 
 const effectiveBaseURL = (
   model: BaseChatModel,
@@ -629,6 +721,76 @@ const modelResponseEnvelopeSchema = z.union([
   z.looseObject({ raw: z.instanceof(BaseMessage) }),
 ]);
 
+const providerUsageValuesSchema = z.looseObject({
+  completionTokens: z.number().int().nonnegative().optional(),
+  completion_tokens: z.number().int().nonnegative().optional(),
+  input_tokens: z.number().int().nonnegative().optional(),
+  output_tokens: z.number().int().nonnegative().optional(),
+  promptTokens: z.number().int().nonnegative().optional(),
+  prompt_tokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  total_tokens: z.number().int().nonnegative().optional(),
+});
+
+type ProviderTokenUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+};
+
+const providerTokenUsageFrom = (
+  envelope: z.output<typeof modelResponseEnvelopeSchema>
+): ProviderTokenUsage | null => {
+  const message = envelope instanceof BaseMessage ? envelope : envelope.raw;
+
+  const metadata = z
+    .looseObject({ tokenUsage: z.unknown(), usage: z.unknown() })
+    .partial()
+    .safeParse(message.response_metadata);
+
+  const candidates = [
+    ...(message instanceof AIMessage ? [message.usage_metadata] : []),
+    message.response_metadata,
+    ...(metadata.success
+      ? [metadata.data.tokenUsage, metadata.data.usage]
+      : []),
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = providerUsageValuesSchema.safeParse(candidate);
+
+    if (!parsed.success) {
+      continue;
+    }
+
+    const inputTokens =
+      parsed.data.input_tokens ??
+      parsed.data.prompt_tokens ??
+      parsed.data.promptTokens;
+
+    const outputTokens =
+      parsed.data.output_tokens ??
+      parsed.data.completion_tokens ??
+      parsed.data.completionTokens;
+
+    const totalTokens = parsed.data.total_tokens ?? parsed.data.totalTokens;
+
+    if (
+      inputTokens !== undefined ||
+      outputTokens !== undefined ||
+      totalTokens !== undefined
+    ) {
+      return {
+        inputTokens: inputTokens ?? null,
+        outputTokens: outputTokens ?? null,
+        totalTokens: totalTokens ?? null,
+      };
+    }
+  }
+
+  return null;
+};
+
 const modelResponseIsTruncated = (
   response: z.output<typeof modelResponseEnvelopeSchema>
 ): boolean => {
@@ -700,6 +862,32 @@ const createModelContextLog = (
   }
 };
 
+const createModelContextUsageLog = (
+  assessment: ModelContextAssessment,
+  usage: ProviderTokenUsage | null,
+  runtime: ModelRuntime
+): void => {
+  try {
+    console.info(
+      JSON.stringify({
+        component: "tactiscout",
+        estimatedInputTokens: assessment.estimatedInputTokens,
+        providerInputTokens: usage?.inputTokens ?? null,
+        providerOutputTokens: usage?.outputTokens ?? null,
+        providerTotalTokens: usage?.totalTokens ?? null,
+        providerUsageStatus: usage === null ? "unavailable" : "reported",
+        purpose: assessment.purpose,
+        runId: runtime.executionInfo?.runId ?? "unavailable",
+        threadId: runtime.executionInfo?.threadId ?? "unavailable",
+        tokenCountingMethod: assessment.tokenCountingMethod,
+        type: "model_context_usage",
+      })
+    );
+  } catch {
+    // Usage accounting is best-effort and must not replace the model outcome.
+  }
+};
+
 const invokeWithModelContext = async <Value>(
   model: BaseChatModel,
   request: ModelContextRequest,
@@ -745,7 +933,39 @@ const invokeWithModelContext = async <Value>(
   );
 
   const invokePrepared = async (signal?: AbortSignal): Promise<Value> => {
-    const response = await invoke(prepared.model, signal);
+    let response: Value;
+    const requestStartedAt = Date.now();
+
+    try {
+      response = await invoke(prepared.model, signal);
+    } catch (error) {
+      if (error instanceof Error && isProviderContextOverflow(error)) {
+        createModelContextLog(
+          "blocked",
+          {
+            estimatedInputTokens: prepared.assessment.estimatedInputTokens,
+            issue: "provider_overflow",
+            purpose: prepared.assessment.purpose,
+            tokenCountingMethod: prepared.assessment.tokenCountingMethod,
+          },
+          runtime
+        );
+        const requestDurationMs = Math.max(0, Date.now() - requestStartedAt);
+
+        if (budget !== undefined) {
+          throw error;
+        }
+
+        throw createModelContextError(
+          "provider_overflow",
+          requestDurationMs,
+          1
+        );
+      }
+
+      throw error;
+    }
+
     const responseEnvelope = modelResponseEnvelopeSchema.safeParse(response);
 
     if (
@@ -754,6 +974,14 @@ const invokeWithModelContext = async <Value>(
     ) {
       throw createModelContextError("response_truncated");
     }
+
+    createModelContextUsageLog(
+      prepared.assessment,
+      responseEnvelope.success
+        ? providerTokenUsageFrom(responseEnvelope.data)
+        : null,
+      runtime
+    );
 
     return response;
   };
@@ -772,8 +1000,11 @@ export {
   createModelContextError,
   createModelContextLog,
   invokeWithModelContext,
+  isProviderContextOverflow,
   modelContextFailure,
   modelContextFailureMessage,
+  modelContextRequestAttemptsUsed,
+  modelContextRequestDurationMs,
   normalizeBaseURL,
   prepareModelRequest,
   resolveModelContextProfile,

@@ -505,6 +505,19 @@ const FaultToleranceSchema = z.object({
   lookupToolStartedAt: z.number().nullable(),
 });
 
+const ProviderOverflowRecoverySchema = z.object({
+  attempts: z.number().int().positive(),
+  node: z.enum(["understand_request", "lookup_player"]),
+  operationRequestsUsed: z.number().int().positive(),
+  primaryRequestReserved: z.boolean().default(false),
+  recoveryAllowanceCallsReserved: z.number().int().nonnegative().default(0),
+  recoveryAllowanceOpen: z.boolean().default(false),
+  reservedActiveTimeMs: z.number().int().nonnegative().default(0),
+  runId: z.string().nullable().default(null),
+  sourceHash: z.string().min(1),
+  sourceRequestId: z.string().min(1),
+});
+
 const PlayerMemoryStatusSchema = z.object({
   readFailed: z.boolean(),
   writeFailed: z.boolean(),
@@ -550,6 +563,8 @@ const AgentState = MessagesZodState.extend({
   ),
   playerRecommendationEvidence:
     PlayerRecommendationEvidenceSchema.nullable().default(null),
+  providerOverflowRecovery:
+    ProviderOverflowRecoverySchema.nullable().default(null),
   request: RequestStateSchema.default(createInitialRequestState),
   stateSchemaVersion: z.number().int().nonnegative().nullable().default(null),
   teamRecommendationEvidence:
@@ -573,6 +588,8 @@ type ContextProcessingState = z.infer<typeof ContextProcessingSchema>;
 type FaultToleranceState = z.infer<typeof FaultToleranceSchema>;
 
 type PlayerMemoryStatus = z.infer<typeof PlayerMemoryStatusSchema>;
+
+type ProviderOverflowRecovery = z.infer<typeof ProviderOverflowRecoverySchema>;
 
 type PlayerMemoryManagementRequest = z.infer<
   typeof PlayerMemoryManagementRequestSchema
@@ -644,6 +661,7 @@ export type {
   ConversationPlayerReference,
   PendingClarification,
   PlayerMemoryStatus,
+  ProviderOverflowRecovery,
   PlayerMemoryManagementRequest,
   PlayerMemoryManagementTarget,
   RecommendationPlayerRole,

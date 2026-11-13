@@ -69,6 +69,7 @@ const ContextProcessingAllowanceSchema = z.object({
   maxAdditionalCalls: z.number().int().positive(),
   requestId: z.string().min(1),
   reservation: ContextProcessingReservationSchema.nullable(),
+  reservedActiveTimeMs: z.number().int().nonnegative().default(0),
 });
 
 const ContextProcessingChunkSchema = z.object({
@@ -84,8 +85,15 @@ const ContextProcessingChunkSchema = z.object({
   targetTokenEstimate: z.number().int().positive(),
 });
 
+const ContextProcessingMergeGroupSchema = z.object({
+  chunks: z.array(ContextProcessingChunkSchema),
+  output: ContextProcessingChunkSchema.nullable(),
+  status: z.enum(["pending", "reserved", "ready", "failed"]),
+});
+
 const ContextProcessingChunkingSchema = z.object({
   chunks: z.array(ContextProcessingChunkSchema),
+  mergeGroups: z.array(ContextProcessingMergeGroupSchema).default([]),
   mergeStatus: z.enum(["pending", "reserved", "ready", "failed"]),
   nextStart: z.number().int().nonnegative(),
   sourceHash: z.string().min(1),
@@ -134,6 +142,7 @@ const ContextProcessingCompactionSchema = z.object({
       "necessary_context_exceeds_limit",
       "no_reduction",
       "provider_failure",
+      "provider_overflow",
       "reservation_unknown",
       "source_reference_invalid",
       "token_estimate_failed",
@@ -224,6 +233,10 @@ type ContextProcessingChunking = z.infer<
   typeof ContextProcessingChunkingSchema
 >;
 
+type ContextProcessingMergeGroup = z.infer<
+  typeof ContextProcessingMergeGroupSchema
+>;
+
 type ContextProcessingCompaction = z.infer<
   typeof ContextProcessingCompactionSchema
 >;
@@ -236,6 +249,25 @@ type ContextProcessing = z.infer<typeof ContextProcessingSchema>;
 
 const contextProcessingHash = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
+
+const contextProcessingRequestId = (
+  messageId: string | undefined,
+  sourceText: string,
+  messageCount: number
+): string =>
+  messageId !== undefined && messageId.length > 0
+    ? `message:${messageId}`
+    : `message:${messageCount}:${contextProcessingHash(sourceText)}`;
+
+const contextProcessingRequestMatches = (
+  identity: { sourceHash: string; sourceRequestId: string },
+  messageId: string | undefined,
+  sourceText: string,
+  messageCount: number
+): boolean =>
+  identity.sourceHash === contextProcessingHash(sourceText) &&
+  identity.sourceRequestId ===
+    contextProcessingRequestId(messageId, sourceText, messageCount);
 
 const createInitialContextProcessing = (): ContextProcessing => ({
   allowance: null,
@@ -273,12 +305,15 @@ export {
   contextProcessingOperationNames,
   ContextProcessingChunkSchema,
   ContextProcessingChunkingSchema,
+  ContextProcessingMergeGroupSchema,
   LookupEvidenceSchema,
   PlayerRecommendationEvidenceSchema,
   TeamRecommendationEvidenceSchema,
   contextProcessingAnchorKinds,
   contextProcessingHash,
   contextProcessingInputText,
+  contextProcessingRequestId,
+  contextProcessingRequestMatches,
   createInitialContextProcessing,
 };
 
@@ -291,6 +326,7 @@ export type {
   ContextProcessingAnchor,
   ContextProcessingChunk,
   ContextProcessingChunking,
+  ContextProcessingMergeGroup,
   ContextProcessingCompaction,
   ContextProcessingClarification,
   ContextProcessingReference,

@@ -4,13 +4,16 @@ import { z } from "zod/v4";
 
 import { contextProcessingEvidenceOperation } from "../context-processing-state.js";
 import type { ContextProcessingAllowanceConfiguration } from "../context-processing-state.js";
+import { splitEvidenceBatchProjections } from "../evidence-batch-planning.js";
 import { assessModelRequest } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import {
   playerRecommendationEvidenceIsComplete,
   playerRecommendationEvidenceProjections,
+  playerRecommendationEvidenceProjectionsForBatchPlan,
   playerRecommendationEvidenceQuestionMessage,
 } from "../player-recommendation-evidence.js";
+import type { PlayerRecommendationEvidenceBatchPlan } from "../player-recommendation-evidence.js";
 import { recommendationEvidenceMetadataSummary } from "../recommendation-answer.js";
 import type { AgentStateType, EvidenceBatchState } from "../state.js";
 import {
@@ -18,7 +21,11 @@ import {
   evidenceProjectionsFitModelInput,
   largestFittingEvidencePlan,
 } from "./evidence-batches.js";
-import type { EvidenceTask, EvidenceWorkflow } from "./evidence-batches.js";
+import type {
+  EvidenceProjection,
+  EvidenceTask,
+  EvidenceWorkflow,
+} from "./evidence-batches.js";
 
 const playerRecommendationEvidencePrompt = `你是足球球员推荐结果解释器。只依据投影中的已验证结果回答，不调用排名器、不改变原始顺序、不省略候选，也不合并当前能力榜与高潜榜。每批只解释 selectedCandidates 指定的那一份名单，保留 rank、姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance。null 要明确写未提供，不把投影未选择的字段说成来源缺失。只解释本批候选，不重复全局参考画像、日期、筛选和阶段计数；程序会根据完整结果统一呈现这些内容。PA 是潜力信号，不保证未来能力。`;
 
@@ -69,7 +76,7 @@ const playerRecommendationEvidenceProjectionsWithinBudget = async (
   );
 
   return await largestFittingEvidencePlan(
-    largestListCount,
+    Math.min(largestListCount, task.maxItemsPerBatch ?? largestListCount),
     task.deadlineAt,
     (candidatesPerBatch) =>
       playerRecommendationEvidenceProjections(
@@ -95,6 +102,62 @@ const playerRecommendationEvidenceProjectionsWithinBudget = async (
       )
   );
 };
+
+const recommendationBatchPlanFor = (
+  batches: NonNullable<
+    AgentStateType["playerRecommendationEvidence"]
+  >["batches"]
+): PlayerRecommendationEvidenceBatchPlan[] | null => {
+  const batchSchema = z.object({
+    batch: z.object({
+      candidateRefs: z.array(z.string()),
+      list: z.enum(["current", "potential"]),
+    }),
+  });
+
+  const plan: PlayerRecommendationEvidenceBatchPlan[] = [];
+
+  for (const { projectionJson } of batches) {
+    let value: unknown;
+
+    try {
+      value = JSON.parse(projectionJson);
+    } catch {
+      return null;
+    }
+
+    const parsed = batchSchema.safeParse(value);
+
+    if (!parsed.success || parsed.data.batch.candidateRefs.length === 0) {
+      return null;
+    }
+
+    plan.push({
+      list: parsed.data.batch.list,
+      size: parsed.data.batch.candidateRefs.length,
+    });
+  }
+
+  return plan;
+};
+
+const splitPlayerRecommendationEvidenceBatch = (
+  task: EvidenceTask,
+  batches: NonNullable<
+    AgentStateType["playerRecommendationEvidence"]
+  >["batches"],
+  batchIndex: number
+): EvidenceProjection[] | null =>
+  splitEvidenceBatchProjections({
+    batchIndex,
+    batchPlan: recommendationBatchPlanFor(batches),
+    projectBatchPlan: (plan) =>
+      playerRecommendationEvidenceProjectionsForBatchPlan(
+        task.resultJson,
+        task.source,
+        plan
+      ),
+  });
 
 const playerRecommendationEvidenceWorkflow = (
   configuration: PlayerRecommendationEvidenceConfiguration
@@ -153,6 +216,7 @@ const playerRecommendationEvidenceWorkflow = (
       return true;
     }
   },
+  splitBatch: splitPlayerRecommendationEvidenceBatch,
   systemPrompt: playerRecommendationEvidencePrompt,
 });
 

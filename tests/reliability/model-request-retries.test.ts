@@ -146,6 +146,7 @@ describe("request model retries and cancellation", () => {
     );
 
     const budget: ModelRequestBudget = {
+      activeTimeUsedMs: () => 0,
       canMakeRequest: () => true,
       invoke: async <Value>(
         request: (signal?: AbortSignal) => Promise<Value>
@@ -156,6 +157,8 @@ describe("request model retries and cancellation", () => {
       },
       lastRequestDurationMs: () => 0,
       logRepair: () => {},
+      remainingActiveTimeMs: () => 1000,
+      remainingRequests: () => Math.max(0, 3 - requestsUsed),
       requestsUsed: () => requestsUsed,
     };
 
@@ -373,9 +376,19 @@ describe("request model retries and cancellation", () => {
       { configurable: { thread_id: "request-429-then-transient" } }
     );
 
-    expect({ calls, kind: result.request.kind }).toStrictEqual({
+    expect({
+      calls,
+      fault: result.faultTolerance?.failure ?? null,
+      kind: result.request?.kind ?? null,
+      lastMessage: result.messages.at(-1)?.content,
+      outcome: result.outcome,
+    }).toStrictEqual({
       calls: 3,
+      fault: null,
       kind: "other",
+      lastMessage:
+        "当前版本支持查询、比较和推荐球员资料。请说明你要完成哪一种任务。",
+      outcome: null,
     });
   });
 

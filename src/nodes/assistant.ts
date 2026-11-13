@@ -26,7 +26,10 @@ import { scoutingEvidenceProjections } from "../lookup-evidence.js";
 import { invokeWithModelContext } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import { createModelRequestBudget } from "../model-requests.js";
-import type { ModelRuntime } from "../model-requests.js";
+import type {
+  ModelRequestBudgetOptions,
+  ModelRuntime,
+} from "../model-requests.js";
 import { selectedReferenceCandidate } from "../player-data/contracts.js";
 import {
   latestHumanMessage,
@@ -34,6 +37,11 @@ import {
   messageText,
 } from "../player-mentions.js";
 import { playerRecommendationEvidenceIsComplete } from "../player-recommendation-evidence.js";
+import {
+  primaryOverflowRecoveryBudgetOptions,
+  primaryOverflowRecoveryFor,
+  settlePrimaryOverflowRecovery,
+} from "../primary-overflow-recovery.js";
 import {
   completeRecommendationResultAnswer,
   completeTeamRecommendationResultAnswer,
@@ -128,7 +136,8 @@ const seasonStartYearFromConstraints = (
 
 const lookupToolMessagesForModel = (
   messages: BaseMessage[],
-  question: string
+  question: string,
+  recordsPerBatch?: number
 ): BaseMessage[] =>
   messages.map((message) => {
     if (
@@ -147,7 +156,8 @@ const lookupToolMessagesForModel = (
     const projections = scoutingEvidenceProjections(
       resultJson.data,
       question,
-      "executed"
+      "executed",
+      recordsPerBatch
     );
 
     const projection = projections?.[0];
@@ -169,6 +179,14 @@ const lookupToolMessagesForModel = (
 const messagesForLookupModel = (state: AgentStateType) => {
   const messages = messagesInCurrentTurn(state.messages);
   const sourceMessage = latestHumanMessage(messages);
+  const recovery = state.providerOverflowRecovery;
+
+  const recordsPerBatch =
+    recovery?.node === "lookup_player" &&
+    recovery.recoveryAllowanceOpen &&
+    recovery.primaryRequestReserved
+      ? 1
+      : undefined;
 
   if (sourceMessage === undefined) {
     return messages;
@@ -182,7 +200,7 @@ const messagesForLookupModel = (state: AgentStateType) => {
     compaction.status !== "ready" ||
     compaction.instruction === null
   ) {
-    return lookupToolMessagesForModel(messages, question);
+    return lookupToolMessagesForModel(messages, question, recordsPerBatch);
   }
 
   const sourceMessageId = sourceMessage.id ?? compaction.sourceMessageId;
@@ -199,7 +217,7 @@ const messagesForLookupModel = (state: AgentStateType) => {
     compaction.sourceHash !== contextProcessingHash(sourceText) ||
     compaction.instructionHash !== contextProcessingHash(compaction.instruction)
   ) {
-    return lookupToolMessagesForModel(messages, question);
+    return lookupToolMessagesForModel(messages, question, recordsPerBatch);
   }
 
   const clarificationAnswers =
@@ -224,7 +242,8 @@ const messagesForLookupModel = (state: AgentStateType) => {
     messages.map((message) =>
       message === sourceMessage ? workingMessage : message
     ),
-    sourceText
+    sourceText,
+    recordsPerBatch
   );
 };
 
@@ -874,7 +893,31 @@ const createLookupPlayerNode =
       };
     }
 
-    const budget = createModelRequestBudget(runtime, "lookup_player");
+    const sourceMessage = latestHumanMessage(state.messages);
+
+    const recovery =
+      sourceMessage === undefined
+        ? null
+        : primaryOverflowRecoveryFor(
+            state,
+            "lookup_player",
+            sourceMessage,
+            state.messages.length
+          );
+
+    const budgetOptions: ModelRequestBudgetOptions =
+      primaryOverflowRecoveryBudgetOptions(
+        state,
+        recovery,
+        runtime.executionInfo?.runId
+      );
+
+    const budget = createModelRequestBudget(
+      runtime,
+      "lookup_player",
+      undefined,
+      budgetOptions
+    );
 
     const requestMessages = [
       new SystemMessage(`${lookupPrompt}\n\n${lookupProjectionPrompt}`),
@@ -926,7 +969,13 @@ const createLookupPlayerNode =
         )
       : pinnedMessage;
 
-    return lookupAssistantUpdate(state, assistantMessage);
+    return settlePrimaryOverflowRecovery(
+      state,
+      recovery,
+      budget,
+      lookupAssistantUpdate(state, assistantMessage),
+      runtime.executionInfo?.runId
+    );
   };
 
 const assistantTextContentSchema = z.array(

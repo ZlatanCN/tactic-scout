@@ -275,8 +275,13 @@ const understatSeasonModeFor = (
 const scoutingEvidenceProjections = (
   resultJson: string,
   question: string,
-  source: "executed" | "saved"
+  source: "executed" | "saved",
+  recordsPerBatch = lookupEvidenceRecordsPerBatch
 ): string[] | null => {
+  if (!Number.isSafeInteger(recordsPerBatch) || recordsPerBatch < 1) {
+    return null;
+  }
+
   let parsedJson: unknown;
 
   try {
@@ -358,14 +363,12 @@ const scoutingEvidenceProjections = (
       ? [[]]
       : Array.from(
           {
-            length: Math.ceil(
-              projectedRecords.length / lookupEvidenceRecordsPerBatch
-            ),
+            length: Math.ceil(projectedRecords.length / recordsPerBatch),
           },
           (_, index) =>
             projectedRecords.slice(
-              index * lookupEvidenceRecordsPerBatch,
-              (index + 1) * lookupEvidenceRecordsPerBatch
+              index * recordsPerBatch,
+              (index + 1) * recordsPerBatch
             )
         );
 
@@ -379,8 +382,8 @@ const scoutingEvidenceProjections = (
 
   return batches.map((recordBatch, index) => {
     const batchRecordRefs = recordBatch.map(({ recordRef }) => recordRef);
-    const completedRecordCount = index * lookupEvidenceRecordsPerBatch;
-    const remainingRecordStart = (index + 1) * lookupEvidenceRecordsPerBatch;
+    const completedRecordCount = index * recordsPerBatch;
+    const remainingRecordStart = (index + 1) * recordsPerBatch;
 
     const projection = {
       batch: {

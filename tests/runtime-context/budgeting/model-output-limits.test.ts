@@ -123,6 +123,12 @@ describe("runtime model input budget", () => {
       temperature: 0,
     });
 
+    vi.spyOn(model, "getNumTokens").mockImplementation(async (text) => {
+      await Promise.resolve();
+
+      return Math.ceil(text.length / 4);
+    });
+
     const graph = agentGraphTest.createAgentWithRuntime({
       checkpointer: new MemorySaver(),
       model,

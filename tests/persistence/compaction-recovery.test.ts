@@ -10,6 +10,59 @@ import {
 } from "../fixtures/langgraph-dev-server.js";
 import { managedDevServerTest } from "../fixtures/managed-dev-server-persistence.js";
 
+const assertThreadStateContainsContext = async (
+  baseUrl: string,
+  threadId: string,
+  modelCalls: string[],
+  providerEvents: string[]
+): Promise<void> => {
+  const rawState = await requestJson(
+    baseUrl,
+    `/threads/${threadId}/state`,
+    z.looseObject({ values: z.unknown().optional() })
+  );
+
+  const stateKeys = z.record(z.string(), z.unknown()).parse(rawState.values);
+
+  const modelCallTools = modelCalls.map((body) => {
+    const call = z
+      .looseObject({
+        tools: z
+          .array(
+            z.looseObject({ function: z.looseObject({ name: z.string() }) })
+          )
+          .optional(),
+      })
+      .parse(JSON.parse(body));
+
+    return call.tools?.map(({ function: tool }) => tool.name) ?? [];
+  });
+
+  if (stateKeys.conversationContext !== undefined) {
+    return;
+  }
+
+  const state = AgentState.safeParse(rawState.values);
+
+  throw new Error(
+    JSON.stringify({
+      modelCallTools,
+      modelCalls: modelCalls.length,
+      providerEvents,
+      stateKeys: Object.keys(stateKeys),
+      status: state.success
+        ? {
+            compaction: state.data.contextProcessing.compaction?.status,
+            compactionStop: state.data.contextProcessing.compaction?.stopReason,
+            fault: state.data.faultTolerance.failure?.category,
+            outcome: state.data.outcome?.status,
+            requestKind: state.data.request.kind,
+          }
+        : state.error.issues.map(({ path }) => path.join(".")),
+    })
+  );
+};
+
 describe("compaction and chunk checkpoint recovery", () => {
   it("reuses a completed text compaction after a native Dev Server restart", async () => {
     const session = await startDevServerSession(
@@ -26,6 +79,13 @@ describe("compaction and chunk checkpoint recovery", () => {
         baseUrl,
         thread.thread_id,
         message
+      );
+
+      await assertThreadStateContainsContext(
+        baseUrl,
+        thread.thread_id,
+        gateway.calls(),
+        gateway.events()
       );
 
       const completedBeforeRestart =

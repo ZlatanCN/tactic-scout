@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 import { contextProcessingEvidenceOperation } from "../context-processing-state.js";
 import type { ContextProcessingAllowanceConfiguration } from "../context-processing-state.js";
+import { splitEvidenceBatchPlan } from "../evidence-batch-planning.js";
 import { scoutingEvidenceProjections } from "../lookup-evidence.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import type { AgentState, AgentStateType } from "../state.js";
@@ -19,10 +20,57 @@ const evidenceBatchProjectionSchema = z.object({
   batch: z.object({ recordRefs: z.array(z.string()) }),
 });
 
+const lookupOverflowProjectionSchema = z.looseObject({
+  batch: z.object({
+    completedRecordRefs: z.array(z.string()),
+    index: z.number().int().nonnegative(),
+    recordRefs: z.array(z.string()),
+    remainingRecordRefs: z.array(z.string()),
+    total: z.number().int().positive(),
+  }),
+  coverage: z.looseObject({ records: z.array(z.string()) }),
+  records: z.array(z.unknown()),
+});
+
+const lookupProjectionForSplit = (input: {
+  completedRecordRefs: string[];
+  index: number;
+  original: z.output<typeof lookupOverflowProjectionSchema>;
+  recordRefs: string[];
+  records: unknown[];
+  remainingRecordRefs: string[];
+  total: number;
+}): EvidenceProjection => {
+  const projection = {
+    ...input.original,
+    batch: {
+      ...input.original.batch,
+      completedRecordRefs: input.completedRecordRefs,
+      index: input.index,
+      recordRefs: input.recordRefs,
+      remainingRecordRefs: input.remainingRecordRefs,
+      total: input.total,
+    },
+    coverage: { ...input.original.coverage, records: input.recordRefs },
+    records: input.records,
+  };
+
+  return {
+    projectionJson: JSON.stringify(projection),
+    recordRefs: input.recordRefs,
+  };
+};
+
 type LookupEvidenceNodeConfiguration = {
   allowance?: ContextProcessingAllowanceConfiguration;
   model: BaseChatModel;
   modelContextConfiguration?: ModelContextConfiguration;
+};
+
+type LookupBatchProjectionPlan = {
+  original: z.output<typeof lookupOverflowProjectionSchema>;
+  recordRefs: string[];
+  records: unknown[];
 };
 
 const lookupEvidenceWorkflow: EvidenceWorkflow = {
@@ -42,11 +90,17 @@ const lookupEvidenceWorkflow: EvidenceWorkflow = {
     return { resultJson: outcome.resultJson, source: outcome.source };
   },
   operation: contextProcessingEvidenceOperation.lookup,
-  project: ({ question, resultJson, source }): EvidenceProjection[] | null => {
+  project: ({
+    maxItemsPerBatch,
+    question,
+    resultJson,
+    source,
+  }): EvidenceProjection[] | null => {
     const projections = scoutingEvidenceProjections(
       resultJson,
       question,
-      source
+      source,
+      maxItemsPerBatch ?? 2
     );
 
     if (projections === null) {
@@ -67,6 +121,103 @@ const lookupEvidenceWorkflow: EvidenceWorkflow = {
   questionMessage: (question, projectionJson) =>
     `用户问题：${question}\n\nScouting evidence projection JSON:\n${projectionJson}`,
   setEvidence: (lookupEvidence) => ({ lookupEvidence }),
+  splitBatch: (_task, batches, batchIndex) => {
+    const parsedBatches: z.output<typeof lookupOverflowProjectionSchema>[] = [];
+
+    for (const [index, batch] of batches.entries()) {
+      let rawProjection: unknown;
+
+      try {
+        rawProjection = JSON.parse(batch.projectionJson);
+      } catch {
+        return null;
+      }
+
+      const parsed = lookupOverflowProjectionSchema.safeParse(rawProjection);
+
+      if (
+        !parsed.success ||
+        parsed.data.batch.index !== index ||
+        parsed.data.batch.recordRefs.length !== parsed.data.records.length ||
+        JSON.stringify(batch.recordRefs) !==
+          JSON.stringify(parsed.data.batch.recordRefs)
+      ) {
+        return null;
+      }
+
+      parsedBatches.push(parsed.data);
+    }
+
+    const parent = parsedBatches[batchIndex];
+
+    const splitPlan = splitEvidenceBatchPlan(
+      parsedBatches.map(({ batch: { recordRefs } }) => ({
+        size: recordRefs.length,
+      })),
+      batchIndex
+    );
+
+    const firstSize = splitPlan?.[batchIndex]?.size;
+    const secondSize = splitPlan?.[batchIndex + 1]?.size;
+
+    if (
+      parent === undefined ||
+      firstSize === undefined ||
+      secondSize === undefined
+    ) {
+      return null;
+    }
+
+    const firstRefs = parent.batch.recordRefs.slice(0, firstSize);
+
+    const secondRefs = parent.batch.recordRefs.slice(
+      firstSize,
+      firstSize + secondSize
+    );
+
+    const plan: LookupBatchProjectionPlan[] = parsedBatches.flatMap(
+      (original, index) => {
+        if (index !== batchIndex) {
+          return [
+            {
+              original,
+              recordRefs: original.batch.recordRefs,
+              records: original.records,
+            },
+          ];
+        }
+
+        return [
+          {
+            original,
+            recordRefs: firstRefs,
+            records: parent.records.slice(0, firstSize),
+          },
+          {
+            original,
+            recordRefs: secondRefs,
+            records: parent.records.slice(firstSize),
+          },
+        ];
+      }
+    );
+
+    return plan.map((batch, index) =>
+      lookupProjectionForSplit({
+        completedRecordRefs: plan
+          .slice(0, index)
+          .flatMap(({ recordRefs }) => recordRefs),
+        index,
+        original: batch.original,
+        recordRefs: batch.recordRefs,
+        records: batch.records,
+        remainingRecordRefs: plan
+          .slice(index + 1)
+          .flatMap(({ recordRefs }) => recordRefs),
+        total: plan.length,
+      })
+    );
+  },
   systemPrompt: lookupEvidencePrompt,
 };
 

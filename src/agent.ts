@@ -32,7 +32,11 @@ import {
   apiTimeoutMs,
 } from "./fault-tolerance.js";
 import { scoutingEvidenceProjections } from "./lookup-evidence.js";
-import { modelContextFailure } from "./model-context.js";
+import {
+  modelContextFailure,
+  modelContextRequestAttemptsUsed,
+  modelContextRequestDurationMs,
+} from "./model-context.js";
 import type {
   ModelContextConfiguration,
   ModelContextProfileInput,
@@ -84,6 +88,12 @@ import {
   validatePlayerReference,
 } from "./player-memory.js";
 import { latestHumanMessage, messageText } from "./player-mentions.js";
+import {
+  primaryOverflowAllowanceAfterDuration,
+  primaryOverflowRecoveryFor,
+  reservePrimaryOverflowRecovery,
+  settlePrimaryOverflowRecoveryFailure,
+} from "./primary-overflow-recovery.js";
 import type { RequestUnderstandingExtractor } from "./request-extraction.js";
 import {
   createRequestUnderstandingExtractor,
@@ -307,20 +317,228 @@ const faultToleranceAfterNodeFailure = (
   };
 };
 
+const isPrimaryOverflowRecoveryNode = (
+  node: FaultFailureNode
+): node is Extract<FaultFailureNode, "understand_request" | "lookup_player"> =>
+  ["understand_request", "lookup_player"].includes(node);
+
+const answerEvidenceRecoveryTarget = (state: AgentStateType): string | null => {
+  const { outcome } = state;
+
+  if (
+    outcome === null ||
+    !("source" in outcome) ||
+    outcome.resultJson === null
+  ) {
+    return null;
+  }
+
+  if (outcome.kind === "player_lookup") {
+    return "prepare_lookup_evidence";
+  }
+
+  if (outcome.kind === "player_comparison") {
+    return "prepare_comparison_evidence";
+  }
+
+  if (outcome.kind === "player_recommendation") {
+    return "prepare_player_recommendation_evidence";
+  }
+
+  return "prepare_team_recommendation_evidence";
+};
+
+const faultIsProviderOverflow = (
+  faultTolerance: FaultToleranceState
+): boolean =>
+  faultTolerance.failure?.category === "context_limit" &&
+  faultTolerance.failure.contextIssue === "provider_overflow";
+
+const contextProcessingAfterOverflowDuration = (
+  state: AgentStateType,
+  requestDurationMs: number
+): AgentStateType["contextProcessing"] | null => {
+  const { allowance } = state.contextProcessing;
+
+  if (allowance === null) {
+    return null;
+  }
+
+  return {
+    ...state.contextProcessing,
+    allowance: primaryOverflowAllowanceAfterDuration(
+      allowance,
+      requestDurationMs
+    ),
+  };
+};
+
+const primaryOverflowRecoveryUpdateForFailure = (
+  node: FaultFailureNode,
+  state: AgentStateType,
+  faultTolerance: FaultToleranceState,
+  requestAttemptsUsed: number,
+  requestDurationMs: number,
+  runId: string | undefined
+): Partial<AgentStateType> | null => {
+  if (
+    !isPrimaryOverflowRecoveryNode(node) ||
+    !faultIsProviderOverflow(faultTolerance)
+  ) {
+    return null;
+  }
+
+  const sourceMessage = latestHumanMessage(state.messages);
+
+  if (sourceMessage === undefined) {
+    return null;
+  }
+
+  const previousRecovery = primaryOverflowRecoveryFor(
+    state,
+    node,
+    sourceMessage,
+    state.messages.length
+  );
+
+  const settlement =
+    previousRecovery?.recoveryAllowanceOpen === true
+      ? settlePrimaryOverflowRecoveryFailure({
+          message: sourceMessage,
+          messageCount: state.messages.length,
+          node,
+          requestAttemptsUsed,
+          requestDurationMs,
+          runId,
+          state,
+        })
+      : null;
+
+  const recoveryState: AgentStateType = {
+    ...state,
+    ...settlement,
+  };
+
+  const reservation = reservePrimaryOverflowRecovery(
+    node,
+    recoveryState,
+    requestAttemptsUsed,
+    settlement === null ? requestDurationMs : 0,
+    runId
+  );
+
+  return reservation === null ? settlement : { ...settlement, ...reservation };
+};
+
+const primaryRecoveryFailureUpdate = (
+  node: FaultFailureNode,
+  state: AgentStateType,
+  sourceMessage: ReturnType<typeof latestHumanMessage>,
+  requestDurationMs: number,
+  requestAttemptsUsed: number,
+  runId: string | undefined,
+  settledUpdate: Partial<AgentStateType> | null
+): Partial<AgentStateType> | null => {
+  if (settledUpdate !== null) {
+    return settledUpdate;
+  }
+
+  if (!isPrimaryOverflowRecoveryNode(node) || sourceMessage === undefined) {
+    return null;
+  }
+
+  return settlePrimaryOverflowRecoveryFailure({
+    message: sourceMessage,
+    messageCount: state.messages.length,
+    node,
+    requestAttemptsUsed,
+    requestDurationMs,
+    runId,
+    state,
+  });
+};
+
 const modelFailureHandler =
   (node: FaultFailureNode) =>
-  (state: AgentStateType, error: NodeError, config?: ErrorHandlerConfig) =>
-    new Command({
-      goto: "answer_failure",
+  (state: AgentStateType, error: NodeError, config?: ErrorHandlerConfig) => {
+    const faultTolerance = faultToleranceAfterNodeFailure(
+      node,
+      state,
+      error,
+      config
+    );
+
+    const requestDurationMs =
+      error.error instanceof Error
+        ? (modelContextRequestDurationMs(error.error) ??
+          externalFaultFrom(error.error)?.durationMs ??
+          0)
+        : 0;
+
+    const requestAttemptsUsed =
+      error.error instanceof Error
+        ? (modelContextRequestAttemptsUsed(error.error) ??
+          externalFaultFrom(error.error)?.requestsUsed ??
+          1)
+        : 1;
+
+    const primaryRecovery = primaryOverflowRecoveryUpdateForFailure(
+      node,
+      state,
+      faultTolerance,
+      requestAttemptsUsed,
+      requestDurationMs,
+      config?.runId
+    );
+
+    if (
+      primaryRecovery?.providerOverflowRecovery?.recoveryAllowanceOpen === true
+    ) {
+      return new Command({
+        goto: "prepare_context_processing",
+        update: { ...primaryRecovery, faultTolerance },
+      });
+    }
+
+    const overflowRecoveryTarget =
+      node === "answer" && faultIsProviderOverflow(faultTolerance)
+        ? answerEvidenceRecoveryTarget(state)
+        : null;
+
+    if (overflowRecoveryTarget !== null) {
+      const contextProcessing = contextProcessingAfterOverflowDuration(
+        state,
+        requestDurationMs
+      );
+
+      if (contextProcessing !== null) {
+        return new Command({
+          goto: overflowRecoveryTarget,
+          update: { contextProcessing, faultTolerance },
+        });
+      }
+    }
+
+    const sourceMessage = latestHumanMessage(state.messages);
+
+    const recoveryFailureUpdate = primaryRecoveryFailureUpdate(
+      node,
+      state,
+      sourceMessage,
+      requestDurationMs,
+      requestAttemptsUsed,
+      config?.runId,
+      primaryRecovery
+    );
+
+    return new Command({
+      goto: overflowRecoveryTarget ?? "answer_failure",
       update: {
-        faultTolerance: faultToleranceAfterNodeFailure(
-          node,
-          state,
-          error,
-          config
-        ),
+        ...recoveryFailureUpdate,
+        faultTolerance,
       },
     });
+  };
 
 const teamProviderFailureHandler =
   (node: FaultFailureNode) =>

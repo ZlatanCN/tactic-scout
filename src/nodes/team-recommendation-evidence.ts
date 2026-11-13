@@ -4,6 +4,10 @@ import { z } from "zod/v4";
 
 import { contextProcessingEvidenceOperation } from "../context-processing-state.js";
 import type { ContextProcessingAllowanceConfiguration } from "../context-processing-state.js";
+import {
+  evidenceBatchReferenceCount,
+  splitEvidenceBatchProjections,
+} from "../evidence-batch-planning.js";
 import { assessModelRequest } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import { teamRecommendationEvidenceMetadataSummary } from "../recommendation-answer.js";
@@ -19,7 +23,11 @@ import {
   evidenceProjectionsFitModelInput,
   largestFittingEvidencePlan,
 } from "./evidence-batches.js";
-import type { EvidenceTask, EvidenceWorkflow } from "./evidence-batches.js";
+import type {
+  EvidenceProjection,
+  EvidenceTask,
+  EvidenceWorkflow,
+} from "./evidence-batches.js";
 
 const teamRecommendationEvidencePrompt = `你是足球球队推荐结果解释器。只依据投影中的已验证结果回答，不查询球队或重新排名。严格按原顺序分别呈现当前能力相似名单和高潜名单，不省略候选。每行保留 rank、姓名、FM ID、年龄、位置评分、CA、PA 和 currentDistance；null 明确写未提供。只解释本批候选，不重复全局球队、阵容、排名、参考、筛选和排除元数据；程序会根据完整结果统一呈现这些内容。映射覆盖人数不等于位置能力合格人数。不要把 PA 与 RMSE 混成一个分数，也不要推断阵容缺口、战术适配、当前球队或转会可行性。`;
 
@@ -72,7 +80,7 @@ const teamRecommendationEvidenceProjectionsWithinBudget = async (
   const totalCandidateCount = currentCandidateCount + potentialCandidateCount;
 
   return await largestFittingEvidencePlan(
-    totalCandidateCount,
+    Math.min(totalCandidateCount, task.maxItemsPerBatch ?? totalCandidateCount),
     task.deadlineAt,
     (candidatesPerBatch) => {
       const batchSizes =
@@ -110,6 +118,30 @@ const teamRecommendationEvidenceProjectionsWithinBudget = async (
         ]
       )
   );
+};
+
+const teamCandidateBatchSize = (projectionJson: string): number =>
+  evidenceBatchReferenceCount(projectionJson, "candidateRefs");
+
+const splitTeamRecommendationEvidenceBatch = (
+  task: EvidenceTask,
+  batches: NonNullable<AgentStateType["teamRecommendationEvidence"]>["batches"],
+  batchIndex: number
+): EvidenceProjection[] | null => {
+  const batchPlan = batches.map(({ projectionJson }) => ({
+    size: teamCandidateBatchSize(projectionJson),
+  }));
+
+  return splitEvidenceBatchProjections({
+    batchIndex,
+    batchPlan,
+    projectBatchPlan: (plan) =>
+      teamRecommendationEvidenceProjectionsForBatchSizes(
+        task.resultJson,
+        task.source,
+        plan.map(({ size }) => size)
+      ),
+  });
 };
 
 const teamRecommendationEvidenceWorkflow = (
@@ -174,6 +206,7 @@ const teamRecommendationEvidenceWorkflow = (
       return true;
     }
   },
+  splitBatch: splitTeamRecommendationEvidenceBatch,
   systemPrompt: teamRecommendationEvidencePrompt,
 });
 

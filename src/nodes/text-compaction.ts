@@ -14,6 +14,8 @@ import {
   contextProcessingEvidenceOperations,
   contextProcessingHash,
   contextProcessingInputText,
+  contextProcessingRequestId,
+  contextProcessingRequestMatches,
   defaultContextProcessingAllowance,
   createInitialContextProcessing,
 } from "../context-processing-state.js";
@@ -25,8 +27,10 @@ import type {
   ContextProcessingChunking,
   ContextProcessingCompaction,
   ContextProcessingEvidenceOperation,
+  ContextProcessingMergeGroup,
   ContextProcessingReference,
 } from "../context-processing-state.js";
+import type { FaultCategory } from "../fault-categories.js";
 import { modelRequestTimeoutMs } from "../fault-tolerance.js";
 import {
   assessModelRequest,
@@ -38,6 +42,7 @@ import type {
   ModelContextConfiguration,
   ModelContextRequest,
 } from "../model-context.js";
+import { modelFailureCategory } from "../model-requests.js";
 import type { ModelRuntime } from "../model-requests.js";
 import { supportedPositionCodes } from "../player-data/position-features.js";
 import {
@@ -46,6 +51,10 @@ import {
   messageText,
   normalizeMentionText,
 } from "../player-mentions.js";
+import {
+  primaryOverflowRecoveryFor,
+  settlePrimaryOverflowRecoveryFailure,
+} from "../primary-overflow-recovery.js";
 import { stateCompatibilityUpdate } from "../state-compatibility.js";
 import {
   agentStateSchemaVersion,
@@ -201,18 +210,6 @@ const modelConfigurationHash = (
   );
 };
 
-const requestIdFor = (
-  messageId: string | undefined,
-  text: string,
-  messageCount: number
-): string => {
-  if (messageId !== undefined && messageId.length > 0) {
-    return `message:${messageId}`;
-  }
-
-  return `message:${messageCount}:${contextProcessingHash(text)}`;
-};
-
 const allowanceFor = (
   requestId: string,
   allowance: ContextProcessingAllowanceConfiguration
@@ -227,6 +224,7 @@ const allowanceFor = (
     defaultContextProcessingAllowance.maxAdditionalCalls,
   requestId,
   reservation: null,
+  reservedActiveTimeMs: 0,
 });
 
 const auxiliaryRequest = (
@@ -277,20 +275,23 @@ const auxiliaryChunkRequest = (input: {
 });
 
 const auxiliaryChunkMergeRequest = (input: {
+  chunks?: ContextProcessingChunk[];
   chunking: ContextProcessingChunking;
   sourceHash: string;
   sourceLength: number;
   sourceMessageId: string;
   targetTokens: number;
 }): ModelContextRequest => {
-  const chunks = input.chunking.chunks.map((chunk, index) => ({
-    ambiguities: chunk.ambiguities,
-    anchors: chunk.anchors,
-    chunkIndex: index,
-    instruction: chunk.instruction,
-    range: { end: chunk.end, start: chunk.start },
-    references: chunk.references,
-  }));
+  const chunks = (input.chunks ?? input.chunking.chunks).map(
+    (chunk, index) => ({
+      ambiguities: chunk.ambiguities,
+      anchors: chunk.anchors,
+      chunkIndex: index,
+      instruction: chunk.instruction,
+      range: { end: chunk.end, start: chunk.start },
+      references: chunk.references,
+    })
+  );
 
   const currentUserInput = JSON.stringify(chunks);
 
@@ -446,11 +447,20 @@ const compactionAnchorsMatchSource = (
 const requiredCompactionReferencesArePresent = (
   response: CompactionOutput,
   source: string,
-  requiredAliases: string[]
+  requiredAliases: string[],
+  requiredRange?: { end: number; start: number }
 ): boolean => {
   const { references } = response;
 
   for (const requiredReference of requiredSourceReferences(source)) {
+    if (
+      requiredRange !== undefined &&
+      (requiredReference.start < requiredRange.start ||
+        requiredReference.end > requiredRange.end)
+    ) {
+      continue;
+    }
+
     const isCovered = references.some(
       ({ end, start }) =>
         start <= requiredReference.start && end >= requiredReference.end
@@ -479,7 +489,9 @@ const requiredCompactionReferencesArePresent = (
 const parseCompactionOutput = (
   response: CompactionOutput,
   source: string,
-  requiredAliases: string[]
+  requiredAliases: string[],
+  requireAnchors = true,
+  requiredRange?: { end: number; start: number }
 ): ParsedCompactionOutput => {
   if (response.ambiguities.length > 0) {
     return { ambiguities: response.ambiguities, status: "ambiguous" };
@@ -494,12 +506,13 @@ const parseCompactionOutput = (
   const normalizedResponse = { ...response, references };
 
   if (
-    normalizedResponse.anchors.length === 0 ||
+    (requireAnchors && normalizedResponse.anchors.length === 0) ||
     !compactionAnchorsMatchSource(normalizedResponse, source) ||
     !requiredCompactionReferencesArePresent(
       normalizedResponse,
       source,
-      requiredAliases
+      requiredAliases,
+      requiredRange
     )
   ) {
     return { status: "invalid" };
@@ -542,8 +555,10 @@ const mergeCoversTextChunkAnchors = (
 };
 
 const parseCompactionOperation = (input: {
+  allowAnchorless?: boolean;
   chunking: ContextProcessingChunking | null;
   operation: "compact_text" | "merge_text_chunks";
+  requiredRange?: { end: number; start: number };
   requiredAliases: string[];
   response: CompactionOutput;
   source: string;
@@ -551,7 +566,9 @@ const parseCompactionOperation = (input: {
   const compaction = parseCompactionOutput(
     input.response,
     input.source,
-    input.requiredAliases
+    input.requiredAliases,
+    input.allowAnchorless !== true,
+    input.requiredRange
   );
 
   if (
@@ -826,6 +843,8 @@ type CompactionPreflightInput = {
   taskModel: BaseChatModel;
   taskModelConfiguration: ModelContextConfiguration;
   taskRequest: ModelContextRequest;
+  forceProviderOverflowRecovery?: boolean;
+  providerOverflowRecoveryAttempts?: number;
 };
 
 type CompactionIdentity = Pick<
@@ -854,6 +873,18 @@ const isInputOverflowFailure = (error: Error): boolean => {
   return (
     failure === "input_exceeds_limit" || failure === "user_input_exceeds_limit"
   );
+};
+
+const compactionStopReasonForError = (
+  error: Error
+): "auxiliary_input_too_large" | "provider_failure" | "provider_overflow" => {
+  if (modelContextFailure(error) === "provider_overflow") {
+    return "provider_overflow";
+  }
+
+  return isInputOverflowFailure(error)
+    ? "auxiliary_input_too_large"
+    : "provider_failure";
 };
 
 type InputBudgetStatus =
@@ -974,6 +1005,7 @@ const pendingTextChunk = (
 
 const largestFittingChunkEnd = async (input: {
   compactionModel: BaseChatModel;
+  maxSourceRangeLength?: number;
   modelConfiguration: ModelContextConfiguration;
   source: string;
   sourceHash: string;
@@ -982,7 +1014,12 @@ const largestFittingChunkEnd = async (input: {
   targetTokenEstimate: number;
 }): Promise<number> => {
   let lower = input.start + 1;
-  let upper = input.source.length;
+
+  let upper = Math.min(
+    input.source.length,
+    input.start + (input.maxSourceRangeLength ?? input.source.length)
+  );
+
   let maximumFittingEnd = input.start;
 
   while (lower <= upper) {
@@ -1072,6 +1109,7 @@ const largestFittingChunkEnd = async (input: {
 const textChunkingPlan = async (input: {
   allowance: ContextProcessingAllowance;
   compactionModel: BaseChatModel;
+  maxSourceRangeLength?: number;
   modelConfiguration: ModelContextConfiguration;
   source: string;
   sourceHash: string;
@@ -1087,6 +1125,7 @@ const textChunkingPlan = async (input: {
   if (maxChunkCalls === 0) {
     return {
       chunks: [],
+      mergeGroups: [],
       mergeStatus: "pending",
       nextStart: 0,
       sourceHash: input.sourceHash,
@@ -1102,6 +1141,7 @@ const textChunkingPlan = async (input: {
     // eslint-disable-next-line no-await-in-loop -- The next range starts after this fitted chunk.
     const end = await largestFittingChunkEnd({
       compactionModel: input.compactionModel,
+      maxSourceRangeLength: input.maxSourceRangeLength,
       modelConfiguration: input.modelConfiguration,
       source: input.source,
       sourceHash: input.sourceHash,
@@ -1115,6 +1155,7 @@ const textChunkingPlan = async (input: {
         ? null
         : {
             chunks,
+            mergeGroups: [],
             mergeStatus: "pending",
             nextStart: start,
             sourceHash: input.sourceHash,
@@ -1143,6 +1184,7 @@ const textChunkingPlan = async (input: {
 
   return {
     chunks,
+    mergeGroups: [],
     mergeStatus: "pending",
     nextStart: start,
     sourceHash: input.sourceHash,
@@ -1172,7 +1214,10 @@ const preflightAllowanceExhausted = (
     elapsedMsSince(startedAt)
   );
 
-  if (allowance.consumedActiveTimeMs < allowance.maxActiveTimeMs) {
+  if (
+    allowance.consumedActiveTimeMs + allowance.reservedActiveTimeMs <
+    allowance.maxActiveTimeMs
+  ) {
     return null;
   }
 
@@ -1200,9 +1245,21 @@ type NextTextChunkOperation =
       kind: "chunk";
       name: "compact_text_chunk";
     }
+  | {
+      group: ContextProcessingMergeGroup;
+      index: number;
+      kind: "merge_group";
+      name: "merge_text_chunks";
+    }
+  | { kind: "merge_groups_ready" }
   | { kind: "merge"; name: "merge_text_chunks" }
   | { kind: "incomplete" }
   | { kind: "invalid" };
+
+type ReservableTextChunkOperation = Extract<
+  NextTextChunkOperation,
+  { kind: "chunk" | "merge_group" | "merge" }
+>;
 
 const nextTextChunkOperation = (
   chunking: ContextProcessingChunking
@@ -1218,6 +1275,33 @@ const nextTextChunkOperation = (
     return { kind: "incomplete" };
   }
 
+  const pendingMergeGroupIndex = chunking.mergeGroups.findIndex(
+    ({ status }) => status === "pending"
+  );
+
+  const pendingMergeGroup =
+    pendingMergeGroupIndex === -1
+      ? undefined
+      : chunking.mergeGroups[pendingMergeGroupIndex];
+
+  if (pendingMergeGroup !== undefined) {
+    return {
+      group: pendingMergeGroup,
+      index: pendingMergeGroupIndex,
+      kind: "merge_group",
+      name: "merge_text_chunks",
+    };
+  }
+
+  if (
+    chunking.mergeGroups.length > 0 &&
+    chunking.mergeGroups.every(
+      ({ output, status }) => status === "ready" && output !== null
+    )
+  ) {
+    return { kind: "merge_groups_ready" };
+  }
+
   return chunking.mergeStatus === "pending" &&
     chunking.chunks.every(({ status }) => status === "ready")
     ? { kind: "merge", name: "merge_text_chunks" }
@@ -1227,38 +1311,59 @@ const nextTextChunkOperation = (
 const auxiliaryRequestForChunkOperation = (
   input: CompactionPreflightInput,
   chunking: ContextProcessingChunking,
-  operation: Extract<NextTextChunkOperation, { kind: "chunk" | "merge" }>
-): ModelContextRequest =>
-  operation.kind === "chunk"
-    ? auxiliaryChunkRequest({
-        chunk: operation.chunk,
-        message: input.sourceText.slice(
-          operation.chunk.start,
-          operation.chunk.end
-        ),
-        sourceHash: input.sourceHash,
-        sourceMessageId: input.sourceMessageId,
-      })
-    : auxiliaryChunkMergeRequest({
-        chunking,
-        sourceHash: input.sourceHash,
-        sourceLength: input.sourceText.length,
-        sourceMessageId: input.sourceMessageId,
-        targetTokens: input.targetTokenEstimate ?? 1,
-      });
+  operation: ReservableTextChunkOperation
+): ModelContextRequest => {
+  if (operation.kind === "chunk") {
+    return auxiliaryChunkRequest({
+      chunk: operation.chunk,
+      message: input.sourceText.slice(
+        operation.chunk.start,
+        operation.chunk.end
+      ),
+      sourceHash: input.sourceHash,
+      sourceMessageId: input.sourceMessageId,
+    });
+  }
+
+  const mergeInput: Parameters<typeof auxiliaryChunkMergeRequest>[0] = {
+    chunking,
+    sourceHash: input.sourceHash,
+    sourceLength: input.sourceText.length,
+    sourceMessageId: input.sourceMessageId,
+    targetTokens: input.targetTokenEstimate ?? 1,
+  };
+
+  if (operation.kind === "merge_group") {
+    mergeInput.chunks = operation.group.chunks;
+  }
+
+  return auxiliaryChunkMergeRequest(mergeInput);
+};
 
 const reservedChunkingForOperation = (
   chunking: ContextProcessingChunking,
-  operation: Extract<NextTextChunkOperation, { kind: "chunk" | "merge" }>
-): ContextProcessingChunking =>
-  operation.kind === "chunk"
-    ? {
-        ...chunking,
-        chunks: chunking.chunks.map((chunk, index) =>
-          index === operation.index ? { ...chunk, status: "reserved" } : chunk
-        ),
-      }
-    : { ...chunking, mergeStatus: "reserved" };
+  operation: ReservableTextChunkOperation
+): ContextProcessingChunking => {
+  if (operation.kind === "chunk") {
+    return {
+      ...chunking,
+      chunks: chunking.chunks.map((chunk, index) =>
+        index === operation.index ? { ...chunk, status: "reserved" } : chunk
+      ),
+    };
+  }
+
+  if (operation.kind === "merge_group") {
+    return {
+      ...chunking,
+      mergeGroups: chunking.mergeGroups.map((group, index) =>
+        index === operation.index ? { ...group, status: "reserved" } : group
+      ),
+    };
+  }
+
+  return { ...chunking, mergeStatus: "reserved" };
+};
 
 const chunkingAfterFailedOperation = (
   chunking: ContextProcessingChunking,
@@ -1269,6 +1374,15 @@ const chunkingAfterFailedOperation = (
       ...chunking,
       chunks: chunking.chunks.map((chunk, index) =>
         index === operation.index ? { ...chunk, status: "failed" } : chunk
+      ),
+    };
+  }
+
+  if (operation.kind === "merge_group") {
+    return {
+      ...chunking,
+      mergeGroups: chunking.mergeGroups.map((group, index) =>
+        index === operation.index ? { ...group, status: "failed" } : group
       ),
     };
   }
@@ -1325,7 +1439,9 @@ const noNextChunkOperationUpdate = (
   const exhausted =
     input.allowance.consumedAdditionalCalls >=
       input.allowance.maxAdditionalCalls ||
-    input.allowance.consumedActiveTimeMs >= input.allowance.maxActiveTimeMs;
+    input.allowance.consumedActiveTimeMs +
+      input.allowance.reservedActiveTimeMs >=
+      input.allowance.maxActiveTimeMs;
 
   return chunkingStopUpdate({
     allowance: input.allowance,
@@ -1337,29 +1453,34 @@ const noNextChunkOperationUpdate = (
   });
 };
 
-const reserveNextChunkOperation = async (
+const chunkingProgressRange = (
+  operation: ReservableTextChunkOperation,
+  sourceLength: number
+): ContextProcessingCompaction["progress"] => {
+  if (operation.kind === "chunk") {
+    return { end: operation.chunk.end, start: operation.chunk.start };
+  }
+
+  if (operation.kind === "merge_group") {
+    const [firstChunk] = operation.group.chunks;
+    const lastChunk = operation.group.chunks.at(-1);
+
+    return {
+      end: lastChunk?.end ?? sourceLength,
+      start: firstChunk?.start ?? 0,
+    };
+  }
+
+  return { end: sourceLength, start: 0 };
+};
+
+const reserveTextChunkOperation = async (
   input: CompactionPreflightInput,
   currentCompaction: ContextProcessingCompaction,
   chunking: ContextProcessingChunking,
+  operation: ReservableTextChunkOperation,
   startedAt: number
 ): Promise<Partial<AgentStateType>> => {
-  const operation = nextTextChunkOperation(chunking);
-
-  const inputAllowance = allowanceAfterPreflight(
-    input.allowance,
-    elapsedMsSince(startedAt)
-  );
-
-  if (operation.kind === "incomplete" || operation.kind === "invalid") {
-    return noNextChunkOperationUpdate({
-      allowance: inputAllowance,
-      chunking,
-      clarification: input.clarification,
-      compaction: currentCompaction,
-      operation,
-    });
-  }
-
   const request = auxiliaryRequestForChunkOperation(input, chunking, operation);
 
   const budget = await inputBudgetStatus(
@@ -1394,7 +1515,9 @@ const reserveNextChunkOperation = async (
 
   const reservationMs = Math.min(
     modelRequestTimeoutMs,
-    preflightAllowance.maxActiveTimeMs - preflightAllowance.consumedActiveTimeMs
+    preflightAllowance.maxActiveTimeMs -
+      preflightAllowance.consumedActiveTimeMs -
+      preflightAllowance.reservedActiveTimeMs
   );
 
   const allowanceExhausted =
@@ -1412,13 +1535,14 @@ const reserveNextChunkOperation = async (
     });
   }
 
-  const chunkIndex = operation.kind === "chunk" ? operation.index : null;
+  const chunkIndex =
+    operation.kind === "chunk" || operation.kind === "merge_group"
+      ? operation.index
+      : null;
+
   const reservedChunking = reservedChunkingForOperation(chunking, operation);
 
-  const range =
-    operation.kind === "chunk"
-      ? { end: operation.chunk.end, start: operation.chunk.start }
-      : { end: input.sourceText.length, start: 0 };
+  const range = chunkingProgressRange(operation, input.sourceText.length);
 
   const reservedCompaction: ContextProcessingCompaction = {
     ...currentCompaction,
@@ -1449,6 +1573,85 @@ const reserveNextChunkOperation = async (
   };
 };
 
+const reserveNextChunkOperation = async (
+  input: CompactionPreflightInput,
+  currentCompaction: ContextProcessingCompaction,
+  chunking: ContextProcessingChunking,
+  startedAt: number
+): Promise<Partial<AgentStateType>> => {
+  const operation = nextTextChunkOperation(chunking);
+
+  const inputAllowance = allowanceAfterPreflight(
+    input.allowance,
+    elapsedMsSince(startedAt)
+  );
+
+  if (operation.kind === "incomplete" || operation.kind === "invalid") {
+    return noNextChunkOperationUpdate({
+      allowance: inputAllowance,
+      chunking,
+      clarification: input.clarification,
+      compaction: currentCompaction,
+      operation,
+    });
+  }
+
+  if (operation.kind === "merge_groups_ready") {
+    const outputs = chunking.mergeGroups.flatMap(({ output }) =>
+      output === null ? [] : [output]
+    );
+
+    if (
+      outputs.length !== chunking.mergeGroups.length ||
+      outputs.length === 0
+    ) {
+      return noNextChunkOperationUpdate({
+        allowance: inputAllowance,
+        chunking,
+        clarification: input.clarification,
+        compaction: currentCompaction,
+        operation: { kind: "invalid" },
+      });
+    }
+
+    const reassembledChunking: ContextProcessingChunking = {
+      ...chunking,
+      chunks: outputs,
+      mergeGroups: [],
+      mergeStatus: "pending",
+    };
+
+    const finalMerge = nextTextChunkOperation(reassembledChunking);
+
+    if (finalMerge.kind !== "merge") {
+      return chunkingStopUpdate({
+        allowance: inputAllowance,
+        chunking: { ...reassembledChunking, mergeStatus: "failed" },
+        clarification: input.clarification,
+        compaction: currentCompaction,
+        status: "failed",
+        stopReason: "invalid_response",
+      });
+    }
+
+    return await reserveTextChunkOperation(
+      input,
+      currentCompaction,
+      reassembledChunking,
+      finalMerge,
+      startedAt
+    );
+  }
+
+  return await reserveTextChunkOperation(
+    input,
+    currentCompaction,
+    chunking,
+    operation,
+    startedAt
+  );
+};
+
 const reserveExistingTextChunking = async (
   input: CompactionPreflightInput,
   startedAt: number
@@ -1474,11 +1677,13 @@ const reserveExistingTextChunking = async (
 const startTextChunking = async (
   input: CompactionPreflightInput,
   sourceTokenEstimate: number | null,
-  startedAt: number
+  startedAt: number,
+  maxSourceRangeLength?: number
 ): Promise<Partial<AgentStateType>> => {
   const chunking = await textChunkingPlan({
     allowance: input.allowance,
     compactionModel: input.compactionModel,
+    maxSourceRangeLength,
     modelConfiguration: input.compactionModelConfiguration,
     source: input.sourceText,
     sourceHash: input.sourceHash,
@@ -1524,6 +1729,54 @@ const startTextChunking = async (
     compaction,
     chunking,
     startedAt
+  );
+};
+
+const recoverTextCompactionAfterProviderOverflow = async (
+  input: CompactionPreflightInput,
+  startedAt: number
+): Promise<Partial<AgentStateType>> => {
+  const { previousCompaction } = input;
+
+  if (input.sourceText.length < 2) {
+    const allowance = allowanceAfterPreflight(
+      input.allowance,
+      elapsedMsSince(startedAt)
+    );
+
+    const compaction = compactionRecord({
+      ...input,
+      progressEnd: input.sourceText.length,
+      sourceTokenEstimate: previousCompaction?.sourceTokenEstimate ?? null,
+      status: "failed",
+      stopReason: "no_reduction",
+    });
+
+    return {
+      contextProcessing: {
+        allowance,
+        clarification: input.clarification,
+        compaction,
+      },
+    };
+  }
+
+  const sourceTokenEstimate = await input.taskModel
+    .getNumTokens(input.sourceText)
+    .catch(() => null);
+
+  return await startTextChunking(
+    {
+      ...input,
+      targetTokenEstimate:
+        previousCompaction?.targetTokenEstimate ?? input.targetTokenEstimate,
+    },
+    sourceTokenEstimate,
+    startedAt,
+    Math.floor(
+      input.sourceText.length *
+        0.75 ** (input.providerOverflowRecoveryAttempts ?? 1)
+    )
   );
 };
 
@@ -1593,7 +1846,8 @@ const previousCompactionMatches = (
 const existingCompactionDecision = (
   state: AgentStateType,
   input: CompactionIdentity,
-  allowanceConfiguration: ContextProcessingAllowanceConfiguration
+  allowanceConfiguration: ContextProcessingAllowanceConfiguration,
+  forceProviderOverflowRecovery = false
 ): ExistingCompactionDecision => {
   const previousProcessing = state.contextProcessing;
   const previousAllowance = previousProcessing.allowance;
@@ -1608,7 +1862,10 @@ const existingCompactionDecision = (
   const effectiveAllowance =
     allowance ?? allowanceFor(input.requestId, allowanceConfiguration);
 
-  if (validCachedCompaction(previousCompaction, input)) {
+  if (
+    !forceProviderOverflowRecovery &&
+    validCachedCompaction(previousCompaction, input)
+  ) {
     return {
       kind: "handled",
       update: {
@@ -1635,7 +1892,10 @@ const existingCompactionDecision = (
     input
   );
 
-  if (previousIsCurrent) {
+  if (
+    previousIsCurrent &&
+    previousCompaction?.stopReason !== "provider_overflow"
+  ) {
     return {
       kind: "handled",
       update: {
@@ -1655,20 +1915,10 @@ const existingCompactionDecision = (
   };
 };
 
-const reserveTextCompaction = async (
-  input: CompactionPreflightInput
+const reserveRegularTextCompaction = async (
+  input: CompactionPreflightInput,
+  preflightStartedAt: number
 ): Promise<Partial<AgentStateType>> => {
-  const preflightStartedAt = Date.now();
-
-  const resumedChunking = await reserveExistingTextChunking(
-    input,
-    preflightStartedAt
-  );
-
-  if (resumedChunking !== null) {
-    return resumedChunking;
-  }
-
   const taskBudget = await inputBudgetStatus(
     input.taskModel,
     input.taskRequest,
@@ -1877,7 +2127,9 @@ const reserveTextCompaction = async (
 
   const reservationMs = Math.min(
     modelRequestTimeoutMs,
-    preflightAllowance.maxActiveTimeMs - preflightAllowance.consumedActiveTimeMs
+    preflightAllowance.maxActiveTimeMs -
+      preflightAllowance.consumedActiveTimeMs -
+      preflightAllowance.reservedActiveTimeMs
   );
 
   const allowanceExhausted =
@@ -1936,6 +2188,34 @@ const reserveTextCompaction = async (
   };
 };
 
+const reserveTextCompaction = async (
+  input: CompactionPreflightInput
+): Promise<Partial<AgentStateType>> => {
+  const preflightStartedAt = Date.now();
+
+  const resumedChunking =
+    input.forceProviderOverflowRecovery === true &&
+    input.previousCompaction?.status === "ready"
+      ? null
+      : await reserveExistingTextChunking(input, preflightStartedAt);
+
+  if (resumedChunking !== null) {
+    return resumedChunking;
+  }
+
+  if (
+    input.forceProviderOverflowRecovery === true ||
+    input.previousCompaction?.stopReason === "provider_overflow"
+  ) {
+    return await recoverTextCompactionAfterProviderOverflow(
+      input,
+      preflightStartedAt
+    );
+  }
+
+  return await reserveRegularTextCompaction(input, preflightStartedAt);
+};
+
 const currentMessageWasProcessed = (
   processedMessageId: string | null | undefined,
   currentMessageId: string | undefined,
@@ -1944,6 +2224,80 @@ const currentMessageWasProcessed = (
   currentMessageId !== undefined &&
   !hasPendingReservation &&
   processedMessageId === currentMessageId;
+
+const messageCanSkipContextProcessing = (
+  processedMessageId: string | null | undefined,
+  currentMessageId: string | undefined,
+  hasPendingReservation: boolean,
+  forceProviderOverflowRecovery: boolean
+): boolean =>
+  currentMessageWasProcessed(
+    processedMessageId,
+    currentMessageId,
+    hasPendingReservation
+  ) && !forceProviderOverflowRecovery;
+
+const providerOverflowRecoveryForRun = (
+  state: AgentStateType,
+  messageId: string | undefined,
+  sourceText: string,
+  messageCount: number,
+  runId?: string
+): NonNullable<AgentStateType["providerOverflowRecovery"]> | null => {
+  const recovery = state.providerOverflowRecovery;
+
+  if (recovery?.recoveryAllowanceOpen !== true) {
+    return null;
+  }
+
+  if (
+    !contextProcessingRequestMatches(
+      recovery,
+      messageId,
+      sourceText,
+      messageCount
+    )
+  ) {
+    return null;
+  }
+
+  if (recovery.primaryRequestReserved && recovery.runId !== (runId ?? null)) {
+    return null;
+  }
+
+  return { ...recovery, runId: runId ?? null };
+};
+
+const providerOverflowRecoveryStateUpdate = (
+  state: AgentStateType,
+  recovery: AgentStateType["providerOverflowRecovery"],
+  messageId: string | undefined,
+  sourceText: string,
+  messageCount: number
+): Partial<AgentStateType> => {
+  if (recovery !== null) {
+    return { providerOverflowRecovery: recovery };
+  }
+
+  const previousRecovery = state.providerOverflowRecovery;
+
+  if (previousRecovery === null || previousRecovery === undefined) {
+    return {};
+  }
+
+  if (
+    contextProcessingRequestMatches(
+      previousRecovery,
+      messageId,
+      sourceText,
+      messageCount
+    )
+  ) {
+    return {};
+  }
+
+  return { providerOverflowRecovery: null };
+};
 
 const evidenceReservationMatchesMessage = (
   state: AgentStateType,
@@ -1967,7 +2321,13 @@ const evidenceReservationMatchesMessage = (
 
   const question = messageText(currentMessage);
   const messageIndex = state.messages.indexOf(currentMessage);
-  const requestId = requestIdFor(currentMessage.id, question, messageIndex + 1);
+
+  const requestId = contextProcessingRequestId(
+    currentMessage.id,
+    question,
+    messageIndex + 1
+  );
+
   const sourceMessageId = currentMessage.id ?? requestId;
 
   return (
@@ -2007,11 +2367,25 @@ const evidenceReservationMatchesAnyWorkflow = (
   );
 };
 
+const textCompactionShouldSkip = (
+  state: AgentStateType,
+  currentMessage: HumanMessage,
+  reservation: ContextProcessingAllowance["reservation"],
+  forceProviderOverflowRecovery: boolean
+): boolean =>
+  evidenceReservationMatchesAnyWorkflow(state, currentMessage, reservation) ||
+  messageCanSkipContextProcessing(
+    state.request?.processedMessageId,
+    currentMessage.id,
+    reservation !== null,
+    forceProviderOverflowRecovery
+  );
+
 const prepareTextCompactionNode =
   (
     configuration: TextCompactionNodeConfiguration
   ): GraphNode<typeof AgentState> =>
-  async (state) => {
+  async (state, runtime) => {
     const currentMessage = latestHumanMessage(state.messages);
 
     if (currentMessage === undefined) {
@@ -2035,35 +2409,42 @@ const prepareTextCompactionNode =
     const reservation =
       normalizedState.contextProcessing.allowance?.reservation ?? null;
 
-    const hasPendingReservation = reservation !== null;
-
-    if (
-      evidenceReservationMatchesAnyWorkflow(
-        normalizedState,
-        currentMessage,
-        reservation
-      )
-    ) {
-      return {};
-    }
-
-    if (
-      currentMessageWasProcessed(
-        normalizedState.request?.processedMessageId,
-        currentMessage.id,
-        hasPendingReservation
-      )
-    ) {
-      return {};
-    }
-
     const originalText = messageText(currentMessage);
 
-    const requestId = requestIdFor(
+    const requestId = contextProcessingRequestId(
       currentMessage.id,
       originalText,
       state.messages.length
     );
+
+    const providerOverflowRecovery = providerOverflowRecoveryForRun(
+      normalizedState,
+      currentMessage.id,
+      originalText,
+      state.messages.length,
+      runtime.executionInfo?.runId
+    );
+
+    const forceProviderOverflowRecovery = providerOverflowRecovery !== null;
+
+    const providerRecoveryStateUpdate = providerOverflowRecoveryStateUpdate(
+      normalizedState,
+      providerOverflowRecovery,
+      currentMessage.id,
+      originalText,
+      state.messages.length
+    );
+
+    if (
+      textCompactionShouldSkip(
+        normalizedState,
+        currentMessage,
+        reservation,
+        forceProviderOverflowRecovery
+      )
+    ) {
+      return providerRecoveryStateUpdate;
+    }
 
     const sourceMessageId = currentMessage.id ?? requestId;
 
@@ -2130,12 +2511,14 @@ const prepareTextCompactionNode =
     const decision = existingCompactionDecision(
       normalizedState,
       decisionInput,
-      configuration.allowance ?? {}
+      configuration.allowance ?? {},
+      forceProviderOverflowRecovery
     );
 
     if (decision.kind === "handled") {
       return {
         ...decision.update,
+        ...providerRecoveryStateUpdate,
         stateSchemaVersion:
           normalizedState.stateSchemaVersion ?? agentStateSchemaVersion,
       };
@@ -2147,7 +2530,9 @@ const prepareTextCompactionNode =
       chunking: decisionInput.chunking,
       compactionModel,
       compactionModelConfiguration,
+      forceProviderOverflowRecovery,
       previousCompaction: decision.previousCompaction,
+      providerOverflowRecoveryAttempts: providerOverflowRecovery?.attempts,
       taskModel: configuration.model,
       taskModelConfiguration: configuration.modelContextConfiguration,
       taskRequest,
@@ -2155,6 +2540,7 @@ const prepareTextCompactionNode =
 
     return {
       ...update,
+      ...providerRecoveryStateUpdate,
       stateSchemaVersion:
         normalizedState.stateSchemaVersion ?? agentStateSchemaVersion,
     };
@@ -2183,7 +2569,20 @@ type TextCompactionCall =
     }
   | {
       durationMs: number;
+      groupIndex: number;
+      kind: "merge_group_ambiguous";
+      ambiguities: string[];
+    }
+  | {
+      durationMs: number;
+      groupIndex: number;
+      kind: "merge_group_completed";
+      output: ContextProcessingChunk;
+    }
+  | {
+      durationMs: number;
       kind: "failed";
+      providerFailureCategory?: FaultCategory;
       stopReason: NonNullable<ContextProcessingCompaction["stopReason"]>;
     };
 
@@ -2275,6 +2674,254 @@ const failedCompactionUpdate = (
         chunking: updatedChunking,
         status: "failed",
         stopReason,
+      },
+    },
+  };
+};
+
+const splitTextChunkAfterProviderOverflow = async (
+  configuration: TextCompactionNodeConfiguration,
+  input: ReservedTextCompaction,
+  durationMs: number
+): Promise<Partial<AgentStateType> | null> => {
+  const { reservation } = input.allowance;
+  const { chunking } = input.compaction;
+  const chunkIndex = reservation?.chunkIndex;
+
+  const chunk =
+    chunkIndex === null || chunkIndex === undefined
+      ? undefined
+      : chunking?.chunks[chunkIndex];
+
+  if (reservation?.operation !== "compact_text_chunk") {
+    return null;
+  }
+
+  if (chunking === null || chunking === undefined || chunk === undefined) {
+    return null;
+  }
+
+  if (chunk.end - chunk.start < 2) {
+    return null;
+  }
+
+  const midpoint = sourceChunkEndAtCodePoint(
+    input.source,
+    chunk.start + Math.floor((chunk.end - chunk.start) / 2)
+  );
+
+  const textBoundary = sourceChunkEndAtTextBoundary(
+    input.source,
+    chunk.start,
+    midpoint
+  );
+
+  const splitEnd = sourceChunkEndOutsideRequiredReferences(
+    input.source,
+    chunk.start,
+    textBoundary,
+    chunk.end
+  );
+
+  if (splitEnd <= chunk.start || splitEnd >= chunk.end) {
+    return null;
+  }
+
+  const targetTokenEstimate = Math.max(
+    1,
+    Math.floor(chunk.targetTokenEstimate / 2)
+  );
+
+  const children = [
+    pendingTextChunk(input.source, chunk.start, splitEnd, targetTokenEstimate),
+    pendingTextChunk(input.source, splitEnd, chunk.end, targetTokenEstimate),
+  ];
+
+  const model = configuration.compactionModel ?? configuration.model;
+
+  const modelConfiguration =
+    configuration.compactionModelContextConfiguration ??
+    configuration.modelContextConfiguration;
+
+  const [parentAssessment, childAssessments] = await Promise.all([
+    inputBudgetStatus(
+      model,
+      auxiliaryChunkRequest({
+        chunk,
+        message: input.source.slice(chunk.start, chunk.end),
+        sourceHash: input.sourceHash,
+        sourceMessageId: input.compaction.sourceMessageId,
+      }),
+      modelConfiguration
+    ),
+    Promise.all(
+      children.map(
+        async (child) =>
+          await inputBudgetStatus(
+            model,
+            auxiliaryChunkRequest({
+              chunk: child,
+              message: input.source.slice(child.start, child.end),
+              sourceHash: input.sourceHash,
+              sourceMessageId: input.compaction.sourceMessageId,
+            }),
+            modelConfiguration
+          )
+      )
+    ),
+  ]);
+
+  const parentTokens =
+    parentAssessment.kind === "fits" || parentAssessment.kind === "soft_trigger"
+      ? parentAssessment.assessment.estimatedInputTokens
+      : null;
+
+  if (
+    parentTokens === null ||
+    childAssessments.some(
+      (assessment) =>
+        (assessment.kind !== "fits" && assessment.kind !== "soft_trigger") ||
+        assessment.assessment.estimatedInputTokens >= parentTokens
+    )
+  ) {
+    return null;
+  }
+
+  const chunks = chunking.chunks.flatMap((existingChunk, index) =>
+    index === chunkIndex ? children : [existingChunk]
+  );
+
+  return {
+    contextProcessing: {
+      allowance: allowanceAfterCompactionCall(input.allowance, durationMs),
+      clarification: input.clarification,
+      compaction: {
+        ...input.compaction,
+        chunking: { ...chunking, chunks, mergeStatus: "pending" },
+        status: "chunking",
+        stopReason: null,
+      },
+    },
+  };
+};
+
+const splitTextMergeAfterProviderOverflow = async (
+  configuration: TextCompactionNodeConfiguration,
+  input: ReservedTextCompaction,
+  durationMs: number
+): Promise<Partial<AgentStateType> | null> => {
+  const { allowance, compaction } = input;
+  const { chunking } = compaction;
+  const { reservation } = allowance;
+
+  if (reservation?.operation !== "merge_text_chunks" || chunking === null) {
+    return null;
+  }
+
+  const mergeGroupIndex = reservation.chunkIndex;
+  let sourceChunks: ContextProcessingChunk[];
+
+  if (mergeGroupIndex === null) {
+    if (chunking.mergeStatus !== "reserved") {
+      return null;
+    }
+
+    sourceChunks = chunking.chunks;
+  } else {
+    const mergeGroup = chunking.mergeGroups[mergeGroupIndex];
+
+    if (mergeGroup === undefined || mergeGroup.status !== "reserved") {
+      return null;
+    }
+
+    sourceChunks = mergeGroup.chunks;
+  }
+
+  if (sourceChunks.length < 2) {
+    return null;
+  }
+
+  const splitAt = Math.floor(sourceChunks.length / 2);
+
+  const firstChunks = sourceChunks.slice(0, splitAt);
+  const secondChunks = sourceChunks.slice(splitAt);
+
+  if (firstChunks.length === 0 || secondChunks.length === 0) {
+    return null;
+  }
+
+  const childGroups: ContextProcessingMergeGroup[] = [
+    { chunks: firstChunks, output: null, status: "pending" },
+    { chunks: secondChunks, output: null, status: "pending" },
+  ];
+
+  const model = configuration.compactionModel ?? configuration.model;
+
+  const modelConfiguration =
+    configuration.compactionModelContextConfiguration ??
+    configuration.modelContextConfiguration;
+
+  const mergeRequestFor = (chunks: ContextProcessingChunk[]) =>
+    auxiliaryChunkMergeRequest({
+      chunking,
+      chunks,
+      sourceHash: input.sourceHash,
+      sourceLength: input.source.length,
+      sourceMessageId: compaction.sourceMessageId,
+      targetTokens: compaction.targetTokenEstimate ?? 1,
+    });
+
+  const preflightStartedAt = Date.now();
+
+  const [parentAssessment, childAssessments] = await Promise.all([
+    inputBudgetStatus(model, mergeRequestFor(sourceChunks), modelConfiguration),
+    Promise.all(
+      childGroups.map(
+        async ({ chunks }) =>
+          await inputBudgetStatus(
+            model,
+            mergeRequestFor(chunks),
+            modelConfiguration
+          )
+      )
+    ),
+  ]);
+
+  const parentTokens =
+    parentAssessment.kind === "fits" || parentAssessment.kind === "soft_trigger"
+      ? parentAssessment.assessment.estimatedInputTokens
+      : null;
+
+  if (
+    parentTokens === null ||
+    childAssessments.some(
+      (assessment) =>
+        (assessment.kind !== "fits" && assessment.kind !== "soft_trigger") ||
+        assessment.assessment.estimatedInputTokens >= parentTokens
+    )
+  ) {
+    return null;
+  }
+
+  const mergeGroups =
+    mergeGroupIndex === null
+      ? childGroups
+      : chunking.mergeGroups.flatMap((group, index) =>
+          index === mergeGroupIndex ? childGroups : [group]
+        );
+
+  return {
+    contextProcessing: {
+      allowance: allowanceAfterCompactionCall(
+        allowance,
+        durationMs + elapsedMsSince(preflightStartedAt)
+      ),
+      clarification: input.clarification,
+      compaction: {
+        ...compaction,
+        chunking: { ...chunking, mergeGroups, mergeStatus: "pending" },
+        status: "merging",
+        stopReason: null,
       },
     },
   };
@@ -2408,12 +3055,86 @@ const compactionAfterChunkCall = (
   };
 };
 
+const compactionAfterMergeGroupCall = (
+  input: ReservedTextCompaction,
+  call: Extract<
+    TextCompactionCall,
+    { kind: "merge_group_ambiguous" | "merge_group_completed" }
+  >
+): Partial<AgentStateType> => {
+  const { chunking } = input.compaction;
+  const reservedGroup = chunking?.mergeGroups[call.groupIndex];
+
+  if (
+    chunking === null ||
+    chunking === undefined ||
+    reservedGroup === undefined ||
+    reservedGroup.status !== "reserved"
+  ) {
+    return failedCompactionUpdate(
+      input,
+      call.durationMs,
+      "source_reference_invalid"
+    );
+  }
+
+  if (call.kind === "merge_group_ambiguous") {
+    return {
+      contextProcessing: {
+        allowance: allowanceAfterCompactionCall(
+          input.allowance,
+          call.durationMs
+        ),
+        clarification: input.clarification,
+        compaction: {
+          ...input.compaction,
+          ambiguities: call.ambiguities,
+          chunking: {
+            ...chunking,
+            mergeGroups: chunking.mergeGroups.map((group, index) =>
+              index === call.groupIndex ? { ...group, status: "failed" } : group
+            ),
+            mergeStatus: "failed",
+          },
+          status: "needs_clarification",
+          stopReason: "ambiguous_conditions",
+        },
+      },
+    };
+  }
+
+  return {
+    contextProcessing: {
+      allowance: allowanceAfterCompactionCall(input.allowance, call.durationMs),
+      clarification: input.clarification,
+      compaction: {
+        ...input.compaction,
+        chunking: {
+          ...chunking,
+          mergeGroups: chunking.mergeGroups.map((group, index) =>
+            index === call.groupIndex
+              ? { ...group, output: call.output, status: "ready" }
+              : group
+          ),
+          mergeStatus: "pending",
+        },
+        status: "merging",
+        stopReason: null,
+      },
+    },
+  };
+};
+
 type StructuredCompactionResponseCall =
   | { durationMs: number; kind: "completed"; response: unknown }
   | {
       durationMs: number;
       kind: "failed";
-      stopReason: "auxiliary_input_too_large" | "provider_failure";
+      providerFailureCategory?: FaultCategory;
+      stopReason:
+        | "auxiliary_input_too_large"
+        | "provider_failure"
+        | "provider_overflow";
     };
 
 const invokeStructuredCompactionResponse = async (
@@ -2465,14 +3186,26 @@ const invokeStructuredCompactionResponse = async (
 
     const durationMs = Math.min(reservationMs, elapsedMsSince(startedAt));
 
-    return {
+    const providerFailureCategory =
+      error instanceof Error ? modelFailureCategory(error) : null;
+
+    const failedCall: Extract<
+      StructuredCompactionResponseCall,
+      { kind: "failed" }
+    > = {
       durationMs,
       kind: "failed",
       stopReason:
-        error instanceof Error && isInputOverflowFailure(error)
-          ? "auxiliary_input_too_large"
+        error instanceof Error
+          ? compactionStopReasonForError(error)
           : "provider_failure",
     };
+
+    if (providerFailureCategory !== null) {
+      failedCall.providerFailureCategory = providerFailureCategory;
+    }
+
+    return failedCall;
   }
 };
 
@@ -2528,6 +3261,199 @@ const chunkCompactionCallFromResponse = async (input: {
   };
 };
 
+const mergeGroupCallFromResponse = async (input: {
+  chunking: ContextProcessingChunking;
+  durationMs: number;
+  groupIndex: number;
+  model: BaseChatModel;
+  response: CompactionOutput;
+  source: string;
+  sourceHash: string;
+  conversationContext: AgentStateType["conversationContext"];
+}): Promise<TextCompactionCall> => {
+  const group = input.chunking.mergeGroups[input.groupIndex];
+  const [firstChunk] = group?.chunks ?? [];
+  const lastChunk = group?.chunks.at(-1);
+
+  if (
+    group === undefined ||
+    group.status !== "reserved" ||
+    firstChunk === undefined ||
+    lastChunk === undefined
+  ) {
+    return {
+      durationMs: input.durationMs,
+      kind: "failed",
+      stopReason: "source_reference_invalid",
+    };
+  }
+
+  const requiredAliases = findConfirmedPlayerAliasesInMessage(
+    input.source.slice(firstChunk.start, lastChunk.end),
+    input.conversationContext
+  );
+
+  const compacted = parseCompactionOperation({
+    allowAnchorless: true,
+    chunking: { ...input.chunking, chunks: group.chunks },
+    operation: "merge_text_chunks",
+    requiredAliases,
+    requiredRange: { end: lastChunk.end, start: firstChunk.start },
+    response: input.response,
+    source: input.source,
+  });
+
+  if (compacted.status === "ambiguous") {
+    return {
+      ambiguities: compacted.ambiguities,
+      durationMs: input.durationMs,
+      groupIndex: input.groupIndex,
+      kind: "merge_group_ambiguous",
+    };
+  }
+
+  if (compacted.status !== "ready") {
+    return {
+      durationMs: input.durationMs,
+      kind: "failed",
+      stopReason: "source_reference_invalid",
+    };
+  }
+
+  const inputTokenEstimates = group.chunks.map(
+    ({ instructionTokenEstimate }) => instructionTokenEstimate
+  );
+
+  const outputTokenEstimate = await input.model
+    .getNumTokens(compacted.instruction)
+    .catch(() => null);
+
+  let inputInstructionTokens: number | null = 0;
+
+  for (const estimate of inputTokenEstimates) {
+    if (estimate === null || inputInstructionTokens === null) {
+      inputInstructionTokens = null;
+      break;
+    }
+
+    inputInstructionTokens += estimate;
+  }
+
+  if (
+    outputTokenEstimate === null ||
+    inputInstructionTokens === null ||
+    outputTokenEstimate >= inputInstructionTokens
+  ) {
+    return {
+      durationMs: input.durationMs,
+      kind: "failed",
+      stopReason: "no_reduction",
+    };
+  }
+
+  const targetTokenEstimate = Math.max(
+    1,
+    group.chunks.reduce(
+      (total, { targetTokenEstimate: estimate }) => total + estimate,
+      0
+    )
+  );
+
+  return {
+    durationMs: input.durationMs,
+    groupIndex: input.groupIndex,
+    kind: "merge_group_completed",
+    output: {
+      ambiguities: [],
+      anchors: compacted.anchors,
+      end: lastChunk.end,
+      instruction: compacted.instruction,
+      instructionTokenEstimate: outputTokenEstimate,
+      references: compacted.references,
+      sourceHash: contextProcessingHash(
+        input.source.slice(firstChunk.start, lastChunk.end)
+      ),
+      start: firstChunk.start,
+      status: "ready",
+      targetTokenEstimate,
+    },
+  };
+};
+
+type ReservedTextCompactionRequest = {
+  chunk?: ContextProcessingChunk;
+  mergeGroup?: ContextProcessingMergeGroup;
+  request: ModelContextRequest;
+};
+
+const reservedTextCompactionRequestFor = (
+  input: ReservedTextCompaction,
+  reservation: NonNullable<ContextProcessingAllowance["reservation"]>
+): ReservedTextCompactionRequest | null => {
+  const { chunking } = input.compaction;
+
+  if (reservation.operation === "compact_text") {
+    return {
+      request: auxiliaryRequest(
+        input.source,
+        input.compaction.sourceMessageId,
+        input.sourceHash,
+        input.compaction.targetTokenEstimate ?? 1
+      ),
+    };
+  }
+
+  if (reservation.operation === "compact_text_chunk") {
+    const chunk =
+      reservation.chunkIndex === null
+        ? undefined
+        : chunking?.chunks[reservation.chunkIndex];
+
+    return chunk === undefined || chunking === null
+      ? null
+      : {
+          chunk,
+          request: auxiliaryChunkRequest({
+            chunk,
+            message: input.source.slice(chunk.start, chunk.end),
+            sourceHash: input.sourceHash,
+            sourceMessageId: input.compaction.sourceMessageId,
+          }),
+        };
+  }
+
+  if (chunking === null) {
+    return null;
+  }
+
+  const mergeInput: Parameters<typeof auxiliaryChunkMergeRequest>[0] = {
+    chunking,
+    sourceHash: input.sourceHash,
+    sourceLength: input.source.length,
+    sourceMessageId: input.compaction.sourceMessageId,
+    targetTokens: input.compaction.targetTokenEstimate ?? 1,
+  };
+
+  if (reservation.chunkIndex !== null) {
+    const mergeGroup = chunking.mergeGroups[reservation.chunkIndex];
+
+    if (mergeGroup === undefined || mergeGroup.status !== "reserved") {
+      return null;
+    }
+
+    mergeInput.chunks = mergeGroup.chunks;
+
+    return {
+      mergeGroup,
+      request: auxiliaryChunkMergeRequest(mergeInput),
+    };
+  }
+
+  return chunking.mergeStatus === "reserved"
+    ? { request: auxiliaryChunkMergeRequest(mergeInput) }
+    : null;
+};
+
 const invokeTextCompaction = async (
   configuration: TextCompactionNodeConfiguration,
   runtime: ModelRuntime,
@@ -2538,7 +3464,10 @@ const invokeTextCompaction = async (
   const model = configuration.compactionModel ?? configuration.model;
   const { reservation } = input.allowance;
 
-  if (reservation === null) {
+  if (
+    reservation === null ||
+    isEvidenceReservationOperation(reservation.operation)
+  ) {
     return {
       durationMs: 0,
       kind: "failed",
@@ -2546,68 +3475,21 @@ const invokeTextCompaction = async (
     };
   }
 
-  if (isEvidenceReservationOperation(reservation.operation)) {
+  const prepared = reservedTextCompactionRequestFor(input, reservation);
+
+  if (prepared === null) {
     return {
       durationMs: 0,
       kind: "failed",
-      stopReason: "reservation_unknown",
+      stopReason: "source_reference_invalid",
     };
-  }
-
-  const { chunking } = input.compaction;
-  let chunk: ContextProcessingChunk | undefined;
-  let request: ModelContextRequest;
-
-  if (reservation.operation === "compact_text") {
-    request = auxiliaryRequest(
-      input.source,
-      input.compaction.sourceMessageId,
-      input.sourceHash,
-      input.compaction.targetTokenEstimate ?? 1
-    );
-  } else if (reservation.operation === "compact_text_chunk") {
-    chunk =
-      reservation.chunkIndex === null
-        ? undefined
-        : chunking?.chunks[reservation.chunkIndex];
-
-    if (chunk === undefined || chunking === null) {
-      return {
-        durationMs: 0,
-        kind: "failed",
-        stopReason: "source_reference_invalid",
-      };
-    }
-
-    request = auxiliaryChunkRequest({
-      chunk,
-      message: input.source.slice(chunk.start, chunk.end),
-      sourceHash: input.sourceHash,
-      sourceMessageId: input.compaction.sourceMessageId,
-    });
-  } else {
-    if (chunking === null || chunking.mergeStatus !== "reserved") {
-      return {
-        durationMs: 0,
-        kind: "failed",
-        stopReason: "source_reference_invalid",
-      };
-    }
-
-    request = auxiliaryChunkMergeRequest({
-      chunking,
-      sourceHash: input.sourceHash,
-      sourceLength: input.source.length,
-      sourceMessageId: input.compaction.sourceMessageId,
-      targetTokens: input.compaction.targetTokenEstimate ?? 1,
-    });
   }
 
   const call = await invokeStructuredCompactionResponse(
     configuration,
     runtime,
     input,
-    request
+    prepared.request
   );
 
   if (call.kind === "failed") {
@@ -2624,9 +3506,9 @@ const invokeTextCompaction = async (
     };
   }
 
-  if (reservation.operation === "compact_text_chunk") {
+  if (prepared.chunk !== undefined) {
     return await chunkCompactionCallFromResponse({
-      chunk,
+      chunk: prepared.chunk,
       chunkIndex: reservation.chunkIndex,
       conversationContext,
       durationMs: call.durationMs,
@@ -2636,9 +3518,35 @@ const invokeTextCompaction = async (
     });
   }
 
+  if (prepared.mergeGroup !== undefined && reservation.chunkIndex !== null) {
+    const { chunking } = input.compaction;
+
+    if (chunking === null) {
+      return {
+        durationMs: call.durationMs,
+        kind: "failed",
+        stopReason: "source_reference_invalid",
+      };
+    }
+
+    return await mergeGroupCallFromResponse({
+      chunking,
+      conversationContext,
+      durationMs: call.durationMs,
+      groupIndex: reservation.chunkIndex,
+      model,
+      response: envelope.data.parsed,
+      source: input.source,
+      sourceHash: input.sourceHash,
+    });
+  }
+
   const compacted = parseCompactionOperation({
-    chunking,
-    operation: reservation.operation,
+    chunking: input.compaction.chunking,
+    operation:
+      reservation.operation === "merge_text_chunks"
+        ? "merge_text_chunks"
+        : "compact_text",
     requiredAliases,
     response: envelope.data.parsed,
     source: input.source,
@@ -2655,6 +3563,163 @@ const invokeTextCompaction = async (
     instructionTokens,
     kind: "completed",
   };
+};
+
+const primaryRequestReservationForReadyCompaction = (
+  state: AgentStateType,
+  compaction: ContextProcessingCompaction,
+  runId: string | undefined
+): AgentStateType["providerOverflowRecovery"] => {
+  if (compaction.status !== "ready") {
+    return null;
+  }
+
+  const message = latestHumanMessage(state.messages);
+  const recovery = state.providerOverflowRecovery;
+
+  if (message === undefined || recovery?.recoveryAllowanceOpen !== true) {
+    return null;
+  }
+
+  const sourceText = messageText(message);
+
+  if (recovery.primaryRequestReserved) {
+    return null;
+  }
+
+  if (
+    recovery.runId !== (runId ?? null) ||
+    !contextProcessingRequestMatches(
+      recovery,
+      message.id,
+      sourceText,
+      state.messages.length
+    )
+  ) {
+    return null;
+  }
+
+  return { ...recovery, primaryRequestReserved: true };
+};
+
+const failedTextCompactionUpdate = async (
+  configuration: TextCompactionNodeConfiguration,
+  input: ReservedTextCompaction,
+  call: Extract<TextCompactionCall, { kind: "failed" }>
+): Promise<Partial<AgentStateType>> => {
+  if (call.stopReason === "provider_overflow") {
+    const splitUpdate = await splitTextChunkAfterProviderOverflow(
+      configuration,
+      input,
+      call.durationMs
+    );
+
+    if (splitUpdate !== null) {
+      return splitUpdate;
+    }
+
+    const mergeUpdate = await splitTextMergeAfterProviderOverflow(
+      configuration,
+      input,
+      call.durationMs
+    );
+
+    if (mergeUpdate !== null) {
+      return mergeUpdate;
+    }
+
+    if (
+      input.allowance.reservation?.operation === "compact_text_chunk" ||
+      input.allowance.reservation?.operation === "merge_text_chunks"
+    ) {
+      return failedCompactionUpdate(input, call.durationMs, "no_reduction");
+    }
+  }
+
+  return failedCompactionUpdate(input, call.durationMs, call.stopReason);
+};
+
+const textCompactionCallUpdate = async (input: {
+  call: TextCompactionCall;
+  configuration: TextCompactionNodeConfiguration;
+  input: ReservedTextCompaction;
+  runtime: ModelRuntime;
+  state: AgentStateType;
+}): Promise<Partial<AgentStateType>> => {
+  const { call, configuration, input: reservedInput, runtime, state } = input;
+
+  if (call.kind === "failed") {
+    const failedUpdate = await failedTextCompactionUpdate(
+      configuration,
+      reservedInput,
+      call
+    );
+
+    if (call.providerFailureCategory === undefined) {
+      return failedUpdate;
+    }
+
+    return {
+      ...failedUpdate,
+      faultTolerance: {
+        ...(state.faultTolerance ?? createInitialFaultToleranceState()),
+        failure: {
+          category: call.providerFailureCategory,
+          node: "understand_request",
+        },
+      },
+    };
+  }
+
+  if (call.kind === "chunk_completed") {
+    return compactionAfterChunkCall(reservedInput, call);
+  }
+
+  if (
+    call.kind === "merge_group_completed" ||
+    call.kind === "merge_group_ambiguous"
+  ) {
+    return compactionAfterMergeGroupCall(reservedInput, call);
+  }
+
+  const compaction = compactedRecordFromResponse(reservedInput, call);
+
+  const update: Partial<AgentStateType> = {
+    contextProcessing: {
+      allowance: allowanceAfterCompactionCall(
+        reservedInput.allowance,
+        call.durationMs
+      ),
+      clarification: reservedInput.clarification,
+      compaction,
+    },
+  };
+
+  const primaryRequestReservation = primaryRequestReservationForReadyCompaction(
+    state,
+    compaction,
+    runtime.executionInfo?.runId
+  );
+
+  const completedUpdate =
+    primaryRequestReservation === null
+      ? update
+      : { ...update, providerOverflowRecovery: primaryRequestReservation };
+
+  if (
+    compaction.status === "ready" &&
+    state.faultTolerance?.failure?.contextIssue === "provider_overflow"
+  ) {
+    return {
+      ...completedUpdate,
+      faultTolerance: {
+        ...(state.faultTolerance ?? createInitialFaultToleranceState()),
+        failure: null,
+      },
+    };
+  }
+
+  return completedUpdate;
 };
 
 const runTextCompactionNode =
@@ -2699,24 +3764,13 @@ const runTextCompactionNode =
       context
     );
 
-    if (call.kind === "failed") {
-      return failedCompactionUpdate(input, call.durationMs, call.stopReason);
-    }
-
-    if (call.kind === "chunk_completed") {
-      return compactionAfterChunkCall(input, call);
-    }
-
-    return {
-      contextProcessing: {
-        allowance: allowanceAfterCompactionCall(
-          input.allowance,
-          call.durationMs
-        ),
-        clarification: input.clarification,
-        compaction: compactedRecordFromResponse(input, call),
-      },
-    };
+    return await textCompactionCallUpdate({
+      call,
+      configuration,
+      input,
+      runtime,
+      state,
+    });
   };
 
 const compactionRoute = (state: AgentStateType): string => {
@@ -2749,6 +3803,11 @@ const compactionRoute = (state: AgentStateType): string => {
 
 const routeAfterTextCompaction = (state: AgentStateType): string => {
   const status = state.contextProcessing.compaction?.status;
+  const stopReason = state.contextProcessing.compaction?.stopReason;
+
+  if (status === "failed" && stopReason === "provider_overflow") {
+    return "prepare_context_processing";
+  }
 
   if (status === "ready") {
     return "understand_request";
@@ -2761,7 +3820,8 @@ const routeAfterTextCompaction = (state: AgentStateType): string => {
 
 const compactionStopAnswer = (
   status: ContextProcessingCompaction["status"] | undefined,
-  stopReason: ContextProcessingCompaction["stopReason"] | undefined
+  stopReason: ContextProcessingCompaction["stopReason"] | undefined,
+  providerFailureCategory: FaultCategory | undefined
 ): string => {
   if (status === "needs_chunking") {
     return "本轮用户指令超过单次自动处理的长度，原文已保留。请拆分或缩短请求后再继续。";
@@ -2781,6 +3841,29 @@ const compactionStopAnswer = (
 
   if (stopReason === "ambiguous_conditions") {
     return "原始球探指令中有条件不明确或相互冲突。原文已保留，请澄清相关条件后再继续。";
+  }
+
+  if (
+    providerFailureCategory === "authentication" ||
+    providerFailureCategory === "configuration"
+  ) {
+    return "模型服务凭据或配置无效，自动上下文处理未完成；原文和已有进度仍保留。";
+  }
+
+  if (providerFailureCategory === "quota") {
+    return "模型服务额度已用完，自动上下文处理未完成；原文和已有进度仍保留。";
+  }
+
+  if (providerFailureCategory === "rate_limit") {
+    return "模型服务正在限流，自动上下文处理未完成；原文和已有进度仍保留。";
+  }
+
+  if (
+    providerFailureCategory === "network" ||
+    providerFailureCategory === "server" ||
+    providerFailureCategory === "timeout"
+  ) {
+    return "模型服务暂时不可用，自动上下文处理未完成；原文和已有进度仍保留。";
   }
 
   return "本轮球探指令无法安全压缩，原文仍保留。请重述请求或澄清具体条件。";
@@ -2810,10 +3893,21 @@ const contextFailureForCompactionStop = (
 };
 
 const createTextCompactionAnswerNode =
-  (): GraphNode<typeof AgentState> => (state) => {
+  (): GraphNode<typeof AgentState> => (state, runtime) => {
     const { compaction } = state.contextProcessing;
     const { stopReason, status } = compaction ?? {};
-    const answer = compactionStopAnswer(status, stopReason);
+
+    const providerFailure =
+      status === "failed" && stopReason === "provider_failure"
+        ? state.faultTolerance.failure
+        : null;
+
+    const answer = compactionStopAnswer(
+      status,
+      stopReason,
+      providerFailure?.category
+    );
+
     const initialFaultTolerance = createInitialFaultToleranceState();
 
     if (
@@ -2843,10 +3937,40 @@ const createTextCompactionAnswerNode =
 
     const faultTolerance = {
       ...initialFaultTolerance,
-      failure: contextFailureForCompactionStop(status, stopReason),
+      failure:
+        contextFailureForCompactionStop(status, stopReason) ?? providerFailure,
     };
 
+    const sourceMessage = latestHumanMessage(state.messages);
+    const recoveryNode = state.providerOverflowRecovery?.node;
+
+    const recovery =
+      sourceMessage === undefined || recoveryNode === undefined
+        ? null
+        : primaryOverflowRecoveryFor(
+            state,
+            recoveryNode,
+            sourceMessage,
+            state.messages.length
+          );
+
+    const recoverySettlement =
+      recovery?.recoveryAllowanceOpen === true &&
+      !recovery.primaryRequestReserved &&
+      sourceMessage !== undefined
+        ? settlePrimaryOverflowRecoveryFailure({
+            message: sourceMessage,
+            messageCount: state.messages.length,
+            node: recovery.node,
+            requestAttemptsUsed: recovery.operationRequestsUsed,
+            requestDurationMs: 0,
+            runId: runtime.executionInfo?.runId,
+            state,
+          })
+        : null;
+
     return {
+      ...recoverySettlement,
       faultTolerance,
       messages: [new AIMessage(answer)],
       outcome: null,

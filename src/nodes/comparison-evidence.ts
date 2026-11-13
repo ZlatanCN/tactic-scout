@@ -7,10 +7,15 @@ import {
   comparisonBatchPrompt,
   comparisonBatchIsComplete,
   comparisonEvidenceProjections,
+  comparisonEvidenceProjectionsForBatchSizes,
   comparisonEvidenceQuestionMessage,
 } from "../comparison-evidence.js";
 import { contextProcessingEvidenceOperation } from "../context-processing-state.js";
 import type { ContextProcessingAllowanceConfiguration } from "../context-processing-state.js";
+import {
+  evidenceBatchReferenceCount,
+  splitEvidenceBatchProjections,
+} from "../evidence-batch-planning.js";
 import { assessModelRequest } from "../model-context.js";
 import type { ModelContextConfiguration } from "../model-context.js";
 import type { AgentStateType } from "../state.js";
@@ -50,7 +55,10 @@ const comparisonEvidenceProjectionsWithinBudget = async (
   }
 
   return await largestFittingEvidencePlan(
-    singleParticipantProjections.length,
+    Math.min(
+      singleParticipantProjections.length,
+      task.maxItemsPerBatch ?? singleParticipantProjections.length
+    ),
     task.deadlineAt,
     (participantsPerBatch) =>
       participantsPerBatch === 1
@@ -74,6 +82,30 @@ const comparisonEvidenceProjectionsWithinBudget = async (
         ]
       )
   );
+};
+
+const comparisonParticipantCount = (projectionJson: string): number =>
+  evidenceBatchReferenceCount(projectionJson, "participantRefs");
+
+const splitComparisonEvidenceBatch = (
+  task: EvidenceTask,
+  batches: NonNullable<AgentStateType["comparisonEvidence"]>["batches"],
+  batchIndex: number
+): EvidenceProjection[] | null => {
+  const batchPlan = batches.map(({ projectionJson }) => ({
+    size: comparisonParticipantCount(projectionJson),
+  }));
+
+  return splitEvidenceBatchProjections({
+    batchIndex,
+    batchPlan,
+    projectBatchPlan: (plan) =>
+      comparisonEvidenceProjectionsForBatchSizes(
+        task.resultJson,
+        task.source,
+        plan.map(({ size }) => size)
+      ),
+  });
 };
 
 const comparisonEvidenceWorkflow = (
@@ -123,6 +155,7 @@ const comparisonEvidenceWorkflow = (
       return false;
     }
   },
+  splitBatch: splitComparisonEvidenceBatch,
   systemPrompt: comparisonBatchPrompt,
   transformAnswer: (answer, projectionJson) =>
     correctComparisonEvidenceBatchAnswer(answer, projectionJson) ?? answer,

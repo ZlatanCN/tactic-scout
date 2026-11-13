@@ -13,7 +13,10 @@ import {
   waitForRetryDelay,
 } from "./fault-tolerance.js";
 import type { FaultCategory } from "./fault-tolerance.js";
-import { createModelContextError } from "./model-context.js";
+import {
+  createModelContextError,
+  isProviderContextOverflow,
+} from "./model-context.js";
 
 const headersSchema = z.union([
   z.instanceof(Headers),
@@ -35,41 +38,6 @@ const modelErrorDetailsSchema = z.looseObject({
   status: z.number().int().nullable().optional(),
 });
 
-const providerContextOverflowCodes = new Set([
-  "context_length_exceeded",
-  "context_window_exceeded",
-  "input_too_long",
-  "max_context_length_exceeded",
-]);
-
-const isProviderContextOverflow = (error: Error): boolean => {
-  const details = modelErrorDetailsSchema.safeParse(error);
-
-  const providerCodes = details.success
-    ? [details.data.code, details.data.error?.code, details.data.cause?.code]
-    : [];
-
-  if (
-    providerCodes.some(
-      (code) =>
-        code !== undefined &&
-        code !== null &&
-        providerContextOverflowCodes.has(code.toLowerCase())
-    )
-  ) {
-    return true;
-  }
-
-  const message = error.message.toLowerCase();
-
-  return [
-    "context length exceeded",
-    "maximum context length",
-    "maximum context window",
-    "too many tokens for the model",
-  ].some((phrase) => message.includes(phrase));
-};
-
 type ModelFailure = {
   category: FaultCategory;
   message: string;
@@ -83,14 +51,24 @@ type ModelCall<Value> =
   | { value: Value };
 
 type ModelRequestBudget = {
+  activeTimeUsedMs: () => number;
   canMakeRequest: () => boolean;
   lastRequestDurationMs: () => number | undefined;
   logRepair: () => void;
+  remainingRequests: () => number;
   invoke: <Value>(
     request: (signal?: AbortSignal) => Promise<Value>,
     options?: { allowRateLimitRetry?: boolean }
   ) => Promise<Value>;
   requestsUsed: () => number;
+  remainingActiveTimeMs: () => number;
+};
+
+type ModelRequestBudgetOptions = {
+  maximumRequests?: number;
+  maximumActiveTimeMs?: number;
+  previousRequestsUsed?: number;
+  retryTransientFailuresInternally?: boolean;
 };
 
 type ModelRuntime = {
@@ -256,21 +234,62 @@ const modelFailureFromError = (error: Error): ModelFailure | null => {
 const createModelRequestBudget = (
   runtime: ModelRuntime,
   node: string,
-  maximumRequests = maxExternalRequests
+  maximumRequests = maxExternalRequests,
+  budgetOptions: ModelRequestBudgetOptions = {}
 ): ModelRequestBudget => {
-  let requests = Math.min(
+  const requestLimit = Math.min(
     maximumRequests,
-    Math.max(0, (runtime.executionInfo?.nodeAttempt ?? 1) - 1)
+    budgetOptions.maximumRequests ?? maximumRequests
+  );
+
+  let requests = Math.min(
+    requestLimit,
+    Math.max(
+      0,
+      (runtime.executionInfo?.nodeAttempt ?? 1) - 1,
+      budgetOptions.previousRequestsUsed ?? 0
+    )
   );
 
   let latestDurationMs: number | undefined;
+  let activeTimeUsedMs = 0;
+
+  const remainingActiveTimeMs = (): number =>
+    Math.max(
+      0,
+      (budgetOptions.maximumActiveTimeMs ?? Number.POSITIVE_INFINITY) -
+        activeTimeUsedMs
+    );
 
   const callOnce = async <Value>(
     request: (signal?: AbortSignal) => Promise<Value>
   ): Promise<ModelCall<Value>> => {
+    const activeTimeRemaining = remainingActiveTimeMs();
+
+    if (activeTimeRemaining <= 0) {
+      return {
+        durationMs: 0,
+        failure: {
+          category: "context_limit",
+          message: "The context-processing time allowance is exhausted.",
+          retryable: false,
+        },
+      };
+    }
+
     requests += 1;
     const startedAt = Date.now();
-    const timeoutSignal = AbortSignal.timeout(modelRequestTimeoutMs);
+
+    const timeoutSignal = AbortSignal.timeout(
+      Math.min(modelRequestTimeoutMs, activeTimeRemaining)
+    );
+
+    const recordDuration = (): number => {
+      latestDurationMs = Math.max(0, Date.now() - startedAt);
+      activeTimeUsedMs += latestDurationMs;
+
+      return latestDurationMs;
+    };
 
     const signal =
       runtime.signal === undefined
@@ -279,7 +298,7 @@ const createModelRequestBudget = (
 
     try {
       const value = await request(signal);
-      latestDurationMs = Date.now() - startedAt;
+      const durationMs = recordDuration();
 
       if (runtime.signal !== undefined && runtime.signal.aborted) {
         throw (
@@ -290,7 +309,7 @@ const createModelRequestBudget = (
 
       if (timeoutSignal.aborted) {
         return {
-          durationMs: latestDurationMs,
+          durationMs,
           failure: {
             category: "timeout",
             message: failureMessage("timeout"),
@@ -301,7 +320,7 @@ const createModelRequestBudget = (
 
       return { value };
     } catch (error) {
-      latestDurationMs = Date.now() - startedAt;
+      const durationMs = recordDuration();
 
       if (runtime.signal !== undefined && runtime.signal.aborted) {
         throw error;
@@ -309,7 +328,7 @@ const createModelRequestBudget = (
 
       if (timeoutSignal.aborted) {
         return {
-          durationMs: latestDurationMs,
+          durationMs,
           failure: {
             category: "timeout",
             message: failureMessage("timeout"),
@@ -323,7 +342,11 @@ const createModelRequestBudget = (
       }
 
       if (isProviderContextOverflow(error)) {
-        throw createModelContextError("provider_overflow");
+        throw createModelContextError(
+          "provider_overflow",
+          activeTimeUsedMs,
+          requests
+        );
       }
 
       const failure = modelFailureFromError(error);
@@ -332,8 +355,73 @@ const createModelRequestBudget = (
         throw error;
       }
 
-      return { durationMs: Date.now() - startedAt, failure };
+      return { durationMs, failure };
     }
+  };
+
+  const waitForActiveRetryDelay = async (
+    requestedMs: number
+  ): Promise<void> => {
+    const waitDurationMs = Math.max(
+      0,
+      Math.min(requestedMs, remainingActiveTimeMs())
+    );
+
+    const waitStartedAt = Date.now();
+
+    try {
+      await waitForRetryDelay(waitDurationMs, runtime.signal);
+    } finally {
+      activeTimeUsedMs += Math.max(0, Date.now() - waitStartedAt);
+    }
+  };
+
+  const retryTransientFailures = async <Value>(
+    request: (signal?: AbortSignal) => Promise<Value>,
+    initialFailure: ModelCall<Value>
+  ): Promise<Value> => {
+    let lastFailure = initialFailure;
+
+    for (
+      let retriesRemaining = requestLimit - requests;
+      retriesRemaining > 0 &&
+      !("value" in lastFailure) &&
+      lastFailure.failure.retryable &&
+      remainingActiveTimeMs() > 0;
+      retriesRemaining -= 1
+    ) {
+      logFaultEvent({
+        attempt: requests,
+        category: lastFailure.failure.category,
+        durationMs: lastFailure.durationMs,
+        event: "retry",
+        node,
+        runId: runtime.executionInfo?.runId,
+        threadId: runtime.executionInfo?.threadId,
+      });
+
+      // eslint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- Retries share the preceding response and remaining budget.
+      await waitForActiveRetryDelay(Math.floor(250 + Math.random() * 1000));
+      // eslint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- The next model response determines the following retry.
+      lastFailure = await callOnce(request);
+    }
+
+    if ("value" in lastFailure) {
+      return lastFailure.value;
+    }
+
+    throw createExternalFaultError({
+      category: lastFailure.failure.category,
+      durationMs: activeTimeUsedMs,
+      message: lastFailure.failure.message,
+      node,
+      provider: "model",
+      providerCode: lastFailure.failure.providerCode,
+      requestsUsed: requests,
+      retryable: false,
+      runId: runtime.executionInfo?.runId,
+      threadId: runtime.executionInfo?.threadId,
+    });
   };
 
   const finishRateLimitRetry = async <Value>(
@@ -344,7 +432,7 @@ const createModelRequestBudget = (
       return retry.value;
     }
 
-    if (retry.failure.retryable && requests < maximumRequests) {
+    if (retry.failure.retryable && requests < requestLimit) {
       logFaultEvent({
         attempt: requests,
         category: retry.failure.category,
@@ -354,12 +442,18 @@ const createModelRequestBudget = (
         runId: runtime.executionInfo?.runId,
         threadId: runtime.executionInfo?.threadId,
       });
-      await waitForRetryDelay(250 + Math.random() * 1000, runtime.signal);
+
+      const waitDurationMs = Math.floor(250 + Math.random() * 1000);
+      await waitForActiveRetryDelay(waitDurationMs);
 
       const finalAttempt = await callOnce(request);
 
       if ("value" in finalAttempt) {
         return finalAttempt.value;
+      }
+
+      if (budgetOptions.retryTransientFailuresInternally === true) {
+        return await retryTransientFailures(request, finalAttempt);
       }
 
       throw createExternalFaultError({
@@ -390,12 +484,22 @@ const createModelRequestBudget = (
     });
   };
 
-  const invoke = async <Value>(
-    request: (signal?: AbortSignal) => Promise<Value>,
-    options: { allowRateLimitRetry?: boolean } = {}
-  ): Promise<Value> => {
-    if (requests >= maximumRequests) {
-      throw createExternalFaultError({
+  const requestBudgetExhaustion = (): Error | null => {
+    if (remainingActiveTimeMs() <= 0) {
+      return createExternalFaultError({
+        category: "context_limit",
+        message: "The context-processing time allowance is exhausted.",
+        node,
+        provider: "model",
+        requestsUsed: requests,
+        retryable: false,
+        runId: runtime.executionInfo?.runId,
+        threadId: runtime.executionInfo?.threadId,
+      });
+    }
+
+    if (requests >= requestLimit) {
+      return createExternalFaultError({
         category: "attempt_limit",
         message: failureMessage("attempt_limit"),
         node,
@@ -405,6 +509,19 @@ const createModelRequestBudget = (
         runId: runtime.executionInfo?.runId,
         threadId: runtime.executionInfo?.threadId,
       });
+    }
+
+    return null;
+  };
+
+  const invoke = async <Value>(
+    request: (signal?: AbortSignal) => Promise<Value>,
+    options: { allowRateLimitRetry?: boolean } = {}
+  ): Promise<Value> => {
+    const exhaustion = requestBudgetExhaustion();
+
+    if (exhaustion !== null) {
+      throw exhaustion;
     }
 
     const first = await callOnce(request);
@@ -423,7 +540,7 @@ const createModelRequestBudget = (
     const canRetryRateLimit =
       options.allowRateLimitRetry !== false &&
       hasRetryableRateLimit &&
-      requests < maximumRequests;
+      requests < requestLimit;
 
     if (canRetryRateLimit && rateLimit !== undefined) {
       logFaultEvent({
@@ -435,9 +552,16 @@ const createModelRequestBudget = (
         runId: runtime.executionInfo?.runId,
         threadId: runtime.executionInfo?.threadId,
       });
-      await waitForRetryDelay(rateLimit.retryAfterMs, runtime.signal);
+      await waitForActiveRetryDelay(rateLimit.retryAfterMs);
 
       return await finishRateLimitRetry(request, await callOnce(request));
+    }
+
+    if (
+      budgetOptions.retryTransientFailuresInternally === true &&
+      first.failure.retryable
+    ) {
+      return await retryTransientFailures(request, first);
     }
 
     throw createExternalFaultError({
@@ -448,14 +572,16 @@ const createModelRequestBudget = (
       provider: "model",
       providerCode: first.failure.providerCode,
       requestsUsed: requests,
-      retryable: first.failure.retryable && requests < maximumRequests,
+      retryable: first.failure.retryable && requests < requestLimit,
       runId: runtime.executionInfo?.runId,
       threadId: runtime.executionInfo?.threadId,
     });
   };
 
   return {
-    canMakeRequest: () => requests < maximumRequests,
+    activeTimeUsedMs: () => activeTimeUsedMs,
+    canMakeRequest: () =>
+      requests < requestLimit && remainingActiveTimeMs() > 0,
     invoke,
     lastRequestDurationMs: () => latestDurationMs,
     logRepair: () => {
@@ -469,6 +595,9 @@ const createModelRequestBudget = (
         threadId: runtime.executionInfo?.threadId,
       });
     },
+    remainingActiveTimeMs,
+    remainingRequests: () =>
+      remainingActiveTimeMs() > 0 ? Math.max(0, requestLimit - requests) : 0,
     requestsUsed: () => requests,
   };
 };
@@ -479,7 +608,9 @@ const isRequestOutputValidationError = (error: Error): boolean =>
   error.message.startsWith("Failed to parse");
 
 const modelFailureCategory = (error: Error): FaultCategory | null =>
-  externalFaultFrom(error)?.category ?? null;
+  externalFaultFrom(error)?.category ??
+  modelFailureFromError(error)?.category ??
+  null;
 
 export {
   createModelRequestBudget,
@@ -487,4 +618,4 @@ export {
   modelFailureCategory,
 };
 
-export type { ModelRequestBudget, ModelRuntime };
+export type { ModelRequestBudget, ModelRequestBudgetOptions, ModelRuntime };

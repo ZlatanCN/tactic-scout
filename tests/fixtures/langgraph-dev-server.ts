@@ -37,6 +37,8 @@ type LocalGateway = {
   eventUrl: string;
   events: () => string[];
   failModelCallsAt: (callNumbers: number[]) => void;
+  overflowModelCallsAt: (callNumbers: number[]) => void;
+  ambiguousCompactionCallsAt: (callNumbers: number[]) => void;
   providerUrl: string;
   url: string;
 };
@@ -113,6 +115,7 @@ const threadStateSchema = z.looseObject({
                     targetTokenEstimate: z.number(),
                   })
                 ),
+                mergeGroups: z.array(z.unknown()).optional(),
                 mergeStatus: z.string(),
                 nextStart: z.number(),
                 sourceHash: z.string(),
@@ -677,12 +680,34 @@ const fixtureExtractions = new Map<string, FixtureExtraction>([
   ],
 ]);
 
-const requestExtractionForFixtureText = (message: string) =>
-  fixtureExtractions.get(message) ?? null;
+const requestExtractionForFixtureText = (message: string) => {
+  if (
+    message.includes(`Look up ${fixtureKaneName}`) &&
+    message.includes("2025/26")
+  ) {
+    return {
+      constraints: [{ name: "understatSeasonStartYear", value: "2025" }],
+      kind: "player_lookup" as const,
+      players: [fixturePlayer(fixtureKaneName)],
+      teams: [],
+    };
+  }
+
+  if (message.startsWith(`Look up ${fixtureKaneName}.`)) {
+    return {
+      constraints: [],
+      kind: "player_lookup" as const,
+      players: [fixturePlayer(fixtureKaneName)],
+      teams: [],
+    };
+  }
+
+  return fixtureExtractions.get(message) ?? null;
+};
 
 type CompactionFixtureArguments = {
   ambiguities: string[];
-  anchors: { kind: "participant"; text: string }[];
+  anchors: { kind: "participant" | "season"; text: string }[];
   instruction: string;
   references: {
     anchorIndex: number;
@@ -699,30 +724,108 @@ type StructuredFixtureArguments =
 const compactionArgumentsForFixtureText = (
   message: string
 ): CompactionFixtureArguments | null => {
-  const participant = "Harry Kane";
-  const start = message.indexOf(participant);
+  const anchors: CompactionFixtureArguments["anchors"] = [
+    fixtureKaneName,
+    fixtureHaalandName,
+  ].flatMap((text) =>
+    message.includes(text) ? [{ kind: "participant" as const, text }] : []
+  );
 
-  if (start === -1) {
-    return {
-      ambiguities: [],
-      anchors: [],
-      instruction: "No scouting constraints in this fragment.",
-      references: [],
-    };
+  const references = anchors.map(({ text }, anchorIndex) => {
+    const start = message.indexOf(text);
+
+    return { anchorIndex, end: start + text.length, start, text };
+  });
+
+  const seasonMatches = [...message.matchAll(/\b\d{4}\/\d{2}\b/gu)];
+
+  for (const match of seasonMatches) {
+    const [text] = match;
+    const { index: start } = match;
+
+    anchors.push({ kind: "season", text });
+    references.push({
+      anchorIndex: anchors.length - 1,
+      end: start + text.length,
+      start,
+      text,
+    });
   }
 
   return {
     ambiguities: [],
-    anchors: [{ kind: "participant", text: participant }],
-    instruction: `Look up ${participant}`,
-    references: [
-      {
-        anchorIndex: 0,
-        end: start + participant.length,
-        start,
-        text: participant,
-      },
-    ],
+    anchors,
+    instruction:
+      anchors.length === 0
+        ? "No scouting constraints in this fragment."
+        : `Look up ${anchors.map(({ text }) => text).join(" and ")}`,
+    references,
+  };
+};
+
+const compactionMergeArgumentsForFixtureText = (
+  message: string
+): CompactionFixtureArguments | null => {
+  let input: unknown;
+
+  try {
+    input = JSON.parse(message);
+  } catch {
+    return null;
+  }
+
+  const parsed = z
+    .looseObject({
+      chunks: z.array(
+        z.looseObject({
+          ambiguities: z.array(z.string()).optional(),
+          anchors: z
+            .array(
+              z.object({
+                kind: z.enum(["participant", "season"]),
+                text: z.string(),
+              })
+            )
+            .optional(),
+          references: z
+            .array(
+              z.object({
+                anchorIndex: z.number(),
+                end: z.number(),
+                start: z.number(),
+                text: z.string(),
+              })
+            )
+            .optional(),
+        })
+      ),
+      operation: z.literal("merge_text_chunks"),
+    })
+    .safeParse(input);
+
+  if (!parsed.success) {
+    return null;
+  }
+
+  const anchors = parsed.data.chunks.flatMap((chunk) => chunk.anchors ?? []);
+
+  const ambiguities = [
+    ...new Set(parsed.data.chunks.flatMap((chunk) => chunk.ambiguities ?? [])),
+  ];
+
+  return {
+    ambiguities,
+    anchors,
+    instruction:
+      anchors.length === 0
+        ? "No constraints."
+        : `Look up ${anchors.map(({ text }) => text).join(" and ")}`,
+    references: parsed.data.chunks.flatMap((chunk) =>
+      (chunk.references ?? []).map((reference) => ({
+        ...reference,
+        anchorIndex: anchors.findIndex(({ text }) => text === reference.text),
+      }))
+    ),
   };
 };
 
@@ -760,6 +863,73 @@ const structuredArgumentsForTool = (
   }
 
   return null;
+};
+
+const structuredArgumentsForModelCall = (
+  toolName: string | undefined,
+  message: string,
+  callNumber: number,
+  ambiguousCompactionCallNumbers: ReadonlySet<number>
+): StructuredFixtureArguments | null => {
+  if (toolName === "compact_scouting_instruction") {
+    const mergeArguments = compactionMergeArgumentsForFixtureText(message);
+
+    if (mergeArguments !== null) {
+      return mergeArguments;
+    }
+  }
+
+  if (
+    toolName === "compact_scouting_instruction" &&
+    ambiguousCompactionCallNumbers.has(callNumber)
+  ) {
+    const compaction = compactionArgumentsForFixtureText(message);
+
+    return compaction === null
+      ? null
+      : { ...compaction, ambiguities: ["Choose the season to continue."] };
+  }
+
+  return structuredArgumentsForTool(toolName, message);
+};
+
+const sendInjectedModelFailure = (
+  response: ServerResponse,
+  callNumber: number,
+  overflowModelCallNumbers: ReadonlySet<number>,
+  failedModelCallNumbers: ReadonlySet<number>
+): boolean => {
+  if (overflowModelCallNumbers.has(callNumber)) {
+    response.writeHead(400, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({
+        error: {
+          code: "context_length_exceeded",
+          message: "The request exceeds the maximum context length.",
+          type: "invalid_request_error",
+        },
+      })
+    );
+
+    return true;
+  }
+
+  if (failedModelCallNumbers.has(callNumber)) {
+    response.writeHead(503, { "content-type": "application/json" });
+    response.end(
+      JSON.stringify({
+        error: {
+          code: "temporary_model_failure",
+          message: "Injected persistence test model failure.",
+          type: "server_error",
+        },
+      })
+    );
+
+    return true;
+  }
+
+  return false;
 };
 
 type FakeProviderResponse = {
@@ -930,6 +1100,8 @@ const startGateway = async (): Promise<LocalGateway> => {
   const receivedCalls: string[] = [];
   const receivedEvents: string[] = [];
   const failedModelCallNumbers = new Set<number>();
+  const overflowModelCallNumbers = new Set<number>();
+  const ambiguousCompactionCallNumbers = new Set<number>();
   let extractionCallIndex = 0;
   let rosterMemoryFetchCount = 0;
   const eventSchema = z.object({ name: z.string() });
@@ -996,18 +1168,14 @@ const startGateway = async (): Promise<LocalGateway> => {
 
       receivedCalls.push(body);
 
-      if (failedModelCallNumbers.has(receivedCalls.length)) {
-        response.writeHead(503, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({
-            error: {
-              code: "temporary_model_failure",
-              message: "Injected persistence test model failure.",
-              type: "server_error",
-            },
-          })
-        );
-
+      if (
+        sendInjectedModelFailure(
+          response,
+          receivedCalls.length,
+          overflowModelCallNumbers,
+          failedModelCallNumbers
+        )
+      ) {
         return;
       }
 
@@ -1031,9 +1199,11 @@ const startGateway = async (): Promise<LocalGateway> => {
         sourceText = currentUserText(userText.data);
       }
 
-      const extractionArguments = structuredArgumentsForTool(
+      const extractionArguments = structuredArgumentsForModelCall(
         extractionTool,
-        sourceText
+        sourceText,
+        receivedCalls.length,
+        ambiguousCompactionCallNumbers
       );
 
       const structuredResponse =
@@ -1139,6 +1309,13 @@ const startGateway = async (): Promise<LocalGateway> => {
   const baseUrl = `http://127.0.0.1:${address.data.port}`;
 
   return {
+    ambiguousCompactionCallsAt: (callNumbers) => {
+      ambiguousCompactionCallNumbers.clear();
+
+      for (const callNumber of callNumbers) {
+        ambiguousCompactionCallNumbers.add(callNumber);
+      }
+    },
     calls: () => [...receivedCalls],
     close: async () => {
       server.closeAllConnections();
@@ -1151,6 +1328,13 @@ const startGateway = async (): Promise<LocalGateway> => {
 
       for (const callNumber of callNumbers) {
         failedModelCallNumbers.add(callNumber);
+      }
+    },
+    overflowModelCallsAt: (callNumbers) => {
+      overflowModelCallNumbers.clear();
+
+      for (const callNumber of callNumbers) {
+        overflowModelCallNumbers.add(callNumber);
       }
     },
     providerUrl: baseUrl,

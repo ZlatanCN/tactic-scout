@@ -8,7 +8,13 @@ import {
 } from "../context-processing-state.js";
 import type { ContextProcessingCompaction } from "../context-processing-state.js";
 import { createModelRequestBudget } from "../model-requests.js";
+import type { ModelRequestBudgetOptions } from "../model-requests.js";
 import { latestHumanMessage, messageText } from "../player-mentions.js";
+import {
+  primaryOverflowRecoveryBudgetOptions,
+  primaryOverflowRecoveryFor,
+  settlePrimaryOverflowRecovery,
+} from "../primary-overflow-recovery.js";
 import {
   isBlockedLookupFollowUp,
   isLookupFollowUpRequest,
@@ -312,7 +318,28 @@ const createRequestUnderstandingNode =
     }
 
     const originalText = messageText(latestUserMessage);
-    const budget = createModelRequestBudget(runtime, "understand_request");
+
+    const recovery = primaryOverflowRecoveryFor(
+      state,
+      "understand_request",
+      latestUserMessage,
+      state.messages.length
+    );
+
+    const budgetOptions: ModelRequestBudgetOptions =
+      primaryOverflowRecoveryBudgetOptions(
+        state,
+        recovery,
+        runtime.executionInfo?.runId
+      );
+
+    const budget = createModelRequestBudget(
+      runtime,
+      "understand_request",
+      undefined,
+      budgetOptions
+    );
+
     const previous = previousTurnSummary(state);
 
     const { compactedInstruction, text } = requestUnderstandingInputFor(
@@ -328,6 +355,15 @@ const createRequestUnderstandingNode =
       previous,
       compactedInstruction
     );
+
+    const finishRequest = (update: Partial<AgentStateType>) =>
+      settlePrimaryOverflowRecovery(
+        state,
+        recovery,
+        budget,
+        update,
+        runtime.executionInfo?.runId
+      );
 
     const specialRequestUpdate =
       memoryManagementRequestUpdate(
@@ -347,10 +383,10 @@ const createRequestUnderstandingNode =
       );
 
     if (specialRequestUpdate !== null) {
-      return {
+      return finishRequest({
         ...specialRequestUpdate,
         stateSchemaVersion: agentStateSchemaVersion,
-      };
+      });
     }
 
     const extracted =
@@ -365,7 +401,7 @@ const createRequestUnderstandingNode =
         : rawExtracted;
 
     if (extracted.kind === null) {
-      return {
+      return finishRequest({
         ...continuationRequestUpdate(
           state,
           contextWithComparison,
@@ -375,7 +411,7 @@ const createRequestUnderstandingNode =
           text
         ),
         stateSchemaVersion: agentStateSchemaVersion,
-      };
+      });
     }
 
     const built = requestFromCurrentTurn(
@@ -402,7 +438,7 @@ const createRequestUnderstandingNode =
       );
     }
 
-    return {
+    return finishRequest({
       conversationContext: contextWithComparison,
       faultTolerance: createInitialFaultToleranceState(),
       outcome,
@@ -410,7 +446,7 @@ const createRequestUnderstandingNode =
       playerMemoryStatus: createInitialPlayerMemoryStatus(),
       request: built.request,
       stateSchemaVersion: agentStateSchemaVersion,
-    };
+    });
   };
 
 export { createRequestUnderstandingNode };
