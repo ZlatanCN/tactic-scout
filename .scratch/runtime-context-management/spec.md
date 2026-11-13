@@ -1,9 +1,8 @@
 # 运行时上下文管理
 
-Status: open
-Label: ready-for-agent
+Status: resolved
 
-设计确认：2026-11-08，Q1–Q16。本规格已发布到项目的本地 issue tracker；功能尚未实现。
+设计确认：2026-11-08，Q1–Q16。本规格及实施票据 01–11 已完成。
 
 ## Problem Statement
 
@@ -151,4 +150,4 @@ Label: ready-for-agent
 - 发布时核对到持久化票据 01–07、其计划和规格均为 resolved，ADR-0011 记录实施完成。因此没有未完成的 Store 票据阻塞；实现前仍需核对最终 State / memory schema、来源再校验和 native interrupt 行为，基于完成后的实际基线整合。
 - [实施计划](plan.md) 记录六个实施阶段及确认的 15 项决定；[技术细则](design.md) 保留预算、数据表示和验收细节；[讨论记录](discussion.md) 保留逐项问答；[调研](research.md) 区分官方 / 开源实现和用户笔记中的设计建议。
 - 相关架构边界见 [ADR-0003](../../docs/adr/0003-codebase-module-boundaries.md)、[ADR-0008](../../docs/adr/0008-project-fault-tolerance.md)、[ADR-0010](../../docs/adr/0010-validated-workflow-snapshots-and-continuation.md)、[ADR-0011](../../docs/adr/0011-managed-persistence-and-confirmed-player-memory.md) 和 [ADR-0012](../../docs/adr/0012-model-input-budget-and-persisted-evidence.md)。
-- 规格 ready-for-agent 表示可按本地任务流程分派实施，不表示上下文管理已经实现或实施测试已经运行。
+- 2026-11-13 实施收尾：票据 01–11 全部 resolved；提交 `ba6372c`。`pnpm typecheck`、`ultracite check src tests evals CONTEXT.md` 及最终 `pnpm test`（141 个文件 / 539 个用例）通过。续接保真由固定模型 / provider 场景做确定性验证，没有运行 live semantic judge，也不把固定场景的结果外推到任意自然语言。
