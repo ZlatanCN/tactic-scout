@@ -1,67 +1,111 @@
-# TactiScout LangGraph Core
+# TactiScout
 
-这是一个从零重建的足球资料 Agent。每轮先把请求整理成结构化任务，再按任务进入查询、比较、球员推荐或球队定向推荐工作流。
+TactiScout 是基于 LangGraph.js 的足球资料 Agent。它从 Football Manager（FM）、Understat、Reep 身份注册表和可选的 API-Football 球队阵容中读取资料，用于球员查询、比较和推荐。
 
-```text
-用户消息 → 请求理解 → 球员身份解析 → 任务分流
-                              ├─ 单球员查询 → assistant ↔ search tool → 回答
-                              ├─ 多人比较 → compare node → compare tool → 总结
-                              ├─ 球员推荐 → recommendation node → FM ranker → 总结
-                              ├─ 球队推荐 → resolve_team → resolve_team_roster
-                              │                 → recommend_players_for_team → 总结
-                              └─ 需要确认 → interrupt → Command 恢复后继续原请求
-```
+项目目前面向本地开发和私有演示，没有前端或独立应用数据库。LangGraph 管理请求路由、澄清中断、线程状态和受管会话持久化。
 
-## 代码结构
+## 功能
 
-```text
-src/
-├── agent.ts                 # 组装图、路由条件边并编译
-├── state.ts                 # messages、请求、确认中断与 thread 上下文
-├── request-extraction.ts    # 结构化请求模型与提取规则
-├── player-mentions.ts       # 对话中的已确认中文别名识别
-├── nodes/                   # 实际加入 LangGraph 的节点
-├── player-data/             # FM/Understat 读取、身份解析与排序
-├── team-data/               # API-Football 适配器与阵容身份映射
-└── tools/                   # 图节点调用的数据工具
-```
+| 工作流 | 处理方式 |
+| --- | --- |
+| 球员查询 | 先解析球员身份，再用确认过的来源 ID 查询 FM 画像或 Understat 赛季记录。 |
+| 球员比较 | 确认参与者和范围后，由确定性比较节点读取数据；模型只解释已验证的结果。 |
+| 球员推荐 | 使用 FM 位置属性排序能力相似球员；用户询问潜力时，另列按 PA 排序的名单。 |
+| 球队推荐 | 解析 API-Football 球队和当前阵容，将阵容成员映射到 FM 画像后，按明确指定的位置推荐球员。 |
 
-请求理解节点提取任务类型、球员和球队提及，以及用户明确给出的条件。它只负责结构化请求，不规划执行步骤。需要确认身份时，图通过 `interrupt()` 暂停；调用方用同一个 `thread_id` 和 `Command({ resume })` 恢复。
+需要确认球员、球队、阵容映射或条件时，图会暂停并等待同一线程中的回复；恢复时继续原请求。
 
-`player_lookup` 进入模型和 `ToolNode` 循环。`player_comparison` 和球员推荐由确定性图节点直接调用对应工具。球员推荐按目标位置属性 RMSE 排名；高潜名单单独按 PA 排序。
+## 数据与身份边界
 
-球队推荐要求用户指定球队和 FM 位置。图通过 `resolve_team` 唯一识别 API-Football 球队，再由 `resolve_team_roster` 读取当前阵容并逐个映射到本地 FM 画像。中文名或简称可以先转换成 API-Football 搜索词；如果搜索词和用户原名不同，图会先请用户确认命中的球队。精确 Reep bridge 可自动映射；无 bridge 的同名画像必须由用户确认。任何队员无法映射时暂停推荐，避免把队内球员误报为候选。至少一名位置评分达到 15 且特征完整的队员才能形成团队参考画像；队员属性等权平均后复用现有 RMSE 排序，并排除全部已映射队员。结果分别显示阵容获取时间和 FM 快照日期。
+- FM 是固定日期的能力快照，只支持其中的 CA、PA、位置和属性；不能据此推断赛季表现、当前注册或转会状态。
+- Understat 记录属于具体赛事和赛季，不代表球员当前所在球队或实时状态。
+- 同名不代表同一身份。跨来源记录只有在 Reep 明确关联，或用户确认后，才能作为同一球员使用。
+- 球队推荐要求用户指定球队和 FM 位置。若阵容成员无法映射到本地 FM 画像，流程会暂停，不会猜身份或把该球员重新推荐出来。
+- API-Football 当前阵容在进程内缓存七天。API key 只从本地环境读取；不要提交密钥或公开分发原始阵容数据。
 
-球队阵容在进程内缓存七天。`API_FOOTBALL_KEY` 从本地 `.env` 读取，不要提交密钥；首版仅供本地或私有演示，不公开分发原始 API-Football 阵容数据。
+本地 FM、Understat 和 Reep SQLite 文件不包含在 Git 仓库中。启动前需准备相应数据，并让 `.env` 中的数据路径指向这些文件。FM 和 Understat 数据发送到模型前分别受来源处理许可控制，默认关闭。
 
-同一 thread 会保存最近一次成功的球员和球队推荐。只改筛选条件时继承成功请求的球队、位置与映射；失败或中断不会覆盖最近成功结果。通过 `pnpm dev` 启动的 Dev Server/Studio 使用 LangGraph 原生 Checkpointer 和 Store，正常停止并重启后可恢复 thread、interrupt 和球员记忆。直接调用 `createAgent()` 则默认使用进程内存储；不保证强杀或断电后恢复。项目没有前端、RAG 或应用数据库。
+## 本地启动
 
-## 启动
-
-需要 Node.js 22.13+、pnpm，以及已配置的 OpenAI 兼容模型网关。球队推荐还需要 API-Football API key。
+需要 Node.js 22.13 或更新版本、pnpm、可用的 OpenAI 兼容模型端点和本地资料数据库。
 
 ```bash
 pnpm install
 if [ ! -f .env ]; then cp .env.example .env; fi
-# 在 .env 中配置 OPENAI_API_KEY、模型网关和可选的 API_FOOTBALL_KEY
+```
+
+在 `.env` 中配置模型凭据。示例文件默认指向 `http://127.0.0.1:3425/v1` 的本地网关；如果你使用其他端点，请同步修改 `OPENAI_BASE_URL`。示例中的 `TACTISCOUT_MODEL_CONTEXT_PROFILE` 留空；自定义网关必须先填写匹配模型名和 base URL 的真实上下文能力，才能调用模型。球队推荐还需要 `API_FOOTBALL_KEY`。
+
+本地数据路径可按需修改：
+
+| 环境变量 | 示例默认路径 | 用途 |
+| --- | --- | --- |
+| `TACTISCOUT_FM_PROFILES_PATH` | `.data/fm/profiles-v2.sqlite` | FM 画像与位置评分 |
+| `TACTISCOUT_UNDERSTAT_DB_PATH` | `.data/understat/understat.sqlite` | Understat 赛季表现 |
+| `TACTISCOUT_REEP_IDENTITY_DB_PATH` | `.data/reep/identity-with-fm.sqlite` | 跨来源身份关联 |
+
+启动 LangGraph Dev Server：
+
+```bash
 pnpm dev
 ```
 
-`langgraph.json` 将 `agent` 图暴露给 LangGraph CLI 与 Studio。真实 `.env` 不提交到 Git。
+图 ID 为 `agent`，定义在 [`langgraph.json`](langgraph.json)。真实 `.env` 和 `.data/` 均被 Git 忽略。
 
-## 模型上下文预算
+### 自定义模型网关
 
-请求理解、球员查询工具循环和结果解释都在模型调用前估算完整输入，并为 ChatOpenAI 请求设置有限输出上限。官方 OpenAI 端点上有可信能力资料的模型可直接使用；自定义网关或未知模型必须在 `TACTISCOUT_MODEL_CONTEXT_PROFILE` 提供实际配置。JSON 至少包含匹配当前 `model` 与 `baseURL` 的标识、`maxOutputTokens`，以及 `contextWindowTokens` 或 `maxInputTokens`；官方端点的 `baseURL` 写 `null`。不要猜窗口大小。可选的 `countingMarginTokens`、`softTriggerFraction` 和 `targetFraction` 默认分别按 10% 余量、80% 软阈值和 60% 目标计算。
+可信官方端点上的已知模型可使用项目能力资料。自定义网关或未知模型需要在 `TACTISCOUT_MODEL_CONTEXT_PROFILE` 提供与当前模型名和 `baseURL` 精确匹配的 profile，其中必须包含实际的 `maxOutputTokens`，以及 `contextWindowTokens` 或 `maxInputTokens`。不要猜测模型窗口；profile 细节见 `.env.example` 和 [`model-context.ts`](src/model-context.ts)。
 
-Tokenizer 使用 LangChain `getNumTokens`。首次计数可能从 `tiktoken.pages.dev` 下载对应的 tokenizer 编码文件。计数余量默认取 64 tokens 与输入窗口 10% 中的较大值。输入超限、无法计数或窗口配置缺失时，图会在发送模型请求前明确停止。当前预算票实现检查和安全停止；自动文字压缩、长输入分块和大证据分批由后续上下文管理票据交付。
+FM 与 Understat 的远程模型处理许可单独配置：
 
-thread 恢复、interrupt 回答、记忆管理以及版本不兼容时的处理见[本地会话恢复说明](docs/local-development.md)。
-
-## 检查
-
-```bash
-pnpm test
-pnpm build
+```dotenv
+TACTISCOUT_FM_AI_PROCESSING_ALLOWED=false
+TACTISCOUT_UNDERSTAT_AI_PROCESSING_ALLOWED=false
 ```
 
-Vitest 使用假模型、模拟 API-Football 响应和固定 FM 数据，不调用真实模型或足球数据 API，也不消耗模型 / 数据配额。首次 tokenizer 计数仍可能下载公开编码文件。
+只有在理解并接受相应来源资料会发送给模型端点后，才为所需来源显式开启许可。
+
+## 运行时上下文管理
+
+每次模型调用前都会估算完整输入并应用有限输出上限。接近预算阈值时，系统会自动处理旧上下文；单条超长请求会分块提取并合并任务条件。大结果会按工作流投影和分批解释，同时保留完整原文、来源记录和已验证结果。
+
+每个请求默认最多使用 6 次额外上下文处理模型调用和 120 秒累计活动时间，两者任一耗尽即停止。失败和重试也计入额度；正常重启不会清零。只有上下文处理额度耗尽且源请求仍有效时，球探明确要求继续才会追加新额度。若处理仍无法完成，系统保留已完成数据并说明未完成范围。
+
+provider 实际报告输入溢出或模型输出被截断时，系统会在预算内缩减或恢复；不能恢复时不会把部分输出标记为完成。阈值、缓存失效和继续规则见[运行时上下文设计](.scratch/runtime-context-management/spec.md)与 [ADR-0012](docs/adr/0012-model-input-budget-and-persisted-evidence.md)。
+
+## 会话持久化
+
+通过 `pnpm dev` 启动的受管 Dev Server 在正常停止并重启后保留线程状态、待恢复的澄清和已保存结果。继续同一会话时使用原线程。直接在代码中调用 `createAgent()` 默认使用进程内存；它本身不提供重启恢复。强制终止进程、断电或存储损坏不在恢复保证范围内。
+
+球员身份记忆通过对话中的显式操作查看、纠正或删除；详见[本地会话恢复说明](docs/local-development.md)。
+
+## 开发与验证
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm exec ultracite check src tests evals CONTEXT.md
+```
+
+测试使用假模型、固定证据和本地模拟 provider；不会调用真实模型或足球数据 API。首次 tokenizer 计数可能从 `tiktoken.pages.dev` 下载编码文件。
+
+本地评测的 smoke、development、held-out 流程，固定证据准备和请求预算说明见 [`evals/README.md`](evals/README.md)；测试组织与选取测试边界见 [`tests/README.md`](tests/README.md)。
+
+## 代码导航
+
+```text
+src/
+├── agent.ts                 # StateGraph 组装和工作流路由
+├── state.ts                 # 请求、线程上下文、澄清与结果快照
+├── request-extraction.ts    # 结构化请求理解
+├── request-building.ts      # 当前轮请求构造和条件继承
+├── workflow-continuation.ts # 最近成功工作流和已保存结果续接
+├── context-processing-*.ts  # 上下文状态、额度和续接
+├── nodes/                   # LangGraph 节点
+├── player-data/             # FM、Understat、Reep 数据和身份逻辑
+├── team-data/               # API-Football 球队与阵容适配
+└── tools/                   # 模型可调用的数据工具
+```
+
+架构词汇见 [`CONTEXT.md`](CONTEXT.md)，已接受的架构决策见 [`docs/adr/`](docs/adr/)。
